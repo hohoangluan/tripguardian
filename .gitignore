@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+
+# Generated CA bundle (system CAs + certs/*.pem), machine-specific
+certs/uit-ca-bundle.pem

@@ -1,0 +1,10 @@
+---
+description: Always follow repo RULE.md (boundaries, schemas, docs, tests).
+alwaysApply: true
+---
+
+Tuân theo `RULE.md` ở root repo cho mọi task. Không chép lại nội dung ở đây.
+
+Tài liệu viết tiếng Việt; code, comment, identifier viết tiếng Anh (`RULE.md` §0).
+
+Đọc khi cần: `docs/ARCHITECTURE.md`, `docs/log/DEV_LOG.md`. `AGENTS.md` chỉ là file trỏ.
