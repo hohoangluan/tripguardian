@@ -1,5 +1,6 @@
 """Google Maps: search places per category, keep each place's details and reviews under data/gmaps/."""
 
+import asyncio
 import re
 from urllib.parse import quote
 
@@ -8,6 +9,7 @@ from playwright.async_api import BrowserContext, Page
 from .browser import LoginRequired, is_captcha, open_profile, pause
 from .files import (append_jsonl, author_hash, data_dir, load_config, log_error, now, safe_name, slug,
                     write_json)
+from .throttle import Throttle
 
 SEARCH_URL = "https://www.google.com/maps/search/{}?hl=vi"
 _FID = re.compile(r"!1s(0x[0-9a-f]+:0x[0-9a-f]+)")
@@ -16,6 +18,8 @@ HOURS_BUTTON = '[role="button"][jsaction*="openhours"][jsaction*="dropdown"]'
 SORT_BUTTON = 'button[aria-haspopup="true"][aria-label="Phù hợp nhất"]'  # label = current review order
 NEWEST_ITEM = '[role="menuitemradio"][data-index="1"]'  # "Mới nhất"; menu text is NFD, so match by position
 
+FEED_A = "a.hfpxzc"
+REVIEW_DIV = "div.jftiEf[data-review-id]"
 FEED_JS = "() => [...document.querySelectorAll('a.hfpxzc')].map(a => [a.getAttribute('aria-label'), a.href])"
 
 PLACE_JS = r"""() => {
@@ -79,6 +83,16 @@ async def ensure_login(ctx: BrowserContext) -> None:
         raise LoginRequired("gmaps")
 
 
+async def _more(page: Page, selector: str, n: int, timeout: int = 4000) -> bool:
+    """Wait for more than n matches after a scroll; False when nothing new loads (end of list)."""
+    try:
+        await page.wait_for_function("([s, n]) => document.querySelectorAll(s).length > n",
+                                     arg=[selector, n], timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
 async def _open(page: Page, url: str, selector: str) -> None:
     await page.goto(url, wait_until="domcontentloaded")
     try:
@@ -95,12 +109,13 @@ async def search(ctx: BrowserContext, query: str, limit: int) -> list[dict]:
         await _open(page, SEARCH_URL.format(quote(query)), 'div[role="feed"], h1.DUwDvf')
         feed = page.locator('div[role="feed"]')
         for _ in range(limit // 7 + 3):
-            if not await feed.count() or len(await page.evaluate(FEED_JS)) >= limit:
+            n = len(await page.evaluate(FEED_JS))
+            if not await feed.count() or n >= limit:
                 break
             if await page.get_by_text("Bạn đã xem hết danh sách này").count():
                 break
             await feed.evaluate("e => e.scrollBy(0, 5000)")
-            await page.wait_for_timeout(1500)
+            await _more(page, FEED_A, n)
         return (await parse_feed(page))[:limit]
     finally:
         await page.close()
@@ -132,10 +147,12 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int) -> tuple
                 await page.wait_for_timeout(1500)
             pane = page.locator("div.m6QErb.DxyBCb").first
             for _ in range(max_reviews // 10 + 3):
-                if len(await page.evaluate(REVIEWS_JS)) >= max_reviews:
+                n = await page.locator(REVIEW_DIV).count()
+                if n >= max_reviews:
                     break
                 await pane.evaluate("e => e.scrollBy(0, 5000)")
-                await page.wait_for_timeout(1500)
+                if not await _more(page, REVIEW_DIV, n):
+                    break  # all reviews loaded
             for more in await page.locator("button.w8nwRe:visible").all():  # "Thêm": expand long reviews
                 try:
                     await more.click(timeout=3000)
@@ -147,26 +164,52 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int) -> tuple
         await page.close()
 
 
+ATTEMPTS = 3  # per place, when the failure looks like a block
+
+
+async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Throttle) -> None:
+    d = root / "places" / safe_name(row["fid"])
+    for attempt in range(1, ATTEMPTS + 1):
+        async with throttle:
+            try:
+                place, reviews = await scrape_place(ctx, row["url"], c["max_reviews_per_place"])
+                write_json(d / "reviews.json", reviews)
+                write_json(d / "place.json", {**row, **place, "fetched_at": now()})  # written last = done
+                throttle.success()
+                return
+            except LoginRequired:
+                raise
+            except Exception as e:
+                if attempt < ATTEMPTS and type(e).__name__ == "TimeoutError":  # throttled pages stop rendering
+                    throttle.blocked()
+                    continue
+                log_error(root, row["fid"], "place", e)
+                return
+            finally:
+                await pause(*c.get("pause_s", (2.0, 5.0)))
+
+
 async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+    """Searches run one by one and feed places into shared tabs; safe to rerun (done places are skipped)."""
     name, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
+    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
+                        cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
+    seen: set[str] = set()  # fid, across queries: a place is scraped once per run
     async with profile("gmaps", headed) as ctx:
         await ensure_login(ctx)
-        for category in c["categories"]:
-            query = f"{category} {name}"
-            rows = await search(ctx, query, c["max_places_per_query"])
-            append_jsonl(root / "search" / city / f"{slug(query)}.jsonl", {"at": now(), "query": query, "items": rows})
-            for row in rows:
-                d = root / "places" / safe_name(row["fid"])
-                if (d / "place.json").exists():
-                    continue
-                try:
-                    place, reviews = await scrape_place(ctx, row["url"], c["max_reviews_per_place"])
-                    write_json(d / "reviews.json", reviews)
-                    write_json(d / "place.json", {**row, **place, "fetched_at": now()})  # written last = done
-                except LoginRequired:
-                    raise
-                except Exception as e:
-                    log_error(root, row["fid"], "place", e)
-                await pause(*c.get("pause_s", (2.0, 5.0)))
-            await pause(*c.get("pause_s", (2.0, 5.0)))
+        try:
+            async with asyncio.TaskGroup() as tg:  # one LoginRequired stops all
+                for category in c["categories"]:
+                    query = f"{category} {name}"
+                    rows = await search(ctx, query, c["max_places_per_query"])
+                    append_jsonl(root / "search" / city / f"{slug(query)}.jsonl",
+                                 {"at": now(), "query": query, "items": rows})
+                    for row in rows:
+                        if row["fid"] in seen or (root / "places" / safe_name(row["fid"]) / "place.json").exists():
+                            continue
+                        seen.add(row["fid"])
+                        tg.create_task(_place(ctx, row, root, c, throttle))
+                    await pause(*c.get("pause_s", (2.0, 5.0)))
+        except* LoginRequired as eg:
+            raise eg.exceptions[0] from None

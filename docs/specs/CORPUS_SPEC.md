@@ -66,9 +66,10 @@ data/
   tiktok/
     search/<city>/<query_slug>.jsonl     append mỗi lần search: {at, group, query, items:[{video_id, url, author_id, desc, created_at, hashtags}]}
     videos/<video_id>/
-      info.json                          item JSON thô của API search
-      comments.json                      comment + reply: [{comment_id, author_hash, text, created_at, likes, reply_count, parent_id}]
-                                         parent_id = comment_id của comment cha (null với comment cấp 1)
+      info.json                          item JSON thô của API search (đủ mọi field)
+      video.json                         bản đọc được: {video_id, video_url, video_path (tương đối DATA_DIR), caption, hashtags,
+                                         author_id, created_at, stats, fetched_at, comments:[{comment_id, author_hash, text,
+                                         created_at, likes, replies:[…]}]}; reply mất comment cha nằm ở comments kèm reply_to
       video.mp4                          ghi cuối cùng = video đã xong
     errors.jsonl                         {at, id, stage, error}
   gmaps/
@@ -85,7 +86,7 @@ data/
 - Mục có file đánh dấu xong → bỏ qua; thiếu → lần chạy sau tải lại cả mục. Lỗi một mục → `errors.jsonl`, đi tiếp.
 - Text Maps (`hours`, `status`, `attributes`, `popular_times`, `published_text`) giữ nguyên văn. Không lưu tên người comment / review: `author_hash` = sha256(id)[:16].
 - Crawl thật chạy `--headed`: Maps headless trả trang thiếu (không review, không giờ cao điểm).
-- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. TikTok xử lý video của một lần search song song, số tab tự dò trong khoảng 1..`tabs` (giảm nửa khi bị chặn; mức đạt lưu ở `tiktok/throttle.json`); Maps tuần tự. Nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
+- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. TikTok xử lý video song song, số tab tự dò trong khoảng 1..`tabs` (giảm nửa và nghỉ khi bị chặn; mức đạt lưu ở `tiktok/throttle.json`), mp4 tải ngoài tab; Maps tuần tự. Nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
 
 ### 2. Extract (theo video)
 

@@ -49,6 +49,30 @@ def parse_comments(payload: dict) -> tuple[list[dict], bool]:
     return comments, bool(payload.get("has_more"))
 
 
+_COMMENT_KEYS = ("comment_id", "author_hash", "text", "created_at", "likes")
+
+
+def video_doc(it: dict, rows: list[dict], video_path: str) -> dict:
+    """One readable record per video: url, local path, caption, stats, comments with their replies nested."""
+    top = [{**{k: r.get(k) for k in _COMMENT_KEYS}, "replies": []} for r in rows if not r.get("parent_id")]
+    by_id = {c["comment_id"]: c for c in top}
+    for r in rows:
+        parent = r.get("parent_id")
+        if not parent:
+            continue
+        reply = {k: r.get(k) for k in _COMMENT_KEYS}
+        if parent in by_id:
+            by_id[parent]["replies"].append(reply)
+        else:
+            top.append({**reply, "reply_to": parent, "replies": []})  # parent not served by TikTok
+    return {
+        "video_id": it["video_id"], "video_url": it["url"], "video_path": video_path,
+        "caption": it.get("desc", ""), "hashtags": it.get("hashtags", []), "author_id": it.get("author_id"),
+        "created_at": it.get("created_at"), "stats": (it.get("raw") or {}).get("stats") or {},
+        "fetched_at": now(), "comments": top,
+    }
+
+
 async def ensure_login(ctx: BrowserContext) -> None:
     # Logged-out sessions get empty search results instead of an error.
     if not any(c["name"] == "sessionid" for c in await ctx.cookies("https://www.tiktok.com")):
@@ -67,13 +91,39 @@ async def _expand(page, selector: str) -> int:
     return n
 
 
+ROUND_S = 1.5  # max wait for the next API page after each scroll
+SETTLE_S = 1.0  # a list is finished once no API response arrived for this long
+_HEAVY = {"media"}  # video streams; the mp4 is fetched directly. Blocking images/fonts hides the comment button.
+
+
+async def _skip_heavy(route) -> None:
+    if route.request.resource_type in _HEAVY:
+        await route.abort()
+    else:
+        await route.continue_()
+
+
+async def _next_response(arrived: asyncio.Event, timeout: float) -> bool:
+    try:
+        await asyncio.wait_for(arrived.wait(), timeout)
+        return True
+    except TimeoutError:
+        return False
+    finally:
+        arrived.clear()
+
+
 async def _collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: int | None,
                    click: str | None = None, scroll_to: str | None = None, expand: str | None = None) -> list[dict]:
-    """apis maps API path -> parser; the first path's has_more decides when the list ends."""
+    """apis maps API path -> parser; the first path's has_more decides when the list ends.
+
+    Waits are driven by API responses: each round moves on as soon as the next page lands.
+    """
     page = await ctx.new_page()
+    await page.route("**/*", _skip_heavy)
     got: dict[str, dict] = {}  # by id: TikTok re-sends pages it already served
     more = [True]
-
+    arrived = asyncio.Event()
     main = next(iter(apis))
 
     async def on_response(r):
@@ -88,17 +138,19 @@ async def _collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: i
         got.update((row[key], row) for row in rows if row[key] not in got)
         if api == main:
             more[0] = has_more
+        arrived.set()
 
     page.on("response", on_response)
     try:
         await page.goto(url, wait_until="domcontentloaded")
         if click:
-            await page.wait_for_timeout(2000)
+            button = page.locator(click).filter(visible=True).first
+            await button.wait_for(timeout=15000)
             await wait_for_person(page, "tiktok")
-            await page.locator(click).filter(visible=True).first.click(timeout=15000)
+            await button.click(timeout=15000)
         seen = stale = 0
         while True:
-            await page.wait_for_timeout(1000)
+            await _next_response(arrived, ROUND_S)
             await wait_for_person(page, "tiktok")
             opened = await _expand(page, expand) if expand else 0
             if ((limit and len(got) >= limit) or not more[0]) and not opened:
@@ -107,10 +159,14 @@ async def _collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: i
             if stale >= (3 if got else 15):  # no new rows for a while: exhausted or stuck (first page may be slow)
                 break
             if scroll_to and await page.locator(scroll_to).count():  # side panel: the page itself does not scroll
-                await page.locator(scroll_to).last.scroll_into_view_if_needed()
+                try:
+                    await page.locator(scroll_to).last.scroll_into_view_if_needed(timeout=5000)
+                except Exception:
+                    pass  # list re-rendered under us; the next round retries
             else:
                 await page.mouse.wheel(0, 6000)
-        await page.wait_for_timeout(2500)  # let replies opened in the last round arrive
+        while await _next_response(arrived, SETTLE_S):  # replies opened in the last round may still be in flight
+            pass
         rows = list(got.values())
         return rows[:limit] if limit else rows
     finally:
@@ -140,53 +196,92 @@ def _is_block(e: Exception) -> bool:
     return "ERR_HTTP_RESPONSE_CODE_FAILURE" in str(e) or type(e).__name__ == "TimeoutError"
 
 
-async def _video(ctx: BrowserContext, it: dict, root, c: dict, throttle: Throttle) -> None:
-    d = root / "videos" / it["video_id"]
-    if (d / "video.mp4").exists():
-        return
-    for attempt in (1, 2):  # a blocked attempt is retried once, after the cooldown
+ATTEMPTS = 3  # per video / search, when the failure looks like a block
+
+
+async def _search(ctx: BrowserContext, query: str, limit: int, root, throttle: Throttle) -> list[dict]:
+    for attempt in range(1, ATTEMPTS + 1):
         async with throttle:
             try:
-                if not it["play_url"]:
-                    raise ValueError("no video file (photo post)")
-                write_json(d / "info.json", it["raw"])
-                cm = await comments(ctx, it["url"], c["max_comments_per_video"])
-                if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
-                    raise RuntimeError("no comments captured")  # panel blocked; retry next run
-                write_json(d / "comments.json", cm)
-                await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
+                items = await search(ctx, query, limit)
                 throttle.success()
-                return
+                return items
             except LoginRequired:
                 raise
             except Exception as e:
-                if attempt == 1 and _is_block(e):
+                if attempt < ATTEMPTS and _is_block(e):
+                    throttle.blocked()
+                    continue
+                log_error(root, query, "search", e)
+                return []
+
+
+async def _video(ctx: BrowserContext, it: dict, root, c: dict, throttle: Throttle,
+                 downloads: asyncio.Semaphore) -> bool:
+    """True once the video is done. The tab is released before the mp4 download, which needs no page."""
+    d = root / "videos" / it["video_id"]
+    if (d / "video.mp4").exists():
+        return True
+    if not it["play_url"]:
+        log_error(root, it["video_id"], "video", ValueError("no video file (photo post)"))
+        return False
+    for attempt in range(1, ATTEMPTS + 1):
+        async with throttle:
+            try:
+                write_json(d / "info.json", it["raw"])
+                cm = await comments(ctx, it["url"], c["max_comments_per_video"])
+                if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
+                    raise RuntimeError("no comments captured")  # panel blocked
+                write_json(d / "video.json", video_doc(it, cm, f"tiktok/videos/{it['video_id']}/video.mp4"))
+                throttle.success()
+                break
+            except LoginRequired:
+                raise
+            except Exception as e:
+                if attempt < ATTEMPTS and _is_block(e):
                     throttle.blocked()
                     continue
                 log_error(root, it["video_id"], "video", e)
-                return
+                return False
             finally:
-                await pause(*c.get("pause_s", (2.0, 5.0)))
+                await pause(*c.get("pause_s", (0.0, 0.0)))
+    async with downloads:
+        try:
+            await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
+            return True
+        except Exception as e:
+            log_error(root, it["video_id"], "download", e)
+            return False
 
 
 async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+    """Every query, then a second pass over videos that did not finish; safe to rerun (done videos are skipped)."""
     name, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
     throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
-                        cooldown_s=c.get("cooldown_s", 60))
+                        cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
+    downloads = asyncio.Semaphore(c.get("downloads", 4))
+    found: dict[str, dict] = {}  # video_id -> item, across queries: a video is fetched once per run
     async with profile("tiktok", headed) as ctx:
         await ensure_login(ctx)
-        for group, queries in c["queries"].items():
-            for q in queries:
-                query = q.format(city=name)
-                items = await search(ctx, query, c["max_videos_per_query"])
-                append_jsonl(root / "search" / city / f"{slug(query)}.jsonl", {
-                    "at": now(), "group": group, "query": query,
-                    "items": [{k: v for k, v in it.items() if k not in ("raw", "play_url")} for it in items]})
-                try:
-                    async with asyncio.TaskGroup() as tg:  # one LoginRequired cancels the other tabs
+        try:
+            async with asyncio.TaskGroup() as tg:  # searches feed videos into shared tabs; one LoginRequired stops all
+                for group, queries in c["queries"].items():
+                    for q in queries:
+                        query = q.format(city=name)
+                        items = await _search(ctx, query, c["max_videos_per_query"], root, throttle)
+                        append_jsonl(root / "search" / city / f"{slug(query)}.jsonl", {
+                            "at": now(), "group": group, "query": query,
+                            "items": [{k: v for k, v in it.items() if k not in ("raw", "play_url")} for it in items]})
                         for it in items:
-                            tg.create_task(_video(ctx, it, root, c, throttle))
-                except* LoginRequired as eg:
-                    raise eg.exceptions[0] from None
-                await pause(*c.get("pause_s", (2.0, 5.0)))
+                            if it["video_id"] not in found:
+                                found[it["video_id"]] = it
+                                tg.create_task(_video(ctx, it, root, c, throttle, downloads))
+            left = [it for it in found.values() if not (root / "videos" / it["video_id"] / "video.mp4").exists()]
+            async with asyncio.TaskGroup() as tg:  # second pass
+                for it in left:
+                    tg.create_task(_video(ctx, it, root, c, throttle, downloads))
+        except* LoginRequired as eg:
+            raise eg.exceptions[0] from None
+    done = sum((root / "videos" / v / "video.mp4").exists() for v in found)
+    print(f"tiktok: {done}/{len(found)} videos done, {len(found) - done} left for the next run (see errors.jsonl)")
