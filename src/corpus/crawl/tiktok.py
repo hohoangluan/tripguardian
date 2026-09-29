@@ -1,5 +1,6 @@
 """TikTok: search by query, then keep each video's item JSON, comments and mp4 under data/tiktok/."""
 
+import asyncio
 from urllib.parse import quote, urlparse
 
 from playwright.async_api import BrowserContext
@@ -131,9 +132,31 @@ async def download_video(ctx: BrowserContext, play_url: str, path) -> None:
     write_bytes(path, await r.body())
 
 
+async def _video(ctx: BrowserContext, it: dict, root, c: dict, tabs: asyncio.Semaphore) -> None:
+    d = root / "videos" / it["video_id"]
+    if (d / "video.mp4").exists():
+        return
+    async with tabs:
+        try:
+            if not it["play_url"]:
+                raise ValueError("no video file (photo post)")
+            write_json(d / "info.json", it["raw"])
+            cm = await comments(ctx, it["url"], c["max_comments_per_video"])
+            if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
+                raise RuntimeError("no comments captured")  # panel blocked; retry next run
+            write_json(d / "comments.json", cm)
+            await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
+        except LoginRequired:
+            raise
+        except Exception as e:
+            log_error(root, it["video_id"], "video", e)
+        await pause(*c.get("pause_s", (2.0, 5.0)))
+
+
 async def run(city: str, headed: bool = False, profile=open_profile) -> None:
     name, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
+    tabs = asyncio.Semaphore(c.get("tabs", 1))  # videos of one search open in parallel tabs
     async with profile("tiktok", headed) as ctx:
         await ensure_login(ctx)
         for group, queries in c["queries"].items():
@@ -143,22 +166,10 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
                 append_jsonl(root / "search" / city / f"{slug(query)}.jsonl", {
                     "at": now(), "group": group, "query": query,
                     "items": [{k: v for k, v in it.items() if k not in ("raw", "play_url")} for it in items]})
-                for it in items:
-                    d = root / "videos" / it["video_id"]
-                    if (d / "video.mp4").exists():
-                        continue
-                    try:
-                        if not it["play_url"]:
-                            raise ValueError("no video file (photo post)")
-                        write_json(d / "info.json", it["raw"])
-                        cm = await comments(ctx, it["url"], c["max_comments_per_video"])
-                        if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
-                            raise RuntimeError("no comments captured")  # panel blocked; retry next run
-                        write_json(d / "comments.json", cm)
-                        await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
-                    except LoginRequired:
-                        raise
-                    except Exception as e:
-                        log_error(root, it["video_id"], "video", e)
-                    await pause(*c.get("pause_s", (2.0, 5.0)))
+                try:
+                    async with asyncio.TaskGroup() as tg:  # one LoginRequired cancels the other tabs
+                        for it in items:
+                            tg.create_task(_video(ctx, it, root, c, tabs))
+                except* LoginRequired as eg:
+                    raise eg.exceptions[0] from None
                 await pause(*c.get("pause_s", (2.0, 5.0)))

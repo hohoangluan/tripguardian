@@ -85,7 +85,7 @@ data/
 - Mục có file đánh dấu xong → bỏ qua; thiếu → lần chạy sau tải lại cả mục. Lỗi một mục → `errors.jsonl`, đi tiếp.
 - Text Maps (`hours`, `status`, `attributes`, `popular_times`, `published_text`) giữ nguyên văn. Không lưu tên người comment / review: `author_hash` = sha256(id)[:16].
 - Crawl thật chạy `--headed`: Maps headless trả trang thiếu (không review, không giờ cao điểm).
-- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. Tuần tự, nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
+- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. TikTok xử lý video của một lần search song song `tabs` tab; Maps tuần tự. Nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
 
 ### 2. Extract (theo video)
 
