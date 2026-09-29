@@ -134,3 +134,57 @@ def test_pause_comes_from_config(fake_env, monkeypatch):
         "queries": {"general": ["{city} có gì chơi"]}}}))
     asyncio.run(tiktok.run("dalat", profile=profile))
     assert seen and all(a == (0.1, 0.2) for a in seen)
+
+
+class _Resp:
+    def __init__(self, payload):
+        self.url, self.payload = "https://www.tiktok.com/api/comment/list/?cursor=x", payload
+
+    async def json(self):
+        return self.payload
+
+
+class _Page:
+    """Serves one comment page per scroll until the pages run out."""
+
+    def __init__(self, pages):
+        self.pages, self.handler = list(pages), None
+        self.mouse = self
+        self.first = self.last = self
+
+    def on(self, event, fn):
+        self.handler = fn
+
+    async def _next(self, *a, **k):
+        if self.pages:
+            await self.handler(_Resp(self.pages.pop(0)))
+
+    goto = click = scroll_into_view_if_needed = wheel = _next
+
+    async def wait_for_timeout(self, ms):
+        pass
+
+    def locator(self, sel):
+        return self
+
+    async def count(self):
+        return 1
+
+    async def close(self):
+        pass
+
+
+def test_comments_without_limit_reads_every_page(monkeypatch):
+    async def no_captcha(page, source):
+        return None
+
+    monkeypatch.setattr(tiktok, "wait_for_person", no_captcha)
+    pages = [{"comments": [{"cid": f"{p}-{i}"} for i in range(20)], "has_more": p < 9} for p in range(10)]
+    page = _Page(pages)
+
+    class Ctx:
+        async def new_page(self):
+            return page
+
+    got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
+    assert len(got) == 200 and len({c["comment_id"] for c in got}) == 200

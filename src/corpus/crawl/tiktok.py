@@ -49,7 +49,7 @@ async def ensure_login(ctx: BrowserContext) -> None:
         raise LoginRequired("tiktok")
 
 
-async def _collect(ctx: BrowserContext, url: str, api: str, parse, limit: int, per_scroll: int,
+async def _collect(ctx: BrowserContext, url: str, api: str, parse, limit: int | None,
                    click: str | None = None, scroll_to: str | None = None) -> list[dict]:
     page = await ctx.new_page()
     got: list[dict] = []
@@ -71,28 +71,33 @@ async def _collect(ctx: BrowserContext, url: str, api: str, parse, limit: int, p
             await page.wait_for_timeout(2000)
             await wait_for_person(page, "tiktok")
             await page.locator(click).first.click(timeout=15000)
-        for _ in range(limit // per_scroll + 3):
-            await page.wait_for_timeout(1500)
+        seen = stale = 0
+        while True:
+            await page.wait_for_timeout(1000)
             await wait_for_person(page, "tiktok")
-            if len(got) >= limit or not more[0]:
+            if (limit and len(got) >= limit) or not more[0]:
+                break
+            stale, seen = (stale + 1 if len(got) == seen else 0), len(got)
+            if stale >= 3:  # three scrolls without a new page: the list is exhausted or stuck
                 break
             if scroll_to and await page.locator(scroll_to).count():  # side panel: the page itself does not scroll
                 await page.locator(scroll_to).last.scroll_into_view_if_needed()
             else:
                 await page.mouse.wheel(0, 6000)
-        return got[:limit]
+        return got[:limit] if limit else got
     finally:
         await page.close()
 
 
 async def search(ctx: BrowserContext, query: str, limit: int) -> list[dict]:
     items = await _collect(ctx, SEARCH_URL + quote(query), SEARCH_API,
-                           lambda p: (parse_search(p), bool(p.get("has_more"))), limit, 12)
+                           lambda p: (parse_search(p), bool(p.get("has_more"))), limit)
     return list({it["video_id"]: it for it in items}.values())
 
 
-async def comments(ctx: BrowserContext, url: str, limit: int) -> list[dict]:
-    return await _collect(ctx, url, COMMENT_API, parse_comments, limit, 20, click=COMMENT_BUTTON, scroll_to=COMMENT_ITEM)
+async def comments(ctx: BrowserContext, url: str, limit: int | None) -> list[dict]:
+    """limit=None reads every top-level comment page."""
+    return await _collect(ctx, url, COMMENT_API, parse_comments, limit, click=COMMENT_BUTTON, scroll_to=COMMENT_ITEM)
 
 
 async def download_video(ctx: BrowserContext, play_url: str, path) -> None:
