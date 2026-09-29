@@ -62,3 +62,27 @@ def test_learned_limit_is_saved_and_reused(tmp_path):
     assert json.loads(p.read_text(encoding="utf-8"))["limit"] == 4
     assert Throttle(p, start=2, hi=8).limit == 4
     assert Throttle(p, start=2, hi=3).limit == 3  # never above the configured max
+
+
+def test_repeated_blocks_double_the_cooldown_and_success_resets(tmp_path):
+    t = Throttle(tmp_path / "t.json", start=4, hi=8, cooldown_s=10, max_cooldown_s=35)
+    t.blocked()
+    first = t._until - time.monotonic()
+    t._until = 0  # cooldown over, still blocked
+    t.blocked()
+    second = t._until - time.monotonic()
+    t._until = 0
+    t.blocked()
+    third = t._until - time.monotonic()
+    assert 9 < first <= 10 and 19 < second <= 20 and 34 < third <= 35
+    t._until = 0
+    t.success()
+    t.blocked()
+    assert 9 < t._until - time.monotonic() <= 10
+
+
+def test_one_block_event_seen_by_many_tabs_counts_once(tmp_path):
+    t = Throttle(tmp_path / "t.json", start=8, hi=8, cooldown_s=10)
+    for _ in range(5):  # five tabs fail during the same block
+        t.blocked()
+    assert t.limit == 4 and t._until - time.monotonic() <= 10

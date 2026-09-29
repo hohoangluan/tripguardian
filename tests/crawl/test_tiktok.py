@@ -10,6 +10,12 @@ from corpus.crawl import browser, files, tiktok
 FIX = Path(__file__).parents[1] / "fixtures" / "tiktok"
 
 
+@pytest.fixture(autouse=True)
+def fast_rounds(monkeypatch):
+    monkeypatch.setattr(tiktok, "ROUND_S", 0.01)
+    monkeypatch.setattr(tiktok, "SETTLE_S", 0.2)
+
+
 def test_parse_search_fixture():
     items = tiktok.parse_search(json.loads((FIX / "search.json").read_text(encoding="utf-8")))
     assert items
@@ -76,7 +82,10 @@ def test_run_writes_files_and_skips_done_videos(fake_env):
     asyncio.run(tiktok.run("dalat", profile=profile))
     asyncio.run(tiktok.run("dalat", profile=profile))
     v = root / "videos" / "1"
-    assert (v / "video.mp4").exists() and (v / "info.json").exists() and (v / "comments.json").exists()
+    assert (v / "video.mp4").exists() and (v / "info.json").exists()
+    doc = json.loads((v / "video.json").read_text(encoding="utf-8"))
+    assert doc["video_path"] == "tiktok/videos/1/video.mp4" and doc["video_url"].endswith("/video/1")
+    assert [c["comment_id"] for c in doc["comments"]] == ["c1"]
     assert calls["download"] == 1  # second run skipped the finished video
     lines = (root / "search" / "dalat" / "da-lat-co-gi-choi.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2 and "play_url" not in lines[0] and "raw" not in lines[0]
@@ -149,8 +158,8 @@ class _Resp:
 class _Page:
     """Serves one comment page per scroll until the pages run out."""
 
-    def __init__(self, pages, emit_on_wait_ms=None):
-        self.pages, self.handler, self.emit_on_wait_ms = list(pages), None, emit_on_wait_ms
+    def __init__(self, pages):
+        self.pages, self.handler = list(pages), None
         self.mouse = self
         self.first = self.last = self
 
@@ -160,14 +169,22 @@ class _Page:
     async def _next(self, *a, **k):
         if self.pages:
             payload = self.pages.pop(0)
-            if payload is not None:  # None = the API has not answered yet
+            if isinstance(payload, tuple) and payload[0] == "late":  # still in flight: lands a moment later
+                late = payload[1]
+                asyncio.get_running_loop().call_later(0.05, lambda: asyncio.ensure_future(self.handler(_Resp(late))))
+            elif payload is not None:  # None = the API has not answered yet
                 await self.handler(_Resp(payload))
+
+    async def route(self, pattern, handler):
+        pass
+
+    async def wait_for(self, **kw):
+        pass
 
     goto = click = scroll_into_view_if_needed = wheel = _next
 
     async def wait_for_timeout(self, ms):
-        if self.emit_on_wait_ms and ms >= self.emit_on_wait_ms:  # a response still in flight lands during a long wait
-            await self._next()
+        pass
 
     def locator(self, sel):
         return self
@@ -320,8 +337,8 @@ def test_late_replies_are_awaited_before_closing(monkeypatch):
     monkeypatch.setattr(tiktok, "wait_for_person", lambda page, source: asyncio.sleep(0))
     monkeypatch.setattr(tiktok, "_expand", lambda page, sel: asyncio.sleep(0, 0))
     reply_url = "https://www.tiktok.com/api/comment/list/reply/?comment_id=a0"
-    page = _Page([{"comments": [{"cid": "a0", "reply_id": "0"}], "has_more": False}, None,
-                  (reply_url, {"comments": [{"cid": "r1", "reply_id": "a0"}], "has_more": False})], emit_on_wait_ms=2500)
+    page = _Page([{"comments": [{"cid": "a0", "reply_id": "0"}], "has_more": False},
+                  ("late", (reply_url, {"comments": [{"cid": "r1", "reply_id": "a0"}], "has_more": False}))])
 
     class Ctx:
         async def new_page(self):
@@ -329,3 +346,88 @@ def test_late_replies_are_awaited_before_closing(monkeypatch):
 
     got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
     assert [c["comment_id"] for c in got] == ["a0", "r1"]
+
+
+def test_tab_is_free_while_the_video_downloads(fake_env, monkeypatch):
+    # One tab: the second video's comments must start while the first video is still downloading.
+    root, calls, profile = fake_env
+    calls["items"] = [_item(1), _item(2)]
+    second_started = asyncio.Event()
+
+    async def comments(ctx, url, limit):
+        if url.endswith("/2"):
+            second_started.set()
+        return [{"comment_id": "c"}]
+
+    async def download(ctx, url, path):
+        if path.parent.name == "1":
+            await asyncio.wait_for(second_started.wait(), 2)
+        files.write_bytes(path, b"mp4")
+
+    monkeypatch.setattr(tiktok, "comments", comments)
+    monkeypatch.setattr(tiktok, "download_video", download)
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=1, tabs_start=1))
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert (root / "videos" / "1" / "video.mp4").exists() and (root / "videos" / "2" / "video.mp4").exists()
+
+
+def test_blocked_search_is_retried_then_skipped(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    tries = []
+
+    async def search(ctx, query, limit):
+        tries.append(query)
+        if "gia đình" in query:
+            raise RuntimeError("Page.goto: net::ERR_HTTP_RESPONSE_CODE_FAILURE")  # stays blocked
+        if len([q for q in tries if q == query]) == 1:
+            raise RuntimeError("Page.goto: net::ERR_HTTP_RESPONSE_CODE_FAILURE")  # blocked once
+        return [_item(1)]
+
+    monkeypatch.setattr(tiktok, "search", search)
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=2, cooldown_s=0, queries={"general": ["{city} có gì chơi", "{city} đi cùng gia đình"]}))
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert (root / "videos" / "1" / "video.mp4").exists()
+    assert tries.count("Đà Lạt đi cùng gia đình") == 3
+    assert '"stage": "search"' in (root / "errors.jsonl").read_text(encoding="utf-8")
+
+
+def test_video_shared_by_two_queries_is_fetched_once(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    calls["items"] = [_item(1)]
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=2, queries={"general": ["{city} có gì chơi", "review {city}"]}))
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert calls["download"] == 1
+
+
+def test_unfinished_videos_get_a_second_pass(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    calls["items"] = [_item(1)]
+    tries = [0]
+
+    async def flaky(ctx, url, limit):
+        tries[0] += 1
+        if tries[0] == 1:
+            raise RuntimeError("layout hiccup")  # not a block: logged, then retried in the second pass
+        return [{"comment_id": "c"}]
+
+    monkeypatch.setattr(tiktok, "comments", flaky)
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert tries[0] == 2 and (root / "videos" / "1" / "video.mp4").exists()
+
+
+def test_video_doc_nests_replies_under_their_comment():
+    it = {**_item(7), "desc": "Săn mây", "hashtags": ["dalat"],
+          "raw": {"id": "7", "stats": {"commentCount": 4, "playCount": 10}}}
+    rows = [
+        {"comment_id": "a", "author_hash": "h1", "text": "đẹp", "created_at": 1, "likes": 2, "reply_count": 1, "parent_id": None},
+        {"comment_id": "r", "author_hash": "h2", "text": "ở đâu", "created_at": 2, "likes": 0, "reply_count": 0, "parent_id": "a"},
+        {"comment_id": "b", "author_hash": "h3", "text": "ok", "created_at": 3, "likes": 0, "reply_count": 0, "parent_id": None},
+        {"comment_id": "x", "author_hash": "h4", "text": "lạc", "created_at": 4, "likes": 0, "reply_count": 0, "parent_id": "gone"},
+    ]
+    doc = tiktok.video_doc(it, rows, "tiktok/videos/7/video.mp4")
+    assert doc["caption"] == "Săn mây" and doc["hashtags"] == ["dalat"] and doc["stats"]["commentCount"] == 4
+    assert doc["video_path"] == "tiktok/videos/7/video.mp4" and doc["fetched_at"]
+    assert [c["comment_id"] for c in doc["comments"]] == ["a", "b", "x"]  # a reply whose parent is missing stays visible
+    assert [r["text"] for r in doc["comments"][0]["replies"]] == ["ở đâu"]
+    assert doc["comments"][2]["reply_to"] == "gone"
+    assert "parent_id" not in json.dumps(doc) and "raw" not in doc

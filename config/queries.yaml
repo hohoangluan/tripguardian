@@ -1,9 +1,11 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
-  pause_s: [0.5, 1]  # random wait between items; a person solves captchas in --headed runs
+  pause_s: [0, 0.3]  # extra wait per video tab; blocks are handled by the tab throttle below
   tabs: 8  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
   tabs_start: 2  # first run only
-  cooldown_s: 60  # pause after a block before halving back in
+  cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
+  max_cooldown_s: 900
+  downloads: 4  # parallel mp4 downloads (no browser tab needed)
   max_videos_per_query: 30
   max_comments_per_video: null  # null = every top-level comment
   queries:  # groups from docs/specs/CORPUS_SPEC.md §1
@@ -15,6 +17,10 @@ tiktok:
     trend: ["{city} mới mở"]
 gmaps:
   pause_s: [0.5, 1]
+  tabs: 6  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
+  tabs_start: 3  # first run only
+  cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
+  max_cooldown_s: 900
   max_places_per_query: 60
   max_reviews_per_place: 50
   categories: [điểm tham quan, quán cà phê, nhà hàng, công viên, vườn hoa, bảo tàng, chợ, nhà thờ, chùa, thác, hồ, nông trại, quán bar, tiệm bánh]
