@@ -1,0 +1,334 @@
+{
+ "comments": [
+  {
+   "aweme_id": "7689050927440956690",
+   "cid": "7690151531928863494",
+   "collect_stat": 0,
+   "comment_language": "vi",
+   "comment_post_item_ids": null,
+   "create_time": 1790502954,
+   "digg_count": 0,
+   "fold_status": 0,
+   "forbid_reply_with_video": false,
+   "image_list": null,
+   "is_author_digged": false,
+   "is_comment_translatable": true,
+   "is_high_purchase_intent": true,
+   "label_list": null,
+   "no_show": false,
+   "reply_comment": null,
+   "reply_id": "7689851988301382452",
+   "reply_to_reply_id": "0",
+   "seeking_help_model_type": 1,
+   "share_info": {
+    "acl": {
+     "add_to_story_code": 1,
+     "code": 1,
+     "extra": "{\"is_share_handler_failed\":\"1\"}"
+    },
+    "desc": "",
+    "title": "",
+    "url": ""
+   },
+   "status": 1,
+   "stick_position": 0,
+   "text": "đây đấy xe đó các cháu đấy được ko, đang đi đây xe mô hình về ko thấy sao",
+   "text_extra": [],
+   "text_to_image_item_ids": null,
+   "thread_has_more": false,
+   "thread_id": 1,
+   "trans_btn_style": 0,
+   "translated_text_extra": null,
+   "user": {
+    "account_labels": null,
+    "ad_cover_url": null,
+    "advance_feature_item_order": null,
+    "advanced_feature_info": null,
+    "avatar_thumb": {
+     "uri": "tos-alisg-avt-0068/c779028d76858eb33cee8bad5f4991d3",
+     "url_list": [
+      "https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/c779028d76858eb33cee8bad5f4991d3~tplv-tiktokx-cropcenter:100:100.jpg?dr=14579&refresh_token=c6557b16&x-expires=1790733600&x-signature=6Me0dJp8GK%2F5KAWPU8gtwpHjq%2Fw%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2",
+      "https://p19-common-sign.tiktokcdn.com/tos-alisg-avt-0068/c779028d76858eb33cee8bad5f4991d3~tplv-tiktokx-cropcenter:100:100.jpg?dr=14579&refresh_token=4586dff8&x-expires=1790733600&x-signature=%2B1PZV%2Fjwb4IEnbGM7RPKxPVBIb0%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2",
+      "https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/c779028d76858eb33cee8bad5f4991d3~tplv-tiktokx-cropcenter:100:100.jpeg?dr=14579&refresh_token=4b7db919&x-expires=1790733600&x-signature=T%2Fd%2FakYmQvEuDobdu38hoSVVcPs%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2"
+     ],
+     "url_prefix": null
+    },
+    "bold_fields": null,
+    "can_message_follow_status_list": null,
+    "can_set_geofencing": null,
+    "cha_list": null,
+    "cover_url": null,
+    "custom_verify": "",
+    "enterprise_verify_reason": "",
+    "events": null,
+    "followers_detail": null,
+    "geofencing": null,
+    "homepage_bottom_toast": null,
+    "item_list": null,
+    "mutual_relation_avatars": null,
+    "need_points": null,
+    "nickname": "hh",
+    "platform_sync_info": null,
+    "relative_users": null,
+    "search_highlight": null,
+    "sec_uid": "MS4wLjABAAAANFrhDVihq4t0g-EyG18ZlC6O1OPfyWpdvAnqT7lepGMF70EXWqzcqQ_tw24ar8Sm",
+    "shield_edit_field_info": null,
+    "type_label": null,
+    "uid": "7246258085039473669",
+    "unique_id": "nguynxun103",
+    "user_profile_guide": null,
+    "user_tags": null,
+    "white_cover_url": null
+   },
+   "user_buried": false,
+   "user_digged": 0
+  },
+  {
+   "aweme_id": "7689050927440956690",
+   "cid": "7690000352737657608",
+   "cmt_sticker_struct": {
+    "animated_url": {
+     "high_resolution_url": {
+      "height": 386,
+      "uri": "tos-maliva-i-qj2ts5gcsk-us/ca4894ba626949478bed7c580f8952c4",
+      "url_list": [
+       "https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg-i-dhq7zx4c1p-sg/ca4894ba626949478bed7c580f8952c4~tplv-dhq7zx4c1p-full.awebp?rk3s=00edd399&x-expires=1793236360&x-signature=4GSqIiE1ZsMNKrVdCeUQQ8%2FePpc%3D"
+      ],
+      "url_prefix": null,
+      "width": 404
+     },
+     "low_resolution_url": {
+      "height": 386,
+      "uri": "tos-maliva-i-qj2ts5gcsk-us/ca4894ba626949478bed7c580f8952c4",
+      "url_list": [
+       "https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg-i-dhq7zx4c1p-sg/ca4894ba626949478bed7c580f8952c4~tplv-dhq7zx4c1p-full.awebp?rk3s=00edd399&x-expires=1793236360&x-signature=4GSqIiE1ZsMNKrVdCeUQQ8%2FePpc%3D"
+      ],
+      "url_prefix": null,
+      "width": 404
+     },
+     "mid_resolution_url": {
+      "height": 386,
+      "uri": "tos-maliva-i-qj2ts5gcsk-us/ca4894ba626949478bed7c580f8952c4",
+      "url_list": [
+       "https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg-i-dhq7zx4c1p-sg/ca4894ba626949478bed7c580f8952c4~tplv-dhq7zx4c1p-full.awebp?rk3s=00edd399&x-expires=1793236360&x-signature=4GSqIiE1ZsMNKrVdCeUQQ8%2FePpc%3D"
+      ],
+      "url_prefix": null,
+      "width": 404
+     }
+    },
+    "created_time": 1762496989626,
+    "creator_uid": 0,
+    "id": "82487390661379",
+    "name": "",
+    "review_status": 1,
+    "set_id": 0,
+    "static_url": {
+     "high_resolution_url": {
+      "height": 386,
+      "uri": "tos-maliva-i-qj2ts5gcsk-us/ca4894ba626949478bed7c580f8952c4",
+      "url_list": [
+       "https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg-i-dhq7zx4c1p-sg/ca4894ba626949478bed7c580f8952c4~tplv-dhq7zx4c1p-full.awebp?rk3s=00edd399&x-expires=1793236360&x-signature=4GSqIiE1ZsMNKrVdCeUQQ8%2FePpc%3D"
+      ],
+      "url_prefix": null,
+      "width": 404
+     },
+     "low_resolution_url": {
+      "height": 386,
+      "uri": "tos-maliva-i-qj2ts5gcsk-us/ca4894ba626949478bed7c580f8952c4",
+      "url_list": [
+       "https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg-i-dhq7zx4c1p-sg/ca4894ba626949478bed7c580f8952c4~tplv-dhq7zx4c1p-full.awebp?rk3s=00edd399&x-expires=1793236360&x-signature=4GSqIiE1ZsMNKrVdCeUQQ8%2FePpc%3D"
+      ],
+      "url_prefix": null,
+      "width": 404
+     },
+     "mid_resolution_url": {
+      "height": 386,
+      "uri": "tos-maliva-i-qj2ts5gcsk-us/ca4894ba626949478bed7c580f8952c4",
+      "url_list": [
+       "https://p16-tiktok-dm-sticker-sign-sg.ibyteimg.com/tos-alisg-i-dhq7zx4c1p-sg/ca4894ba626949478bed7c580f8952c4~tplv-dhq7zx4c1p-full.awebp?rk3s=00edd399&x-expires=1793236360&x-signature=4GSqIiE1ZsMNKrVdCeUQQ8%2FePpc%3D"
+      ],
+      "url_prefix": null,
+      "width": 404
+     }
+    },
+    "sticker_type": 14,
+    "user_favorite": 2
+   },
+   "collect_stat": 0,
+   "comment_language": "fy",
+   "comment_post_item_ids": null,
+   "create_time": 1790467762,
+   "digg_count": 0,
+   "fold_status": 0,
+   "forbid_reply_with_video": true,
+   "image_list": null,
+   "is_author_digged": false,
+   "is_comment_translatable": false,
+   "is_high_purchase_intent": false,
+   "label_list": null,
+   "no_show": false,
+   "reply_comment": null,
+   "reply_id": "7689851988301382452",
+   "reply_to_reply_id": "0",
+   "seeking_help_model_type": 0,
+   "share_info": {
+    "acl": {
+     "add_to_story_code": 1,
+     "code": 1,
+     "extra": "{\"is_share_handler_failed\":\"1\"}"
+    },
+    "desc": "",
+    "title": "",
+    "url": ""
+   },
+   "status": 1,
+   "stick_position": 0,
+   "text": "lân",
+   "text_extra": [],
+   "text_to_image_item_ids": null,
+   "thread_has_more": false,
+   "thread_id": 2,
+   "trans_btn_style": 1,
+   "translated_text_extra": null,
+   "user": {
+    "account_labels": null,
+    "ad_cover_url": null,
+    "advance_feature_item_order": null,
+    "advanced_feature_info": null,
+    "avatar_thumb": {
+     "uri": "tos-alisg-avt-0068/dc23eaf3c095e7ca7fa54813f944038c",
+     "url_list": [
+      "https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/dc23eaf3c095e7ca7fa54813f944038c~tplv-tiktokx-cropcenter:100:100.jpg?dr=14579&refresh_token=2b72d50f&x-expires=1790733600&x-signature=1jEpx94pslbcK%2Fw1mohCzf%2BxGuY%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2",
+      "https://p19-common-sign.tiktokcdn.com/tos-alisg-avt-0068/dc23eaf3c095e7ca7fa54813f944038c~tplv-tiktokx-cropcenter:100:100.jpg?dr=14579&refresh_token=60047258&x-expires=1790733600&x-signature=YZIhD2zCnrhYv3VV6gwIqE0bWWs%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2",
+      "https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/dc23eaf3c095e7ca7fa54813f944038c~tplv-tiktokx-cropcenter:100:100.jpeg?dr=14579&refresh_token=6efce476&x-expires=1790733600&x-signature=%2BIm%2BQx8hv59wnSS0Je56I0lZgJk%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2"
+     ],
+     "url_prefix": null
+    },
+    "bold_fields": null,
+    "can_message_follow_status_list": null,
+    "can_set_geofencing": null,
+    "cha_list": null,
+    "cover_url": null,
+    "custom_verify": "",
+    "enterprise_verify_reason": "",
+    "events": null,
+    "followers_detail": null,
+    "geofencing": null,
+    "homepage_bottom_toast": null,
+    "item_list": null,
+    "mutual_relation_avatars": null,
+    "need_points": null,
+    "nickname": "khi nao co bo thi doi ten 🍭.",
+    "platform_sync_info": null,
+    "relative_users": null,
+    "search_highlight": null,
+    "sec_uid": "MS4wLjABAAAADWDmwpT-8Nqnr9c3_e4vbKvuEFfVVZJ1_oZ_ptyY86Ux2fxeKKCEIPVYWs9qAROF",
+    "shield_edit_field_info": null,
+    "type_label": null,
+    "uid": "7138732906705323034",
+    "unique_id": "kieudanthy",
+    "user_profile_guide": null,
+    "user_tags": null,
+    "white_cover_url": null
+   },
+   "user_buried": false,
+   "user_digged": 0
+  },
+  {
+   "aweme_id": "7689050927440956690",
+   "cid": "7689990520060363540",
+   "collect_stat": 0,
+   "comment_language": "vi",
+   "comment_post_item_ids": null,
+   "create_time": 1790465479,
+   "digg_count": 0,
+   "fold_status": 0,
+   "forbid_reply_with_video": true,
+   "image_list": null,
+   "is_author_digged": false,
+   "is_comment_translatable": true,
+   "is_high_purchase_intent": false,
+   "label_list": null,
+   "no_show": false,
+   "reply_comment": null,
+   "reply_id": "7689851988301382452",
+   "reply_to_reply_id": "0",
+   "seeking_help_model_type": 0,
+   "share_info": {
+    "acl": {
+     "add_to_story_code": 1,
+     "code": 1,
+     "extra": "{\"is_share_handler_failed\":\"1\"}"
+    },
+    "desc": "",
+    "title": "",
+    "url": ""
+   },
+   "status": 1,
+   "stick_position": 0,
+   "text": "chắc các cháu ở nhà ăn bánh keo nên toàn cô các chú cổ thế là vui nhất rôi con hơn xhoox tôi việt teif ko có gì🥰🥰❤️❤️❤️🥰🥰",
+   "text_extra": [],
+   "text_to_image_item_ids": null,
+   "thread_has_more": false,
+   "thread_id": 3,
+   "trans_btn_style": 0,
+   "translated_text_extra": null,
+   "user": {
+    "account_labels": null,
+    "ad_cover_url": null,
+    "advance_feature_item_order": null,
+    "advanced_feature_info": null,
+    "avatar_thumb": {
+     "uri": "tos-alisg-avt-0068/d6cc1f72dde07a001ae3cf9f1df2e712",
+     "url_list": [
+      "https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/d6cc1f72dde07a001ae3cf9f1df2e712~tplv-tiktokx-cropcenter:100:100.jpg?dr=14579&refresh_token=fd1f57fa&x-expires=1790733600&x-signature=QC5z4QOkdq5u9obQSJUiAW%2BGJ%2Fo%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2",
+      "https://p19-common-sign.tiktokcdn.com/tos-alisg-avt-0068/d6cc1f72dde07a001ae3cf9f1df2e712~tplv-tiktokx-cropcenter:100:100.jpg?dr=14579&refresh_token=6583694d&x-expires=1790733600&x-signature=Crziu9HtKagk1qbG06vPcdz%2B120%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2",
+      "https://p16-common-sign.tiktokcdn.com/tos-alisg-avt-0068/d6cc1f72dde07a001ae3cf9f1df2e712~tplv-tiktokx-cropcenter:100:100.jpeg?dr=14579&refresh_token=678a76b0&x-expires=1790733600&x-signature=jkv%2B2PIHukuXc8Mr6WrPgUaqSRI%3D&t=4d5b0474&ps=13740610&shp=30310797&shcp=ff37627b&idc=my2"
+     ],
+     "url_prefix": null
+    },
+    "bold_fields": null,
+    "can_message_follow_status_list": null,
+    "can_set_geofencing": null,
+    "cha_list": null,
+    "cover_url": null,
+    "custom_verify": "",
+    "enterprise_verify_reason": "",
+    "events": null,
+    "followers_detail": null,
+    "geofencing": null,
+    "homepage_bottom_toast": null,
+    "item_list": null,
+    "mutual_relation_avatars": null,
+    "need_points": null,
+    "nickname": "Phùng Tuyến",
+    "platform_sync_info": null,
+    "relative_users": null,
+    "search_highlight": null,
+    "sec_uid": "MS4wLjABAAAAUdF69mUWfMokwB_IaM0BnuPOUs5dnUINS3iz1q7-0gUIBvVO22NgphJV64X_cqX2",
+    "shield_edit_field_info": null,
+    "type_label": null,
+    "uid": "7348318857570616338",
+    "unique_id": "phng.tuyn146",
+    "user_profile_guide": null,
+    "user_tags": null,
+    "white_cover_url": null
+   },
+   "user_buried": false,
+   "user_digged": 0
+  }
+ ],
+ "cursor": 3,
+ "extra": {
+  "fatal_item_ids": [],
+  "logid": "202609291021021EE292DBBD7B139774F7",
+  "now": 1790648462000
+ },
+ "has_more": 1,
+ "log_pb": {
+  "impr_id": "202609291021021EE292DBBD7B139774F7"
+ },
+ "status_code": 0,
+ "status_msg": "",
+ "total": 4
+}
