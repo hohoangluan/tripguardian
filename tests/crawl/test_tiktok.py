@@ -149,8 +149,8 @@ class _Resp:
 class _Page:
     """Serves one comment page per scroll until the pages run out."""
 
-    def __init__(self, pages):
-        self.pages, self.handler = list(pages), None
+    def __init__(self, pages, emit_on_wait_ms=None):
+        self.pages, self.handler, self.emit_on_wait_ms = list(pages), None, emit_on_wait_ms
         self.mouse = self
         self.first = self.last = self
 
@@ -166,9 +166,13 @@ class _Page:
     goto = click = scroll_into_view_if_needed = wheel = _next
 
     async def wait_for_timeout(self, ms):
-        pass
+        if self.emit_on_wait_ms and ms >= self.emit_on_wait_ms:  # a response still in flight lands during a long wait
+            await self._next()
 
     def locator(self, sel):
+        return self
+
+    def filter(self, **kw):
         return self
 
     async def count(self):
@@ -276,7 +280,7 @@ def test_videos_run_in_parallel_tabs(fake_env, monkeypatch):
         return [{"comment_id": "c"}]
 
     monkeypatch.setattr(tiktok, "comments", slow_comments)
-    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=3))
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=3, tabs_start=3))
     asyncio.run(tiktok.run("dalat", profile=profile))
     assert peak[0] == 3 and len(list((root / "videos").glob("*/video.mp4"))) == 7
 
@@ -292,3 +296,36 @@ def test_login_required_in_a_tab_stops_the_run(fake_env, monkeypatch):
     monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=2))
     with pytest.raises(browser.LoginRequired):
         asyncio.run(tiktok.run("dalat", profile=profile))
+
+
+def test_blocked_video_is_retried_after_cooldown(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    calls["items"] = [_item(1)]
+    tries = [0]
+
+    async def flaky(ctx, url, limit):
+        tries[0] += 1
+        if tries[0] == 1:
+            raise RuntimeError("Page.goto: net::ERR_HTTP_RESPONSE_CODE_FAILURE at https://www.tiktok.com/@a/video/1")
+        return [{"comment_id": "c"}]
+
+    monkeypatch.setattr(tiktok, "comments", flaky)
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=4, cooldown_s=0))
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert tries[0] == 2 and (root / "videos" / "1" / "video.mp4").exists()
+    assert json.loads((root / "throttle.json").read_text(encoding="utf-8"))["limit"] >= 1
+
+
+def test_late_replies_are_awaited_before_closing(monkeypatch):
+    monkeypatch.setattr(tiktok, "wait_for_person", lambda page, source: asyncio.sleep(0))
+    monkeypatch.setattr(tiktok, "_expand", lambda page, sel: asyncio.sleep(0, 0))
+    reply_url = "https://www.tiktok.com/api/comment/list/reply/?comment_id=a0"
+    page = _Page([{"comments": [{"cid": "a0", "reply_id": "0"}], "has_more": False}, None,
+                  (reply_url, {"comments": [{"cid": "r1", "reply_id": "a0"}], "has_more": False})], emit_on_wait_ms=2500)
+
+    class Ctx:
+        async def new_page(self):
+            return page
+
+    got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
+    assert [c["comment_id"] for c in got] == ["a0", "r1"]

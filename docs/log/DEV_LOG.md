@@ -58,7 +58,8 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
   - Maps: search `<category> <tên thành phố>`, mở từng place bằng URL, mở bảng giờ, tab Giới thiệu, tab review sắp xếp Mới nhất; ghi `reviews.json` rồi `place.json`. Selector nằm trong `gmaps.py`.
   - Captcha: `--headed` chờ người giải tối đa 5 phút; headless dừng với `LoginRequired`. `errors.jsonl` chỉ giữ dòng đầu của lỗi (call log Playwright chứa cookie phiên).
   - Smoke 2026-09-29 (`--headed`): reply: 1 video 11/11 (7 comment + 4 reply, khớp `reply_count`, không reply mồ côi); TikTok 1 query → 3 video (3–52 MB), 12/30/100 comment (trần cũ 100), chạy lại không tải trùng; lấy hết comment trên 2 video: 276/347 comment cấp 1 (`commentCount` 571/606 gồm cả reply), TikTok gửi lặp trang nên bỏ trùng theo `comment_id`; Maps `thác` → 4 place, 3 place đủ 7 dòng giờ, 2 place có giờ cao điểm 7 ngày, mỗi place 10 review. Headless: Maps trả trang thiếu (0 review), TikTok hay gặp captcha.
-  - TikTok: video của một lần search chạy song song `tabs` tab (mặc định 5); `LoginRequired` ở một tab hủy các tab còn lại.
+  - TikTok: video của một lần search chạy song song nhiều tab; số tab tự dò (AIMD, `throttle.py`): +1 tab sau 5 video sạch, tối đa `tabs`; trang lỗi HTTP / timeout → giảm nửa, nghỉ `cooldown_s`, thử lại video đó một lần. Mức đạt được lưu `data/tiktok/throttle.json` cho lần sau. `LoginRequired` ở một tab hủy các tab còn lại.
+  - Độ đủ comment (2026-09-29, 10 video): lấy được ~82% `commentCount`. Phần thiếu do TikTok không trả: API reply báo `total` nhưng trả 0 comment cho reply bị ẩn; API comment báo `total=23` nhưng trả 12 và `has_more=0`. 1 tab và 3 tab song song cho cùng kết quả (song song 36 s so với 56 s).
   - **Google Maps chưa xong** (tạm dừng để hoàn thiện TikTok trước). Còn phải làm:
     - chưa chạy full crawl, mới smoke 1 category (`thác`, 4 place, 10 review/place);
     - headless trả trang thiếu, hiện phải chạy `--headed`;
