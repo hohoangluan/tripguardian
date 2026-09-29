@@ -138,7 +138,9 @@ def test_pause_comes_from_config(fake_env, monkeypatch):
 
 class _Resp:
     def __init__(self, payload):
-        self.url, self.payload = "https://www.tiktok.com/api/comment/list/?cursor=x", payload
+        # payload alone = a top-level comment page; (url, payload) for other APIs
+        url, self.payload = payload if isinstance(payload, tuple) else ("https://www.tiktok.com/api/comment/list/?c=1", payload)
+        self.url = url
 
     async def json(self):
         return self.payload
@@ -157,7 +159,9 @@ class _Page:
 
     async def _next(self, *a, **k):
         if self.pages:
-            await self.handler(_Resp(self.pages.pop(0)))
+            payload = self.pages.pop(0)
+            if payload is not None:  # None = the API has not answered yet
+                await self.handler(_Resp(payload))
 
     goto = click = scroll_into_view_if_needed = wheel = _next
 
@@ -179,6 +183,7 @@ def test_comments_without_limit_reads_every_page(monkeypatch):
         return None
 
     monkeypatch.setattr(tiktok, "wait_for_person", no_captcha)
+    monkeypatch.setattr(tiktok, "_expand", lambda page, sel: asyncio.sleep(0, 0))
     pages = [{"comments": [{"cid": f"{p}-{i}"} for i in range(20)], "has_more": p < 9} for p in range(10)]
     page = _Page(pages)
 
@@ -195,6 +200,7 @@ def test_comments_drop_repeated_pages(monkeypatch):
         return None
 
     monkeypatch.setattr(tiktok, "wait_for_person", no_captcha)
+    monkeypatch.setattr(tiktok, "_expand", lambda page, sel: asyncio.sleep(0, 0))
     page1 = {"comments": [{"cid": f"a{i}"} for i in range(20)], "has_more": True}
     page2 = {"comments": [{"cid": f"b{i}"} for i in range(20)], "has_more": False}
     page = _Page([page1, page1, page2])  # TikTok re-sends a page it already served
@@ -205,3 +211,48 @@ def test_comments_drop_repeated_pages(monkeypatch):
 
     got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
     assert [c["comment_id"] for c in got] == [f"a{i}" for i in range(20)] + [f"b{i}" for i in range(20)]
+
+
+def test_parse_replies_fixture_links_parent():
+    top, _ = tiktok.parse_comments(json.loads((FIX / "comments.json").read_text(encoding="utf-8")))
+    replies, more = tiktok.parse_comments(json.loads((FIX / "replies.json").read_text(encoding="utf-8")))
+    assert all(c["parent_id"] is None for c in top)
+    assert replies and all(r["parent_id"] and r["parent_id"] != "0" for r in replies)
+
+
+def test_comments_include_replies(monkeypatch):
+    async def no_captcha(page, source):
+        return None
+
+    async def no_buttons(page, selector):
+        return 0
+
+    monkeypatch.setattr(tiktok, "wait_for_person", no_captcha)
+    monkeypatch.setattr(tiktok, "_expand", no_buttons)
+    reply_url = "https://www.tiktok.com/api/comment/list/reply/?comment_id=a0"
+    pages = [
+        {"comments": [{"cid": "a0", "reply_id": "0"}], "has_more": True},
+        (reply_url, {"comments": [{"cid": "r1", "reply_id": "a0"}], "has_more": False}),  # must not end the list
+        {"comments": [{"cid": "a1", "reply_id": "0"}], "has_more": False},
+    ]
+    page = _Page(pages)
+
+    class Ctx:
+        async def new_page(self):
+            return page
+
+    got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
+    assert [(c["comment_id"], c["parent_id"]) for c in got] == [("a0", None), ("r1", "a0"), ("a1", None)]
+
+
+def test_slow_first_response_is_awaited(monkeypatch):
+    monkeypatch.setattr(tiktok, "wait_for_person", lambda page, source: asyncio.sleep(0))
+    monkeypatch.setattr(tiktok, "_expand", lambda page, sel: asyncio.sleep(0, 0))
+    page = _Page([None] * 6 + [{"comments": [{"cid": "a0"}], "has_more": False}])
+
+    class Ctx:
+        async def new_page(self):
+            return page
+
+    got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
+    assert [c["comment_id"] for c in got] == ["a0"]

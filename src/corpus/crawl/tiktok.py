@@ -1,6 +1,6 @@
 """TikTok: search by query, then keep each video's item JSON, comments and mp4 under data/tiktok/."""
 
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from playwright.async_api import BrowserContext
 
@@ -10,8 +10,10 @@ from .files import append_jsonl, author_hash, data_dir, load_config, log_error, 
 SEARCH_URL = "https://www.tiktok.com/search/video?q="
 SEARCH_API = "/api/search/item/full"
 COMMENT_API = "/api/comment/list/"
+REPLY_API = "/api/comment/list/reply/"
 COMMENT_BUTTON = '[data-e2e="comment-icon"]'  # comments load only after the panel opens
 COMMENT_ITEM = '[class*="DivCommentObjectWrapper"]'
+REPLY_BUTTON = '[class*="DivViewRepliesContainer"]'  # "Xem N câu trả lời" / "Xem thêm" / "Ẩn"
 
 
 def parse_search(payload: dict) -> list[dict]:
@@ -39,6 +41,7 @@ def parse_comments(payload: dict) -> tuple[list[dict], bool]:
         "created_at": c.get("create_time"),
         "likes": c.get("digg_count", 0),
         "reply_count": c.get("reply_comment_total", 0),
+        "parent_id": None if str(c.get("reply_id", "0")) == "0" else str(c["reply_id"]),  # set on replies
     } for c in payload.get("comments") or []]
     return comments, bool(payload.get("has_more"))
 
@@ -49,19 +52,38 @@ async def ensure_login(ctx: BrowserContext) -> None:
         raise LoginRequired("tiktok")
 
 
-async def _collect(ctx: BrowserContext, url: str, api: str, parse, key: str, limit: int | None,
-                   click: str | None = None, scroll_to: str | None = None) -> list[dict]:
+async def _expand(page, selector: str) -> int:
+    """Click every visible "Xem ..." reply button (never "Ẩn", which collapses); returns clicks made."""
+    n = 0
+    for b in await page.locator(selector).filter(has_text="Xem", visible=True).all():
+        try:
+            await b.click(timeout=2000)
+            n += 1
+        except Exception:
+            pass  # scrolled away or already expanding
+    return n
+
+
+async def _collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: int | None,
+                   click: str | None = None, scroll_to: str | None = None, expand: str | None = None) -> list[dict]:
+    """apis maps API path -> parser; the first path's has_more decides when the list ends."""
     page = await ctx.new_page()
     got: dict[str, dict] = {}  # by id: TikTok re-sends pages it already served
     more = [True]
 
+    main = next(iter(apis))
+
     async def on_response(r):
-        if api in r.url:
-            try:
-                rows, has_more = parse(await r.json())
-            except Exception:
-                return
-            got.update((row[key], row) for row in rows if row[key] not in got)
+        path = urlparse(r.url).path.rstrip("/")
+        api = next((a for a in apis if a.rstrip("/") == path), None)  # exact: reply path extends comment path
+        if api is None:
+            return
+        try:
+            rows, has_more = apis[api](await r.json())
+        except Exception:
+            return
+        got.update((row[key], row) for row in rows if row[key] not in got)
+        if api == main:
             more[0] = has_more
 
     page.on("response", on_response)
@@ -75,10 +97,11 @@ async def _collect(ctx: BrowserContext, url: str, api: str, parse, key: str, lim
         while True:
             await page.wait_for_timeout(1000)
             await wait_for_person(page, "tiktok")
-            if (limit and len(got) >= limit) or not more[0]:
+            opened = await _expand(page, expand) if expand else 0
+            if ((limit and len(got) >= limit) or not more[0]) and not opened:
                 break
-            stale, seen = (stale + 1 if len(got) == seen else 0), len(got)
-            if stale >= 3:  # three scrolls without a new page: the list is exhausted or stuck
+            stale, seen = (0 if opened or len(got) != seen else stale + 1), len(got)
+            if stale >= (3 if got else 15):  # no new rows for a while: exhausted or stuck (first page may be slow)
                 break
             if scroll_to and await page.locator(scroll_to).count():  # side panel: the page itself does not scroll
                 await page.locator(scroll_to).last.scroll_into_view_if_needed()
@@ -91,13 +114,14 @@ async def _collect(ctx: BrowserContext, url: str, api: str, parse, key: str, lim
 
 
 async def search(ctx: BrowserContext, query: str, limit: int) -> list[dict]:
-    return await _collect(ctx, SEARCH_URL + quote(query), SEARCH_API,
-                          lambda p: (parse_search(p), bool(p.get("has_more"))), "video_id", limit)
+    return await _collect(ctx, SEARCH_URL + quote(query),
+                          {SEARCH_API: lambda p: (parse_search(p), bool(p.get("has_more")))}, "video_id", limit)
 
 
 async def comments(ctx: BrowserContext, url: str, limit: int | None) -> list[dict]:
-    """limit=None reads every top-level comment page."""
-    return await _collect(ctx, url, COMMENT_API, parse_comments, "comment_id", limit, click=COMMENT_BUTTON, scroll_to=COMMENT_ITEM)
+    """Top-level comments and their replies (parent_id set); limit=None reads every page."""
+    return await _collect(ctx, url, {COMMENT_API: parse_comments, REPLY_API: parse_comments}, "comment_id", limit,
+                          click=COMMENT_BUTTON, scroll_to=COMMENT_ITEM, expand=REPLY_BUTTON)
 
 
 async def download_video(ctx: BrowserContext, play_url: str, path) -> None:
