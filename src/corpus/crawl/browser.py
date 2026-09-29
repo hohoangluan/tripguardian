@@ -42,6 +42,24 @@ async def is_captcha(page: Page) -> bool:
     return await page.get_by_text(_CAPTCHA).count() > 0
 
 
+async def _is_headless(page: Page) -> bool:
+    return "HeadlessChrome" in await page.evaluate("navigator.userAgent")
+
+
+async def wait_for_person(page: Page, source: str, wait_s: float = 300) -> None:
+    """On a captcha, a person solves it in the headed window; headless runs stop instead."""
+    if not await is_captcha(page):
+        return
+    if await _is_headless(page):
+        raise LoginRequired(source)
+    print(f"{source}: captcha in the browser window, solve it to continue (waiting {wait_s:.0f}s)...")
+    for _ in range(int(wait_s)):
+        await asyncio.sleep(1)
+        if not await is_captcha(page):
+            return
+    raise LoginRequired(source)
+
+
 async def login(source: str) -> None:
     async with open_profile(source, headed=True) as ctx:
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
