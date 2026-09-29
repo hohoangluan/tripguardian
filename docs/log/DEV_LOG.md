@@ -54,11 +54,18 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 ### Hiện tại (2026-09-29)
 - hành vi:
   - `python -m corpus login <source>` mở Chrome với profile `.browser/<source>/` để người đăng nhập; `tiktok` / `gmaps` crawl theo `config/queries.yaml`, ghi file vào `DATA_DIR` (layout: `docs/specs/CORPUS_SPEC.md` §1, Dữ liệu thô).
-  - TikTok: bắt JSON API search; mỗi video ghi `info.json`, `comments.json` (comment cấp 1, mặc định lấy hết trang; tác giả chỉ còn `author_hash`), rồi `video.mp4` tải từ `playAddr`. Video có `commentCount` > 0 mà lấy được 0 comment thì không đánh dấu xong.
+  - TikTok: bắt JSON API search; mỗi video ghi `info.json`, `comments.json` (comment + reply có `parent_id`, mặc định lấy hết trang; bỏ trùng theo `comment_id`; tác giả chỉ còn `author_hash`), rồi `video.mp4` tải từ `playAddr`. Video có `commentCount` > 0 mà lấy được 0 comment thì không đánh dấu xong.
   - Maps: search `<category> <tên thành phố>`, mở từng place bằng URL, mở bảng giờ, tab Giới thiệu, tab review sắp xếp Mới nhất; ghi `reviews.json` rồi `place.json`. Selector nằm trong `gmaps.py`.
   - Captcha: `--headed` chờ người giải tối đa 5 phút; headless dừng với `LoginRequired`. `errors.jsonl` chỉ giữ dòng đầu của lỗi (call log Playwright chứa cookie phiên).
-  - Smoke 2026-09-29 (`--headed`): TikTok 1 query → 3 video (3–52 MB), 12/30/100 comment (trần cũ 100), chạy lại không tải trùng; lấy hết comment trên 2 video: 276/347 comment cấp 1 (`commentCount` 571/606 gồm cả reply), TikTok gửi lặp trang nên bỏ trùng theo `comment_id`; Maps `thác` → 4 place, 3 place đủ 7 dòng giờ, 2 place có giờ cao điểm 7 ngày, mỗi place 10 review. Headless: Maps trả trang thiếu (0 review), TikTok hay gặp captcha.
-  - Chưa có: reply của comment; chạy song song.
+  - Smoke 2026-09-29 (`--headed`): reply: 1 video 11/11 (7 comment + 4 reply, khớp `reply_count`, không reply mồ côi); TikTok 1 query → 3 video (3–52 MB), 12/30/100 comment (trần cũ 100), chạy lại không tải trùng; lấy hết comment trên 2 video: 276/347 comment cấp 1 (`commentCount` 571/606 gồm cả reply), TikTok gửi lặp trang nên bỏ trùng theo `comment_id`; Maps `thác` → 4 place, 3 place đủ 7 dòng giờ, 2 place có giờ cao điểm 7 ngày, mỗi place 10 review. Headless: Maps trả trang thiếu (0 review), TikTok hay gặp captcha.
+  - Chưa có: chạy song song.
+  - **Google Maps chưa xong** (tạm dừng để hoàn thiện TikTok trước). Còn phải làm:
+    - chưa chạy full crawl, mới smoke 1 category (`thác`, 4 place, 10 review/place);
+    - headless trả trang thiếu, hiện phải chạy `--headed`;
+    - trang chặn của Google (`/sorry`) chưa chờ người giải như TikTok, chỉ dừng với `LoginRequired`;
+    - chưa kiểm: điểm dừng cuộn feed ("Bạn đã xem hết danh sách này"); `Thác Prenn` có 0 dòng giờ (chưa rõ do place không có giờ hay selector trượt);
+    - `address` còn lẫn ký tự icon ở đầu; review dài không bấm được "Thêm" thì giữ text bị cắt;
+    - lấy hết review (hiện trần `max_reviews_per_place`).
 
 ### Trước đó
 _không có_
