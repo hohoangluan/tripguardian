@@ -1,6 +1,7 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
   pause_s: [0.5, 1]  # random wait between items; a person solves captchas in --headed runs
+  tabs: 5  # videos of one search processed in parallel tabs
   max_videos_per_query: 30
   max_comments_per_video: null  # null = every top-level comment
   queries:  # groups from docs/specs/CORPUS_SPEC.md §1

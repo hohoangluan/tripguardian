@@ -256,3 +256,39 @@ def test_slow_first_response_is_awaited(monkeypatch):
 
     got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
     assert [c["comment_id"] for c in got] == ["a0"]
+
+
+def _cfg(**extra):
+    return lambda city: ("Đà Lạt", {"tiktok": {"max_videos_per_query": 10, "max_comments_per_video": 3,
+                                               "queries": {"general": ["{city} có gì chơi"]}, **extra}})
+
+
+def test_videos_run_in_parallel_tabs(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    calls["items"] = [_item(i) for i in range(1, 8)]
+    active, peak = [0], [0]
+
+    async def slow_comments(ctx, url, limit):
+        active[0] += 1
+        peak[0] = max(peak[0], active[0])
+        await asyncio.sleep(0.05)
+        active[0] -= 1
+        return [{"comment_id": "c"}]
+
+    monkeypatch.setattr(tiktok, "comments", slow_comments)
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=3))
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert peak[0] == 3 and len(list((root / "videos").glob("*/video.mp4"))) == 7
+
+
+def test_login_required_in_a_tab_stops_the_run(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    calls["items"] = [_item(i) for i in range(1, 5)]
+
+    async def blocked(ctx, url, limit):
+        raise browser.LoginRequired("tiktok")
+
+    monkeypatch.setattr(tiktok, "comments", blocked)
+    monkeypatch.setattr(tiktok, "load_config", _cfg(tabs=2))
+    with pytest.raises(browser.LoginRequired):
+        asyncio.run(tiktok.run("dalat", profile=profile))
