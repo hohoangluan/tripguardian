@@ -10,7 +10,7 @@ Xây **corpus Place Intelligence** offline cho planner đọc. Agent xây từ �
 
 ## Phạm vi
 
-Trong: Đà Lạt; khám phá (TikTok + inventory Google Places); trích xuất media; entity resolution (POI / ZONE); observation; tổng hợp thành fact / signal / estimate; kiểm tra và định tuyến theo rủi ro; duyệt cuối; serving index; refresh; resolve theo yêu cầu khi người dùng nhập một địa điểm.
+Trong: Đà Lạt; khám phá (TikTok + inventory Google Maps); trích xuất media; entity resolution (POI / ZONE); observation; tổng hợp thành fact / signal / estimate; kiểm tra và định tuyến theo rủi ro; duyệt cuối; serving index; refresh; resolve theo yêu cầu khi người dùng nhập một địa điểm.
 
 Ngoài: mọi dữ liệu người dùng (corpus không lưu và không coi input người dùng là bằng chứng về địa điểm); độ phù hợp của gợi ý (thuộc online); live context (thời tiết, giao thông, thời gian di chuyển); phủ toàn quốc.
 
@@ -53,9 +53,38 @@ Chỉ thêm vai trò hoặc model thứ hai khi nhãn review cho thấy một b�
 
 ### 1. Discover
 
-- **Nội dung (TikTok):** nhóm query (chung, category, trải nghiệm, đối tượng, ràng buộc, xu hướng) → thu video mới, caption, hashtag, comment (có giới hạn). Extractor đọc caption + hashtag của lô mới và đề xuất query mới (xu hướng, tên chỗ mới); code bỏ query trùng. Ngừng mở rộng một nhóm khi số ứng viên mới mỗi lô xuống dưới ngưỡng.
-- **Inventory (Google Places):** Text Search `"<category> <tên thành phố>"` theo từng category, không ngưỡng rating → Place ID làm ứng viên; nội dung vào provider store. Địa điểm inventory chưa có match TikTok sẽ kích hoạt một lần tìm ngược trên TikTok theo tên.
+- **Nội dung (TikTok):** nhóm query (chung, category, trải nghiệm, đối tượng, ràng buộc, xu hướng) → thu video mới, caption, hashtag, toàn bộ comment cấp 1 (trần tùy chọn `max_comments_per_video`). Search TikTok bằng Playwright với profile đã đăng nhập (bắt JSON API search); video tải từ `playAddr`; comment bắt JSON API comment. Extractor đọc caption + hashtag của lô mới và đề xuất query mới (xu hướng, tên chỗ mới); code bỏ query trùng. Ngừng mở rộng một nhóm khi số ứng viên mới mỗi lô xuống dưới ngưỡng.
+- **Inventory (Google Maps):** cào Google Maps (`<category> <tên thành phố>`) bằng Playwright với profile đã đăng nhập, không ngưỡng rating; FID Maps làm id ứng viên; chi tiết + review + giờ cao điểm lưu file. Địa điểm inventory chưa có match TikTok sẽ kích hoạt một lần tìm ngược trên TikTok theo tên.
 - Thành phố chỉ là **config tên** dùng để ghép vào query TikTok và Google. Không có ranh giới địa lý: địa điểm Google trả về cho query của thành phố là thuộc thành phố.
+
+#### Dữ liệu thô
+
+Code: `src/corpus/crawl/` (mỗi nguồn một module), chạy `python -m corpus {tiktok|gmaps} --city <key>`; query và trần số lượng ở `config/queries.yaml`. Gốc `DATA_DIR` (`.env`, mặc định `data/`, gitignored); profile trình duyệt ở `.browser/<source>/` (gitignored).
+
+```text
+data/
+  tiktok/
+    search/<city>/<query_slug>.jsonl     append mỗi lần search: {at, group, query, items:[{video_id, url, author_id, desc, created_at, hashtags}]}
+    videos/<video_id>/
+      info.json                          item JSON thô của API search
+      comments.json                      comment cấp 1 (chưa lấy reply): [{comment_id, author_hash, text, created_at, likes, reply_count}]
+      video.mp4                          ghi cuối cùng = video đã xong
+    errors.jsonl                         {at, id, stage, error}
+  gmaps/
+    search/<city>/<category_slug>.jsonl  append: {at, query, items:[{fid, name, url, lat, lng}]}
+    places/<fid_dir>/                    fid_dir = FID với ":" đổi thành "_" (Windows)
+      reviews.json                       [{review_id, author_hash, rating, text, published_text}]
+      place.json                         fid, name, url, lat, lng, category, address, phone, website, description,
+                                         hours[], status, attributes[], popular_times[], rating, review_count, fetched_at;
+                                         ghi cuối cùng = place đã xong
+    errors.jsonl
+```
+
+- `.jsonl` chỉ append; file khác ghi `*.tmp` rồi `os.replace` (atomic). Không bước nào xóa file.
+- Mục có file đánh dấu xong → bỏ qua; thiếu → lần chạy sau tải lại cả mục. Lỗi một mục → `errors.jsonl`, đi tiếp.
+- Text Maps (`hours`, `status`, `attributes`, `popular_times`, `published_text`) giữ nguyên văn. Không lưu tên người comment / review: `author_hash` = sha256(id)[:16].
+- Crawl thật chạy `--headed`: Maps headless trả trang thiếu (không review, không giờ cao điểm).
+- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. Tuần tự, nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
 
 ### 2. Extract (theo video)
 
@@ -275,11 +304,12 @@ Adapter retry có backoff; adapter TikTok giới hạn tốc độ và xoay sess
 
 | Sai lệch | Demo | Cách sửa khi thương mại |
 |---|---|---|
-| Provider store của Google | Lưu và làm mới nội dung Places | Điều khoản Google chỉ cho lưu Place ID (lat/lng ≤ 30 ngày): lấy theo request; ranh giới provider store cô lập thay đổi này |
-| Thu thập TikTok | Scraper tự viết | Truy cập có license sau cùng adapter |
+| Nguồn Google | Cào Google Maps có đăng nhập | Places API theo điều khoản |
+| Thu thập TikTok | Scraper Playwright có đăng nhập | Truy cập có license |
+| Lưu trữ | Lưu file, chưa có DB | PostgreSQL như §Data model |
 | Hình học ZONE | Buffer / hành lang quanh POI liên quan | Dữ liệu bản đồ |
 
 ## Đầu vào cần có
 
-`GOOGLE_MAPS_API_KEY` và API key của các model đang cấu hình trong `.env`; trần ngân sách hàng tháng cho Places và Judge; một người duyệt.
+API key của các model đang cấu hình trong `.env`; tài khoản TikTok phụ và tài khoản Google phụ (đăng nhập bằng `python -m corpus login`); trần ngân sách hàng tháng cho Judge; một người duyệt.
 

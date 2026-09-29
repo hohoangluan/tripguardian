@@ -6,7 +6,7 @@ Bối cảnh sản phẩm, người dùng mục tiêu, phạm vi MVP: `docs/Proj
 
 ## Trạng thái
 
-Repo đang ở giai đoạn thiết kế: có tài liệu, chưa có code. Trạng thái code theo từng tính năng ghi ở `docs/log/DEV_LOG.md`.
+Có code crawl dữ liệu thô (`src/corpus/crawl/`). Trạng thái code theo từng tính năng ghi ở `docs/log/DEV_LOG.md`.
 
 ## Tài liệu
 
@@ -37,3 +37,5 @@ Module chỉ giao tiếp qua public API (`api.py` / `interface.py`).
 
 1. `cp .env.example .env` rồi điền key và model — ý nghĩa từng biến ở `docs/LLM_PROVIDER.md`.
 2. Nếu gọi `llm.uit.edu.vn` lỗi chứng chỉ, tạo CA bundle một lần mỗi máy — xem `docs/LLM_PROVIDER.md` (phần chứng chỉ).
+3. `pip install -e .` rồi `python -m corpus login tiktok` và `python -m corpus login gmaps` (tài khoản phụ).
+4. Crawl: `python -m corpus tiktok --city dalat --headed`, `python -m corpus gmaps --city dalat --headed` (gặp captcha thì giải trong cửa sổ trình duyệt). Dữ liệu ở `data/` (xem `docs/specs/CORPUS_SPEC.md`, mục Dữ liệu thô).
