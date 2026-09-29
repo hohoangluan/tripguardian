@@ -119,3 +119,18 @@ def test_not_logged_in_stops_before_writing(fake_env):
     with pytest.raises(browser.LoginRequired):
         asyncio.run(tiktok.run("dalat", profile=profile))
     assert not (root / "search").exists()
+
+
+def test_pause_comes_from_config(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    seen = []
+
+    async def rec(*a):
+        seen.append(a)
+
+    monkeypatch.setattr(tiktok, "pause", rec)
+    monkeypatch.setattr(tiktok, "load_config", lambda city: ("Đà Lạt", {"tiktok": {
+        "max_videos_per_query": 5, "max_comments_per_video": 3, "pause_s": [0.1, 0.2],
+        "queries": {"general": ["{city} có gì chơi"]}}}))
+    asyncio.run(tiktok.run("dalat", profile=profile))
+    assert seen and all(a == (0.1, 0.2) for a in seen)

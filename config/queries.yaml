@@ -1,5 +1,6 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
+  pause_s: [1, 2]  # random wait between items; a person solves captchas in --headed runs
   max_videos_per_query: 30
   max_comments_per_video: 100
   queries:  # groups from docs/specs/CORPUS_SPEC.md §1
@@ -10,6 +11,7 @@ tiktok:
     constraint: ["{city} ngày mưa", "{city} ít đi bộ"]
     trend: ["{city} mới mở"]
 gmaps:
+  pause_s: [1, 2]
   max_places_per_query: 60
   max_reviews_per_place: 50
   categories: [điểm tham quan, quán cà phê, nhà hàng, công viên, vườn hoa, bảo tàng, chợ, nhà thờ, chùa, thác, hồ, nông trại, quán bar, tiệm bánh]

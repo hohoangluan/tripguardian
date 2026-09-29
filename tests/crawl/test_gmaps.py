@@ -104,3 +104,17 @@ def test_failed_place_is_logged_and_retried(fake_env):
     calls["fail"] = False
     asyncio.run(gmaps.run("dalat", profile=profile))
     assert (root / "places" / "0x317114a1a4b93341_0xf8ce8eb72915c065" / "place.json").exists()
+
+
+def test_pause_comes_from_config(fake_env, monkeypatch):
+    root, calls, profile = fake_env
+    seen = []
+
+    async def rec(*a):
+        seen.append(a)
+
+    monkeypatch.setattr(gmaps, "pause", rec)
+    monkeypatch.setattr(gmaps, "load_config", lambda city: ("Đà Lạt", {"gmaps": {
+        "max_places_per_query": 5, "max_reviews_per_place": 3, "pause_s": [0.1, 0.2], "categories": ["thác"]}}))
+    asyncio.run(gmaps.run("dalat", profile=profile))
+    assert seen and all(a == (0.1, 0.2) for a in seen)

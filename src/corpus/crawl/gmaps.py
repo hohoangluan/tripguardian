@@ -168,5 +168,5 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
                     raise
                 except Exception as e:
                     log_error(root, row["fid"], "place", e)
-                await pause()
-            await pause()
+                await pause(*c.get("pause_s", (2.0, 5.0)))
+            await pause(*c.get("pause_s", (2.0, 5.0)))
