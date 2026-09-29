@@ -188,3 +188,20 @@ def test_comments_without_limit_reads_every_page(monkeypatch):
 
     got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
     assert len(got) == 200 and len({c["comment_id"] for c in got}) == 200
+
+
+def test_comments_drop_repeated_pages(monkeypatch):
+    async def no_captcha(page, source):
+        return None
+
+    monkeypatch.setattr(tiktok, "wait_for_person", no_captcha)
+    page1 = {"comments": [{"cid": f"a{i}"} for i in range(20)], "has_more": True}
+    page2 = {"comments": [{"cid": f"b{i}"} for i in range(20)], "has_more": False}
+    page = _Page([page1, page1, page2])  # TikTok re-sends a page it already served
+
+    class Ctx:
+        async def new_page(self):
+            return page
+
+    got = asyncio.run(tiktok.comments(Ctx(), "https://www.tiktok.com/@a/video/1", None))
+    assert [c["comment_id"] for c in got] == [f"a{i}" for i in range(20)] + [f"b{i}" for i in range(20)]
