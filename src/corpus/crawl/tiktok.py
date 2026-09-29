@@ -1,0 +1,135 @@
+"""TikTok: search by query, then keep each video's item JSON, comments and mp4 under data/tiktok/."""
+
+from urllib.parse import quote
+
+from playwright.async_api import BrowserContext
+
+from .browser import LoginRequired, open_profile, pause, wait_for_person
+from .files import append_jsonl, author_hash, data_dir, load_config, log_error, now, slug, write_bytes, write_json
+
+SEARCH_URL = "https://www.tiktok.com/search/video?q="
+SEARCH_API = "/api/search/item/full"
+COMMENT_API = "/api/comment/list/"
+COMMENT_BUTTON = '[data-e2e="comment-icon"]'  # comments load only after the panel opens
+COMMENT_ITEM = '[class*="DivCommentObjectWrapper"]'
+
+
+def parse_search(payload: dict) -> list[dict]:
+    out = []
+    for it in payload.get("item_list") or []:
+        author = it.get("author") or {}
+        out.append({
+            "video_id": it["id"],
+            "url": f"https://www.tiktok.com/@{author.get('uniqueId')}/video/{it['id']}",
+            "author_id": author.get("uniqueId"),
+            "desc": it.get("desc", ""),
+            "created_at": it.get("createTime"),
+            "hashtags": [t["hashtagName"] for t in it.get("textExtra") or [] if t.get("hashtagName")],
+            "play_url": (it.get("video") or {}).get("playAddr") or None,  # None for photo posts
+            "raw": it,
+        })
+    return out
+
+
+def parse_comments(payload: dict) -> tuple[list[dict], bool]:
+    comments = [{
+        "comment_id": c["cid"],
+        "author_hash": author_hash(str((c.get("user") or {}).get("uid", ""))),
+        "text": c.get("text", ""),
+        "created_at": c.get("create_time"),
+        "likes": c.get("digg_count", 0),
+        "reply_count": c.get("reply_comment_total", 0),
+    } for c in payload.get("comments") or []]
+    return comments, bool(payload.get("has_more"))
+
+
+async def ensure_login(ctx: BrowserContext) -> None:
+    # Logged-out sessions get empty search results instead of an error.
+    if not any(c["name"] == "sessionid" for c in await ctx.cookies("https://www.tiktok.com")):
+        raise LoginRequired("tiktok")
+
+
+async def _collect(ctx: BrowserContext, url: str, api: str, parse, limit: int, per_scroll: int,
+                   click: str | None = None, scroll_to: str | None = None) -> list[dict]:
+    page = await ctx.new_page()
+    got: list[dict] = []
+    more = [True]
+
+    async def on_response(r):
+        if api in r.url:
+            try:
+                rows, has_more = parse(await r.json())
+            except Exception:
+                return
+            got.extend(rows)
+            more[0] = has_more
+
+    page.on("response", on_response)
+    try:
+        await page.goto(url, wait_until="domcontentloaded")
+        if click:
+            await page.wait_for_timeout(2000)
+            await wait_for_person(page, "tiktok")
+            await page.locator(click).first.click(timeout=15000)
+        for _ in range(limit // per_scroll + 3):
+            await page.wait_for_timeout(2500)
+            await wait_for_person(page, "tiktok")
+            if len(got) >= limit or not more[0]:
+                break
+            if scroll_to and await page.locator(scroll_to).count():  # side panel: the page itself does not scroll
+                await page.locator(scroll_to).last.scroll_into_view_if_needed()
+            else:
+                await page.mouse.wheel(0, 6000)
+        return got[:limit]
+    finally:
+        await page.close()
+
+
+async def search(ctx: BrowserContext, query: str, limit: int) -> list[dict]:
+    items = await _collect(ctx, SEARCH_URL + quote(query), SEARCH_API,
+                           lambda p: (parse_search(p), bool(p.get("has_more"))), limit, 12)
+    return list({it["video_id"]: it for it in items}.values())
+
+
+async def comments(ctx: BrowserContext, url: str, limit: int) -> list[dict]:
+    return await _collect(ctx, url, COMMENT_API, parse_comments, limit, 20, click=COMMENT_BUTTON, scroll_to=COMMENT_ITEM)
+
+
+async def download_video(ctx: BrowserContext, play_url: str, path) -> None:
+    r = await ctx.request.get(play_url, headers={"Referer": "https://www.tiktok.com/"}, timeout=300_000)  # files reach 50+ MB
+    if not r.ok:
+        raise RuntimeError(f"video HTTP {r.status}")
+    write_bytes(path, await r.body())
+
+
+async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+    name, cfg = load_config(city)
+    c, root = cfg["tiktok"], data_dir() / "tiktok"
+    async with profile("tiktok", headed) as ctx:
+        await ensure_login(ctx)
+        for group, queries in c["queries"].items():
+            for q in queries:
+                query = q.format(city=name)
+                items = await search(ctx, query, c["max_videos_per_query"])
+                append_jsonl(root / "search" / city / f"{slug(query)}.jsonl", {
+                    "at": now(), "group": group, "query": query,
+                    "items": [{k: v for k, v in it.items() if k not in ("raw", "play_url")} for it in items]})
+                for it in items:
+                    d = root / "videos" / it["video_id"]
+                    if (d / "video.mp4").exists():
+                        continue
+                    try:
+                        if not it["play_url"]:
+                            raise ValueError("no video file (photo post)")
+                        write_json(d / "info.json", it["raw"])
+                        cm = await comments(ctx, it["url"], c["max_comments_per_video"])
+                        if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
+                            raise RuntimeError("no comments captured")  # panel blocked; retry next run
+                        write_json(d / "comments.json", cm)
+                        await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
+                    except LoginRequired:
+                        raise
+                    except Exception as e:
+                        log_error(root, it["video_id"], "video", e)
+                    await pause()
+                await pause()
