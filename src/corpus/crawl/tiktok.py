@@ -72,7 +72,7 @@ async def _collect(ctx: BrowserContext, url: str, api: str, parse, limit: int, p
             await wait_for_person(page, "tiktok")
             await page.locator(click).first.click(timeout=15000)
         for _ in range(limit // per_scroll + 3):
-            await page.wait_for_timeout(2500)
+            await page.wait_for_timeout(1500)
             await wait_for_person(page, "tiktok")
             if len(got) >= limit or not more[0]:
                 break
@@ -131,5 +131,5 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
                         raise
                     except Exception as e:
                         log_error(root, it["video_id"], "video", e)
-                    await pause()
-                await pause()
+                    await pause(*c.get("pause_s", (2.0, 5.0)))
+                await pause(*c.get("pause_s", (2.0, 5.0)))
