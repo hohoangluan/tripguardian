@@ -42,8 +42,8 @@ def append_jsonl(path: Path, obj) -> None:
 
 
 def log_error(source_dir: Path, id: str, stage: str, err: BaseException) -> None:
-    append_jsonl(source_dir / "errors.jsonl",
-                 {"at": now(), "id": id, "stage": stage, "error": f"{type(err).__name__}: {err}"})
+    msg = str(err).split("\n", 1)[0]  # Playwright appends a call log that carries session cookies
+    append_jsonl(source_dir / "errors.jsonl", {"at": now(), "id": id, "stage": stage, "error": f"{type(err).__name__}: {msg}"})
 
 
 def slug(text: str) -> str:

@@ -24,6 +24,13 @@ def test_log_error_appends_reason(tmp_path):
     assert (row["id"], row["stage"], row["error"]) == ("v1", "download", "ValueError: boom")
 
 
+def test_log_error_drops_call_log_with_cookies(tmp_path):
+    # Playwright errors append a call log with request headers, including session cookies.
+    files.log_error(tmp_path, "v1", "video", TimeoutError("Timeout 30000ms exceeded.\nCall log:\n  - cookie: sessionid=abc"))
+    row = json.loads((tmp_path / "errors.jsonl").read_text(encoding="utf-8"))
+    assert row["error"] == "TimeoutError: Timeout 30000ms exceeded."
+
+
 def test_names_are_windows_safe():
     assert files.slug("Quán cà phê Đà Lạt!") == "quan-ca-phe-da-lat"
     assert files.safe_name("0x317114a1a4b93341:0xf8ce8eb72915c065") == "0x317114a1a4b93341_0xf8ce8eb72915c065"
