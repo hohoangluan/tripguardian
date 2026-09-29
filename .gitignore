@@ -8,3 +8,7 @@ certs/uit-ca-bundle.pem
 __pycache__/
 .pytest_cache/
 *.egg-info/
+
+data/
+.browser/
+.superpowers/

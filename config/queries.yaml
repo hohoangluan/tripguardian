@@ -1,0 +1,15 @@
+# {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
+tiktok:
+  max_videos_per_query: 30
+  max_comments_per_video: 100
+  queries:  # groups from docs/specs/CORPUS_SPEC.md §1
+    general: ["{city} có gì chơi", "review du lịch {city}"]
+    category: ["quán cà phê {city}", "quán ăn ngon {city}", "chợ đêm {city}"]
+    experience: ["săn mây {city}", "view rừng thông {city}", "vườn hoa {city}"]
+    audience: ["{city} đi cùng gia đình", "{city} cho người lớn tuổi", "{city} cặp đôi"]
+    constraint: ["{city} ngày mưa", "{city} ít đi bộ"]
+    trend: ["{city} mới mở"]
+gmaps:
+  max_places_per_query: 60
+  max_reviews_per_place: 50
+  categories: [điểm tham quan, quán cà phê, nhà hàng, công viên, vườn hoa, bảo tàng, chợ, nhà thờ, chùa, thác, hồ, nông trại, quán bar, tiệm bánh]
