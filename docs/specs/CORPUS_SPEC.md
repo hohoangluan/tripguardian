@@ -53,7 +53,7 @@ Chỉ thêm vai trò hoặc model thứ hai khi nhãn review cho thấy một b�
 
 ### 1. Discover
 
-- **Nội dung (TikTok):** nhóm query (chung, category, trải nghiệm, đối tượng, ràng buộc, xu hướng) → thu video mới, caption, hashtag, toàn bộ comment cấp 1 (trần tùy chọn `max_comments_per_video`). Search TikTok bằng Playwright với profile đã đăng nhập (bắt JSON API search); video tải từ `playAddr`; comment bắt JSON API comment. Extractor đọc caption + hashtag của lô mới và đề xuất query mới (xu hướng, tên chỗ mới); code bỏ query trùng. Ngừng mở rộng một nhóm khi số ứng viên mới mỗi lô xuống dưới ngưỡng.
+- **Nội dung (TikTok):** nhóm query (chung, category, trải nghiệm, đối tượng, ràng buộc, xu hướng) → thu video mới, caption, hashtag, toàn bộ comment kèm reply (trần tùy chọn `max_comments_per_video`). Search TikTok bằng Playwright với profile đã đăng nhập (bắt JSON API search); video tải từ `playAddr`; comment và reply bắt JSON API comment / reply (mở hết nút "Xem … câu trả lời"). Extractor đọc caption + hashtag của lô mới và đề xuất query mới (xu hướng, tên chỗ mới); code bỏ query trùng. Ngừng mở rộng một nhóm khi số ứng viên mới mỗi lô xuống dưới ngưỡng.
 - **Inventory (Google Maps):** cào Google Maps (`<category> <tên thành phố>`) bằng Playwright với profile đã đăng nhập, không ngưỡng rating; FID Maps làm id ứng viên; chi tiết + review + giờ cao điểm lưu file. Địa điểm inventory chưa có match TikTok sẽ kích hoạt một lần tìm ngược trên TikTok theo tên.
 - Thành phố chỉ là **config tên** dùng để ghép vào query TikTok và Google. Không có ranh giới địa lý: địa điểm Google trả về cho query của thành phố là thuộc thành phố.
 
@@ -67,7 +67,8 @@ data/
     search/<city>/<query_slug>.jsonl     append mỗi lần search: {at, group, query, items:[{video_id, url, author_id, desc, created_at, hashtags}]}
     videos/<video_id>/
       info.json                          item JSON thô của API search
-      comments.json                      comment cấp 1 (chưa lấy reply): [{comment_id, author_hash, text, created_at, likes, reply_count}]
+      comments.json                      comment + reply: [{comment_id, author_hash, text, created_at, likes, reply_count, parent_id}]
+                                         parent_id = comment_id của comment cha (null với comment cấp 1)
       video.mp4                          ghi cuối cùng = video đã xong
     errors.jsonl                         {at, id, stage, error}
   gmaps/
