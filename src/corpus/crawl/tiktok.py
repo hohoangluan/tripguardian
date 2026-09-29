@@ -7,12 +7,14 @@ from playwright.async_api import BrowserContext
 
 from .browser import LoginRequired, open_profile, pause, wait_for_person
 from .files import append_jsonl, author_hash, data_dir, load_config, log_error, now, slug, write_bytes, write_json
+from .throttle import Throttle
 
 SEARCH_URL = "https://www.tiktok.com/search/video?q="
 SEARCH_API = "/api/search/item/full"
 COMMENT_API = "/api/comment/list/"
 REPLY_API = "/api/comment/list/reply/"
-COMMENT_BUTTON = '[data-e2e="comment-icon"]'  # comments load only after the panel opens
+# Comments load only after the panel opens: the icon, or the "Bình luận" panel tab in the newer layout.
+COMMENT_BUTTON = '[data-e2e="comment-icon"], :text-is("Bình luận")'
 COMMENT_ITEM = '[class*="DivCommentObjectWrapper"]'
 REPLY_BUTTON = '[class*="DivViewRepliesContainer"]'  # "Xem N câu trả lời" / "Xem thêm" / "Ẩn"
 
@@ -93,7 +95,7 @@ async def _collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: i
         if click:
             await page.wait_for_timeout(2000)
             await wait_for_person(page, "tiktok")
-            await page.locator(click).first.click(timeout=15000)
+            await page.locator(click).filter(visible=True).first.click(timeout=15000)
         seen = stale = 0
         while True:
             await page.wait_for_timeout(1000)
@@ -108,6 +110,7 @@ async def _collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: i
                 await page.locator(scroll_to).last.scroll_into_view_if_needed()
             else:
                 await page.mouse.wheel(0, 6000)
+        await page.wait_for_timeout(2500)  # let replies opened in the last round arrive
         rows = list(got.values())
         return rows[:limit] if limit else rows
     finally:
@@ -132,31 +135,45 @@ async def download_video(ctx: BrowserContext, play_url: str, path) -> None:
     write_bytes(path, await r.body())
 
 
-async def _video(ctx: BrowserContext, it: dict, root, c: dict, tabs: asyncio.Semaphore) -> None:
+def _is_block(e: Exception) -> bool:
+    # Throttled sessions get error pages or pages that never finish rendering.
+    return "ERR_HTTP_RESPONSE_CODE_FAILURE" in str(e) or type(e).__name__ == "TimeoutError"
+
+
+async def _video(ctx: BrowserContext, it: dict, root, c: dict, throttle: Throttle) -> None:
     d = root / "videos" / it["video_id"]
     if (d / "video.mp4").exists():
         return
-    async with tabs:
-        try:
-            if not it["play_url"]:
-                raise ValueError("no video file (photo post)")
-            write_json(d / "info.json", it["raw"])
-            cm = await comments(ctx, it["url"], c["max_comments_per_video"])
-            if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
-                raise RuntimeError("no comments captured")  # panel blocked; retry next run
-            write_json(d / "comments.json", cm)
-            await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
-        except LoginRequired:
-            raise
-        except Exception as e:
-            log_error(root, it["video_id"], "video", e)
-        await pause(*c.get("pause_s", (2.0, 5.0)))
+    for attempt in (1, 2):  # a blocked attempt is retried once, after the cooldown
+        async with throttle:
+            try:
+                if not it["play_url"]:
+                    raise ValueError("no video file (photo post)")
+                write_json(d / "info.json", it["raw"])
+                cm = await comments(ctx, it["url"], c["max_comments_per_video"])
+                if not cm and (it["raw"].get("stats") or {}).get("commentCount"):
+                    raise RuntimeError("no comments captured")  # panel blocked; retry next run
+                write_json(d / "comments.json", cm)
+                await download_video(ctx, it["play_url"], d / "video.mp4")  # written last = done
+                throttle.success()
+                return
+            except LoginRequired:
+                raise
+            except Exception as e:
+                if attempt == 1 and _is_block(e):
+                    throttle.blocked()
+                    continue
+                log_error(root, it["video_id"], "video", e)
+                return
+            finally:
+                await pause(*c.get("pause_s", (2.0, 5.0)))
 
 
 async def run(city: str, headed: bool = False, profile=open_profile) -> None:
     name, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
-    tabs = asyncio.Semaphore(c.get("tabs", 1))  # videos of one search open in parallel tabs
+    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
+                        cooldown_s=c.get("cooldown_s", 60))
     async with profile("tiktok", headed) as ctx:
         await ensure_login(ctx)
         for group, queries in c["queries"].items():
@@ -169,7 +186,7 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
                 try:
                     async with asyncio.TaskGroup() as tg:  # one LoginRequired cancels the other tabs
                         for it in items:
-                            tg.create_task(_video(ctx, it, root, c, tabs))
+                            tg.create_task(_video(ctx, it, root, c, throttle))
                 except* LoginRequired as eg:
                     raise eg.exceptions[0] from None
                 await pause(*c.get("pause_s", (2.0, 5.0)))
