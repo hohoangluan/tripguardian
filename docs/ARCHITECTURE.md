@@ -57,20 +57,20 @@ Discover → Extract → Resolve → Observe → Aggregate → Check & route →
 ## 2.1 Khám phá
 
 ```text
-Query TikTok theo nhóm      Lưới category × khu vực trên Google Places
+Query TikTok theo nhóm      Query category × tên thành phố trên Google Places
           └──────────────┬──────────────┘
                          ↓
               mention / ứng viên địa điểm
 ```
 
-Khám phá nội dung tìm ra trải nghiệm; lưới Maps tìm ra những nơi nội dung bỏ sót. Cả hai đổ vào một danh sách ứng viên. Ứng viên chỉ là địa điểm có thể có, chưa được tin.
+Khám phá nội dung tìm ra trải nghiệm; inventory Google tìm ra những nơi nội dung bỏ sót. Cả hai đổ vào một danh sách ứng viên. Ứng viên chỉ là địa điểm có thể có, chưa được tin.
 
 ## 2.2 Resolve
 
 ```text
 ứng viên
     ↓
-chuẩn hóa tên → match trong vùng (tên, category, vị trí, quan hệ được nói rõ)
+chuẩn hóa tên → match với Google (tên, category, quan hệ được nói rõ)
     ├─ match rõ                        → POI
     ├─ khu vực / con đường / cảnh quan → ZONE (nối với các POI của nó)
     ├─ chưa rõ                         → Judge chọn một phương án có sẵn hoặc bỏ phiếu trắng
@@ -115,7 +115,7 @@ gate (schema, span tồn tại, ontology id, ngưỡng match)
                                  → flag → NEEDS_REVIEW (không phục vụ) → hàng đợi review
 ```
 
-Hàng đợi review còn nhận các giá trị về an toàn / tiếp cận và một mẫu ngẫu nhiên ẩn dùng để đo chất lượng. Người duyệt Accept, Disable, hoặc Report error; giá trị không bao giờ được sửa tay.
+Hàng đợi review còn nhận các giá trị cho phép về an toàn / tiếp cận và một mẫu ngẫu nhiên ẩn dùng để đo chất lượng. Người duyệt Accept, Disable, hoặc Report error; giá trị không bao giờ được sửa tay.
 
 Trạng thái: `VERIFIED`, `UNCERTAIN`, `OUTDATED`, `NEEDS_REVIEW`, `DISABLED`, giữ theo từng khía cạnh.
 

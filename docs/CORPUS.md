@@ -25,19 +25,19 @@ SOURCE ──► OBSERVATION ──► FACT / SIGNAL / ESTIMATE ──► PLACE 
 | Google Places | Định danh, vị trí, loại, giờ mở cửa, trạng thái, website | Nhận định trải nghiệm. Không lưu rating và review |
 | Website / trang chính thức | Giờ, giá, vé, đặt chỗ, quy định, đóng cửa tạm | — |
 
-Video chỉ được tải tạm để trích xuất rồi xóa. Corpus giữ transcript, timestamp segment, keyframe nhỏ, và URL embed TikTok; bằng chứng phát qua embed tại timestamp của segment.
+Video tải về được giữ lại để xem lại nội dung. Corpus giữ file video, transcript, timestamp segment, keyframe nhỏ, và URL embed TikTok; bằng chứng phát qua embed tại timestamp của segment.
 
 Nội dung Google Places nằm trong một **provider store** riêng, không trộn vào bảng của corpus, và chỉ hiển thị kèm bản đồ Google.
 
 ## 3. Luồng xây dựng
 
 ```text
-DISCOVER     query TikTok theo nhóm  +  lưới category × khu vực trên Google Places
+DISCOVER     query TikTok theo nhóm  +  query category × tên thành phố trên Google Places
    ↓
-EXTRACT      video tạm → segment → ASR → chữ trên keyframe + mô tả hình ảnh → xóa video
+EXTRACT      tải video (giữ lại) → segment → ASR → chữ trên keyframe + mô tả hình ảnh
              → mention địa điểm có span, loại POI / ZONE, quan hệ không gian được nói rõ
    ↓
-RESOLVE      chuẩn hóa tên → match với Google trong vùng
+RESOLVE      chuẩn hóa tên → match với Google (query kèm tên thành phố)
              match rõ → POI · khu vực / con đường / cảnh quan → ZONE
              chưa rõ → Judge chọn một phương án có sẵn hoặc bỏ phiếu trắng · không có → UNRESOLVED
    ↓
@@ -67,7 +67,7 @@ Một địa điểm là **POI** (một điểm xác định được) hoặc **
 
 **Confidence** giữ bốn thành phần, không gộp thành một số ẩn: số nguồn độc lập, mức đồng thuận, độ mới, loại nguồn.
 
-**Coverage** theo khía cạnh (`identity`, `operation`, `experience`, `environment`, `effort`, `suitability`): `COMPLETE | PARTIAL | NONE`. Địa điểm không có bằng chứng trải nghiệm (chỉ tìm thấy qua lưới Maps) được dùng làm chỗ ăn, anchor, hoặc phương án dự phòng, không được gợi ý như một trải nghiệm.
+**Coverage** theo khía cạnh (`identity`, `operation`, `experience`, `environment`, `effort`, `suitability`): `COMPLETE | PARTIAL | NONE`. Địa điểm không có bằng chứng trải nghiệm (chỉ tìm thấy qua inventory Google) được dùng làm chỗ ăn, anchor, hoặc phương án dự phòng, không được gợi ý như một trải nghiệm.
 
 ## 5. Bản ghi địa điểm
 
@@ -98,7 +98,7 @@ Trạng thái giữ theo từng khía cạnh, nên một địa điểm có th�
 
 ## 7. Người duyệt
 
-Bước duy nhất có người, sau mỗi lần build. Hàng đợi gồm: mục `NEEDS_REVIEW`, giá trị về an toàn / tiếp cận / đối tượng phù hợp (luôn cần người kiểm tra), ứng viên chưa resolve, feature mới được đề xuất, và một mẫu ngẫu nhiên ẩn ~5% các giá trị đã tự publish. Mẫu này là cách đo chất lượng.
+Bước duy nhất có người, sau mỗi lần build. Hàng đợi gồm: mục `NEEDS_REVIEW`, giá trị cho phép về an toàn / tiếp cận / đối tượng phù hợp (luôn cần người kiểm tra; giá trị cảnh báo được tự publish là `UNCERTAIN` khi Judge pass và có ≥ 2 nguồn độc lập), ứng viên chưa resolve, feature mới được đề xuất, và một mẫu ngẫu nhiên ẩn ~5% các giá trị đã tự publish. Mẫu này là cách đo chất lượng.
 
 Thao tác của người duyệt: **Accept · Disable · Report error**. Không sửa giá trị bằng tay; lỗi được báo sẽ kích hoạt build lại từ bằng chứng. Mọi quyết định được lưu thành nhãn để hiệu chỉnh và làm regression test.
 

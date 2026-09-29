@@ -34,7 +34,7 @@ User **không** được: sửa dữ liệu nguồn của địa điểm, sửa 
 |---|---|
 | Review | Xử lý hàng đợi review: Accept, Disable, hoặc Report error trên một giá trị, liên kết, loại, hoặc bản trùng |
 | Địa điểm | Xem danh sách địa điểm và bằng chứng; yêu cầu làm mới nguồn |
-| Xung đột | Ưu tiên giá trị của một nguồn (ghi thành quyết định review; xung đột vẫn giữ trong lịch sử) hoặc để chưa chắc chắn |
+| Xung đột | Accept để giữ chưa chắc chắn, hoặc Report error trên observation của nguồn sai (build lại, rule chọn giá trị; xung đột vẫn giữ trong lịch sử) |
 | Quan sát | Xem phiên chuyến đi, analytics, pilot, trạng thái hệ thống, lỗi, phản hồi |
 
 Admin **không** gõ giá trị mới cho fact của địa điểm: dữ liệu do agent xây, giá trị sai được báo lỗi và hệ thống build lại từ bằng chứng (`docs/CORPUS.md` §7). Admin không sửa lịch trình của User và không quyết định thay User.
@@ -149,21 +149,21 @@ ADMIN
 
 Việc chính hằng ngày của Admin. Nội dung và thứ tự hàng đợi: `docs/CORPUS.md` §7.
 
-- **Danh sách:** loại mục (giá trị Judge đánh dấu · kiểm tra an toàn / tiếp cận / đối tượng phù hợp · tên chưa resolve · feature đề xuất), địa điểm, khía cạnh, vì sao nằm ở đây, mức rủi ro.
+- **Danh sách:** loại mục (giá trị Judge đánh dấu · kiểm tra giá trị cho phép về an toàn / tiếp cận / đối tượng phù hợp · tên chưa resolve · feature đề xuất), địa điểm, khía cạnh, vì sao nằm ở đây, mức rủi ro.
 - **Một mục:** giá trị, thành phần độ tin cậy (số nguồn, đồng thuận, độ mới, loại nguồn), bằng chứng (clip tại timestamp, comment, trích đoạn chính thức), finding của Judge.
 - **Thao tác:** Accept · Disable · Report error (giá trị / liên kết / loại POI/ZONE / trùng / category). Accept hàng loạt cho mục rủi ro thấp cùng loại.
 - Mẫu ngẫu nhiên các mục đã publish được trộn vào **không đánh dấu** và phải trông y hệt các mục khác.
 
 ### 3.2 Danh sách địa điểm và chi tiết
 
-- **Danh sách:** địa điểm · trạng thái · bằng chứng · độ tin cậy · cập nhật. Lọc theo trạng thái (bộ trạng thái chung: `docs/CORPUS.md` §6), category, khu vực, coverage. Hiển thị khía cạnh có trạng thái tệ nhất.
+- **Danh sách:** địa điểm · trạng thái · bằng chứng · độ tin cậy · cập nhật. Lọc theo trạng thái (bộ trạng thái chung: `docs/CORPUS.md` §6), category, thành phố (theo config), coverage. Hiển thị khía cạnh có trạng thái tệ nhất.
 - **Chi tiết:** Identity, Operation, Experience, Environment, Effort, Suitability — mỗi khía cạnh có trạng thái, coverage, bằng chứng, độ mới, độ tin cậy; finding của Judge và lịch sử review.
 - **Thao tác:** Accept · Disable · Report error · Request refresh. Provenance cũ không bao giờ bị xóa.
 
 ### 3.3 Theo dõi bằng chứng và xung đột
 
 - **Mỗi bản ghi:** nhận định · nguồn · thời điểm thu thập · độ tin cậy · trạng thái. Lọc: Fresh / Outdated / Missing / Conflicting / Single source.
-- **Xung đột** (cùng nhận định, khác giá trị): Prefer one source (ghi thành quyết định review) · Keep uncertain · Refresh sources. Khi chưa xử lý, User Web nhận trạng thái chưa chắc chắn.
+- **Xung đột** (cùng nhận định, khác giá trị): Accept (giữ chưa chắc chắn) · Report error trên observation của nguồn sai (build lại, rule chọn giá trị) · Refresh sources. Khi chưa xử lý, User Web nhận trạng thái chưa chắc chắn.
 
 ### 3.4 Dashboard
 

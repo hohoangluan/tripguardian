@@ -6,9 +6,9 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 |---|---|---|
 | ASR | ChunkFormer trên GPU local | Local |
 | Extractor | Gemma 4 trên UIT API (miễn phí, nhận ảnh) | Trực tiếp trong mạng UIT |
-| Judge | GPT-5.6 Sol | Qua Cloudflare tunnel ra Internet |
+| Judge | Gemma 4 trên UIT API (cùng model với Extractor) | Trực tiếp trong mạng UIT |
 
-Judge phải khác họ model với Extractor để lỗi của hai bên độc lập với nhau.
+Judge và Extractor dùng chung model, tách vai trò bằng prompt chuyên biệt riêng cho từng vai trò; Judge bật thinking. Vì chung model nên lỗi hai bên không hoàn toàn độc lập: nếu nhãn review cho thấy Judge bỏ sót lỗi của Extractor, chuyển Judge sang họ model khác (chỉ đổi config, ví dụ `qwen3.8-27b` tại `https://llm.uit.edu.vn/qwen/v1`).
 
 ## UIT API
 
@@ -16,11 +16,13 @@ API tự host của UIT, tương thích OpenAI, tại `llm.uit.edu.vn`. **Chỉ 
 
 | Model | Base URL | Giá trị `model` | Dùng trong dự án |
 |---|---|---|---|
-| Gemma 4 26B-A4B (Google, MoE) | `https://llm.uit.edu.vn/gemma/v1` | `gemma-4-26b` | Extractor mặc định |
+| Gemma 4 26B-A4B (Google, MoE) | `https://llm.uit.edu.vn/gemma/v1` | `gemma-4-26b` | Extractor, Judge |
 
 Header xác thực: `Authorization: Bearer <LLM_API_KEY>`. Giới hạn: 32.768 token mỗi request (prompt + completion), tối đa 20 phút mỗi request.
 
 Gemma: nhanh, throughput cao, ~60–90 request đồng thời, latency trung vị 4–6 s. Nhận ảnh (đã kiểm tra: chép đúng chữ trên ảnh).
+
+Thinking: bật bằng `extra_body={"chat_template_kwargs": {"enable_thinking": True}}`. Server không tách phần suy nghĩ ra field riêng; nó nằm trong `content` trước câu trả lời, nên code lấy khối JSON cuối cùng của `content` rồi mới validate.
 
 ## Cấu hình
 
@@ -30,12 +32,11 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 |---|---|
 | `LLM_API_KEY` | Key UIT API (Extractor) |
 | `EXTRACTOR_BASE_URL`, `EXTRACTOR_MODEL` | Endpoint và model của Extractor |
-| `OPENAI_API_KEY` | Key OpenAI (Judge) |
-| `OPENAI_BASE_URL`, `JUDGE_MODEL` | Endpoint và model của Judge |
+| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL` | Key, endpoint và model của Judge (hiện = UIT Gemma) |
 
 Đọc qua `os.environ[...]` / `python-dotenv`. Không bao giờ hardcode key trong source, test, hay tài liệu.
 
-Máy build gọi API bên ngoài (Judge) qua Cloudflare tunnel đi ra; UIT và GPU local được gọi trực tiếp.
+Mọi model được gọi trực tiếp: UIT trong mạng campus, ASR trên GPU local.
 
 ## Chứng chỉ TLS
 

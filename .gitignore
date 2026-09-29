@@ -4,3 +4,7 @@
 
 # Generated CA bundle (system CAs + certs/*.pem), machine-specific
 certs/uit-ca-bundle.pem
+
+__pycache__/
+.pytest_cache/
+*.egg-info/

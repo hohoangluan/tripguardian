@@ -22,6 +22,5 @@ Hệ thống place intelligence + lập lịch trình cá nhân hóa.
 - Offline ghi Place Intelligence. Online chỉ đọc nó; online chỉ ghi lịch trình và user/session profile (khi người dùng đồng ý).
 - Không bao giờ bịa ra địa điểm. Không có bằng chứng → không phải fact. Hard constraint fail-closed.
 - User Profile là prior cá nhân hóa, không phải fact hay constraint: bối cảnh chuyến đi hiện tại thắng, `unknown` ≠ không thích, đã đến ≠ đã thích, một sự kiện không ghi đè profile dài hạn.
-- Module **chỉ** giao tiếp qua public API của module (`api.py` / `interface.py`). Không deep import.
+- Module **chỉ** giao tiếp qua public API của module (`__init__.py`). Không deep import.
 - Gọi model theo **vai trò** (Extractor, Judge, ASR); model cụ thể nằm trong config. Key để trong `.env`, không hardcode. Xem `docs/LLM_PROVIDER.md`.
-- Layout: `src/offline/{adapters,orchestrator,discovery,resolution,evidence,intelligence}` · `src/online/{preferences,retrieval,context,planner}` · `src/shared/{schemas,storage}` · `tests/{offline,online,fixtures}`

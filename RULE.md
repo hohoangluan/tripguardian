@@ -24,6 +24,7 @@
 - Module chỉ giao tiếp qua interface public có kiểu.
 - Không import phần nội bộ của module khác.
 - I/O, LLM, network chỉ nằm ở biên module.
+- Mỗi nguồn dữ liệu ngoài (TikTok, Google, …) có module/thư mục con riêng cả trong code lẫn trong thư mục dữ liệu; không gộp nhiều nguồn vào một file hay một thư mục.
 
 ## 3. Contract
 - Input/output public có kiểu.
