@@ -20,19 +20,21 @@ SOURCE ──► OBSERVATION ──► FACT / SIGNAL / ESTIMATE ──► PLACE 
 
 | Nguồn | Dùng cho | Không bao giờ dùng cho |
 |---|---|---|
-| Video TikTok (segment: transcript, chữ trên màn hình, mô tả hình ảnh) | Khám phá; trải nghiệm, môi trường, mức vận động | Fact vận hành nếu chỉ có một mình nó (giá đọc được từ video chỉ là observation) |
-| Comment TikTok | Tín hiệu trải nghiệm lặp lại (độ đông, yên tĩnh, đường đi) | Fact; hiển thị một comment đơn lẻ như sự thật |
-| Google Maps | Định danh, vị trí, loại, giờ, trạng thái, website; review và giờ cao điểm là bằng chứng trải nghiệm (xử lý như comment) | Rating dùng làm bằng chứng (chỉ tham khảo) |
+| Google Maps | **Tập địa điểm** (phase 1: top theo rating có trọng số số review mỗi category, không có chỗ ở); định danh, vị trí, loại, giờ, trạng thái, website; review và giờ cao điểm là bằng chứng trải nghiệm (xử lý như comment) | Rating dùng làm bằng chứng (chỉ dùng để xếp ứng viên phase 1) |
+| Video TikTok — tạm ngoài phạm vi | Trải nghiệm, môi trường, mức vận động cho địa điểm đã có | Tạo địa điểm mới; fact vận hành nếu chỉ có một mình nó |
+| Comment TikTok — tạm ngoài phạm vi | Tín hiệu trải nghiệm lặp lại (độ đông, yên tĩnh, đường đi) | Fact; hiển thị một comment đơn lẻ như sự thật |
 | Website / trang chính thức | Giờ, giá, vé, đặt chỗ, quy định, đóng cửa tạm | — |
 
-Video tải về được giữ lại để xem lại nội dung. Corpus giữ file video, transcript, timestamp segment, keyframe nhỏ, và URL embed TikTok; bằng chứng phát qua embed tại timestamp của segment.
+Khi TikTok quay lại phạm vi: video tải về được giữ lại để xem lại nội dung; corpus giữ file video, transcript, timestamp segment, keyframe nhỏ, và URL embed TikTok; bằng chứng phát qua embed tại timestamp của segment.
 
 Dữ liệu thô của từng nguồn lưu file riêng theo nguồn (`docs/specs/CORPUS_SPEC.md` §1, Dữ liệu thô).
 
 ## 3. Luồng xây dựng
 
 ```text
-DISCOVER     query TikTok theo nhóm  +  query category × tên thành phố trên Google Maps
+DISCOVER     phase 1: category × lưới ô trên Google Maps → Extractor bỏ nơi không dành cho du khách
+             → top 100 mỗi category (không chỗ ở) = tập địa điểm
+             (TikTok tạm ngoài phạm vi)
    ↓
 EXTRACT      tải video (giữ lại) → segment → ASR → chữ trên keyframe + mô tả hình ảnh
              → mention địa điểm có span, loại POI / ZONE, quan hệ không gian được nói rõ

@@ -1,6 +1,6 @@
 # LLM Provider
 
-Code gọi model theo **vai trò**, không gọi thẳng một model cố định. Định nghĩa và yêu cầu của từng vai trò: `docs/specs/CORPUS_SPEC.md`, mục Vai trò model. File này chỉ ghi model nào đang đảm nhận vai trò và cách kết nối.
+Code gọi model theo **vai trò**, không gọi thẳng một model cố định. Vai trò (`Role`: biến env của key / endpoint / model) và mọi task (`Task`: vai trò, prompt, schema, `max_tokens`, `temperature`, `parallel`) khai báo ở `src/corpus/llm/` (`roles.py`, `tasks.py`); sửa prompt hay thiết lập ở đó. Định nghĩa và yêu cầu của từng vai trò: `docs/specs/CORPUS_SPEC.md`, mục Vai trò model. File này chỉ ghi model nào đang đảm nhận vai trò và cách kết nối.
 
 | Vai trò | Model hiện tại | Đường mạng |
 |---|---|---|
@@ -20,7 +20,7 @@ API tự host của UIT, tương thích OpenAI, tại `llm.uit.edu.vn`. **Chỉ 
 
 Header xác thực: `Authorization: Bearer <LLM_API_KEY>`. Giới hạn: 32.768 token mỗi request (prompt + completion), tối đa 20 phút mỗi request.
 
-Gemma: nhanh, throughput cao, ~60–90 request đồng thời, latency trung vị 4–6 s. Nhận ảnh (đã kiểm tra: chép đúng chữ trên ảnh).
+Gemma: tối đa **40 request đồng thời mỗi key** (vượt → HTTP 429 "Too many concurrent requests"). Đo 2026-09-29 với `PLACE_FILTER` (prompt ngắn): 36 đồng thời → ~35 request/s, latency trung vị ~1 s, 0 lỗi; `Task.parallel` mặc định 36. Nhận ảnh (đã kiểm tra: chép đúng chữ trên ảnh).
 
 Thinking: bật bằng `extra_body={"chat_template_kwargs": {"enable_thinking": True}}`. Server không tách phần suy nghĩ ra field riêng; nó nằm trong `content` trước câu trả lời, nên code lấy khối JSON cuối cùng của `content` rồi mới validate.
 

@@ -34,6 +34,24 @@ async def open_profile(source: str, headed: bool = False):
             await ctx.close()
 
 
+@asynccontextmanager
+async def open_sessions(headed: bool = False):
+    """A Chrome without a profile; yields new_session() -> a fresh context with no cookies. For pages that need no
+    login: a site limiting one session (Google Maps lists) sees each new context as a new visitor."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            channel="chrome", headless=not headed,
+            ignore_default_args=["--enable-automation"], args=["--disable-blink-features=AutomationControlled"])
+
+        async def new_session() -> BrowserContext:
+            return await browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900})
+
+        try:
+            yield new_session
+        finally:
+            await browser.close()
+
+
 async def pause(lo: float = 2.0, hi: float = 5.0) -> None:
     await asyncio.sleep(random.uniform(lo, hi))
 

@@ -1,6 +1,6 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
-  pause_s: [0, 0.3]  # extra wait per video tab; blocks are handled by the tab throttle below
+  pause_s: [15, 30]  # wait per video tab; faster pacing gets the comment API blocked after ~15 videos
   tabs: 8  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
   tabs_start: 2  # first run only
   cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
@@ -17,10 +17,58 @@ tiktok:
     trend: ["{city} mới mở"]
 gmaps:
   pause_s: [0.5, 1]
+  search_tabs: 12  # max parallel search tabs (tiles); working level saved in data/gmaps/search_throttle.json
+  search_tabs_start: 2  # first run only
+  min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
+  same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
   tabs: 6  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
   tabs_start: 3  # first run only
   cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 900
-  max_places_per_query: 60
-  max_reviews_per_place: 50
-  categories: [điểm tham quan, quán cà phê, nhà hàng, công viên, vườn hoa, bảo tàng, chợ, nhà thờ, chùa, thác, hồ, nông trại, quán bar, tiệm bánh]
+  max_reviews_per_place: 200  # newest first
+  max_review_age_months: 12  # older reviews dropped (stale prices / hours / crowds) ...
+  min_reviews_per_place: 30  # ... except these first ones, so quiet places still have some
+  grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
+    start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
+    max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time
+    full_at: 100
+    lodging_max_zoom: 14  # hotel lists ignore the viewport: deeper tiles only repeat the same places
+  categories:  # places a traveller may visit, eat at or do things at (no lodging: users enter their own); Maps text in Vietnamese
+    - điểm tham quan
+    - điểm ngắm cảnh
+    - thác
+    - hồ
+    - đồi
+    - đỉnh núi
+    - khu rừng thông  # "rừng thông" opens one place of that name, not a list
+    - vườn hoa
+    - công viên
+    - quảng trường
+    - bảo tàng
+    - di tích lịch sử
+    - ga xe lửa
+    - cáp treo
+    - làng nghề
+    - nhà thờ
+    - chùa
+    - tu viện
+    - nông trại
+    - vườn dâu
+    - khu cắm trại
+    - khu sinh thái
+    - khu vui chơi
+    - sân golf
+    - quán cà phê
+    - quán ăn
+    - quán lẩu nướng  # one query for lẩu and nướng places
+    - quán ăn chay
+    - tiệm bánh
+    - quán ăn vặt
+    - tiệm trà
+    - quán trà sữa
+    - quán bar
+    - chợ
+    - trung tâm thương mại
+    - cửa hàng đặc sản
+    - spa
+    - cho thuê xe máy

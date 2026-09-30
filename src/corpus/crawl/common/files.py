@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def data_dir() -> Path:
@@ -64,4 +64,6 @@ def load_config(city: str) -> tuple[str, dict]:
     cities = yaml.safe_load((ROOT / "config" / "cities.yaml").read_text(encoding="utf-8"))
     if city not in cities:
         raise SystemExit(f"unknown city {city!r}; known: {', '.join(cities)}")
-    return cities[city], yaml.safe_load((ROOT / "config" / "queries.yaml").read_text(encoding="utf-8"))
+    cfg = yaml.safe_load((ROOT / "config" / "queries.yaml").read_text(encoding="utf-8"))
+    cfg["area"] = cities[city].get("area")
+    return cities[city]["name"], cfg

@@ -1,2 +1,5 @@
-# City key -> name appended to TikTok and Google queries. No geographic boundary.
-dalat: "Đà Lạt"
+# City key -> name appended to TikTok and Google queries, and the area Maps places must fall in
+# ([lat_min, lng_min, lat_max, lng_max]); Maps also returns same-name places in other cities.
+dalat:
+  name: "Đà Lạt"
+  area: [11.78, 108.30, 12.12, 108.66]  # Đà Lạt with Langbiang, Tuyền Lâm, Prenn, Cầu Đất

@@ -57,13 +57,14 @@ Discover → Extract → Resolve → Observe → Aggregate → Check & route →
 ## 2.1 Khám phá
 
 ```text
-Query TikTok theo nhóm      Query category × tên thành phố trên Google Places
-          └──────────────┬──────────────┘
-                         ↓
-              mention / ứng viên địa điểm
+Category × lưới ô trên Google Maps
+          ↓
+xếp theo rating có trọng số số review → top mỗi category (không có chỗ ở)
+          ↓
+tập địa điểm (phase 1)  →  phase 2: tìm chuyên sâu từng địa điểm (chi tiết, review, sau này TikTok)
 ```
 
-Khám phá nội dung tìm ra trải nghiệm; inventory Google tìm ra những nơi nội dung bỏ sót. Cả hai đổ vào một danh sách ứng viên. Ứng viên chỉ là địa điểm có thể có, chưa được tin.
+Google Maps quyết định tập địa điểm; nguồn khác chỉ thêm bằng chứng cho địa điểm đã có. TikTok tạm ngoài phạm vi.
 
 ## 2.2 Resolve
 
@@ -86,8 +87,8 @@ Mọi nguồn trở thành **observation**: một nhận định kèm span ngu�
 ```text
 trang chính thức → giờ, giá, đặt chỗ, quy định
 Google Places    → định danh, vị trí, giờ, trạng thái
-video TikTok     → trải nghiệm, môi trường, mức vận động
-comment TikTok   → tín hiệu lặp lại (độ đông, yên tĩnh, đường vào)
+review Google    → trải nghiệm, tín hiệu lặp lại (độ đông, yên tĩnh, đường vào)
+video / comment TikTok (tạm ngoài phạm vi) → trải nghiệm, môi trường, mức vận động
 ```
 
 Giá hay giờ chỉ thấy trong video vẫn chỉ là observation; không bao giờ thành fact nếu không có nguồn chính thức hoặc Google xác nhận.
@@ -220,7 +221,7 @@ Trip State
 │   ├── ngày đi
 │   ├── số ngày
 │   ├── nhóm đi
-│   ├── chỗ ở / điểm xuất phát
+│   ├── chỗ ở / điểm xuất phát (tùy chọn; chỉ quyết định điểm bắt đầu / kết thúc lộ trình)
 │   └── phương tiện
 │
 ├── Anchor
@@ -318,7 +319,7 @@ Input của người dùng không bao giờ trở thành bằng chứng về đ�
 
 # 6. Quyết định địa điểm
 
-Place Intelligence và Trip State gặp nhau ở tầng quyết định.
+Place Intelligence và Trip State gặp nhau ở tầng quyết định. Chi tiết: `docs/PLACE_DECISION.md`.
 
 ```text
 Trip State
@@ -585,6 +586,10 @@ thời gian di chuyển thực tế
 ```
 
 Live context chỉ dành cho từng request và không trở thành Place Intelligence lâu dài.
+
+## 9.1 Chỗ ở
+
+Hệ thống không gợi ý chỗ ở và Place Intelligence không chứa chỗ ở. Người dùng đã có chỗ ở thì nhập; resolve như §5 → anchor: điểm bắt đầu / kết thúc mỗi ngày, không đổi địa điểm được chọn. Không nhập → lộ trình không có điểm bắt đầu / kết thúc cố định.
 
 ---
 

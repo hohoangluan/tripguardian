@@ -81,7 +81,7 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 - Dữ liệu lấy từ Google hiển thị kèm **bản đồ Google**, không dùng nhà cung cấp bản đồ khác.
 - Không màn nào trình bày estimate hay giá trị chưa chắc chắn như fact đã xác nhận.
 - Người dùng và admin không sửa tay dữ liệu địa điểm; chỉ báo lỗi hoặc duyệt.
-- Chỗ ở là anchor (điểm bắt đầu / kết thúc), không phải một gợi ý trong MVP.
+- Chỗ ở không được gợi ý. Người dùng đã có chỗ ở thì nhập; nó là anchor và chỉ quyết định điểm bắt đầu / kết thúc của lộ trình.
 
 ## 7. Câu hỏi mở cho designer
 

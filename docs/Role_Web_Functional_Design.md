@@ -52,7 +52,7 @@ Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầ
 
 ### 2.2 Thiết lập chuyến đi
 
-- Bắt buộc: ngày đi, số người và là ai (người yêu, bạn, trẻ em, bố mẹ), phương tiện. Không bắt buộc: chỗ ở.
+- Bắt buộc: ngày đi, số người và là ai (người yêu, bạn, trẻ em, bố mẹ), phương tiện. Không bắt buộc: chỗ ở (đã có thì nhập, tra như §2.4; chỉ quyết định điểm bắt đầu / kết thúc của lộ trình; hệ thống không gợi ý chỗ ở).
 - Tùy chọn: nơi bắt buộc đến, booking cố định, giờ check-in/check-out và giờ phải rời Đà Lạt, giới hạn cứng (ngân sách, thời gian di chuyển tối đa mỗi chặng, tránh đường dốc, phải xong trước một giờ, loại hoạt động không muốn).
 - Giới hạn cứng và sở thích mềm là hai loại khác nhau (`docs/ARCHITECTURE.md` §4).
 
@@ -70,7 +70,7 @@ Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầ
 
 ### 2.5 Shortlist
 
-- Gom theo nhóm: điểm tham quan, thiên nhiên & view, ăn uống & cà phê, mua sắm / đặc sản. Chỗ ở là anchor, không nằm trong gợi ý.
+- Gom theo nhóm: điểm tham quan, thiên nhiên & view, ăn uống & cà phê, mua sắm / đặc sản. Chỗ ở không nằm trong shortlist (§2.2).
 - Thẻ địa điểm:
 
 ```text

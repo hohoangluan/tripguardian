@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 
-from corpus.crawl.throttle import Throttle
+from corpus.crawl.common.throttle import Throttle
 
 
 def test_grows_one_tab_per_clean_streak_up_to_max(tmp_path):
@@ -86,3 +86,36 @@ def test_one_block_event_seen_by_many_tabs_counts_once(tmp_path):
     for _ in range(5):  # five tabs fail during the same block
         t.blocked()
     assert t.limit == 4 and t._until - time.monotonic() <= 10
+
+
+def test_failed_level_needs_twice_the_clean_streak_before_next_try(tmp_path):
+    t = Throttle(tmp_path / "t.json", start=1, hi=4, grow_after=2, cooldown_s=0)
+    t.success(); t.success()
+    assert t.limit == 2  # first try at 2 after 2 clean items
+    t.blocked()
+    assert t.limit == 1
+    for _ in range(3):
+        t.success()
+    assert t.limit == 1  # 2 failed once: now needs 4
+    t.success()
+    assert t.limit == 2
+    t.blocked()
+    for _ in range(7):
+        t.success()
+    assert t.limit == 1  # failed twice: needs 8
+    t.success()
+    assert t.limit == 2
+
+
+def test_holding_a_level_forgives_its_failures(tmp_path):
+    t = Throttle(tmp_path / "t.json", start=1, hi=4, grow_after=2, cooldown_s=0)
+    t.success(); t.success()
+    t.blocked()  # 2 failed once
+    for _ in range(4):
+        t.success()
+    assert t.limit == 2
+    t.success(); t.success()  # held 2 for a full streak: grows to 3, and 2 is trusted again
+    assert t.limit == 3
+    t.blocked()  # back to 1 (3 // 2)
+    t.success(); t.success()
+    assert t.limit == 2  # 2's old failure was forgiven: normal streak

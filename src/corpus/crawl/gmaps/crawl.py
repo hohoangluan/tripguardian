@@ -1,0 +1,236 @@
+"""Phase 4, crawl: open every place of data/gmaps/list/<city>.json and save its details and reviews.
+
+Writes only data/gmaps/places/<fid_dir>/: reviews.json, then place.json (= done; a rerun skips it). Places are
+scraped in parallel tabs (throttle.py); a place that says it has reviews but yields none is retried, never saved.
+"""
+
+import asyncio
+import json
+import re
+
+from playwright.async_api import BrowserContext, Page
+
+from ..common.browser import LoginRequired, open_profile, pause
+from ..common.files import author_hash, data_dir, load_config, log_error, now, safe_name, write_json
+from ..common.throttle import Throttle
+from ...review import retry_ids
+from .page import ensure_login, more, open_page
+
+HOURS_BUTTON = '[role="button"][jsaction*="openhours"][jsaction*="dropdown"]'
+SORT_BUTTON = 'button[aria-haspopup="true"][aria-label="Phù hợp nhất"]'  # label = current review order
+SORTED_NEWEST_JS = """() => [...document.querySelectorAll('button[aria-haspopup="true"]')]
+  .some(b => b.getAttribute('aria-label')?.normalize('NFC') === 'Mới nhất')"""  # label switches to decomposed text
+NEWEST_ITEM = '[role="menuitemradio"][data-index="1"]'  # "Mới nhất"; menu text is NFD, so match by position
+
+REVIEW_DIV = "div.jftiEf[data-review-id]"
+PLACE_JS = r"""() => {
+  const clean = s => s.replace(/[\ue000-\uf8ff]/g, '').trim();  // drop icon-font glyphs (address pin, hours arrow)
+  const q = s => document.querySelector(s), t = e => e ? clean(e.innerText) : null;
+  const labels = [...document.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label').trim());
+  return {
+    name: t(q('h1.DUwDvf')), category: t(q('button[jsaction*="category"]')),
+    address: t(q('[data-item-id="address"]')), website: q('a[data-item-id="authority"]')?.href ?? null,
+    phone: q('[data-item-id^="phone:tel:"]')?.dataset.itemId.slice(10) ?? null,
+    description: t(q('.PYvSYb')),
+    hours: [...document.querySelectorAll('table.eK4R0e tr')].map(r => clean(r.innerText.replace(/\s+/g, ' '))).filter(Boolean),
+    status: t(q('.ZDu9vd span')),
+    attributes: labels.filter(a => /^(Có|Không có|Phù hợp|Lối vào|Nhà vệ sinh|Chỗ đậu xe)/.test(a)),
+    popular_times: [...document.querySelectorAll('div.C7xf8b > div')].map(day =>  // 7 days, Sunday first
+      [...day.querySelectorAll('[role="img"][aria-label]')].map(e => e.getAttribute('aria-label').trim())),
+    rating: labels.find(a => /^[\d,]+ sao$/.test(a)) ?? null,
+    review_count: labels.find(a => /^[\d.]+ bài đánh giá$/.test(a)) ?? null,
+    rating_histogram: [...document.querySelectorAll('tr[aria-label]')].map(e => e.getAttribute('aria-label').trim()),  // 5 stars first
+    price: labels.find(a => /^Khoảng giá/.test(a)) ?? labels.find(a => /^Giá (rẻ|vừa phải|đắt|rất đắt)/.test(a)) ?? null,
+    plus_code: t(q('[data-item-id="oloc"]')),
+    tickets: [...document.querySelectorAll('h2')].filter(h => /^Vé vào cửa/.test(h.innerText.trim()))
+      .map(h => h.parentElement.parentElement.parentElement.innerText.trim())[0] ?? null,  // raw offers text
+  };
+}"""
+
+EXPAND_JS = "() => { const b = [...document.querySelectorAll('div.jftiEf button.w8nwRe')]; b.forEach(e => e.click()); return b.length; }"
+
+# The review pane ends in a loader (a div with a spinner) while more reviews can load; Maps empties it once the
+# last batch is in. An empty last child = end of list, known without waiting for a timeout.
+LIST_END_JS = """() => { const l = document.querySelector('div.m6QErb.DxyBCb')?.lastElementChild;
+  return !!l && l.childElementCount === 0; }"""
+
+LAST_DATE_JS = f"() => [...document.querySelectorAll('{REVIEW_DIV} :is(.rsqaWe, .xRkPPb)')].pop()?.innerText ?? null"
+
+REVIEWS_JS = r"""() => [...document.querySelectorAll('div.jftiEf[data-review-id]')].map(r => {
+  const own = r.querySelector('.CDe7pd'), mine = s => [...r.querySelectorAll(s)].find(e => !own?.contains(e));
+  const photos = [...r.querySelectorAll('button.Tya61d[aria-label]')].map(b => b.getAttribute('aria-label'));
+  return {
+    review_id: r.dataset.reviewId,
+    author: r.querySelector('[data-href*="/contrib/"]')?.dataset.href.match(/contrib\/(\d+)/)?.[1] ?? '',
+    author_meta: r.querySelector('.RfnDt')?.innerText.trim() || null,  // "Local Guide · 56 bài đánh giá · 235 ảnh"
+    rating: r.querySelector('[role="img"][aria-label*="sao"]')?.getAttribute('aria-label').trim()
+      ?? r.querySelector('.fzvQIb')?.innerText.trim() ?? null,  // lodging layout: "4/5"
+    text: mine('.wiI7pd')?.innerText.trim() ?? '',  // the owner's reply uses the same class
+    details: [...r.querySelectorAll('.PBK6be')].map(e => e.innerText.trim()).filter(Boolean),  // "Dịch vụ: 5", ...
+    published_text: r.querySelector('.rsqaWe, .xRkPPb')?.innerText.trim() ?? null,  // lodging: "… trước trên Google"
+    likes: parseInt(r.querySelector('.pkWtMe')?.innerText ?? '0', 10) || 0,
+    photos: photos.filter(a => /^Ảnh số/.test(a)).length + photos.reduce((n, a) => n + +(a.match(/^và (\d+)/)?.[1] ?? 0), 0),
+    owner_response_text: own?.querySelector('.wiI7pd')?.innerText.trim() ?? null,
+    owner_response_published_text: own?.querySelector('.DZSIDd')?.innerText.trim() ?? null,
+  };
+})"""
+
+
+_AGE = re.compile(r"(một|\d+) (phút|giờ|ngày|tuần|tháng|năm) trước")
+
+
+def age_months(published_text: str | None) -> int | None:
+    """Whole months from Maps' relative date ("4 tháng trước"); None when it cannot be read."""
+    m = _AGE.search(published_text or "")
+    if not m:
+        return None
+    n = 1 if m.group(1) == "một" else int(m.group(1))
+    return {"tháng": n, "năm": 12 * n}.get(m.group(2), 0)
+
+
+def count(text: str | None) -> int | None:
+    """Number in a Maps label ("1.701 bài đánh giá" -> 1701)."""
+    digits = re.sub(r"\D", "", (text or "").split(" ")[0])
+    return int(digits) if digits else None
+
+
+def keep_recent(reviews: list[dict], max_age_months: int | None, min_count: int) -> list[dict]:
+    """Newest-first reviews: the first min_count always, then only those within max_age_months."""
+    if max_age_months is None:
+        return reviews
+    return [r for i, r in enumerate(reviews)
+            if i < min_count or (age_months(r["published_text"]) or 0) <= max_age_months]
+
+
+async def parse_place(page: Page) -> dict:
+    return await page.evaluate(PLACE_JS)
+
+
+async def parse_reviews(page: Page) -> list[dict]:
+    rows = []
+    for r in await page.evaluate(REVIEWS_JS):
+        r["author_hash"] = author_hash(r.pop("author"))
+        r["owner_response_truncated"] = (r["owner_response_text"] or "").endswith("…")  # Maps has no expand for replies
+        rows.append(r)
+    return list({r["review_id"]: r for r in rows}.values())
+
+
+async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int, max_age_months: int | None = None,
+                       min_reviews: int = 0) -> tuple[dict, list[dict]]:
+    page = await ctx.new_page()
+    try:
+        await open_page(page, url, "h1.DUwDvf")
+        hours = page.locator(HOURS_BUTTON)
+        if await hours.count():
+            await hours.first.click()
+            await page.wait_for_timeout(800)
+        place = await parse_place(page)
+        about = page.locator('button[role="tab"]:has-text("Giới thiệu")')
+        if await about.count():
+            await about.first.click()
+            await page.wait_for_timeout(1500)
+            place["attributes"] = (await parse_place(page))["attributes"]
+        reviews: list[dict] = []
+        tab = page.locator('button[role="tab"]:has-text("Bài đánh giá")')
+        if max_reviews and await tab.count():
+            await tab.first.click()
+            await page.wait_for_timeout(1500)
+            sort = page.locator(SORT_BUTTON)
+            try:  # the button renders a moment after the tab; without it the order is "most relevant"
+                await sort.first.wait_for(timeout=10000)
+            except Exception:
+                pass  # place without reviews; run() rejects it if the place says it has some
+            if await sort.count():
+                await sort.first.click()
+                await page.locator(NEWEST_ITEM).click()
+                await page.wait_for_function(SORTED_NEWEST_JS, timeout=10000)  # raises when the sort did not apply
+                await page.wait_for_timeout(1500)
+            try:  # the list reloads after sorting and is empty for a while, longer when many tabs are open
+                await page.wait_for_selector(REVIEW_DIV, timeout=20000)
+            except Exception:
+                pass  # place without reviews; run() rejects it if the place says it has some
+            pane = page.locator("div.m6QErb.DxyBCb").first
+            total = count(place.get("review_count"))
+            complete = False  # stopped on an explicit signal, not on silence
+            while True:
+                n = await page.locator(REVIEW_DIV).count()
+                if n >= max_reviews or (total and n >= total) or await page.evaluate(LIST_END_JS):
+                    complete = True
+                    break
+                # scrollBy / wheel often fail to trigger the next batch; bringing the last review into view does
+                await page.locator(REVIEW_DIV).last.scroll_into_view_if_needed()
+                await pane.evaluate("e => e.scrollTo(0, e.scrollHeight)")
+                if not await more(page, REVIEW_DIV, n, timeout=15000):
+                    complete = await page.evaluate(LIST_END_JS)  # safety net: batches can take 8+ s
+                    break
+                old = max_age_months is not None and (age_months(await page.evaluate(LAST_DATE_JS)) or 0) > max_age_months
+                if n >= min_reviews and old:  # newest first: the rest is older
+                    complete = True
+                    break
+            place["reviews_complete"] = complete
+            for _ in range(3):  # "Xem thêm": expand long reviews and replies; best effort, a miss keeps the cut text
+                if not await page.evaluate(EXPAND_JS):
+                    break
+                await page.wait_for_timeout(500)
+            reviews = keep_recent((await parse_reviews(page))[:max_reviews], max_age_months, min_reviews)
+        return place, reviews
+    finally:
+        await page.close()
+
+
+
+ATTEMPTS = 3  # per place, when the failure looks like a block
+
+
+async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Throttle) -> None:
+    d = root / "places" / safe_name(row["fid"])
+    for attempt in range(1, ATTEMPTS + 1):
+        async with throttle:
+            try:
+                place, reviews = await scrape_place(ctx, row["url"], c["max_reviews_per_place"],
+                                                    c.get("max_review_age_months"), c.get("min_reviews_per_place", 0))
+                if not reviews and c["max_reviews_per_place"] and place.get("review_count"):
+                    raise RuntimeError("no reviews captured")  # list not loaded yet
+                write_json(d / "reviews.json", reviews)
+                write_json(d / "place.json", {**row, **place, "fetched_at": now()})  # written last = done
+                throttle.success()
+                return
+            except LoginRequired:
+                raise
+            except Exception as e:
+                slow, blocked = "no reviews" in str(e), type(e).__name__ == "TimeoutError"
+                if attempt < ATTEMPTS and (slow or blocked):
+                    print(f"retry {row['fid']} ({attempt}/{ATTEMPTS}): {str(e).splitlines()[0][:120]}")
+                    if blocked:  # a page that never loads is Google throttling; a slow review list is not
+                        throttle.blocked()
+                    continue
+                log_error(root, row["fid"], "place", e)
+                return
+            finally:
+                await pause(*c.get("pause_s", (2.0, 5.0)))
+
+
+async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+    _, cfg = load_config(city)
+    c, root = cfg["gmaps"], data_dir() / "gmaps"
+    lst = root / "list" / f"{city}.json"
+    if not lst.exists():
+        raise SystemExit(f"no {lst}; run `python -m corpus gmaps list --city {city}` first")
+    fetched = {json.loads(f.read_text(encoding="utf-8"))["fid"]: json.loads(f.read_text(encoding="utf-8"))["fetched_at"]
+               for f in (root / "places").glob("*/place.json")}
+    again = retry_ids("place_reviews", fetched)  # a person asked to crawl these again (review)
+    todo = [r for r in json.loads(lst.read_text(encoding="utf-8"))["items"]
+            if r["fid"] in again or not (root / "places" / safe_name(r["fid"]) / "place.json").exists()]
+    print(f"crawl {city}: {len(todo)} places left")
+    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
+                        cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
+    async with profile("gmaps", headed) as ctx:
+        await ensure_login(ctx)
+        try:
+            async with asyncio.TaskGroup() as tg:  # one LoginRequired stops all
+                for row in todo:
+                    tg.create_task(_place(ctx, row, root, c, throttle))
+        except* LoginRequired as eg:
+            raise eg.exceptions[0] from None
+    done = sum((root / "places" / safe_name(r["fid"]) / "place.json").exists() for r in todo)
+    print(f"crawl {city}: {done}/{len(todo)} done, the rest in errors.jsonl")
