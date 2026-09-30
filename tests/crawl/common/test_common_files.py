@@ -1,6 +1,6 @@
 import json
 
-from corpus.crawl import files
+from corpus.crawl.common import files
 
 
 def test_write_json_is_atomic_and_overwrites(tmp_path):
@@ -49,6 +49,8 @@ def test_data_dir_from_env(monkeypatch, tmp_path):
 def test_load_config_known_and_unknown_city():
     name, cfg = files.load_config("dalat")
     assert name == "Đà Lạt" and cfg["tiktok"]["queries"] and cfg["gmaps"]["categories"]
+    lat0, lng0, lat1, lng1 = cfg["area"]  # city bbox, used to drop Maps results from other cities
+    assert lat0 < 11.94 < lat1 and lng0 < 108.44 < lng1  # Chợ Đà Lạt
     try:
         files.load_config("nowhere")
     except SystemExit as e:

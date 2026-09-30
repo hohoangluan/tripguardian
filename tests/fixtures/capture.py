@@ -5,9 +5,9 @@ import json
 import re
 from pathlib import Path
 
-from corpus.crawl.browser import open_profile
-from corpus.crawl.gmaps import HOURS_BUTTON, NEWEST_ITEM, SORT_BUTTON
-from corpus.crawl.tiktok import COMMENT_API, COMMENT_BUTTON, REPLY_API, REPLY_BUTTON
+from corpus.crawl.common.browser import open_profile
+from corpus.crawl.gmaps.crawl import HOURS_BUTTON, NEWEST_ITEM, SORT_BUTTON
+from corpus.crawl.tiktok.crawl import COMMENT_API, COMMENT_BUTTON, REPLY_API, REPLY_BUTTON
 
 OUT = Path(__file__).parent
 TIKTOK_QUERY = "quán cà phê đà lạt"

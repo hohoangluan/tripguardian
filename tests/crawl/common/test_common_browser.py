@@ -1,6 +1,6 @@
 import asyncio
 
-from corpus.crawl import browser
+from corpus.crawl.common import browser
 
 
 def test_login_required_tells_how_to_fix():

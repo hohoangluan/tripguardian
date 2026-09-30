@@ -10,9 +10,9 @@ Xây **corpus Place Intelligence** offline cho planner đọc. Agent xây từ �
 
 ## Phạm vi
 
-Trong: Đà Lạt; khám phá (TikTok + inventory Google Maps); trích xuất media; entity resolution (POI / ZONE); observation; tổng hợp thành fact / signal / estimate; kiểm tra và định tuyến theo rủi ro; duyệt cuối; serving index; refresh; resolve theo yêu cầu khi người dùng nhập một địa điểm.
+Trong: Đà Lạt; inventory Google Maps là **nguồn địa điểm** (địa điểm du lịch: tham quan, ăn uống, hoạt động, mua sắm, dịch vụ cho du khách); review Google Maps là bằng chứng trải nghiệm hiện tại; TikTok (bằng chứng trải nghiệm từ video / comment) **tạm ngoài phạm vi** — code và dữ liệu đã crawl giữ nguyên, quay lại sau khi danh sách và review Maps xong; trích xuất media; entity resolution (POI / ZONE); observation; tổng hợp thành fact / signal / estimate; kiểm tra và định tuyến theo rủi ro; duyệt cuối; serving index; refresh; resolve theo yêu cầu khi người dùng nhập một địa điểm.
 
-Ngoài: mọi dữ liệu người dùng (corpus không lưu và không coi input người dùng là bằng chứng về địa điểm); độ phù hợp của gợi ý (thuộc online); live context (thời tiết, giao thông, thời gian di chuyển); phủ toàn quốc.
+Ngoài: mọi dữ liệu người dùng (corpus không lưu và không coi input người dùng là bằng chứng về địa điểm); độ phù hợp của gợi ý (thuộc online); live context (thời tiết, giao thông, thời gian di chuyển); chỗ ở (không gợi ý; chỗ ở người dùng nhập được tra theo yêu cầu, `docs/ARCHITECTURE.md` §9.1 — danh sách khách sạn của Maps bỏ qua khung bản đồ nên cũng không lấy hết được); phủ toàn quốc.
 
 ## Nguyên tắc
 
@@ -22,7 +22,7 @@ Ngoài: mọi dữ liệu người dùng (corpus không lưu và không coi inpu
 4. **Giữ xung đột.** Bất đồng cho ra `uncertain` và giữ lại xung đột.
 5. **Model trích xuất; code quyết định.** Fact, signal, estimate chỉ do rule tổng hợp ghi. Không model nào ghi chúng.
 6. **Cùng được nhắc không có nghĩa là ở gần nhau.** Xuất hiện trong một video không bao giờ là bằng chứng về khoảng cách.
-7. **Vai trò nguồn tách biệt.** TikTok mô tả trải nghiệm và môi trường; fact vận hành đến từ trang official và Google.
+7. **Vai trò nguồn tách biệt.** Google Maps quyết định tập địa điểm; nguồn khác chỉ thêm bằng chứng cho địa điểm có trong tập. Review Maps (và TikTok khi quay lại phạm vi) mô tả trải nghiệm và môi trường; fact vận hành đến từ trang official và Google.
 8. **Build không bao giờ chờ người.** Việc agent không giải quyết được sẽ kết thúc ở `UNRESOLVED` hoặc không được phục vụ, kèm lý do, và đi vào review.
 
 ## Vai trò model
@@ -44,8 +44,9 @@ Chỉ thêm vai trò hoặc model thứ hai khi nhãn review cho thấy một b�
 
 ```text
  DISCOVER ──► EXTRACT ──► RESOLVE ──► OBSERVE ──► AGGREGATE ──► CHECK & ROUTE ──► PUBLISH
- TikTok       ASR          code +      Extractor   code          gate · rule rủi ro  serving index
- Google Maps  Extractor    Judge nếu               fact/signal/   Judge audit         │
+ Google Maps  ASR          code +      Extractor   code          gate · rule rủi ro  serving index
+ (TikTok:     Extractor    Judge nếu               fact/signal/   Judge audit         │
+  tạm ngoài)
               mention      mơ hồ                   estimate                         ▼
                                                                           HÀNG ĐỢI REVIEW (người)
  mọi bước: ledger (input hash × processor version) → chỉ việc đã đổi mới chạy lại
@@ -53,40 +54,69 @@ Chỉ thêm vai trò hoặc model thứ hai khi nhãn review cho thấy một b�
 
 ### 1. Discover
 
-- **Nội dung (TikTok):** nhóm query (chung, category, trải nghiệm, đối tượng, ràng buộc, xu hướng) → thu video mới, caption, hashtag, toàn bộ comment kèm reply (trần tùy chọn `max_comments_per_video`). Search TikTok bằng Playwright với profile đã đăng nhập (bắt JSON API search); video tải từ `playAddr`; comment và reply bắt JSON API comment / reply (mở hết nút "Xem … câu trả lời"). Extractor đọc caption + hashtag của lô mới và đề xuất query mới (xu hướng, tên chỗ mới); code bỏ query trùng. Ngừng mở rộng một nhóm khi số ứng viên mới mỗi lô xuống dưới ngưỡng.
-- **Inventory (Google Maps):** cào Google Maps (`<category> <tên thành phố>`) bằng Playwright với profile đã đăng nhập, không ngưỡng rating; FID Maps làm id ứng viên; chi tiết + review + giờ cao điểm lưu file. Địa điểm inventory chưa có match TikTok sẽ kích hoạt một lần tìm ngược trên TikTok theo tên.
-- Thành phố chỉ là **config tên** dùng để ghép vào query TikTok và Google. Không có ranh giới địa lý: địa điểm Google trả về cho query của thành phố là thuộc thành phố.
+- **Nội dung (TikTok) — tạm ngoài phạm vi; mô tả code đã có:** nhóm query (chung, category, trải nghiệm, đối tượng, ràng buộc, xu hướng) → thu video mới, caption, hashtag, toàn bộ comment kèm reply (trần tùy chọn `max_comments_per_video`). Search TikTok bằng Playwright với profile đã đăng nhập (bắt JSON API search); video tải từ `playAddr`; comment và reply bắt JSON API comment / reply (mở hết nút "Xem … câu trả lời"). Extractor đọc caption + hashtag của lô mới và đề xuất query mới (xu hướng, tên chỗ mới); code bỏ query trùng. Ngừng mở rộng một nhóm khi số ứng viên mới mỗi lô xuống dưới ngưỡng.
+- **Phase 1 — danh sách địa điểm (output hiện tại):** `gmaps search` → `gmaps filter` → `gmaps counts` → `gmaps list`. Mỗi category (`config/queries.yaml`, không có loại chỗ ở) search trên lưới ô tới `grid.max_zoom` = 14 (quét nông có chủ đích: đủ ứng viên, thời gian có giới hạn). `list` bỏ ngoài `area`, bỏ chỗ ở (ô danh sách khách sạn `lodging` và category khớp khách sạn / nhà nghỉ / homestay / resort / villa / căn hộ…; một FID từng mang category chỗ ở ở bất kỳ lần thấy nào là chỗ ở: Maps xếp khách sạn có nhà hàng vào cả hai), chấm `score` = trung bình Bayes `(v·R + m·C) / (v + m)` (R rating, v số review, C rating trung bình của category, m trung vị số review của category: ít review không vượt được nhiều review), chỉ xếp nơi `filter` giữ, gộp bản trùng (cùng tên sau khi bỏ dấu, hoa thường, dấu câu, tên thành phố, cách nhau ≤ `same_name_m` = 1000 m, khác FID: giữ bản nhiều review nhất; chỉ gần nhau mà khác tên thì không gộp vì nhiều quán chung một tòa nhà; cùng tên xa hơn là chi nhánh khác); mỗi FID lấy lần thấy có nhiều review nhất; Maps khi không đăng nhập đôi khi chỉ hiện "4,6 sao" không kèm "(124)" trên thẻ và không bao giờ hiện số trên trang chi tiết, nên `counts` mở trang chi tiết bằng profile đã đăng nhập cho mọi nơi `filter` giữ có rating mà không lần thấy nào có số review, ghi `counts/<city>.json`, `list` lấy số đó thay số trên thẻ; bỏ nơi dưới `min_reviews` = 50 review hoặc không có rating — ngưỡng chất lượng duy nhất, không cắt theo rating hay `score`, không giới hạn số nơi mỗi category (`top_per_category` bỏ trống; đặt số thì giữ chừng đó nơi `score` cao nhất mỗi category); `score` chỉ để xếp thứ tự. Output là tên + định danh, chưa crawl chi tiết / review. Maps không có sắp xếp theo rating nên phải quét lấy ứng viên rồi tự xếp.
+- **Phase 2 — tìm chuyên sâu từng địa điểm** (sau phase 1): `gmaps crawl` (chi tiết, giờ, review) + `qc` trên danh sách phase 1; TikTok quay lại phạm vi ở đây như nguồn bằng chứng.
+- **Inventory (Google Maps):** cào Google Maps (mỗi category trên lưới ô bản đồ phủ `area`) bằng Playwright, không ngưỡng rating (search: không đăng nhập, mỗi ô một context mới không cookie vì Google giới hạn theo phiên và danh sách khi chưa đăng nhập vẫn đủ; crawl chi tiết + review: profile đã đăng nhập); FID Maps làm id ứng viên; chi tiết + review + giờ cao điểm lưu file. Đây là tập địa điểm của corpus: ưu tiên tìm đủ danh sách (search mọi category trước), rồi mới crawl chi tiết + review.
+- Thành phố là **config** (`config/cities.yaml`): tên ghép vào query TikTok, và khung `area` [lat_min, lng_min, lat_max, lng_max]. Chỉ địa điểm Google nằm trong `area` thuộc thành phố (Maps trả cả địa điểm trùng tên ở tỉnh khác).
+- **Mỗi nguồn chạy theo phase độc lập**, mỗi phase một module (`src/corpus/crawl/<source>/<phase>.py`, hàm `run`), chỉ đọc file của phase trước, ghi vào thư mục riêng của phase: `search` (chỉ tìm, lưu kết quả thô) → `list` (gộp, bỏ trùng, không mở trình duyệt) → `filter` (TikTok: Extractor đọc caption + hashtag, trả `yes | no | unsure`; `crawl` chỉ mở video `yes` / `unsure`, chỉ `no` khi caption rõ ràng là chủ đề khác. Maps: chạy trước `list`, Extractor đọc tên + category Maps của mỗi FID khác nhau trong search (trong `area`, không chỗ ở), `no` chỉ khi rõ ràng không dành cho du khách: công ty, cửa hàng gia dụng, bãi xe, cứu hộ…; `list` chỉ xếp `yes` / `unsure`) → `crawl` (mở từng mục trong list) → `qc` (Maps: luật + vai trò Judge). Prompt, schema và thiết lập của mọi task model nằm ở `src/corpus/llm/` (`roles.py`: `Role`; `tasks.py`: `Task`); kết quả lưu `prompt_hash`, đổi prompt thì task chạy lại. Maps `search`: mỗi category × ô bản đồ phủ `area`; cuộn danh sách tới dòng "Bạn đã xem hết danh sách này"; ô đạt `full_at` kết quả hoặc không cuộn tới dòng đó (`end = false`) thì chia 4 ô zoom sâu hơn; `list` bỏ trùng FID và bỏ ngoài `area`. TikTok `crawl` đọc item JSON mới trên trang video (stats và `playAddr` còn hạn). Chạy `python -m corpus <source> <phase|all> --city <key>`.
 
 #### Dữ liệu thô
 
-Code: `src/corpus/crawl/` (mỗi nguồn một module), chạy `python -m corpus {tiktok|gmaps} --city <key>`; query và trần số lượng ở `config/queries.yaml`. Gốc `DATA_DIR` (`.env`, mặc định `data/`, gitignored); profile trình duyệt ở `.browser/<source>/` (gitignored).
+Code: `src/corpus/crawl/<source>/` (phase như trên), phần dùng chung không theo nguồn ở `src/corpus/crawl/common/`; query và trần số lượng ở `config/queries.yaml`. Gốc `DATA_DIR` (`.env`, mặc định `data/`, gitignored); profile trình duyệt ở `.browser/<source>/` (gitignored).
 
 ```text
 data/
   tiktok/
-    search/<city>/<query_slug>.jsonl     append mỗi lần search: {at, group, query, items:[{video_id, url, author_id, desc, created_at, hashtags}]}
+    search/<city>/<query_slug>.jsonl     {at, group, query, items:[{video_id, url, author_id, desc, created_at, hashtags, photo}]};
+                                         query đã có file thì không search lại
+    list/<city>.json                     {at, stats:{raw, duplicates, videos}, items:[{…, queries[]}]}; dựng lại từ search
+    filter/<video_id>.json, summary.json {video_id, desc, checked_at, model, prompt_hash, llm:{relevance, reason}}; chấm lại
+                                         khi caption hoặc prompt đổi; summary.dropped = video bị loại kèm lý do
     videos/<video_id>/
-      info.json                          item JSON thô của API search (đủ mọi field)
+      info.json                          item JSON thô của trang video (đủ mọi field)
       video.json                         bản đọc được: {video_id, video_url, video_path (tương đối DATA_DIR), caption, hashtags,
-                                         author_id, created_at, stats, fetched_at, comments:[{comment_id, author_hash, text,
-                                         created_at, likes, replies:[…]}]}; reply mất comment cha nằm ở comments kèm reply_to
+                                         author_id, created_at, stats, queries, fetched_at, comments_complete, comments:[{comment_id,
+                                         author_hash, text, created_at, likes, reply_count, replies:[…]}]}; reply mất comment cha nằm ở
+                                         comments kèm reply_to; reply_count = số reply TikTok báo
       video.mp4                          ghi cuối cùng = video đã xong
     errors.jsonl                         {at, id, stage, error}
   gmaps/
-    search/<city>/<category_slug>.jsonl  append: {at, query, items:[{fid, name, url, lat, lng}]}
+    search/<city>/<category_slug>.jsonl  append mỗi ô: {at, query, tile:[lat, lng, zoom], end, lodging, items:[{fid, name, url,
+                                         category, rating, reviews, lat, lng}]}; chỉ chỗ trong area (Maps lấp danh sách ngắn bằng chỗ ở thành phố khác: bỏ); còn thô: trùng giữa các ô, chỗ ở, chỗ không liên quan; ô đã có
+                                         (đủ end + rating) không tìm lại; dòng định dạng cũ bị bỏ qua
+    filter/<fid_dir>.json, summary.json  {fid, name, category, url, checked_at, model, prompt_hash, llm:{relevance, reason}};
+                                         chấm lại khi đổi tên / category / prompt; lỗi model → không có file (chấm lần sau)
+    counts/<city>.json                   {at, items:{fid:{rating, reviews, at}}}; chỉ nơi thẻ search thiếu số review; nơi đã có không mở lại;
+                                         trang không có số (phiên hết hạn) → dừng `LoginRequired`, không ghi
+    list/<city>.json                     output phase 1: {at, stats:{raw, outside_area, lodging, duplicates, candidates, not_kept,
+                                         same_place, few_reviews, places},
+                                         items:[{fid, name, url, lat, lng, category, rating, reviews, score, queries[]}]}; score cao
+                                         trước; queries = category mà nơi này lọt top; dựng lại toàn bộ từ search mỗi lần
     places/<fid_dir>/                    fid_dir = FID với ":" đổi thành "_" (Windows)
-      reviews.json                       [{review_id, author_hash, rating, text, published_text}]
+      reviews.json                       [{review_id, author_hash, author_meta, rating, text, details[], published_text, likes,
+                                         photos, owner_response_text, owner_response_published_text, owner_response_truncated}]; mới nhất
+                                         trước; review trong `max_review_age_months`, tối thiểu `min_reviews_per_place`
       place.json                         fid, name, url, lat, lng, category, address, phone, website, description,
-                                         hours[], status, attributes[], popular_times[], rating, review_count, fetched_at;
+                                         hours[], status, attributes[], popular_times[], rating, review_count,
+                                         rating_histogram[], price, plus_code, tickets, queries[], reviews_complete, fetched_at;
                                          ghi cuối cùng = place đã xong
+    qc/<fid_dir>.json, qc/summary.json   {fid, name, fetched_at, checked_at, model, checks[], llm:{tourism_relevant, in_city,
+                                         category_ok, bad_reviews[], field_issues[], verdict}}; chấm lại khi fetched_at đổi
     errors.jsonl
+  review/decisions.jsonl                 {at, kind, id, decision, note}; append, quyết định mới nhất của mỗi mục thắng
 ```
+
+- **Review lúc crawl** (`python -m corpus review`, trang cục bộ `127.0.0.1:8765`, code `src/corpus/review/`): hàng đợi dựng lại từ file mỗi lần mở, chỉ gồm mục cần người: `video_filter`, `place_filter` (`no` / `unsure`: giữ / bỏ), `video_comments` (`comments_complete` false hoặc thiếu: crawl lại / chấp nhận), `place_qc` (qc khác `ok`, không cho du khách, ngoài thành phố, lỗi model: chấp nhận / loại), `place_reviews` (`reviews_complete` false: crawl lại / chấp nhận). Quyết định là nhãn, không sửa giá trị đã crawl; `filter` (TikTok) và `list` (Maps) áp giữ / bỏ của người lên kết quả model, `crawl` lấy lại mục có `retry` mới hơn `fetched_at`.
 
 - `.jsonl` chỉ append; file khác ghi `*.tmp` rồi `os.replace` (atomic). Không bước nào xóa file.
 - Mục có file đánh dấu xong → bỏ qua; thiếu → lần chạy sau tải lại cả mục. Lỗi một mục → `errors.jsonl`, đi tiếp.
-- Text Maps (`hours`, `status`, `attributes`, `popular_times`, `published_text`) giữ nguyên văn. Không lưu tên người comment / review: `author_hash` = sha256(id)[:16].
+- Text Maps (`hours`, `status`, `attributes`, `popular_times`, `rating_histogram`, `price`, `tickets`, `author_meta`, `details`, `published_text`) giữ nguyên văn. Không lưu tên người comment / review: `author_hash` = sha256(id)[:16].
 - Crawl thật chạy `--headed`: Maps headless trả trang thiếu (không review, không giờ cao điểm).
-- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. TikTok xử lý video song song, số tab tự dò trong khoảng 1..`tabs` (giảm nửa và nghỉ khi bị chặn; mức đạt lưu ở `tiktok/throttle.json`), mp4 tải ngoài tab; Maps tuần tự. Nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
+- **Rời trang theo tín hiệu kết thúc, không theo timeout.** TikTok: `comments_complete` = API comment trả `has_more=0`, mỗi comment có reply thì API reply của nó trả `has_more=0` (hoặc đủ `reply_count`), và không còn request API đang chờ; reply bị TikTok ẩn vẫn kết thúc danh sách với ít dòng hơn. Maps review: dừng khi đủ `max_reviews_per_place`, đủ `review_count`, quá `max_review_age_months` (sau `min_reviews_per_place`), hoặc Maps làm rỗng ô loader cuối khung review (`reviews_complete`). Timeout (TikTok 10 vòng không có gì mới, Maps 15 s) chỉ là lưới an toàn và cho `…_complete = false`; TikTok chưa xong thì thử lại, lần cuối vẫn lưu kèm cờ và ghi `errors.jsonl`.
+- **Bị chặn / đăng xuất:** TikTok chặn API comment bằng body rỗng (không captcha) → dừng trang ngay, nghỉ `cooldown_s` rồi thử lại. Google có thể kết thúc phiên mà vẫn giữ cookie `SID`; Maps khi đó trả ít kết quả hơn (vẫn có dòng hết danh sách) và không có review → trang nào có link đăng nhập (`accounts.google.com/ServiceLogin`) thì dừng với `LoginRequired`, không lưu.
+- Review Maps có hai layout: thường (`aria-label` "… sao", ngày ở `.rsqaWe`) và lưu trú (khách sạn, homestay: điểm "4/5", ngày "… trước trên Google"); cả hai đều đọc được. Chữ icon-font (vùng Unicode riêng) bị bỏ khỏi `address` và `hours`.
+- Gặp captcha: chạy `--headed` thì chờ người giải trong cửa sổ (tối đa 5 phút), headless thì dừng. Chưa đăng nhập hoặc hết thời gian chờ → dừng, báo chạy `python -m corpus login <source>`. Không tự động giải captcha. TikTok xử lý video song song, số tab tự dò trong khoảng 1..`tabs` (giảm nửa và nghỉ khi bị chặn; mức đạt lưu ở `tiktok/throttle.json`), mp4 tải ngoài tab; Maps cũng vậy cho place (mức đạt ở `gmaps/throttle.json`) và search (mức đạt ở `gmaps/search_throttle.json`; danh sách bị cắt ngang = bị chặn mềm). Nghỉ ngẫu nhiên `pause_s` giây giữa các mục (`config/queries.yaml`).
 
 ### 2. Extract (theo video)
 
@@ -95,6 +125,8 @@ Tải video → segment (theo cảnh + khoảng lặng ASR) → transcript ASR �
 Sau đó Extractor đọc caption + transcript + visible text và trả các mention địa điểm, mỗi mention có span, loại đề xuất (`POI` cho một cơ sở có tên, `ZONE` cho khu vực / con đường / cảnh quan hoạt động), và mọi quan hệ không gian được **nói rõ** trong văn bản ("ngay cạnh", "cách 2 km").
 
 ### 3. Resolve
+
+Tập đích là inventory Maps (§1). Mention từ nguồn khác (người dùng nhập; TikTok khi quay lại phạm vi) chỉ match vào tập này hoặc tra thêm một địa điểm Maps theo tên; không có Place ID thì không có entity.
 
 ```text
 mention → chuẩn hóa (bỏ quán/tiệm/cafe…, giữ dạng có dấu + không dấu làm alias)
@@ -117,6 +149,7 @@ Mọi nguồn thành `Observation`; không gì ghi thẳng vào entity.
 
 - **Segment** (Extractor): feature id + value + span + context.
 - **Comment:** rule bỏ comment chỉ có emoji / trùng lặp → Extractor, mỗi call một lô comment của một video, trả cho từng comment: có liên quan không, entity đích (chọn trong các entity đã gắn với video, hoặc không có), feature + value + stance + context, với chính comment làm span. Tên địa điểm mới tìm thấy trong comment quay lại bước Resolve.
+- **Review Google Maps** (bản demo, xem §Sai lệch): xử lý như comment — rule bỏ review rỗng / trùng → Extractor, mỗi call một lô review của một địa điểm, trả cho từng review: có liên quan không, feature + value + stance + context, span = review (tham chiếu vào provider store, không chép sang entity). Review cũ hơn `max_review_age_months` không được crawl.
 - **Trang official:** website lấy từ bản ghi Google = `verified`; không có thì chạy vòng tìm trang official (§Vòng lặp tự động), trang tìm được và code khớp tên + địa chỉ = `probable`; còn lại không dùng. Chỉ tải các loại trang trong whitelist (about, giờ, giá, vé, đặt chỗ, quy định, tin tức, liên hệ). Extractor trích nhận định `fact_key` kèm span.
 - **Context** trên mọi observation: `time_of_day`, `day_type`, `weather` (theo lời nguồn, không bao giờ là thời tiết thực tế), mỗi cái là enum hoặc `unknown`. "7h sáng hôm đó đông lắm" → `crowd = high`, `time_of_day = morning`, không phải `crowd = high` cho địa điểm.
 - Feature id ngoài ontology được ghi là `proposed_feature`; build vẫn tiếp tục. Judge ánh xạ nó vào một feature id có sẵn (đồng nghĩa) hoặc gom vào nhóm đề xuất mới; code kiểm id có trong ontology. Chỉ nhóm đề xuất mới có ≥ 3 nguồn độc lập mới vào review; ontology chỉ người sửa.
@@ -148,7 +181,7 @@ source_type           official | provider | video | comment
 - Feature id có trong ontology hiện tại.
 - Match POI qua ngưỡng và cách biệt (hoặc `T_min` với lựa chọn của Judge).
 - Hình học ZONE bao các POI liên quan.
-- Fact / signal / estimate chỉ do rule tổng hợp ghi; nội dung Google chỉ nằm trong provider store.
+- Fact / signal / estimate chỉ do rule tổng hợp ghi; nội dung Google chỉ nằm trong provider store (observation từ review Maps chỉ trỏ span vào đó).
 
 **Kiểm tra span.** Với observation tác động cao (mọi `fact_key`, mọi feature `verify: always` — an toàn, tiếp cận, đối tượng phù hợp), một call Extractor riêng chỉ thấy span (± 1 câu / ± 5 s) và giá trị + bối cảnh được khẳng định, rồi trả lời `supports | contradicts | insufficient`. Khác `supports` → bỏ, kèm lý do.
 
@@ -217,9 +250,9 @@ while not stop(state) and budget and steps < N:
 
 | Vòng | Model | Hành động được phép | Dừng khi |
 |---|---|---|---|
-| **Mở rộng query** (§1) | Extractor | đề xuất query TikTok mới từ caption + hashtag | số ứng viên mới mỗi lô < ngưỡng |
+| **Mở rộng query** (§1, TikTok — tạm ngoài phạm vi) | Extractor | đề xuất query TikTok mới từ caption + hashtag | số ứng viên mới mỗi lô < ngưỡng |
 | **Tìm trang official** (§4) | Extractor | search web, chọn link, tải trang, đi theo link nội bộ thuộc whitelist | đủ loại trang whitelist, hoặc 5 trang |
-| **Lấp khoảng trống coverage** | Extractor | tìm TikTok `"<tên> <khía cạnh>"`, lấy thêm comment, tìm trang official | coverage khía cạnh tăng, hoặc 3 bước |
+| **Lấp khoảng trống coverage** | Extractor | lấy thêm review Maps (cũ hơn / sắp theo liên quan), tìm trang official (TikTok `"<tên> <khía cạnh>"` khi quay lại phạm vi) | coverage khía cạnh tăng, hoặc 3 bước |
 | **Làm giàu theo yêu cầu** (§3) | Extractor | như lấp khoảng trống coverage, cho entity người dùng vừa nhập | như trên |
 | **Hiệu chỉnh** (ngoài build) | Judge | sinh biến thể prompt / ngưỡng → chạy bộ regression | không biến thể nào tốt hơn, hoặc N lượt |
 
@@ -298,7 +331,7 @@ Adapter retry có backoff; adapter TikTok giới hạn tốc độ và xoay sess
 |---|---|---|
 | 0. Spike | Chạy model mặc định của mỗi vai trò (ASR, Extractor, Judge) trên video mẫu | Mỗi vai trò chạy trọn trên một mẫu |
 | 1. Nền tảng | Ontology v0, schema, Postgres, ledger, adapter (ASR, Extractor, Judge, Google, TikTok), gate | Test fixture pass |
-| 2. Discover + extract + resolve | Crawl, mở rộng query, inventory Google, media, mention, matcher, ZONE, Judge chọn match mơ hồ, API theo yêu cầu | Crawl lặp lại được; báo cáo precision resolve trên mẫu review |
+| 2. Discover + extract + resolve | Inventory Maps đủ danh sách (mọi category × lưới ô) + chi tiết + review + qc; matcher cho tên người dùng nhập, ZONE, API theo yêu cầu. TikTok (crawl, mở rộng query, media, mention) tạm ngoài phạm vi | Crawl lặp lại được; báo cáo độ đủ danh sách và precision resolve trên mẫu review |
 | 3. Observe + aggregate | Observation từ segment / comment / official, tìm trang official, ánh xạ `proposed_feature`, kiểm tra span, fact / signal / estimate, coverage | Build lại từ observation cho kết quả như cũ; bất biến pass |
 | 4. Route + publish + review | Định tuyến rủi ro, Judge audit + tự sửa theo finding, lấp khoảng trống coverage, làm giàu theo yêu cầu, hiệu chỉnh, serving index, hàng đợi review có mẫu ẩn, job refresh | Một lần build đầy đủ chạy không cần người; báo cáo precision mẫu review và chi phí mỗi entity |
 
@@ -306,7 +339,7 @@ Adapter retry có backoff; adapter TikTok giới hạn tốc độ và xoay sess
 
 | Sai lệch | Demo | Cách sửa khi thương mại |
 |---|---|---|
-| Nguồn Google | Cào Google Maps có đăng nhập | Places API theo điều khoản |
+| Nguồn Google | Cào Google Maps có đăng nhập; review Maps dùng làm bằng chứng | Places API theo điều khoản (review chỉ dùng trong phạm vi điều khoản cho phép) |
 | Thu thập TikTok | Scraper Playwright có đăng nhập | Truy cập có license |
 | Lưu trữ | Lưu file, chưa có DB | PostgreSQL như §Data model |
 | Hình học ZONE | Buffer / hành lang quanh POI liên quan | Dữ liệu bản đồ |
