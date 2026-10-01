@@ -410,3 +410,18 @@ def test_slots_without_rpm_do_not_wait():
         return time.monotonic() - t
 
     assert asyncio.run(go()) < 0.05
+
+
+def test_only_places_in_the_list_are_observed(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    add_place(tmp_path, "0xG_0x2", [review(9, "Quán khác cũng có view đẹp", "z")])
+    obs_dir = tmp_path / "gmaps" / "observations"
+    obs_dir.mkdir(parents=True)
+    (obs_dir / "0xG_0x2.json").write_text("{}", encoding="utf-8")  # left from when G was listed
+    lst = tmp_path / "gmaps" / "list"
+    lst.mkdir(parents=True)
+    (lst / "dalat.json").write_text(json.dumps({"items": [{"fid": "0xF:0x1"}]}), encoding="utf-8")
+    summary = asyncio.run(extract.run("dalat"))
+    assert summary["places"] == 1 and out.exists()
+    assert not (obs_dir / "0xG_0x2.json").exists()
+    assert all("Quán khác" not in c["reviews"] for c in calls)

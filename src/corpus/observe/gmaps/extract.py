@@ -19,7 +19,7 @@ from pathlib import Path
 
 import openai
 
-from ...crawl.common.files import append_jsonl, data_dir, load_config, now, write_json
+from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
 from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import observation
@@ -230,6 +230,13 @@ async def run(city: str, limit: int | None = None) -> dict:
     out = root / "observations"
     ont = load_ontology()
     dirs = sorted(p.parent for p in (root / "places").glob("*/place.json"))
+    listed = root / "list" / f"{city}.json"
+    if listed.exists():  # the list is the place inventory: places it dropped are not evidence for anything
+        keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]}
+        dirs = [d for d in dirs if d.name in keep]
+        for stale in out.glob("*.json") if out.exists() else []:
+            if stale.stem not in keep:
+                stale.unlink()
     if limit is not None:
         dirs = dirs[:limit]
     providers = await _providers()
