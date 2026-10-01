@@ -37,11 +37,12 @@ def test_server_error_is_retried(monkeypatch):
 
 def test_endpoint_reads_env_and_is_off_without_it(monkeypatch):
     monkeypatch.setattr("corpus.llm.roles.load_dotenv", lambda *a, **k: None)
-    e = Endpoint("T_KEY", "T_URL", "T_MODEL", "T_PARALLEL", default_url="http://default/v1")
+    e = Endpoint("T_KEY", "T_URL", "T_MODEL", "T_PARALLEL", "T_RPM", default_url="http://default/v1")
     monkeypatch.delenv("T_KEY", raising=False)
     assert e.client() is None
     monkeypatch.setenv("T_KEY", "k")
     monkeypatch.setenv("T_MODEL", "gemma")
     monkeypatch.setenv("T_PARALLEL", "24")
-    client, model, parallel = e.client()
-    assert model == "gemma" and parallel == 24 and str(client.base_url).startswith("http://default/v1")
+    monkeypatch.setenv("T_RPM", "28")
+    client, model, parallel, rpm = e.client()
+    assert model == "gemma" and parallel == 24 and rpm == 28 and str(client.base_url).startswith("http://default/v1")

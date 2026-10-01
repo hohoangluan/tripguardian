@@ -43,11 +43,15 @@ def first_line(e: BaseException) -> str:
 
 class Slots:
     """Concurrent-call slots over every reachable endpoint: a call takes whichever slot frees first, so the faster
-    endpoint does more of the work."""
+    endpoint does more of the work. An endpoint with a requests-per-minute cap spaces its calls 60/rpm s apart."""
 
     def __init__(self, providers: list[tuple]):
         self.q = asyncio.Queue()
-        for client, model, parallel in providers:
+        self.gap, self.next_at = {}, {}
+        for client, model, parallel, *rest in providers:
+            rpm = rest[0] if rest else None
+            if rpm:
+                self.gap[model], self.next_at[model] = 60 / rpm, 0.0
             for _ in range(parallel):
                 self.q.put_nowait((client, model))
 
@@ -55,6 +59,12 @@ class Slots:
     async def take(self):
         slot = await self.q.get()
         try:
+            model = slot[1]
+            if model in self.gap:
+                now = asyncio.get_running_loop().time()
+                at = max(now, self.next_at[model])
+                self.next_at[model] = at + self.gap[model]
+                await asyncio.sleep(at - now)
             yield slot
         finally:
             self.q.put_nowait(slot)
@@ -72,8 +82,8 @@ async def healthy(client, model: str) -> bool:
 
 async def _providers() -> list[tuple]:
     client, model = REVIEW_OBSERVE.role.client()
-    found = [(client, model, REVIEW_OBSERVE.parallel)] + [e for e in (x.client() for x in EXTRACTOR_EXTRA) if e]
-    ok = await asyncio.gather(*(healthy(c, m) for c, m, _ in found))
+    found = [(client, model, REVIEW_OBSERVE.parallel, None)] + [e for e in (x.client() for x in EXTRACTOR_EXTRA) if e]
+    ok = await asyncio.gather(*(healthy(c, m) for c, m, *_ in found))
     return [p for p, good in zip(found, ok) if good]
 
 
@@ -237,8 +247,8 @@ async def run(city: str, limit: int | None = None) -> dict:
     if not providers:
         raise SystemExit("no LLM endpoint reachable (UIT needs the campus network; Gemini needs GEMINI_API_KEY)")
     slots = Slots(providers)
-    model = ",".join(sorted({m for _, m, _ in providers}))
-    print(f"observe {city}: endpoints {', '.join(f'{m} x{n}' for _, m, n in providers)}")
+    model = ",".join(sorted({p[1] for p in providers}))
+    print(f"observe {city}: endpoints {', '.join(f'{p[1]} x{p[2]}' for p in providers)}")
     key = (cache_key(ont), ont.version)
 
     async def one(d: Path) -> str:

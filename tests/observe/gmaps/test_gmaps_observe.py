@@ -396,3 +396,35 @@ def test_no_reachable_endpoint_stops(tmp_path, monkeypatch):
     monkeypatch.setattr(extract, "_providers", none)
     with pytest.raises(SystemExit, match="no LLM endpoint"):
         asyncio.run(extract.run("dalat"))
+
+
+def test_slots_respect_requests_per_minute():
+    import time
+    slots = extract.Slots([("c", "gemini", 3, 600)])  # 600 rpm = one call per 0.1 s
+
+    async def go():
+        stamps = []
+
+        async def call():
+            async with slots.take():
+                stamps.append(time.monotonic())
+
+        await asyncio.gather(*(call() for _ in range(4)))
+        return stamps
+
+    s = sorted(asyncio.run(go()))
+    assert all(b - a >= 0.08 for a, b in zip(s, s[1:])) and s[-1] - s[0] >= 0.28  # Windows timers wake a few ms early
+
+
+def test_slots_without_rpm_do_not_wait():
+    import time
+    slots = extract.Slots([("c", "uit", 4)])
+
+    async def go():
+        t = time.monotonic()
+        for _ in range(4):
+            async with slots.take():
+                pass
+        return time.monotonic() - t
+
+    assert asyncio.run(go()) < 0.05
