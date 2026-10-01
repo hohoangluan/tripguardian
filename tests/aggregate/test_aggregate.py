@@ -60,6 +60,30 @@ def test_trend_rising_and_insufficient():
     assert t["direction"] == "insufficient"
 
 
+def test_trend_splits_own_reviews_in_halves_by_date():
+    # a busy place: every review is from the last two months, newest-first cap of the crawl
+    days = ["2026-08-01", "2026-08-05", "2026-08-09", "2026-08-13", "2026-08-17",
+            "2026-09-01", "2026-09-05", "2026-09-09", "2026-09-13", "2026-09-17"]
+    obs = [o(i, "crowd", "low" if i < 4 else "high", f"a{i}", d) for i, d in enumerate(days)]
+    t = aggregate_place([f(obs)], ONT)["features"]["crowd"]["trend"]
+    assert t["split_at"] == "2026-09-01"
+    assert t["older"] == {"low": 4, "high": 1} and t["recent"] == {"high": 5}
+    assert t["direction"] == "rising"
+
+
+def test_trend_halves_never_share_a_date():
+    obs = [o(i, "crowd", "high", f"a{i}", "2026-09-16") for i in range(10)]
+    t = aggregate_place([f(obs)], ONT)["features"]["crowd"]["trend"]
+    assert t["older"] == {} and t["direction"] == "insufficient"
+
+
+def test_rating_trend_on_recent_only_reviews():
+    ratings = [{"author": f"a{i}", "observed_at": f"2026-08-{i + 1:02d}", "stars": 3} for i in range(5)] + \
+              [{"author": f"b{i}", "observed_at": f"2026-09-{i + 1:02d}", "stars": 5} for i in range(5)]
+    rt = aggregate_place([f([], ratings=ratings)], ONT)["rating_trend"]
+    assert rt["split_at"] == "2026-09-01" and rt["direction"] == "rising"
+
+
 def test_suitability_needs_review():
     feats = aggregate_place([f([o(1, "kids", "suitable", "a"), o(2, "kids", "suitable", "b"), o(3, "kids", "suitable", "c"),
                                 o(4, "elderly", "unsuitable", "a"), o(5, "elderly", "unsuitable", "b"),
@@ -82,7 +106,7 @@ def test_rating_trend_and_freshness():
     ratings = [{"author": f"r{i}", "observed_at": RECENT, "stars": 5} for i in range(5)] + \
               [{"author": f"o{i}", "observed_at": OLD, "stars": 3} for i in range(5)]
     res = aggregate_place([f([o(1, "crowd", "high", "a", "2026-09-16")], ratings=ratings)], ONT)
-    assert res["rating_trend"] == {"recent_mean": 5.0, "recent_n": 5, "older_mean": 3.0, "older_n": 5,
+    assert res["rating_trend"] == {"split_at": RECENT, "recent_mean": 5.0, "recent_n": 5, "older_mean": 3.0, "older_n": 5,
                                    "direction": "rising"}
     assert res["features"]["crowd"]["confidence"]["freshness_days"] == 14
 

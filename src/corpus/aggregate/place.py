@@ -2,7 +2,7 @@
 
 Reads data/*/observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json. Per feature:
 votes (one per author; an author who gave k different values gives each 1/k), context breakdown, confidence parts,
-trend of the last RECENT_DAYS against the rest. Conflicts are kept as distributions, never flattened.
+trend of the newer half of the dated evidence against the older half. Conflicts are kept as distributions, never flattened.
 """
 
 import collections
@@ -14,7 +14,6 @@ from ..observe import CONTEXT_KEYS
 from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
 
 AGREEMENT_MIN = 0.6
-RECENT_DAYS = 90
 TREND_MIN = 5  # authors on each side
 TREND_DELTA = 0.2  # change in the share of the top value
 RATING_DELTA = 0.5  # stars
@@ -55,11 +54,22 @@ def _age(as_of: date, day: str) -> int:
     return (as_of - date.fromisoformat(day)).days
 
 
-def trend(obs: list[dict], as_of: date, top_value: str) -> dict:
-    dated = [o for o in obs if o.get("observed_at")]
-    recent = [o for o in dated if _age(as_of, o["observed_at"]) <= RECENT_DAYS]
-    older = [o for o in dated if _age(as_of, o["observed_at"]) > RECENT_DAYS]
-    res = {"recent": votes(recent), "older": votes(older), "direction": "insufficient"}
+def split_by_date(items: list[dict]) -> tuple[list[dict], list[dict], str | None]:
+    """Older and newer half of the dated items, cut at the median date so both halves never share a date.
+
+    Relative, not a fixed window: the crawl keeps the newest reviews, so a busy place has all of them in the last
+    weeks and a fixed window would leave its older side empty.
+    """
+    dated = sorted((x for x in items if x.get("observed_at")), key=lambda x: x["observed_at"])
+    if not dated:
+        return [], [], None
+    cut = dated[len(dated) // 2]["observed_at"]
+    return [x for x in dated if x["observed_at"] < cut], [x for x in dated if x["observed_at"] >= cut], cut
+
+
+def trend(obs: list[dict], top_value: str) -> dict:
+    older, recent, cut = split_by_date(obs)
+    res = {"split_at": cut, "recent": votes(recent), "older": votes(older), "direction": "insufficient"}
     nr, no = authors(recent), authors(older)
     if nr >= TREND_MIN and no >= TREND_MIN:
         d = res["recent"].get(top_value, 0) / nr - res["older"].get(top_value, 0) / no
@@ -89,18 +99,17 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date) -> dict:
         "confidence": {"independent_sources": n, "agreement": agreement,
                        "freshness_days": _age(as_of, max(dates)) if dates else None,
                        "source_types": sorted({SOURCE_KIND.get(o["source_type"], o["source_type"]) for o in unique})},
-        "trend": trend(unique, as_of, t),
+        "trend": trend(unique, t),
         "needs_review": feat.verify == "always" and (t not in feat.caution_values or n < 2),
         "observation_ids": [o["id"] for o in obs],
     }
 
 
-def rating_trend(ratings: list[dict], as_of: date) -> dict:
-    dated = [r for r in ratings if r.get("observed_at")]
-    recent = [r["stars"] for r in dated if _age(as_of, r["observed_at"]) <= RECENT_DAYS]
-    older = [r["stars"] for r in dated if _age(as_of, r["observed_at"]) > RECENT_DAYS]
+def rating_trend(ratings: list[dict]) -> dict:
+    old, new, cut = split_by_date(ratings)
+    older, recent = [r["stars"] for r in old], [r["stars"] for r in new]
     mean = lambda xs: round(sum(xs) / len(xs), 2) if xs else None  # noqa: E731
-    res = {"recent_mean": mean(recent), "recent_n": len(recent), "older_mean": mean(older), "older_n": len(older),
+    res = {"split_at": cut, "recent_mean": mean(recent), "recent_n": len(recent), "older_mean": mean(older), "older_n": len(older),
            "direction": "insufficient"}
     if len(recent) >= TREND_MIN and len(older) >= TREND_MIN:
         d = res["recent_mean"] - res["older_mean"]
@@ -134,7 +143,7 @@ def aggregate_place(files: list[dict], ont: Ontology) -> dict:
         "place_name": next((f["place_name"] for f in files if f.get("place_name")), None),
         "as_of": as_of.isoformat(), "ontology_version": ont.version,
         "features": features, "coverage": coverage(features, ont),
-        "rating_trend": rating_trend(ratings, as_of) if ratings else None,
+        "rating_trend": rating_trend(ratings) if ratings else None,
         "proposed_features": sorted(({"label": k, "count": len(v), "authors": len(set(v))} for k, v in proposed.items()),
                                     key=lambda x: (-x["count"], x["label"])),
     }
