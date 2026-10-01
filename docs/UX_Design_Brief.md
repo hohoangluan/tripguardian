@@ -95,6 +95,7 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 - Quy tắc cứng là khối nền thông đậm có khóa vàng; sở thích mềm là chip viền đứt.
 - Ảnh poster sinh qua `web/scripts/gen_images.py`; chúng là minh họa, không phải ảnh địa điểm thật. Ảnh bìa thẻ địa điểm lấy từ frame clip thật của chính nơi đó, có ghi creator.
 - Video demo landing quay từ app thật bằng `web/scripts/record_demo.mjs`.
+- Vào `/app` lần đầu là màn đăng nhập: Google (nổi nhất), Zalo, Facebook, Apple, TikTok, hoặc email + mật khẩu (email để còn lấy lại mật khẩu, không dùng username); nút "Dùng thử, không cần tài khoản" mạnh nhất vì không bắt buộc tài khoản. Bản thử mô phỏng đăng nhập trong trình duyệt (`web/src/user/account.ts`, không lưu mật khẩu); auth thật thay module này.
 
 ## 8. Câu hỏi mở cho designer
 

@@ -1,5 +1,7 @@
 import { featureLabel } from '../../data/labels'
+import { navigate } from '../../router'
 import { Icon, Page } from '../../ui/bits'
+import { initialOf, PROVIDER_LABEL, signOut, useAccount } from '../account'
 import { useTrip } from '../trip'
 
 // §2.11: sources are optional; with none, everything still works.
@@ -12,6 +14,7 @@ const SOURCES = [
 export function Profile() {
   const { trip, dispatch } = useTrip()
   const inferred = Object.entries(trip.prefs).filter(([, p]) => p.from === 'profile')
+  const account = useAccount()
 
   return (
     <Page className="page--narrow">
@@ -22,6 +25,38 @@ export function Profile() {
         <h1>Hồ sơ và dữ liệu</h1>
         <p>Mọi nguồn đều tùy chọn. Không kết nối gì thì TripGuardian vẫn chạy đầy đủ.</p>
       </header>
+
+      <section className="block account">
+        {account?.kind === 'user' ? (
+          <>
+            <span className="account__avatar" aria-hidden="true">
+              {initialOf(account)}
+            </span>
+            <div className="account__who">
+              <b>{account.name}</b>
+              <small>
+                {account.email ?? `Đăng nhập bằng ${PROVIDER_LABEL[account.provider]}`} · tài khoản bản thử
+              </small>
+            </div>
+            <button className="btn btn--small btn--ghost" onClick={signOut}>
+              Đăng xuất
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="account__avatar" aria-hidden="true">
+              <Icon name="user" />
+            </span>
+            <div className="account__who">
+              <b>Bạn đang dùng thử</b>
+              <small>Chuyến đi chỉ lưu trên trình duyệt này.</small>
+            </div>
+            <button className="btn btn--small" onClick={() => navigate('/app/login')}>
+              Tạo tài khoản
+            </button>
+          </>
+        )}
+      </section>
 
       <section className="block">
         <h2 className="block__title">Nguồn đã kết nối</h2>

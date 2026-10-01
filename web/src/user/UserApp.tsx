@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useSnapshot } from '../data/store'
+import { Auth } from '../pages/Auth'
 import { Start } from '../pages/Start'
 import { match, navigate } from '../router'
 import { Icon } from '../ui/bits'
@@ -13,6 +14,7 @@ import { PlaceDetail } from './screens/PlaceDetail'
 import { Profile } from './screens/Profile'
 import { Setup } from './screens/Setup'
 import { Shortlist } from './screens/Shortlist'
+import { initialOf, useAccount } from './account'
 import { TripProvider, useTrip } from './trip'
 import './user.css'
 
@@ -27,6 +29,7 @@ const STEPS = [
 // Poster illustration behind each screen's title (public/img/poster-*.webp).
 const POSTER: Record<string, string> = {
   '/app': 'start',
+  '/app/login': 'start',
   '/app/setup': 'setup',
   '/app/discover': 'discover',
   '/app/shortlist': 'shortlist',
@@ -49,6 +52,7 @@ export function UserApp({ path, onHome }: { path: string; onHome: () => void }) 
 function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   const { snap, error } = useSnapshot()
   const { trip } = useTrip()
+  const account = useAccount()
   const base = '/' + path.split('?')[0].split('/').filter(Boolean).slice(0, 2).join('/')
 
   useEffect(() => {
@@ -60,7 +64,9 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
 
   let screen
   let m: Record<string, string> | null
-  if (path.split('?')[0] === '/app') screen = <Start onHome={onHome} onDone={() => navigate('/app/setup')} />
+  // First visit: sign in, sign up or go on as a guest; then the two start questions.
+  if (path.split('?')[0] === '/app') screen = account ? <Start onHome={onHome} onDone={() => navigate('/app/setup')} /> : <Auth onHome={onHome} onDone={() => {}} />
+  else if (base === '/app/login') screen = <Auth onHome={onHome} onDone={() => navigate('/app/profile', { replace: true })} />
   else if (!snap)
     screen = (
       <div className="loading" role="status">
@@ -81,7 +87,7 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   const poster = POSTER[base] ?? 'shortlist'
 
   return (
-    <div className={`uapp${base === '/app' ? ' uapp--start' : ''}`}>
+    <div className={`uapp${base === '/app' || base === '/app/login' ? ' uapp--start' : ''}`}>
       <div className="uposter" aria-hidden="true">
         <img src={`/img/poster-${poster}.webp`} alt="" key={poster} decoding="async" />
       </div>
@@ -117,7 +123,7 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
           </nav>
         )}
         <button type="button" className="iconbtn" aria-label="Hồ sơ của bạn" onClick={() => navigate('/app/profile')}>
-          <Icon name="user" />
+          {initialOf(account) ? <span className="iconbtn__initial">{initialOf(account)}</span> : <Icon name="user" />}
         </button>
       </header>
       <main className={`umain${showCurate ? ' has-curate' : ''}`}>{screen}</main>

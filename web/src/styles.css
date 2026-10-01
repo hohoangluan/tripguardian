@@ -126,6 +126,7 @@ button {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   text-decoration: none;
+  white-space: nowrap;
   padding: 0 24px;
   border-radius: 14px;
   box-shadow: 0 10px 26px -14px rgba(30, 58, 52, 0.8);
@@ -169,6 +170,7 @@ button {
   color: #f4f0e6;
 }
 
+.btn--ghost:disabled,
 .btn--ghost:disabled:hover {
   background: transparent;
   color: var(--pine);
