@@ -283,7 +283,16 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
             "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}}
 
 
-async def run(city: str, limit: int | None = None) -> dict:
+def relevant_pending(place_dir: Path) -> bool:
+    """Maps shows more reviews than crawl kept and the relevant phase has not written its file yet."""
+    place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
+    digits = "".join(ch for ch in (place.get("review_count") or "").split(" ")[0] if ch.isdigit())
+    kept = len(json.loads((place_dir / "reviews.json").read_text(encoding="utf-8")))
+    return bool(digits) and int(digits) > kept and not (place_dir / RELEVANT_FILE).exists()
+
+
+async def run(city: str, limit: int | None = None, wait_relevant: bool = False) -> dict:
+    """wait_relevant: leave out places still waiting for reviews_relevant.json (observing them now means again later)."""
     name, _ = load_config(city)
     root = data_dir() / "gmaps"
     out = root / "observations"
@@ -296,6 +305,8 @@ async def run(city: str, limit: int | None = None) -> dict:
         for stale in out.glob("*.json") if out.exists() else []:
             if stale.stem not in keep:
                 stale.unlink()
+    if wait_relevant:
+        dirs = [d for d in dirs if not relevant_pending(d)]
     if limit is not None:
         dirs = dirs[:limit]
     providers = await _providers()

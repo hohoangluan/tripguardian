@@ -32,10 +32,10 @@ PHASES = {  # source -> phase -> (run, needs a browser)
 }
 
 
-def run(source: str, phase: str, city: str, headed: bool, limit: int | None = None) -> None:
+def run(source: str, phase: str, city: str, headed: bool, limit: int | None = None, wait_relevant: bool = False) -> None:
     for p in PHASES[source] if phase == "all" else (phase,):
         fn, browser_phase = PHASES[source][p]
-        out = fn(city, headed) if browser_phase else fn(city, limit=limit) if p == "observe" else fn(city)
+        out = fn(city, headed) if browser_phase else fn(city, limit=limit, wait_relevant=wait_relevant) if p == "observe" else fn(city)
         if asyncio.iscoroutine(out):
             asyncio.run(out)
 
@@ -54,6 +54,8 @@ def main() -> None:
         sp.add_argument("--city", default="dalat")
         sp.add_argument("--headed", action="store_true")
         sp.add_argument("--limit", type=int, help="observe: only the first N places")
+        sp.add_argument("--wait-relevant", action="store_true",
+                        help="gmaps observe: skip places whose relevant reviews are not crawled yet")
     args = ap.parse_args()
     try:
         if args.cmd == "login":
@@ -63,7 +65,7 @@ def main() -> None:
         elif args.cmd == "aggregate":
             aggregate_run(args.city)
         else:
-            run(args.cmd, args.phase, args.city, args.headed, args.limit)
+            run(args.cmd, args.phase, args.city, args.headed, args.limit, args.wait_relevant)
     except browser.LoginRequired as e:
         raise SystemExit(str(e))
 

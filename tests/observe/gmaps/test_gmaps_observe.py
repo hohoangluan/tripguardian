@@ -505,3 +505,14 @@ def test_relevant_reviews_merge_by_id_and_change_the_input(tmp_path, monkeypatch
     assert res["stats"]["reviews"] == 2 and res["voices"] == 2
     old = [o for o in res["observations"] if o["source_id"] == "R9"]
     assert old and all(o["observed_at"] == "2024-09-30" for o in old)  # its age is kept
+
+
+def test_wait_relevant_skips_places_still_waiting(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a")],
+                       place={"review_count": "300 bài đánh giá"})
+    asyncio.run(extract.run("dalat", wait_relevant=True))
+    assert not out.exists()
+    (tmp_path / "gmaps" / "places" / DIR / "reviews_relevant.json").write_text(
+        json.dumps({"fetched_at": FETCHED, "complete": True, "reviews": []}), encoding="utf-8")
+    asyncio.run(extract.run("dalat", wait_relevant=True))
+    assert out.exists()
