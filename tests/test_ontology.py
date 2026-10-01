@@ -5,7 +5,10 @@ from corpus.ontology import load, parse
 
 def test_shipped_ontology_loads():
     ont = load()
-    assert ont.version == 2
+    assert ont.version == 3
+    for fid in ("hands_on_workshop", "pick_your_own", "cultural_show", "camping", "spacious", "cash_only"):
+        assert ont.features[fid].values == ("present",)
+    assert ont.valid("entry_fee", "free") and ont.valid("portion_size", "generous")
     assert ont.features["service_quality"].values == ("good", "mixed", "poor")
     assert ont.valid("crowd", "high") and not ont.valid("crowd", "packed") and not ont.valid("wifi", "present")
     assert ont.features["kids"].verify == "always" and ont.features["kids"].caution_values == ("unsuitable",)

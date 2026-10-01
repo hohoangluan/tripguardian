@@ -3,6 +3,7 @@ import json
 import re
 
 from corpus.observe.gmaps import extract
+from corpus.ontology import load
 
 FETCHED = "2026-09-30T08:00:00+00:00"
 DIR = "0xF_0x1"
@@ -62,7 +63,7 @@ def test_observe_writes_details_and_llm_observations(tmp_path, monkeypatch):
     ]
     assert res["observations"][2]["span"] == {"quote": "view đẹp", "field": "text", "start_s": None, "end_s": None}
     assert res["observations"][0]["span"]["quote"] == "Độ ồn\nRất yên tĩnh"
-    assert res["place_fid"] == "0xF:0x1" and res["as_of"] == "2026-09-30" and res["ontology_version"] == 2
+    assert res["place_fid"] == "0xF:0x1" and res["as_of"] == "2026-09-30" and res["ontology_version"] == load().version
     assert res["ratings"] == [{"author": "a1", "observed_at": "2026-09-16", "stars": 5},
                               {"author": "a2", "observed_at": "2026-07-02", "stars": 1}]
     assert len(calls) == 1 and "r1: Quán có view đẹp" in calls[0]["reviews"]
