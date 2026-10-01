@@ -3,7 +3,7 @@ from corpus.ontology import load
 
 
 def test_attributes_map_to_features():
-    attrs = ["Phù hợp cho trẻ em", "Có thực đơn dành cho trẻ em", "Phù hợp khi đi theo nhóm", "Có chỗ ngồi ngoài trời",
+    attrs = ["Phù hợp cho trẻ em", "Có hoạt động phù hợp với trẻ em", "Phù hợp khi đi theo nhóm", "Có chỗ ngồi ngoài trời",
              "Không có lối vào cho xe lăn", "Phù hợp để làm việc trên máy tính xách tay", "Có nhà vệ sinh", "Có Wi-Fi"]
     assert [(f, v) for f, v, _ in attribute_pairs(attrs)] == [
         ("kids", "suitable"), ("kids", "suitable"), ("groups", "suitable"), ("outdoor_seating", "present"),
@@ -43,3 +43,12 @@ def test_price():
     assert parse_price("Khoảng giá, 1-100.000\xa0₫/người, 12 người đã báo cáo")["max_vnd"] == 100000
     assert parse_price("Giá vừa phải") == {"level": "moderate"}
     assert parse_price(None) is None and parse_price("Khoảng giá, lạ") is None
+
+
+def test_inferred_or_bare_labels_are_not_mapped():
+    assert attribute_pairs(["Có thực đơn dành cho trẻ em", "Lối vào cho xe lăn"]) == []
+
+
+def test_price_above():
+    assert parse_price("Khoảng giá, Trên 1.000.000\xa0₫/người, 3 người đã báo cáo") == {
+        "min_vnd": 1000000, "max_vnd": None, "per": "person", "reports": 3}

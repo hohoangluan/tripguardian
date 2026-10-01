@@ -1,5 +1,5 @@
 # Feature ontology shared by every source's observations and by the User Profile (docs/CORPUS.md §5).
-# check: span -> each review observation is read again by REVIEW_VERIFY; only 'supports' is kept.
+# check: span -> each review observation is read again by REVIEW_VERIFY against claims[value]; only 'supports' is kept.
 # Changing ids or values: bump version -> observations are re-extracted (docs/specs/CORPUS_SPEC.md §7 ledger).
 version: 4
 groups: [experience, environment, service, effort, suitability]
@@ -43,21 +43,21 @@ features:
   - {id: service_attitude, group: service, values: [good, poor], hint: "thái độ nhân viên/chủ: nhiệt tình, thân thiện / khó chịu, thô lỗ"}
   - {id: service_quality, group: service, values: [good, mixed, poor], hint: "chất lượng dịch vụ, tay nghề, làm kỹ, nhanh / bình thường / ẩu, chậm, kém"}
   - {id: value_for_money, group: service, values: [good, poor], hint: "giá hợp lý, đáng tiền / đắt, không xứng"}
-  - {id: tourist_trap, group: service, values: [present], hint: "chặt chém, ngáo giá, cò mồi, ép mua, lừa khách", check: span}
+  - {id: tourist_trap, group: service, values: [present], hint: "chặt chém, ngáo giá, cò mồi, ép mua, lừa khách", check: span, claims: {present: "nơi này chặt chém, ngáo giá, cò mồi hoặc lừa khách"}}
   - {id: wait_time, group: service, values: [none, short, long], hint: "không phải chờ / chờ chút / chờ lâu"}
   - {id: booking_needed, group: service, values: ["yes", "no"], hint: "cần / không cần đặt chỗ, đặt vé trước"}
   - {id: portion_size, group: service, values: [generous, small], hint: "khẩu phần nhiều, ăn không hết / ít"}
-  - {id: entry_fee, group: service, values: [free, paid], hint: "vào cửa miễn phí / phải mua vé (kể cả khi nêu giá vé)", check: span}
+  - {id: entry_fee, group: service, values: [free, paid], hint: "vào cửa miễn phí / phải mua vé (kể cả khi nêu giá vé)", check: span, claims: {free: "vào nơi này miễn phí cho mọi khách", paid: "vào nơi này phải mua vé"}}
   - {id: vegetarian_options, group: service, values: ["yes", "no"], hint: "có / không có món chay"}
   - {id: cash_only, group: service, values: [present], hint: "chỉ nhận tiền mặt, không chuyển khoản / quẹt thẻ"}
-  - {id: condition_change, group: service, values: [improved, declined], hint: "so với trước: tốt lên / xuống cấp (vd: trước đẹp, giờ chặt hết cây)", check: span}
+  - {id: condition_change, group: service, values: [improved, declined], hint: "so với trước: tốt lên / xuống cấp (vd: trước đẹp, giờ chặt hết cây)", check: span, claims: {improved: "nơi này tốt lên so với trước", declined: "nơi này xuống cấp so với trước"}}
   # effort
-  - {id: rough_road_access, group: effort, values: [present], hint: "đường vào xấu: đất, đá, lầy, khó đi xe", check: span}
-  - {id: steep_or_stairs, group: effort, values: [present], hint: "dốc cao, nhiều bậc thang, phải leo", check: span}
-  - {id: long_walk, group: effort, values: [present], hint: "phải đi bộ xa", check: span}
+  - {id: rough_road_access, group: effort, values: [present], hint: "đường vào xấu: đất, đá, lầy, khó đi xe", check: span, claims: {present: "đường vào nơi này xấu, khó đi (đất, đá, lầy)"}}
+  - {id: steep_or_stairs, group: effort, values: [present], hint: "dốc cao, nhiều bậc thang, phải leo", check: span, claims: {present: "khách phải leo dốc cao hoặc nhiều bậc thang để vào hoặc tham quan nơi này"}}
+  - {id: long_walk, group: effort, values: [present], hint: "phải đi bộ xa", check: span, claims: {present: "khách phải đi bộ xa để tới hoặc tham quan nơi này"}}
   # suitability: permissive values can harm when wrong -> always checked by a person (CORPUS_SPEC.md §6)
-  - {id: kids, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp trẻ em", check: span}
-  - {id: elderly, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp người lớn tuổi", check: span}
-  - {id: wheelchair, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ xe lăn đi được / không đi được", check: span}
-  - {id: couples, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp cặp đôi, hẹn hò", check: span}
-  - {id: groups, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp đi nhóm đông", check: span}
+  - {id: kids, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp trẻ em", check: span, claims: {suitable: "nơi này hợp với trẻ em", unsuitable: "nơi này không hợp với trẻ em"}}
+  - {id: elderly, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp người lớn tuổi", check: span, claims: {suitable: "nơi này hợp với người lớn tuổi", unsuitable: "nơi này không hợp với người lớn tuổi"}}
+  - {id: wheelchair, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ xe lăn đi được / không đi được", check: span, claims: {suitable: "người đi xe lăn vào được nơi này", unsuitable: "người đi xe lăn không vào được nơi này"}}
+  - {id: couples, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp cặp đôi, hẹn hò", check: span, claims: {suitable: "nơi này hợp với cặp đôi", unsuitable: "nơi này không hợp với cặp đôi"}}
+  - {id: groups, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp đi nhóm đông", check: span, claims: {suitable: "nơi này hợp với nhóm đông", unsuitable: "nơi này không hợp với nhóm đông"}}

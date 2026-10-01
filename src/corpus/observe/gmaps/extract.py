@@ -30,6 +30,7 @@ from .prep import batches, keep_for_llm, observed_at, stars
 DETAILS_EXTRACTOR = "details_rule@v2"
 PASSAGE_CHARS = 1200  # review text shown to REVIEW_VERIFY around the quote
 VERDICTS = ("supports", "contradicts", "insufficient")
+SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
 QC_DROP = {"owner_reply", "spam", "not_a_review"}
 ATTEMPTS = 2
 BAD_ANSWER = (BadAnswer, ValueError, TypeError, AttributeError, KeyError)  # JSONDecodeError is a ValueError
@@ -64,20 +65,23 @@ def passage(text: str, quote: str) -> str:
 
 
 async def check_span(client, model, sem, place: dict, text: str, ont: Ontology, o: dict) -> str:
-    f = ont.features[o["feature"]]
+    claim = f'{ont.features[o["feature"]].claims[o["value"]]} (quote: "{o["quote"]}")'
     async with sem:
         try:
-            answer = await verify_claim(client, model, place, passage(text, o["quote"]),
-                                        f"{f.id} = {o['value']}: {f.hint}")
+            answer = await verify_claim(client, model, place, passage(text, o["quote"]), claim)
+            verdict = answer.get("verdict")
         except openai.APIError:
             raise
         except BAD_ANSWER:
             return "error"
-    return answer.get("verdict") if answer.get("verdict") in VERDICTS else "error"
+    return verdict if verdict in VERDICTS else "error"
 
 
 def cache_key(ont: Ontology) -> str:
-    parts = (REVIEW_OBSERVE.prompt_hash, REVIEW_VERIFY.prompt_hash, ont.prompt_text(), DETAILS_EXTRACTOR, RULES_VERSION)
+    checked = json.dumps({f.id: f.claims for f in ont.features.values() if f.span_check}, sort_keys=True,
+                         ensure_ascii=False)
+    parts = (REVIEW_OBSERVE.prompt_hash, REVIEW_VERIFY.prompt_hash, ont.prompt_text(), checked, DETAILS_EXTRACTOR,
+             RULES_VERSION, SPAN_CHECK_VERSION, str(PASSAGE_CHARS), ",".join(sorted(QC_DROP)))
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 

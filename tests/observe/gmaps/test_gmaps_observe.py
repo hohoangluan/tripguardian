@@ -249,7 +249,8 @@ def test_span_check_keeps_only_supported(tmp_path, monkeypatch):
 
     async def verify(client, model, place, passage, claim):
         checked.append((passage, claim))
-        return {"verdict": "contradicts" if claim.startswith("tourist_trap") else "supports", "reason": ""}
+        trap = load().features["tourist_trap"].claims["present"]
+        return {"verdict": "contradicts" if claim.startswith(trap) else "supports", "reason": ""}
 
     monkeypatch.setattr(extract, "ask_batch", ask)
     monkeypatch.setattr(extract, "verify_claim", verify)
@@ -285,6 +286,58 @@ def test_ontology_hint_change_redoes_cached_place(tmp_path, monkeypatch):
     ont = load()
     f = ont.features["crowd"]
     changed = dataclasses.replace(ont, features={**ont.features, "crowd": dataclasses.replace(f, hint=f.hint + "!")})
+    monkeypatch.setattr(extract, "load_ontology", lambda: changed)
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 2
+
+
+def test_negative_claim_is_sent_as_its_own_statement_with_the_quote(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Có bậc thang cao, xe lăn không vào được", "a")])
+
+    async def ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        return {"reviews": [{"ref": "r1", "proposed": [], "observations": [
+            {"feature": "wheelchair", "value": "unsuitable", "quote": "xe lăn không vào được", "time_of_day": "unknown",
+             "day_type": "unknown", "weather": "unknown"}]}]}
+
+    claims = []
+
+    async def verify(client, model, place, passage, claim):
+        claims.append(claim)
+        return {"verdict": "supports", "reason": ""}
+
+    monkeypatch.setattr(extract, "ask_batch", ask)
+    monkeypatch.setattr(extract, "verify_claim", verify)
+    asyncio.run(extract.run("dalat"))
+    assert claims == [f'{load().features["wheelchair"].claims["unsuitable"]} (quote: "xe lăn không vào được")']
+    assert [o["value"] for o in json.loads(out.read_text(encoding="utf-8"))["observations"]] == ["unsuitable"]
+
+
+def test_non_dict_verify_answer_drops_only_the_observation(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Lối vào hẻm dốc khá cao", "a")])
+
+    async def ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        return {"reviews": [{"ref": "r1", "proposed": [], "observations": [
+            {"feature": "steep_or_stairs", "value": "present", "quote": "hẻm dốc", "time_of_day": "unknown",
+             "day_type": "unknown", "weather": "unknown"}]}]}
+
+    async def verify(client, model, place, passage, claim):
+        return ["supports"]
+
+    monkeypatch.setattr(extract, "ask_batch", ask)
+    monkeypatch.setattr(extract, "verify_claim", verify)
+    summary = asyncio.run(extract.run("dalat"))
+    assert summary["status"] == {"done": 1}
+    assert json.loads(out.read_text(encoding="utf-8"))["stats"]["dropped"] == {"span_check_error": 1}
+
+
+def test_span_check_setting_change_redoes_cached_place(tmp_path, monkeypatch):
+    import dataclasses
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    asyncio.run(extract.run("dalat"))
+    ont = load()
+    f = ont.features["crowd"]
+    changed = dataclasses.replace(ont, features={**ont.features, "crowd": dataclasses.replace(
+        f, span_check=True, claims={v: v for v in f.values})})
     monkeypatch.setattr(extract, "load_ontology", lambda: changed)
     asyncio.run(extract.run("dalat"))
     assert len(calls) == 2

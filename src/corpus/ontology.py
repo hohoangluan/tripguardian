@@ -3,7 +3,7 @@
 Observations may only carry a feature and value listed here (gate, docs/specs/CORPUS_SPEC.md §6).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -25,6 +25,7 @@ class Feature:
     verify: str = "sampled"
     caution_values: tuple[str, ...] = ()
     span_check: bool = False
+    claims: dict = field(default_factory=dict)  # value -> what a review must state, for REVIEW_VERIFY
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,10 @@ def parse(raw: dict) -> Ontology:
         check = spec.get("check")
         if check is not None and check not in CHECK:
             raise ValueError(f"feature {fid}: check must be one of {CHECK}")
-        features[fid] = Feature(fid, spec["group"], values, spec["hint"], verify, caution, check == "span")
+        claims = {str(k): v for k, v in (spec.get("claims") or {}).items()}
+        if check == "span" and set(claims) != set(values):
+            raise ValueError(f"feature {fid}: check: span needs claims for exactly {values}")
+        features[fid] = Feature(fid, spec["group"], values, spec["hint"], verify, caution, check == "span", claims)
     return Ontology(int(raw["version"]), groups, {k: tuple(v) for k, v in raw["contexts"].items()}, features)
 
 

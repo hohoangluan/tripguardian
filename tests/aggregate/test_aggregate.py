@@ -192,3 +192,27 @@ def test_crowd_by_time_and_price_from_place_facts():
 
 def test_no_place_facts_gives_empty_operation():
     assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "crowd_by_time": None, "popular_times": None}
+
+
+def test_conflict_needs_review_for_any_feature_and_has_no_authority():
+    s = aggregate_place([f([attr(1, "outdoor_seating", "present"), attr(2, "laptop_friendly", "present"),
+                            o(3, "kids", "unsuitable", "a"), attr(4, "kids", "suitable")])], ONT)["features"]
+    k = s["kids"]
+    assert k["status"] == "uncertain" and k["needs_review"] is True and k["authority"] is None
+    assert s["outdoor_seating"]["confidence"]["source_types"] == ["provider"]
+
+
+def test_conflict_on_sampled_feature_needs_review():
+    ont = load()
+    # parking is sampled; an attribute-like authority on it contradicted by a review must still go to a person
+    obs = [{**attr(1, "parking", "easy")}, o(2, "parking", "hard", "a")]
+    p = aggregate_place([f(obs)], ont)["features"]["parking"]
+    assert p["status"] == "uncertain" and p["needs_review"] is True
+
+
+def test_attribute_does_not_set_freshness_or_trend():
+    older = [o(i, "kids", "suitable", f"o{i}", OLD) for i in range(5)]
+    recent = [o(10 + i, "kids", "suitable", f"r{i}", "2026-06-01") for i in range(5)]
+    k = aggregate_place([f(older + recent + [attr(99, "kids", "suitable")])], ONT)["features"]["kids"]
+    assert k["confidence"]["freshness_days"] == 121  # newest review, not the crawl date of the attribute
+    assert k["trend"]["recent"] == {"suitable": 5} and k["trend"]["older"] == {"suitable": 5}

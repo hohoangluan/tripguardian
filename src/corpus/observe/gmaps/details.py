@@ -27,8 +27,8 @@ TABLES = {"Độ ồn": ("noise", NOISE), "Thời gian đợi": ("wait_time", WA
           "Đặt chỗ": ("booking_needed", BOOKING), "Nên đặt vé trước": ("booking_needed", TICKET)}
 STARS = {"Đồ ăn": "food_quality", "Dịch vụ": "service_quality"}  # "Bầu không khí" has no clear feature
 # questions Maps asks with a free-text answer: matched lower-case and whole, never by prefix
-KIDS = {**dict.fromkeys(("có", "ok", "yes", "đúng", "rất thân thiện", "thân thiện", "rất tốt", "tốt", "có thể",
-                          "phù hợp"), "suitable"), **dict.fromkeys(("không", "no", "ko", "không có"), "unsuitable")}
+KIDS = {**dict.fromkeys(("có", "ok", "yes", "đúng", "rất thân thiện", "thân thiện", "rất tốt", "tốt", "phù hợp"),
+                         "suitable"), **dict.fromkeys(("không", "no", "ko"), "unsuitable")}  # "không có" may mean no kids
 WHEELCHAIR = {**dict.fromkeys(("có", "yes", "đúng", "ok", "thoải mái"), "suitable"),
               **dict.fromkeys(("không", "không có", "no", "ko", "không có lối đi cho xe lăn"), "unsuitable")}
 VEGETARIAN = {**dict.fromkeys(("có", "yes", "đúng", "có món chay", "nhà hàng chay", "thuần chay"), "yes"),
@@ -75,7 +75,7 @@ def details_pairs(review: dict) -> list[tuple[str, str, str]]:
             feature, value = STARS[key], star_value(raw)
         elif key in ANSWERS:
             feature, table = ANSWERS[key]
-            value = table.get(raw.rstrip(ELLIPSIS).strip().lower())
+            value = None if raw.endswith(ELLIPSIS) else table.get(raw.strip().lower())  # a cut answer is unknown
         else:
             continue
         if value:

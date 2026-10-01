@@ -55,3 +55,16 @@ def test_bad_verify_rejected():
 def test_bad_check_rejected():
     with pytest.raises(ValueError, match="check"):
         parse({**BASE, "features": [{**A, "check": "maybe"}]})
+
+
+def test_span_checked_features_state_one_claim_per_value():
+    ont = load()
+    for f in ont.features.values():
+        if f.span_check:
+            assert set(f.claims) == set(f.values), f.id
+    assert ont.features["wheelchair"].claims["unsuitable"] != ont.features["wheelchair"].claims["suitable"]
+
+
+def test_span_check_without_claims_rejected():
+    with pytest.raises(ValueError, match="claims"):
+        parse({**BASE, "features": [{**A, "check": "span"}]})

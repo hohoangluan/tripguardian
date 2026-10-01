@@ -72,3 +72,8 @@ def test_free_text_answers_for_kids_wheelchair_vegetarian():
             "Các món chay\nKhông rõ"]
     assert [(f, v) for f, v, _ in details_pairs({"details": rows})] == [
         ("kids", "suitable"), ("wheelchair", "unsuitable"), ("vegetarian_options", "yes"), ("vegetarian_options", "no")]
+
+
+def test_cut_or_loose_free_text_answers_give_nothing():
+    rows = ["Các món chay\nKhông có…", "Độ thân thiện với trẻ em\nCó thể", "Độ thân thiện với trẻ em\nKhông có"]
+    assert details_pairs({"details": rows}) == []

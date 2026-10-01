@@ -32,7 +32,7 @@ def time_of_day(hour: int) -> str:
         if lo <= hour <= hi:
             return name
     return "night"
-SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "tiktok_segment": "video",
+SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "gmaps_attribute": "provider", "tiktok_segment": "video",
                "tiktok_comment": "comment"}
 
 
@@ -104,16 +104,18 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date) -> dict:
                 groups[o["context"][k]].append(o)
         for c in sorted(groups):
             by_context[f"{k}={c}"] = votes(groups[c])
-    dates = [o["observed_at"] for o in unique if o.get("observed_at")]
+    people = [o for o in unique if o["source_type"] not in AUTHORITATIVE]  # dated by when someone said it
+    dates = [o["observed_at"] for o in people if o.get("observed_at")]
     declared = {o["value"] for o in unique if o["source_type"] in AUTHORITATIVE}
-    authority = next(iter(declared)) if len(declared) == 1 else None
-    conflict = bool(declared) and bool({o["value"] for o in unique if o["source_type"] not in AUTHORITATIVE} - declared
-                                       or len(declared) > 1)
+    conflict = bool(declared) and bool({o["value"] for o in people} - declared or len(declared) > 1)
+    authority = next(iter(declared)) if len(declared) == 1 and not conflict else None
     voters = len({_who(o) for o in unique if o["value"] == t})
-    if authority and not conflict:
+    if conflict:
+        needs_review = True  # a declared value someone disputes goes to a person, whatever the feature
+    elif authority:
         needs_review = False
     else:
-        needs_review = feat.verify == "always" and (conflict or t not in feat.caution_values or voters < 2)
+        needs_review = feat.verify == "always" and (t not in feat.caution_values or voters < 2)
     return {
         "n": n, "distribution": dist, "top_value": t,
         "status": "uncertain" if conflict or agreement < AGREEMENT_MIN else "signal",
@@ -123,7 +125,7 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date) -> dict:
         "confidence": {"independent_sources": n, "agreement": agreement,
                        "freshness_days": _age(as_of, max(dates)) if dates else None,
                        "source_types": sorted({SOURCE_KIND.get(o["source_type"], o["source_type"]) for o in unique})},
-        "trend": trend(unique, t),
+        "trend": trend(people, t),
         "needs_review": needs_review,
         "observation_ids": [o["id"] for o in obs],
     }
