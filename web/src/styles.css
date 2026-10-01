@@ -209,42 +209,62 @@ button {
   z-index: 1;
 }
 
-.beat {
-  min-height: 100vh;
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  padding: 88px 7vw 64px;
-}
-
+/* Hero: one centred column. Headline, then the phone rising from below,
+   two small facts floating either side of it. */
 .hero {
   position: relative;
-  align-items: flex-end;
-  padding-bottom: 12vh;
+  height: 100vh;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: max(110px, 13vh) var(--gutter) 0;
+  text-align: center;
+  overflow: hidden;
 }
 
-/* A bank of mist behind the headline keeps it legible over the scene. */
+/* A bank of light mist behind the type keeps it legible over the scene. */
 .hero::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: radial-gradient(70% 60% at 18% 72%, rgba(226, 233, 234, 0.92) 0%, rgba(226, 233, 234, 0.55) 45%, rgba(226, 233, 234, 0) 75%);
+  background: radial-gradient(60% 55% at 50% 38%, rgba(236, 240, 238, 0.9) 0%, rgba(236, 240, 238, 0.55) 50%, rgba(236, 240, 238, 0) 78%);
   pointer-events: none;
 }
 
 .hero__copy {
-  max-width: 46rem;
+  display: grid;
+  justify-items: center;
+  max-width: 62rem;
+}
+
+.hero__eyebrow {
+  margin-bottom: 18px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.75);
+  font: 700 0.78rem var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lake);
 }
 
 .hero__title {
-  font-size: clamp(2.8rem, 7.4vw, 6.4rem);
+  font-size: clamp(2.6rem, 6.2vw, 5.8rem);
   font-weight: 800;
   line-height: 0.93;
   letter-spacing: 0.005em;
   text-transform: uppercase;
   color: var(--pine);
-  max-width: 13ch;
+}
+
+.hero__line {
+  display: block;
+}
+
+.hero__line--ask {
+  color: var(--lake);
 }
 
 .hero__word {
@@ -253,330 +273,592 @@ button {
 }
 
 .hero__lead {
-  margin-top: 22px;
-  max-width: 34rem;
+  margin-top: 20px;
+  max-width: 36rem;
   font-size: 1.15rem;
   line-height: 1.55;
   color: var(--ink-soft);
 }
 
 .hero__actions {
-  margin-top: 30px;
+  margin-top: 28px;
   display: flex;
   align-items: center;
-  gap: 22px;
+  justify-content: center;
+  gap: 10px 22px;
   flex-wrap: wrap;
 }
 
-.hint {
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-}
-
-.panel {
-  width: min(31rem, 100%);
-  background: var(--glass);
-  border: 1px solid var(--glass-edge);
-  border-radius: 22px;
-  padding: 26px 26px 28px;
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
-  box-shadow: 0 30px 60px -40px rgba(19, 35, 31, 0.55);
-}
-
-.panel h2 {
-  font-size: clamp(1.9rem, 3.6vw, 2.8rem);
-  font-weight: 800;
-  line-height: 0.98;
-  text-transform: uppercase;
+.hero__more {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 10px 4px;
   color: var(--pine);
-  margin: 6px 0 14px;
+  font-weight: 600;
 }
 
-.panel > p {
-  color: var(--ink-soft);
-}
-
-.panel__step {
-  font-size: 0.9rem;
-  font-weight: 500;
+.hero__more:hover {
   color: var(--lake);
 }
 
-.panel .btn {
-  margin-top: 22px;
-}
-
-.aside {
-  margin-top: 14px;
-  font-size: 0.92rem;
-}
-
-/* Step rail: the five beats are a real sequence, so they are numbered. */
-.rail {
-  position: fixed;
-  right: 28px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
-}
-
-.rail ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.rail button {
-  appearance: none;
-  background: none;
-  border: 0;
-  cursor: pointer;
+.hero__phone {
   position: relative;
+  width: clamp(230px, 20vw, 290px);
+  margin: 48px auto 0;
+  flex: none;
+}
+
+.hero__phone img {
   display: block;
-  padding: 4px;
-  color: var(--ink);
+  width: 100%;
+  aspect-ratio: 390 / 844;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 40px 40px 0 0;
+  border: 9px solid #16221f;
+  border-bottom: 0;
+  background: #f4f0e6;
+  box-shadow: 0 -10px 60px -20px rgba(19, 35, 31, 0.45);
 }
 
-.rail__n {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1.5px solid rgba(30, 58, 52, 0.35);
-  background: rgba(238, 243, 243, 0.6);
-  transition:
-    background-color 0.4s ease,
-    border-color 0.4s ease,
-    color 0.4s ease;
-}
-
-.rail__label {
+.hero__tag {
   position: absolute;
-  right: calc(100% + 6px);
-  top: 50%;
-  margin-top: -14px;
-  line-height: 28px;
-  padding: 0 10px;
-  white-space: nowrap;
-  border-radius: 8px;
-  background: var(--glass);
-  font-size: 0.85rem;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateX(6px);
-  transition:
-    opacity 0.4s ease,
-    transform 0.4s ease;
-}
-
-.rail li.is-done .rail__n {
-  background: var(--pine);
-  border-color: var(--pine);
-  color: #eef3f1;
-}
-
-.rail li.is-active .rail__n {
-  background: var(--daquy);
-  border-color: var(--daquy);
-  color: var(--ink);
-}
-
-.rail li.is-active .rail__label,
-.rail button:hover .rail__label {
-  opacity: 1;
-  transform: none;
-}
-
-/* Hard rules vs soft leanings must look different (UX brief §5). */
-.trip {
-  margin-top: 18px;
-  display: grid;
-  gap: 14px;
-}
-
-.trip__group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: inline-flex;
   align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 18px 36px -18px rgba(19, 35, 31, 0.55);
 }
 
-.trip__kind {
-  flex-basis: 100%;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-}
-
-.chip {
-  font-size: 0.88rem;
-  padding: 6px 12px;
-  line-height: 1.3;
-}
-
-.chip--rule {
-  background: var(--pine);
-  color: #eef3f1;
-  border-radius: 5px;
-  font-weight: 500;
-}
-
-.chip--rule::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 8px;
+.hero__tag i {
+  width: 10px;
+  height: 10px;
   background: var(--daquy);
-  vertical-align: 1px;
+  transform: rotate(45deg);
 }
 
-.chip--lean {
-  border: 1.5px dashed rgba(30, 58, 52, 0.5);
-  border-radius: 999px;
+.hero__tag--a {
+  right: calc(100% + 28px);
+  top: 30px;
+}
+
+.hero__tag--b {
+  left: calc(100% + 28px);
+  top: 96px;
+  color: var(--violet);
+}
+
+/* Story: a tall section whose stage sticks to the viewport while
+   the five beats play on it. */
+.st-story {
+  position: relative;
+  height: 500vh;
+  height: 500svh;
+}
+
+.st-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 76px var(--gutter) 22px;
+  overflow: hidden;
+}
+
+/* Light falls on the centre: the stage reads first, the scene frames it. */
+.st-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(52% 58% at 50% 52%, rgba(240, 242, 238, 0.86) 0%, rgba(240, 242, 238, 0.5) 55%, rgba(240, 242, 238, 0) 82%);
+  pointer-events: none;
+}
+
+.st-scene {
+  width: min(1180px, 100%);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 26px;
+}
+
+.st-head {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+  max-width: 44rem;
+}
+
+.st-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 0.8rem var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lake);
+}
+
+.st-step span {
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: var(--pine);
+  color: var(--daquy);
+}
+
+.st-head h2 {
+  font-size: clamp(2rem, 4.4vw, 3.8rem);
+  font-weight: 800;
+  line-height: 0.95;
+  text-transform: uppercase;
   color: var(--pine);
 }
 
-.chip--profile {
+.st-head h2 em {
+  display: block;
+  font-style: normal;
+  color: var(--lake);
+}
+
+.st-lead {
+  max-width: 36rem;
+  color: var(--ink-soft);
+  font-size: 1.04rem;
+}
+
+.st-row {
+  --gap: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+}
+
+.st-note {
+  position: relative;
+  max-width: 250px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 253, 248, 0.92);
+  box-shadow: 0 18px 40px -26px rgba(19, 35, 31, 0.6);
+}
+
+.st-note--l {
+  justify-self: end;
+  text-align: right;
+}
+
+.st-note b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 1rem;
+  color: var(--pine);
+}
+
+.st-note p {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+/* Dashed leader from each note to the card, ending on a little diamond. */
+.st-note__line {
+  position: absolute;
+  top: 50%;
+  width: var(--gap);
+  height: 0;
+  border-top: 2px dashed var(--daquy);
+}
+
+.st-note__line::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  width: 9px;
+  height: 9px;
+  background: var(--daquy);
+  transform: rotate(45deg);
+}
+
+.st-note--l .st-note__line {
+  left: 100%;
+  transform-origin: left;
+}
+
+.st-note--l .st-note__line::after {
+  right: -4px;
+}
+
+.st-note--r .st-note__line {
+  right: 100%;
+  transform-origin: right;
+}
+
+.st-note--r .st-note__line::after {
+  left: -4px;
+}
+
+.st-card {
+  width: 100%;
+  border-radius: 26px;
+  background: #fffdf8;
+  overflow: hidden;
+  text-align: left;
+  box-shadow:
+    0 40px 80px -36px rgba(19, 35, 31, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+}
+
+.st-card__art {
+  display: block;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+
+.st-card__body {
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px 20px;
+}
+
+.st-card__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.st-card__title b {
+  font-size: 1.15rem;
+}
+
+.st-card__title small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.st-mono {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+.st-kind {
+  font: 700 0.7rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.st-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Hard rules vs soft leanings must look different (UX brief §3). */
+.st-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(30, 58, 52, 0.45);
+  font-size: 0.86rem;
+  color: var(--pine);
+}
+
+.st-chip--rule {
+  border: 0;
+  border-radius: 8px;
+  background: var(--pine);
+  color: #f4f0e6;
+  font-weight: 600;
+}
+
+.st-chip--rule::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  background: var(--daquy);
+  transform: rotate(45deg);
+}
+
+.st-chip--profile {
   border-color: rgba(111, 79, 160, 0.6);
   color: var(--violet);
   font-style: italic;
 }
 
-/* Facts and lived experience are two kinds of truth (UX brief §4). */
-.evidence {
-  margin-top: 18px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.55);
-  padding: 14px 16px 16px;
-}
-
-.evidence__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+.st-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.evidence__head strong {
-  font-size: 1.1rem;
+.st-facts {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--pine);
+}
+
+.st-facts dt {
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+
+.st-facts dd {
+  margin: 0 0 8px;
   font-weight: 700;
 }
 
-.demo-note {
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-}
-
-.evidence__cols {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.facts {
-  margin: 0;
-  border-left: 3px solid var(--pine);
-  padding-left: 12px;
-}
-
-.facts dt {
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-}
-
-.facts dd {
-  margin: 0 0 8px;
-  font-weight: 600;
-}
-
-.facts small,
-.voices small {
+.st-facts small,
+.st-voice small {
   display: block;
   font-weight: 400;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--ink-soft);
 }
 
-.unsure {
+.st-unsure {
   color: var(--violet);
   text-decoration: underline dotted 2px;
   text-underline-offset: 4px;
 }
 
-.voices {
-  position: relative;
-  background: rgba(47, 93, 107, 0.1);
-  border-radius: 14px 14px 14px 4px;
+.st-voice {
   padding: 10px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: #fbf1da;
+  font-size: 0.9rem;
 }
 
-.voices__quote {
-  font-style: italic;
-  line-height: 1.4;
+.st-voice q {
+  display: block;
   margin-bottom: 6px;
+  font-style: italic;
 }
 
-.pick {
-  margin-top: 18px;
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 14px;
-  border-left: 5px solid var(--daquy);
-  padding: 14px 16px;
+.st-keep {
+  padding: 3px 9px 2px;
+  border-radius: 7px;
+  background: var(--daquy);
+  font: 800 0.72rem/1.3 var(--display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.st-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
   gap: 6px;
-  font-size: 0.95rem;
+  font-size: 0.93rem;
 }
 
-.pick__title {
+.st-list li {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  gap: 8px;
 }
 
-.pick__title strong {
-  font-size: 1.1rem;
+.st-why::before {
+  content: '✓';
+  color: #2b7350;
   font-weight: 700;
 }
 
-.pick__kept {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #7a5600;
-}
-
-.pick__group {
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(30, 58, 52, 0.15);
-  color: var(--ink-soft);
-  font-size: 0.88rem;
-}
-
-.conflict {
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 14px;
-  border-left: 5px solid var(--brick);
-  padding: 14px 16px;
-  display: grid;
-  gap: 6px;
-  font-size: 0.95rem;
-}
-
-.conflict__what {
-  font-weight: 600;
+.st-cost::before {
+  content: '△';
   color: var(--brick);
 }
 
-.conflict__fix {
+.st-group {
+  padding-top: 10px;
+  border-top: 1px dashed #d3c9b3;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+
+.st-conflict {
+  font-weight: 700;
+  color: var(--brick);
+}
+
+.st-text {
+  font-size: 0.93rem;
+  color: var(--ink-soft);
+}
+
+.st-fix {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--pine);
+  background: #f4f0e6;
+  animation: st-pulse 2.4s ease-in-out infinite 1.2s;
+}
+
+.st-fix small {
+  color: var(--ink-soft);
+}
+
+@keyframes st-pulse {
+  50% {
+    box-shadow: 0 0 0 6px rgba(242, 179, 27, 0.35);
+  }
+}
+
+.st-tl {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 4px;
+  display: grid;
+  gap: 12px;
+}
+
+.st-tl li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  column-gap: 14px;
+  padding-left: 18px;
+}
+
+.st-tl li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  background: var(--daquy);
+  border: 2px solid var(--pine);
+  transform: rotate(45deg);
+}
+
+.st-tl li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 22px;
+  bottom: -14px;
+  border-left: 2px dashed #d3c9b3;
+}
+
+.st-tl .st-mono {
+  grid-row: span 2;
+  font-weight: 700;
+}
+
+.st-tl small {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.st-flag {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #fcefc8;
+  color: #845700 !important;
+}
+
+/* Step dots: numbered, the current one names itself. */
+.st-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.82);
+  box-shadow: 0 10px 30px -20px rgba(19, 35, 31, 0.6);
+}
+
+.st-dots button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition:
+    background-color 0.35s ease,
+    padding 0.35s ease;
+}
+
+.st-dots__n {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font: 700 0.76rem var(--mono);
+  border: 1.5px solid rgba(30, 58, 52, 0.25);
+}
+
+.st-dots__label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   font-weight: 600;
-  color: var(--pine);
+  font-size: 0.88rem;
+  transition: max-width 0.4s ease;
+}
+
+.st-dots button.is-done .st-dots__n {
+  background: var(--pine);
+  border-color: var(--pine);
+  color: #f4f0e6;
+}
+
+.st-dots button.is-on {
+  padding-right: 14px;
+  background: var(--pine);
+  color: #f4f0e6;
+}
+
+.st-dots button.is-on .st-dots__n {
+  background: var(--daquy);
+  border-color: var(--daquy);
+  color: var(--ink);
+}
+
+.st-dots button.is-on .st-dots__label {
+  max-width: 180px;
+}
+
+.st-cta {
+  position: absolute;
+  right: 28px;
+  bottom: 22px;
+  animation: st-in 0.5s ease both;
+}
+
+@keyframes st-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 }
 
 /* Labels pinned to the shortlist in the 3D scene. */
@@ -735,7 +1017,7 @@ button {
   color: var(--ink-soft);
 }
 
-/* ---------- phone first: panels sit low, the scene stays visible ---------- */
+/* ---------- phones ---------- */
 
 @media (max-width: 720px) {
   .only-wide {
@@ -744,45 +1026,52 @@ button {
   .only-narrow {
     display: inline;
   }
-  .beat {
-    align-items: flex-end;
-    padding: 80px var(--gutter) 24px;
-  }
-  .hero {
-    padding-bottom: 9svh;
+  .card {
+    padding: 26px 20px 18px;
   }
   .hero__lead {
     font-size: 1.02rem;
   }
-  .panel {
-    padding: 20px 18px 22px;
-    border-radius: 18px;
+  .hero__phone {
+    width: 210px;
+    margin-top: 36px;
   }
-  .panel > p {
-    font-size: 0.95rem;
-  }
-  .evidence__cols {
-    grid-template-columns: 1fr;
-  }
-  .rail {
-    top: 62px;
-    right: var(--gutter);
-    transform: none;
-  }
-  .rail ol {
-    display: flex;
-    gap: 2px;
-  }
-  .rail__label {
+  .hero__tag {
     display: none;
   }
-  .rail__n {
-    width: 24px;
-    height: 24px;
-    font-size: 0.72rem;
+  .st-stage {
+    padding: 66px var(--gutter) 14px;
   }
-  .card {
-    padding: 26px 20px 18px;
+  .st-scene {
+    gap: 16px;
+  }
+  .st-lead {
+    font-size: 0.94rem;
+  }
+  /* One column: the card is the whole story, the notes would only crowd it. */
+  .st-row {
+    grid-template-columns: 1fr;
+  }
+  .st-note {
+    display: none;
+  }
+  .st-card__art {
+    height: 84px;
+  }
+  .st-card__body {
+    padding: 14px 16px 16px;
+  }
+  .st-split {
+    grid-template-columns: 1fr;
+  }
+  .st-dots__label {
+    display: none;
+  }
+  .st-dots button.is-on {
+    padding-right: 4px;
+  }
+  .st-cta {
+    display: none;
   }
 }
 
@@ -794,86 +1083,7 @@ button {
   }
 }
 
-/* ---------- landing: hero phone, outro ---------- */
-
-.hero__line {
-  display: block;
-}
-
-.hero__line--ask {
-  color: var(--lake);
-}
-
-.hero {
-  justify-content: space-between;
-  gap: 40px;
-}
-
-.hero__phone {
-  position: relative;
-  flex: none;
-  width: clamp(240px, 22vw, 300px);
-  margin: 0 3vw 0 0;
-  align-self: center;
-}
-
-.hero__phone img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 390 / 844;
-  object-fit: cover;
-  object-position: top;
-  border-radius: 38px;
-  border: 9px solid #16221f;
-  background: #f4f0e6;
-  box-shadow:
-    0 50px 80px -40px rgba(19, 35, 31, 0.7),
-    0 0 0 1px rgba(255, 255, 255, 0.25) inset;
-}
-
-.hero__tag {
-  position: absolute;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border-radius: 14px;
-  background: #fffdf8;
-  color: var(--ink);
-  font-size: 0.86rem;
-  font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 18px 36px -18px rgba(19, 35, 31, 0.55);
-}
-
-.hero__tag i {
-  width: 10px;
-  height: 10px;
-  background: var(--daquy);
-  transform: rotate(45deg);
-}
-
-.hero__tag--a {
-  left: -64px;
-  top: 30%;
-}
-
-.hero__tag--b {
-  right: -40px;
-  bottom: 18%;
-  color: var(--violet);
-}
-
-.rail {
-  transition:
-    opacity 0.4s ease,
-    transform 0.4s ease;
-}
-
-.rail.is-away {
-  opacity: 0;
-  pointer-events: none;
-}
+/* ---------- landing: outro ---------- */
 
 .outro {
   position: relative;
@@ -1091,11 +1301,17 @@ button {
   font-size: 1.1rem;
 }
 
-@media (max-width: 980px) {
-  .hero__phone {
-    display: none;
+@media (max-width: 1080px) {
+  .st-row {
+    --gap: 28px;
   }
 
+  .st-note {
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 980px) {
   .demo {
     grid-template-columns: 1fr;
     padding-top: 80px;

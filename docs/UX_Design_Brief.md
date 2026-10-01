@@ -89,7 +89,7 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 |---|---|---|
 | Hướng | Poster du lịch Đà Lạt, ưu tiên điện thoại | "Phòng điều khiển", chỉ desktop, sáng/tối theo hệ thống |
 | Chữ | Phudu (tiêu đề, nút; chữ hoa, chỉ câu ngắn), Geologica (nội dung, tên địa điểm), Space Mono (giờ, số, khoảng ước tính) | Mona Sans (độ rộng tạo phân cấp), JetBrains Mono (dữ liệu, phím tắt) |
-| Nền | Landing: thế giới 3D cuộn kể chuyện, rồi phần giấy kem (video demo, FAQ, CTA). App: giấy kem, bề mặt đặc, dải ảnh poster sau tiêu đề mỗi màn | Bề mặt trung tính; thẻ "Việc cần làm" nền thông đậm là điểm nhìn đầu tiên |
+| Nền | Landing: thế giới 3D làm nền; hero và 5 bước căn giữa (bước dính giữa màn hình: tiêu đề trên, thẻ sản phẩm giữa, hai chú thích hai bên), rồi phần giấy kem (video demo, FAQ, CTA). App: giấy kem, bề mặt đặc, dải ảnh poster sau tiêu đề mỗi màn | Bề mặt trung tính; thẻ "Việc cần làm" nền thông đậm là điểm nhìn đầu tiên |
 | Màu | Giấy `#F4F0E6`, thông `#1D3B33`, hồ `#2F5D6B`, dã quỳ `#F2B31B` (chữ vàng chỉ trên nền tối) | Cùng thông và dã quỳ; màu trạng thái theo `admin/model.ts` |
 
 - Quy tắc cứng là khối nền thông đậm có khóa vàng; sở thích mềm là chip viền đứt.

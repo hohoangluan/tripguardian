@@ -1,20 +1,172 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { story } from '../scene/story'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const STEPS = ['Hiểu chuyến đi', 'Xác minh', 'So sánh và chọn', 'Kiểm tra khả thi', 'Xếp lịch']
-
 const HEADLINE = ['Đà Lạt có cả nghìn chỗ đẹp.', 'Chuyến này của bạn cần mấy chỗ?']
+
+interface Beat {
+  step: string
+  title: [string, string]
+  lead: string
+  art: string
+  card: ReactNode
+  left: { t: string; d: string }
+  right: { t: string; d: string }
+}
+
+// Five beats on one centred stage: headline on top, the product in the middle,
+// what to notice on either side. The eye lands centre, spreads out, then reads up.
+const BEATS: Beat[] = [
+  {
+    step: 'Hiểu chuyến đi',
+    title: ['Gợi ý thì đủ rồi.', 'Khó là chọn.'],
+    lead: 'TripGuardian bắt đầu từ chính chuyến đi: mấy ngày, đi với ai, đi bằng gì, nơi nào nhất định phải đến.',
+    art: 'setup',
+    card: (
+      <>
+        <div className="st-card__title" data-in>
+          <b>Chuyến của bạn</b>
+          <small>3 ngày · 2 người · xe máy</small>
+        </div>
+        <p className="st-kind" data-in>
+          Quy tắc
+        </p>
+        <div className="st-chips" data-in>
+          <span className="st-chip st-chip--rule">Rời Đà Lạt trước 15:00 ngày 3</span>
+          <span className="st-chip st-chip--rule">Phải đến Đồi chè Cầu Đất</span>
+        </div>
+        <p className="st-kind" data-in>
+          Thiên hướng
+        </p>
+        <div className="st-chips" data-in>
+          <span className="st-chip">Thích chỗ yên</span>
+          <span className="st-chip">Cà phê nhìn ra đồi</span>
+          <span className="st-chip st-chip--profile">Đi chậm · từ hồ sơ của bạn</span>
+        </div>
+      </>
+    ),
+    left: { t: 'Quy tắc cứng', d: 'Kế hoạch nào phá quy tắc bị báo ngay. Chỉ bạn mới nới được.' },
+    right: { t: 'Thiên hướng mềm', d: 'Chỉ để xếp ưu tiên. Điều suy ra từ hồ sơ luôn có nhãn, sửa bằng một chạm.' },
+  },
+  {
+    step: 'Xác minh',
+    title: ['Chỗ nào chưa chắc,', 'bạn thấy ngay.'],
+    lead: 'Mỗi nơi được đối chiếu nhiều nguồn. Thông tin thực tế và trải nghiệm người đi trước nằm tách riêng.',
+    art: 'plan',
+    card: (
+      <>
+        <div className="st-card__title" data-in>
+          <b>Hồ Tuyền Lâm</b>
+          <small>Ví dụ minh họa</small>
+        </div>
+        <div className="st-split" data-in>
+          <dl className="st-facts">
+            <dt>Thời gian tham quan</dt>
+            <dd className="st-mono">60–90 phút</dd>
+            <dt>Phí vào cổng</dt>
+            <dd>
+              <span className="st-unsure">Chưa xác nhận</span>
+              <small>2 nguồn ghi khác nhau</small>
+            </dd>
+          </dl>
+          <div className="st-voice">
+            <q>Sáng cuối tuần khá đông, chiều trong tuần rất yên.</q>
+            <small>123 bình luận · 30 người đăng clip</small>
+          </div>
+        </div>
+      </>
+    ),
+    left: { t: 'Thông tin thực tế', d: 'Giờ, giá, phí vào cổng từ Google, luôn kèm ngày kiểm tra.' },
+    right: { t: 'Trải nghiệm thật', d: 'Tổng hợp review và clip của người đi trước, luôn kèm cỡ mẫu.' },
+  },
+  {
+    step: 'So sánh và chọn',
+    title: ['Năm nơi đáng đi,', 'thay vì năm mươi.'],
+    lead: 'Nơi giống nhau được gom lại, kèm lời khuyên nên giữ nơi nào. Người chốt luôn là bạn.',
+    art: 'shortlist',
+    card: (
+      <>
+        <div className="st-card__title" data-in>
+          <b>Đồi chè Cầu Đất</b>
+          <span className="st-keep">Nên giữ</span>
+        </div>
+        <ul className="st-list" data-in>
+          <li className="st-why">Nơi bạn muốn đến, sáng sớm có mây trôi ngang đồi</li>
+          <li className="st-why">Nhiều góc chụp, ít người lúc 6 giờ</li>
+          <li className="st-cost">Xa trung tâm, phải đi từ trước 6 giờ</li>
+        </ul>
+        <p className="st-group" data-in>
+          Có 3 đồi chè giống nhau. Giữ Cầu Đất vì bạn đã chọn nơi này.
+        </p>
+      </>
+    ),
+    left: { t: 'Vì sao hợp', d: 'Mỗi lý do mở ra bình luận và clip đứng sau nó.' },
+    right: { t: 'Cái giá phải trả', d: 'Xa hơn, đông hơn, dốc hơn: nói thẳng trước khi bạn chọn.' },
+  },
+  {
+    step: 'Kiểm tra khả thi',
+    title: ['Không đi kịp?', 'Biết ngay, kèm cách sửa.'],
+    lead: 'Không nút nào biến kế hoạch đi không kịp thành đi được. Chỉ có những cách dời có thật.',
+    art: 'feasibility',
+    card: (
+      <>
+        <p className="st-conflict" data-in>
+          Đồi chè Cầu Đất: tới nơi lúc <span className="st-mono">11:40</span>
+        </p>
+        <p className="st-text" data-in>
+          Bạn muốn ngắm mây, cần có mặt trước 8:00. Thứ tự này còn băng qua thung lũng hai lần.
+        </p>
+        <div className="st-fix" data-in>
+          <b>Dời Cầu Đất sang sáng ngày 2</b>
+          <small>Đi thẳng từ chỗ ở, tới lúc 6:40. Bớt 35 phút đi lại.</small>
+        </div>
+      </>
+    ),
+    left: { t: 'Nói đúng chỗ sai', d: 'Tên địa điểm, quy tắc bị vi phạm, lệch bao nhiêu phút.' },
+    right: { t: 'Sửa trong một chạm', d: 'Mỗi cách sửa nói trước nó đổi gì, rồi bạn mới bấm.' },
+  },
+  {
+    step: 'Xếp lịch',
+    title: ['Một lịch trình', 'bạn hiểu từng dòng.'],
+    lead: 'Dòng thời gian đi cùng bản đồ. Cảnh báo nằm ngay tại điểm dừng có vấn đề.',
+    art: 'discover',
+    card: (
+      <ol className="st-tl">
+        <li data-in>
+          <span className="st-mono">06:10</span>
+          <b>Đồi chè Cầu Đất</b>
+          <small>Ở lại 60–90 phút</small>
+        </li>
+        <li data-in>
+          <span className="st-mono">09:30</span>
+          <b>Cà phê nhìn ra đồi</b>
+          <small>≈ 25 phút đi xe máy</small>
+        </li>
+        <li data-in>
+          <span className="st-mono">11:40</span>
+          <b>Hồ Tuyền Lâm</b>
+          <small className="st-flag">Phí vào cổng chưa xác nhận</small>
+        </li>
+      </ol>
+    ),
+    left: { t: 'Giờ là ước tính', d: 'Di chuyển và tham quan luôn hiện dạng khoảng, không giả vờ chính xác.' },
+    right: { t: 'Có sẵn phương án', d: 'Trời mưa hay bị trễ, lịch đã nói trước nên đổi chỗ nào.' },
+  },
+]
 
 export function Landing({ onStart }: { onStart: () => void }) {
   const root = useRef<HTMLDivElement>(null)
   const lenis = useRef<Lenis | null>(null)
-  const [active, setActive] = useState(0)
-  const [past, setPast] = useState(false)
+  const [beat, setBeat] = useState(0)
+
+  // Warm the stage art so a beat never appears with an empty card.
+  useEffect(() => {
+    for (const b of BEATS) new Image().src = `/img/poster-${b.art}.webp`
+  }, [])
 
   useEffect(() => {
     story.progress = 0
@@ -29,17 +181,19 @@ export function Landing({ onStart }: { onStart: () => void }) {
     }
 
     const ctx = gsap.context(() => {
+      // Hero then the 5-beat stage: progress i/5 is where the 3D camera rests for beat i.
       ScrollTrigger.create({
         trigger: root.current,
         start: 'top top',
         end: 'bottom bottom',
-        onUpdate: (self) => {
-          story.progress = self.progress
-          setActive(Math.round(self.progress * STEPS.length))
-        },
+        onUpdate: (self) => (story.progress = self.progress),
       })
-      // Past the five beats the page turns to paper: the step rail steps aside.
-      ScrollTrigger.create({ trigger: '.outro', start: 'top 70%', onToggle: (self) => setPast(self.isActive) })
+      ScrollTrigger.create({
+        trigger: '.st-story',
+        start: 'top top',
+        end: 'bottom bottom',
+        onUpdate: (self) => setBeat(Math.min(BEATS.length - 1, Math.floor(self.progress * BEATS.length))),
+      })
       if (!story.reducedMotion) {
         gsap.set('.reveal', { opacity: 0, y: 28 })
         ScrollTrigger.batch('.reveal', {
@@ -47,7 +201,10 @@ export function Landing({ onStart }: { onStart: () => void }) {
           once: true,
           onEnter: (els) => gsap.to(els, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out', stagger: 0.1 }),
         })
-        gsap.to('.hero__phone', { y: -14, duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 1.6 })
+        // The phone rises out of the mist as the hero scrolls away.
+        gsap.fromTo('.hero__phone', { y: 60 }, { y: -40, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } })
+        gsap.to('.hero__tag--a', { y: -10, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1 })
+        gsap.to('.hero__tag--b', { y: 10, duration: 3.1, ease: 'sine.inOut', yoyo: true, repeat: -1 })
         // The one load moment: the headline condenses out of the mist.
         gsap.from('.hero__word', {
           opacity: 0,
@@ -58,7 +215,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
           stagger: 0.07,
           delay: 0.2,
         })
-        gsap.from('.hero__after', { opacity: 0, duration: 1, delay: 1.3, stagger: 0.12 })
+        gsap.from('.hero__after', { opacity: 0, y: 16, duration: 1, delay: 1.2, stagger: 0.12 })
       }
     }, root)
 
@@ -70,10 +227,11 @@ export function Landing({ onStart }: { onStart: () => void }) {
     }
   }, [])
 
+  // Scroll to the middle of beat i's stretch of the stage (or to the top for -1).
   const jump = (i: number) => {
-    const r = root.current!
-    const y = r.offsetTop + (i / STEPS.length) * (r.scrollHeight - innerHeight)
-    if (lenis.current) lenis.current.scrollTo(y, { duration: 2.2 })
+    const s = document.querySelector<HTMLElement>('.st-story')
+    const y = i < 0 || !s ? 0 : s.offsetTop + ((i + 0.5) / BEATS.length) * (s.offsetHeight - innerHeight)
+    if (lenis.current) lenis.current.scrollTo(y, { duration: 1.6 })
     else window.scrollTo(0, y)
   }
 
@@ -86,7 +244,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
             href="/"
             onClick={(e) => {
               e.preventDefault()
-              jump(0)
+              jump(-1)
             }}
           >
             TripGuardian
@@ -97,21 +255,9 @@ export function Landing({ onStart }: { onStart: () => void }) {
           </button>
         </header>
 
-        <nav className={`rail${past ? ' is-away' : ''}`} aria-label="Các bước">
-          <ol>
-            {STEPS.map((s, i) => (
-              <li key={s} className={active === i + 1 ? 'is-active' : active > i + 1 ? 'is-done' : ''}>
-                <button onClick={() => jump(i + 1)} aria-current={active === i + 1 ? 'step' : undefined}>
-                  <span className="rail__n">{i + 1}</span>
-                  <span className="rail__label">{s}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </nav>
-
-        <section className="beat hero">
+        <section className="hero">
           <div className="hero__copy">
+            <p className="hero__eyebrow hero__after">Trợ lý chọn địa điểm cho chuyến Đà Lạt 2–4 ngày</p>
             <h1 className="hero__title">
               {HEADLINE.map((line, j) => (
                 <span className={`hero__line${j ? ' hero__line--ask' : ''}`} key={j}>
@@ -123,14 +269,14 @@ export function Landing({ onStart }: { onStart: () => void }) {
                 </span>
               ))}
             </h1>
-            <p className="hero__lead hero__after">
-              TripGuardian giúp bạn chọn đúng nơi cho chuyến 2–4 ngày, hiểu vì sao chọn, và chắc rằng các nơi đó đi chung được.
-            </p>
+            <p className="hero__lead hero__after">Chọn đúng nơi, hiểu vì sao chọn, và chắc rằng các nơi đó đi chung được.</p>
             <div className="hero__after hero__actions">
               <button className="btn" onClick={onStart}>
                 Bắt đầu lên kế hoạch
               </button>
-              <span className="hint">Cuộn xuống để sương tan</span>
+              <button className="hero__more" onClick={() => jump(0)}>
+                Xem cách hoạt động ↓
+              </button>
             </div>
           </div>
           <figure className="hero__phone hero__after" aria-hidden="true">
@@ -138,116 +284,82 @@ export function Landing({ onStart }: { onStart: () => void }) {
             <figcaption className="hero__tag hero__tag--a">
               <i /> 6 nơi, đi kịp
             </figcaption>
-            <figcaption className="hero__tag hero__tag--b">Chưa xác nhận giờ mở cửa</figcaption>
+            <figcaption className="hero__tag hero__tag--b">Giờ mở cửa chưa xác nhận</figcaption>
           </figure>
         </section>
 
-        <section className="beat">
-          <article className="panel">
-            <p className="panel__step">Bước 1, hiểu chuyến đi</p>
-            <h2>Gợi ý thì đủ rồi. Khó là chọn.</h2>
-            <p>
-              Bạn lưu cả chục clip TikTok, mỗi clip một quán, một đồi, một góc chụp. TripGuardian bắt đầu từ chính chuyến đi: mấy ngày, đi với ai,
-              đi bằng gì, nơi nào nhất định phải đến.
-            </p>
-            <div className="trip">
-              <div className="trip__group">
-                <span className="trip__kind">Quy tắc, không vượt qua</span>
-                <span className="chip chip--rule">Rời Đà Lạt trước 15:00 ngày 3</span>
-                <span className="chip chip--rule">Phải đến Đồi chè Cầu Đất</span>
-              </div>
-              <div className="trip__group">
-                <span className="trip__kind">Thiên hướng, có thể nới</span>
-                <span className="chip chip--lean">Thích chỗ yên</span>
-                <span className="chip chip--lean">Cà phê nhìn ra đồi</span>
-                <span className="chip chip--lean chip--profile">Đi chậm, từ hồ sơ của bạn</span>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="beat">
-          <article className="panel">
-            <p className="panel__step">Bước 2, xác minh</p>
-            <h2>Chỗ nào chưa chắc, bạn thấy ngay.</h2>
-            <p>
-              Mỗi nơi được đối chiếu nhiều nguồn. Thông tin thực tế và trải nghiệm của người đi trước nằm tách riêng, và bằng chứng luôn cách một
-              chạm.
-            </p>
-            <div className="evidence">
-              <div className="evidence__head">
-                <strong>Hồ Tuyền Lâm</strong>
-                <span className="demo-note">Ví dụ minh họa</span>
-              </div>
-              <div className="evidence__cols">
-                <dl className="facts">
-                  <dt>Thời gian tham quan</dt>
-                  <dd>60–90 phút</dd>
-                  <dt>Phí vào cổng</dt>
-                  <dd>
-                    <span className="unsure">Chưa xác nhận</span>
-                    <small>2 nguồn ghi khác nhau</small>
-                  </dd>
-                </dl>
-                <div className="voices">
-                  <p className="voices__quote">Sáng cuối tuần khá đông, chiều trong tuần rất yên.</p>
-                  <small>Tổng hợp từ 123 bình luận của 30 người đăng clip</small>
-                </div>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="beat">
-          <article className="panel">
-            <p className="panel__step">Bước 3, so sánh và chọn</p>
-            <h2>Năm nơi đáng đi, thay vì năm mươi.</h2>
-            <p>
-              Các nơi giống nhau được gom lại, kèm lời khuyên nên giữ nơi nào. Mỗi gợi ý nói vì sao hợp và bạn phải đánh đổi gì. Người chốt luôn là
-              bạn.
-            </p>
-            <div className="pick">
-              <div className="pick__title">
-                <strong>Đồi chè Cầu Đất</strong>
-                <span className="pick__kept">Bạn đã giữ</span>
-              </div>
-              <p>
-                <b>Vì sao hợp.</b> Nơi bạn đã muốn đến, sáng sớm có mây trôi ngang đồi.
-              </p>
-              <p>
-                <b>Đánh đổi.</b> Xa trung tâm, phải đi từ trước 6 giờ.
-              </p>
-              <p className="pick__group">Có 3 đồi chè giống nhau. Giữ Cầu Đất vì bạn đã chọn nơi này.</p>
-            </div>
-          </article>
-        </section>
-
-        <section className="beat">
-          <article className="panel">
-            <p className="panel__step">Bước 4, kiểm tra khả thi</p>
-            <h2>Không đi kịp thì biết ngay, kèm cách sửa.</h2>
-            <div className="conflict">
-              <p className="conflict__what">Đồi chè Cầu Đất: tới nơi lúc 11:40</p>
-              <p>Bạn muốn ngắm mây, cần có mặt trước 8:00. Thứ tự này còn băng qua thung lũng hai lần.</p>
-              <p className="conflict__fix">Cách sửa: dời Cầu Đất sang sáng ngày 2, đi thẳng từ chỗ ở.</p>
-            </div>
-            <p className="aside">Không có nút nào biến một kế hoạch đi không kịp thành đi được. Chỉ có những cách dời có thật.</p>
-          </article>
-        </section>
-
-        <section className="beat beat--last">
-          <article className="panel">
-            <p className="panel__step">Bước 5, xếp lịch</p>
-            <h2>Một lịch trình bạn hiểu từng dòng.</h2>
-            <p>Dòng thời gian đi cùng bản đồ. Cảnh báo nằm ngay tại điểm dừng có vấn đề, không dồn xuống cuối trang.</p>
-            <button className="btn" onClick={onStart}>
-              Bắt đầu lên kế hoạch
-            </button>
-          </article>
+        <section className="st-story" aria-label="Cách TripGuardian hoạt động">
+          <div className="st-stage">
+            <Stage index={beat} />
+            <nav className="st-dots" aria-label="Các bước">
+              {BEATS.map((b, i) => (
+                <button key={b.step} className={i === beat ? 'is-on' : i < beat ? 'is-done' : ''} aria-current={i === beat ? 'step' : undefined} onClick={() => jump(i)}>
+                  <span className="st-dots__n">{i + 1}</span>
+                  <span className="st-dots__label">{b.step}</span>
+                </button>
+              ))}
+            </nav>
+            {beat === BEATS.length - 1 && (
+              <button className="btn st-cta" onClick={onStart}>
+                Bắt đầu lên kế hoạch
+              </button>
+            )}
+          </div>
         </section>
       </div>
       <Outro onStart={onStart} />
     </>
+  )
+}
+
+function Stage({ index }: { index: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const b = BEATS[index]
+
+  // Every change of beat replays the same choreography: centre first, then the sides, then the type.
+  useLayoutEffect(() => {
+    if (story.reducedMotion || !ref.current) return
+    const ctx = gsap.context(() => {
+      gsap
+        .timeline({ defaults: { ease: 'power3.out' } })
+        .from('.st-card', { y: 50, scale: 0.92, opacity: 0, duration: 0.7 })
+        .from('.st-card [data-in]', { y: 14, opacity: 0, duration: 0.45, stagger: 0.07 }, '-=0.35')
+        .from('.st-note--l', { x: -60, opacity: 0, duration: 0.6 }, 0.25)
+        .from('.st-note--r', { x: 60, opacity: 0, duration: 0.6 }, 0.25)
+        .from('.st-note__line', { scaleX: 0, duration: 0.45, ease: 'power2.inOut' }, 0.55)
+        .from('.st-head > *', { y: 26, opacity: 0, duration: 0.6, stagger: 0.08 }, 0.15)
+    }, ref)
+    return () => ctx.revert()
+  }, [index])
+
+  return (
+    <div className="st-scene" ref={ref} key={index}>
+      <header className="st-head">
+        <p className="st-step">
+          <span>{String(index + 1).padStart(2, '0')}</span> {b.step}
+        </p>
+        <h2>
+          {b.title[0]} <em>{b.title[1]}</em>
+        </h2>
+        <p className="st-lead">{b.lead}</p>
+      </header>
+      <div className="st-row">
+        <aside className="st-note st-note--l">
+          <b>{b.left.t}</b>
+          <p>{b.left.d}</p>
+          <i className="st-note__line" />
+        </aside>
+        <article className="st-card">
+          <img className="st-card__art" src={`/img/poster-${b.art}.webp`} alt="" />
+          <div className="st-card__body">{b.card}</div>
+        </article>
+        <aside className="st-note st-note--r">
+          <b>{b.right.t}</b>
+          <p>{b.right.d}</p>
+          <i className="st-note__line" />
+        </aside>
+      </div>
+    </div>
   )
 }
 

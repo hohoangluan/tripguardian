@@ -13,8 +13,8 @@ const DIM = new THREE.Color('#56706a')
 
 export function Pins({ scene }: { scene: { p: number } }) {
   const pins = useMemo(buildPins, [])
-  // Portrait phones see the pins against open sky: keep them small there.
-  const size = useMemo(() => (innerWidth < 720 ? 0.6 : 1), [])
+  // Pins frame the centred landing copy rather than compete with it; smaller still on phones.
+  const size = useMemo(() => (innerWidth < 720 ? 0.55 : 0.75), [])
   const mesh = useRef<THREE.InstancedMesh>(null)
   const beams = useRef<(THREE.Mesh | null)[]>([])
   const labels = useRef<(HTMLDivElement | null)[]>([])
