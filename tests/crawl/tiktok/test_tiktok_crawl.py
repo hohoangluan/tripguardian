@@ -65,6 +65,10 @@ def env(data, monkeypatch):
         r = calls["comments"](url)
         return r if len(r) == 3 else (*r, True)  # (item, rows[, complete])
 
+    async def open_item(ctx, url):
+        calls["opened"].append(url)
+        return _page_item(url.rsplit("/", 1)[1])
+
     async def download(ctx, url, path):
         calls["download"].append(url)
         files.write_bytes(path, b"mp4")
@@ -72,7 +76,8 @@ def env(data, monkeypatch):
     async def rec(*a):
         calls["pauses"].append(a)
 
-    for name, fn in (("ensure_login", ensure_login), ("comments", comments), ("download_video", download), ("pause", rec)):
+    for name, fn in (("ensure_login", ensure_login), ("comments", comments), ("open_item", open_item),
+                     ("download_video", download), ("pause", rec)):
         monkeypatch.setattr(crawl, name, fn)
     calls["kept"] = None  # None = every listed video kept by the filter
     monkeypatch.setattr(crawl, "kept_ids", lambda city: calls["kept"] if calls["kept"] is not None
@@ -236,6 +241,29 @@ def test_only_videos_kept_by_filter_are_crawled(env):
     asyncio.run(crawl.run("dalat", profile=fake_profile))
     assert sorted(u.rsplit("/", 1)[1] for u in calls["opened"]) == ["1", "3"]
     assert not (data / "videos" / "2").exists()
+
+
+def test_video_only_skips_comment_panel_and_defers_comments(env):
+    data, calls, cfg, _ = env
+    asyncio.run(crawl.crawl_videos([_row(1)], cfg, data, False, fake_profile, with_comments=False))
+    doc = json.loads((data / "videos" / "1" / "video.json").read_text(encoding="utf-8"))
+    assert doc["comments"] == [] and doc["comments_complete"] is None
+    assert (data / "videos" / "1" / "video.mp4").exists()
+    assert calls["opened"] == ["https://www.tiktok.com/@a/video/1"]  # open_item, never the comment-panel comments()
+
+
+def test_crawl_comments_fills_in_a_video_only_record(env):
+    data, calls, cfg, _ = env
+    asyncio.run(crawl.crawl_videos([_row(1)], cfg, data, False, fake_profile, with_comments=False))
+    v = data / "videos" / "1" / "video.json"
+    doc = json.loads(v.read_text(encoding="utf-8"))
+    doc["places"] = [{"fid": "f1", "verdict": "yes"}]  # place_verify's own write, must survive the comments update
+    v.write_text(json.dumps(doc), encoding="utf-8")
+    asyncio.run(crawl.crawl_comments([{"video_id": "1", "url": _row(1)["url"]}], cfg, data, False, fake_profile))
+    doc = json.loads(v.read_text(encoding="utf-8"))
+    assert doc["comments_complete"] is True and [c["comment_id"] for c in doc["comments"]] == ["c1"]
+    assert doc["places"] == [{"fid": "f1", "verdict": "yes"}]
+    assert doc["video_path"] == "tiktok/videos/1/video.mp4"  # kept from the video-only write, not rebuilt from row
 
 
 def test_crawl_needs_list(data, monkeypatch):

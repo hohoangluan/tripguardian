@@ -24,6 +24,9 @@ def data(tmp_path, monkeypatch):
     (t / "videos" / "4" / "video.mp4").write_bytes(b"x")
     _w(t / "videos" / "5" / "video.json", {"video_id": "5", "caption": "c", "fetched_at": "t1", "comments": [], "stats": {}})
     (t / "videos" / "5" / "video.mp4").write_bytes(b"x")  # crawled before comments_complete existed
+    _w(t / "videos" / "6" / "video.json", {"video_id": "6", "caption": "c", "comments_complete": None, "fetched_at": "t1",
+                                           "comments": [], "stats": {}})
+    (t / "videos" / "6" / "video.mp4").write_bytes(b"x")  # place_crawl's video-only pass: comments not due yet
     place = {"fid": "0x1:0x2", "name": "Quán A", "url": "https://maps/x", "category": "Quán cà phê", "address": "Đà Lạt",
              "fetched_at": "t1", "reviews_complete": False, "review_count": "50 bài đánh giá"}
     _w(g / "places" / "0x1_0x2" / "place.json", place)
@@ -40,6 +43,7 @@ def test_queue_lists_only_items_that_need_a_person(data):
     keys = {(i["kind"], i["id"]) for i in items}
     assert ("video_filter", "2") in keys and ("video_filter", "3") in keys and ("video_filter", "1") not in keys
     assert ("video_comments", "4") in keys and ("video_comments", "5") in keys
+    assert ("video_comments", "6") not in keys  # comments_complete: null = not due yet (place_crawl defers them)
     assert ("place_qc", "0x1:0x2") in keys and ("place_reviews", "0x1:0x2") in keys
     f = next(i for i in items if i["id"] == "2")
     assert f["actions"] == ["keep", "drop"] and f["url"].endswith("/video/2") and "caption 2" in f["title"]

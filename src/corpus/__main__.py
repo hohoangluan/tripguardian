@@ -1,8 +1,9 @@
 """python -m corpus {login <source> | <source> <phase> | review | aggregate} --city <key> [--headed]
 
 Phases per source, each reading only earlier phases' files: tiktok search -> list -> filter -> crawl, then per Maps
-place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify; gmaps search ->
-filter -> counts -> list -> crawl -> relevant -> qc -> observe; `all` runs them in order.
+place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify
+-> comments_crawl (comments only for place_verify's "yes" videos); gmaps search -> filter -> counts -> list -> crawl
+-> relevant -> qc -> observe; `all` runs them in order.
 """
 
 import argparse
@@ -13,7 +14,8 @@ from .aggregate import run as aggregate_run
 from .review import server as review_server
 from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, search as gmaps_search
 from .observe import gmaps as gmaps_observe
-from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check, crawl as tiktok_crawl,
+from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check,
+                           comments_crawl as tiktok_comments_crawl, crawl as tiktok_crawl,
                            filter as tiktok_filter, listing as tiktok_list, place_verify as tiktok_place_verify,
                            place_crawl as tiktok_place_crawl, place_filter as tiktok_place_filter,
                            place_search as tiktok_place_search, search as tiktok_search)
@@ -24,7 +26,8 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "place_filter": (tiktok_place_filter.run, False), "place_crawl": (tiktok_place_crawl.run, True),
                "asr": (tiktok_asr.run, False), "asr_check": (tiktok_asr_check.run, False),
                "asr_alt": (tiktok_asr_alt.run, False),
-               "place_verify": (tiktok_place_verify.run, False)},
+               "place_verify": (tiktok_place_verify.run, False),
+               "comments_crawl": (tiktok_comments_crawl.run, True)},
     "gmaps": {"search": (gmaps_search.run, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
               "list": (gmaps_list.run, False),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "qc": (gmaps_qc.run, False),
@@ -32,7 +35,7 @@ PHASES = {  # source -> phase -> (run, needs a browser)
 }
 
 
-SHARDABLE = {"place_search", "place_crawl"}  # tiktok phases that split their todo list by --shard for a second account
+SHARDABLE = {"place_search", "place_crawl", "comments_crawl"}  # tiktok phases that split their todo list by --shard for a second account
 
 
 def run(source: str, phase: str, city: str, headed: bool, limit: int | None = None, wait_relevant: bool = False,

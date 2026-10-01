@@ -37,10 +37,12 @@ def _tiktok(city: str) -> list[dict]:
                           "embed": doc["video_id"], "status": p["verdict"], "why": f"model: {p['verdict']} — {p['reason']}",
                           "details": {"địa điểm": p["name"], "bằng chứng": [f"{e['source']}: {e['quote']}" for e in p["evidence"]],
                                       "transcript": (doc.get("transcript") or {}).get("text", "")[:600]}})
-        if doc.get("comments_complete") is True or not (f.parent / "video.mp4").exists():
-            continue
+        legacy = "comments_complete" not in doc  # crawled before the video-only pass existed: completeness unknown
+        cc = doc.get("comments_complete")
+        if (not legacy and cc is not False) or not (f.parent / "video.mp4").exists():
+            continue  # True = done; None = comments not due yet (place_crawl defers them to place_verify)
         got = len(doc["comments"]) + sum(len(c.get("replies", [])) for c in doc["comments"])
-        why = ("crawl bằng code cũ, chưa kiểm tra đã lấy hết comment" if "comments_complete" not in doc
+        why = ("crawl bằng code cũ, chưa kiểm tra đã lấy hết comment" if legacy
                else "sau 3 lần thử vẫn có danh sách comment chưa báo hết (has_more)")
         items.append({"kind": "video_comments", "id": doc["video_id"], "source": "tiktok",
                       "title": doc.get("caption") or "(no caption)", "url": doc.get("video_url"), "embed": doc["video_id"],
@@ -53,15 +55,6 @@ def _tiktok(city: str) -> list[dict]:
 def _gmaps() -> list[dict]:
     root = data_dir() / "gmaps"
     items = []
-    for f in sorted((root / "filter").glob("*.json")) if (root / "filter").exists() else []:
-        if f.name == "summary.json":
-            continue
-        res = _read(f)
-        rel = res["llm"]["relevance"]
-        if rel != "yes":
-            items.append({"kind": "place_filter", "id": res["fid"], "source": "gmaps", "title": res["name"],
-                          "url": res.get("url"), "status": rel, "why": f"model: {rel} — {res['llm']['reason']}",
-                          "details": {"loại": res.get("category")}})
     for f in sorted((root / "places").glob("*/place.json")) if (root / "places").exists() else []:
         p = _read(f)
         base = {"id": p["fid"], "source": "gmaps", "title": p.get("name") or p["fid"], "url": p.get("url")}

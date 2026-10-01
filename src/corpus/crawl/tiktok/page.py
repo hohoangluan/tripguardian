@@ -9,6 +9,10 @@ from playwright.async_api import BrowserContext
 from ..common.browser import LoginRequired, wait_for_person
 
 
+ITEM_JS = """() => { try { return JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__').textContent)
+  .__DEFAULT_SCOPE__['webapp.video-detail'].itemInfo.itemStruct ?? null; } catch { return null; } }"""
+
+
 async def ensure_login(ctx: BrowserContext) -> None:
     # Logged-out sessions get empty search results instead of an error.
     if not any(c["name"] == "sessionid" for c in await ctx.cookies("https://www.tiktok.com")):
@@ -86,6 +90,18 @@ def _list_of(url: str) -> str:
 
 def main_ended(rows: list[dict], ended: set[str]) -> bool:
     return "" in ended
+
+
+async def open_item(ctx: BrowserContext, url: str) -> dict | None:
+    """The video page's item JSON (desc, stats, playAddr) with no comment panel opened — for the video-only crawl
+    that defers the costly comment fetch until place_verify confirms the video is worth it."""
+    page = await ctx.new_page()
+    await page.route("**/*", _skip_heavy)
+    try:
+        await page.goto(url, wait_until="domcontentloaded")
+        return await _wait_state(page, ITEM_JS)
+    finally:
+        await page.close()
 
 
 async def collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: int | None, click: str | None = None,
