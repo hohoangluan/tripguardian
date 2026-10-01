@@ -39,3 +39,4 @@ Module chỉ giao tiếp qua public API (`api.py` / `interface.py`).
 2. Nếu gọi `llm.uit.edu.vn` lỗi chứng chỉ, tạo CA bundle một lần mỗi máy — xem `docs/LLM_PROVIDER.md` (phần chứng chỉ).
 3. `pip install -e .` rồi `python -m corpus login tiktok` và `python -m corpus login gmaps` (tài khoản phụ).
 4. Crawl: `python -m corpus tiktok all --city dalat --headed`, `python -m corpus gmaps all --city dalat --headed` (hoặc từng phase: gmaps `search` / `filter` / `list` / `crawl` / `qc`) (gặp captcha thì giải trong cửa sổ trình duyệt). Dữ liệu ở `data/` (xem `docs/specs/CORPUS_SPEC.md`, mục Dữ liệu thô).
+5. Thuộc tính địa điểm: `python -m corpus gmaps observe` (Gemma trích từ review Maps, cần mạng UIT; `--limit N` để thử), rồi `python -m corpus aggregate` → `data/intel/places/` (xem `docs/specs/CORPUS_SPEC.md` §4–5).

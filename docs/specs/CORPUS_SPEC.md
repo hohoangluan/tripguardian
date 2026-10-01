@@ -160,7 +160,13 @@ Mọi nguồn thành `Observation`; không gì ghi thẳng vào entity.
 
 - **Segment** (Extractor): feature id + value + span + context.
 - **Comment:** rule bỏ comment chỉ có emoji / trùng lặp → Extractor, mỗi call một lô comment của một video, trả cho từng comment: có liên quan không, entity đích (chọn trong các entity đã gắn với video, hoặc không có), feature + value + stance + context, với chính comment làm span. Tên địa điểm mới tìm thấy trong comment quay lại bước Resolve.
-- **Review Google Maps** (bản demo, xem §Sai lệch): xử lý như comment — rule bỏ review rỗng / trùng → Extractor, mỗi call một lô review của một địa điểm, trả cho từng review: có liên quan không, feature + value + stance + context, span = review (tham chiếu vào provider store, không chép sang entity). Review cũ hơn `max_review_age_months` không được crawl.
+- **Review Google Maps** (bản demo, xem §Sai lệch; code `src/corpus/observe/gmaps/`, lệnh `python -m corpus gmaps observe [--limit N]`):
+  - `details` có cấu trúc của Maps (Độ ồn, Thời gian đợi/chờ, Điểm đỗ xe, Thông tin đánh giá về mức giá, Đặt chỗ, Nên đặt vé trước, sao Đồ ăn / Dịch vụ) → observation bằng rule, không model; "Đã đến vào" thành `day_type` của mọi observation của review đó. Giá trị Maps cắt "…" chỉ dùng khi là tiền tố rõ nghĩa của đúng một nhãn ("Không rõ" cũng là nhãn, nên "Không…" bỏ).
+  - Text: bỏ review rỗng, < 15 ký tự, trùng (tác giả + text), và review mà phase `qc` gắn cờ `owner_reply` / `spam` / `not_a_review`; còn lại → Extractor (`REVIEW_OBSERVE`), mỗi call một lô ≤ 15 review / ≤ 12.000 ký tự của một địa điểm, trả cho từng review nhiều observation (feature + value + context + quote) và `proposed_feature`. Một review cho nhiều observation; cùng feature khác bối cảnh được ghi riêng.
+  - Gate: feature + value có trong ontology, context đúng enum, quote là chuỗi con của review sau chuẩn hóa NFC + khoảng trắng + hoa thường. Câu trả lời hỏng (JSON, schema) → chia đôi lô rồi thử lại, lô một review thử 2 lần; lỗi mạng / API → địa điểm thất bại ngay. Địa điểm thất bại không có file (file cũ bị xóa), ghi `data/gmaps/observe_errors.jsonl`, chạy lại lần sau.
+  - Chạy lại một địa điểm chỉ khi `reviews.json` / `fetched_at` / cờ qc, prompt, hoặc version ontology đổi.
+  - Output `data/gmaps/observations/<fid_dir>.json` theo format observation chung (`src/corpus/observe/__init__.py`); span = quote + review id (tham chiếu vào provider store, không chép sang entity). Review cũ hơn `max_review_age_months` không được crawl.
+- **Comment / segment TikTok** (chưa làm): cùng format observation, `data/tiktok/observations/<fid_dir>.json`; chỉ video có `yes` trong `data/tiktok/place_filter/<fid_dir>.json` là bằng chứng cho địa điểm đó.
 - **Trang official:** website lấy từ bản ghi Google = `verified`; không có thì chạy vòng tìm trang official (§Vòng lặp tự động), trang tìm được và code khớp tên + địa chỉ = `probable`; còn lại không dùng. Chỉ tải các loại trang trong whitelist (about, giờ, giá, vé, đặt chỗ, quy định, tin tức, liên hệ). Extractor trích nhận định `fact_key` kèm span.
 - **Context** trên mọi observation: `time_of_day`, `day_type`, `weather` (theo lời nguồn, không bao giờ là thời tiết thực tế), mỗi cái là enum hoặc `unknown`. "7h sáng hôm đó đông lắm" → `crowd = high`, `time_of_day = morning`, không phải `crowd = high` cho địa điểm.
 - Feature id ngoài ontology được ghi là `proposed_feature`; build vẫn tiếp tục. Judge ánh xạ nó vào một feature id có sẵn (đồng nghĩa) hoặc gom vào nhóm đề xuất mới; code kiểm id có trong ontology. Chỉ nhóm đề xuất mới có ≥ 3 nguồn độc lập mới vào review; ontology chỉ người sửa.
@@ -183,6 +189,13 @@ source_type           official | provider | video | comment
 ```
 
 **Coverage** theo khía cạnh (`identity`, `operation`, `experience`, `environment`, `effort`, `suitability`): `COMPLETE | PARTIAL | NONE`.
+
+**Signal từ observation** (code `src/corpus/aggregate/`, lệnh `python -m corpus aggregate`): đọc mọi `data/*/observations/*.json`, không biết nguồn; bỏ file khác version ontology; ghi `data/intel/places/<fid_dir>.json` và `data/intel/summary.json`. Mỗi feature:
+- Phiếu: 1 tác giả 1 phiếu; tác giả nói k giá trị khác nhau → mỗi giá trị 1/k; trùng (tác giả, value, bối cảnh) tính một. `n` = `independent_sources` = số tác giả. `by_context` đếm theo từng giá trị bối cảnh, `by_source` đếm observation thô.
+- `agreement` = tỷ lệ giá trị đứng đầu; < 0.6 → `uncertain`, giữ nguyên phân phối.
+- `trend`: cắt observation có ngày tại ngày trung vị (hai nửa không chung ngày, `split_at`); `rising | falling | stable` theo tỷ lệ giá trị đứng đầu khi mỗi nửa ≥ 5 tác giả, chênh ≥ 0.2; còn lại `insufficient`. Tương đối vì crawl giữ review mới nhất. `rating_trend` của địa điểm: sao trung bình hai nửa, chênh ≥ 0.5 sao.
+- Feature `verify: always`: giá trị cho phép luôn `needs_review`; giá trị cảnh báo cần ≥ 2 tác giả.
+- Coverage theo nhóm ontology: `NONE` khi không feature nào, `COMPLETE` khi ≥ 3 feature có n ≥ 3, còn lại `PARTIAL`.
 
 ### 6. Kiểm tra và định tuyến
 
@@ -352,7 +365,7 @@ Adapter retry có backoff; adapter TikTok giới hạn tốc độ và xoay sess
 |---|---|---|
 | Nguồn Google | Cào Google Maps có đăng nhập; review Maps dùng làm bằng chứng | Places API theo điều khoản (review chỉ dùng trong phạm vi điều khoản cho phép) |
 | Thu thập TikTok | Scraper Playwright có đăng nhập | Truy cập có license |
-| Lưu trữ | Lưu file, chưa có DB | PostgreSQL như §Data model |
+| Lưu trữ | Lưu file, chưa có DB: observation ở `data/<nguồn>/observations/`, signal ở `data/intel/places/` | PostgreSQL như §Data model |
 | Hình học ZONE | Buffer / hành lang quanh POI liên quan | Dữ liệu bản đồ |
 
 ## Đầu vào cần có

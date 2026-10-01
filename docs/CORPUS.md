@@ -84,7 +84,7 @@ Place
 └── Provenance    tham chiếu bằng chứng, thành phần confidence, độ mới, xung đột, coverage, trạng thái
 ```
 
-Feature lấy từ một **feature ontology** có version, dùng chung với User Profile. Hai bên dùng chung id, không dùng chung bản ghi: địa điểm lưu "có forest_view, kèm confidence"; profile lưu "thích forest_view, kèm affinity".
+Feature lấy từ một **feature ontology** có version (`config/ontology.yaml`), dùng chung với User Profile. Hai bên dùng chung id, không dùng chung bản ghi: địa điểm lưu "có forest_view, kèm confidence"; profile lưu "thích forest_view, kèm affinity".
 
 ## 6. Trạng thái (một bộ chung cho corpus, Admin Web, User Web)
 

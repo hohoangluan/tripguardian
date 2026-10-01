@@ -99,4 +99,24 @@ _không có_
     - `address` còn lẫn ký tự icon ở đầu; review dài không bấm được "Thêm" thì giữ text bị cắt;
     - lấy hết review (hiện trần `max_reviews_per_place`).
 
+## corpus-observe — Observation từ review Google Maps
 
+- file: `config/ontology.yaml`, `src/corpus/ontology.py`, `src/corpus/observe/` (`__init__.py`, `gmaps/details.py`, `gmaps/prep.py`, `gmaps/gate.py`, `gmaps/extract.py`), `REVIEW_OBSERVE` trong `src/corpus/llm/tasks.py`, `tests/test_ontology.py`, `tests/observe/`
+- cách kiểm chứng: `python -m pytest -q tests/test_ontology.py tests/observe`; `python -m corpus gmaps observe --limit 20` (mạng UIT)
+
+### Hiện tại (2026-10-01)
+- hành vi: ontology v2 (37 feature, 5 nhóm, 3 khóa bối cảnh). Phase `gmaps observe`: rule `details` + Extractor theo lô + gate, ghi `data/gmaps/observations/`; luồng và quy tắc: `docs/specs/CORPUS_SPEC.md` §4. Schema đặt `quote` cuối observation vì Gemma có lúc lặp khoảng trắng tới hết `max_tokens` khi `quote` đứng trước các field bối cảnh.
+
+### Trước đó
+_không có_
+
+## corpus-aggregate — Signal + xu hướng theo địa điểm
+
+- file: `src/corpus/aggregate/` (`__init__.py`, `place.py`), `tests/aggregate/`
+- cách kiểm chứng: `python -m pytest -q tests/aggregate`; `python -m corpus aggregate`
+
+### Hiện tại (2026-10-01)
+- hành vi: gộp observation mọi nguồn thành `data/intel/places/<fid_dir>.json` (phân phối, bối cảnh, confidence, trend nửa mới / nửa cũ, coverage, `proposed_features`); quy tắc: `docs/specs/CORPUS_SPEC.md` §5 (Signal từ observation).
+
+### Trước đó
+_không có_
