@@ -166,6 +166,9 @@ CAP = {"max_reviews_per_place": 200}
     (300, "9.636 bài đánh giá", {"max_reviews_per_place": None}, False, True),  # no cap: all of them expected
     (5000, "9.636 bài đánh giá", {"max_reviews_per_place": None}, False, False),
     (0, "50 bài đánh giá", {"max_reviews_per_place": 0}, False, False),  # reviews not wanted
+    (8, "89 bài đánh giá", {**CAP, "min_reviews_per_place": 40}, True, True),  # age cut below the minimum: older ones wanted
+    (40, "89 bài đánh giá", {**CAP, "min_reviews_per_place": 40}, True, False),
+    (8, "12 bài đánh giá", {**CAP, "min_reviews_per_place": 40}, True, False),  # the place has only 12
 ])
 def test_too_few(n, count, cfg, age_cut, thin):
     assert crawl.too_few(n, count, cfg, age_cut) is thin

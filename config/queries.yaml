@@ -31,7 +31,7 @@ gmaps:
   max_cooldown_s: 900
   max_reviews_per_place: 200  # newest first, under the age limit; enough for signals, gaps filled on demand (spec)
   max_review_age_months: 11  # only reviews under a year old (Maps says "một năm trước" for 12-23 months); older are stale
-  min_reviews_per_place: 0  # no old reviews kept, even for quiet places
+  min_reviews_per_place: 40  # the newest 40 are kept even past the age limit: quiet places need evidence too
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
     start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
     max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time

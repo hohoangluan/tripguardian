@@ -188,11 +188,14 @@ ATTEMPTS = 3  # per place, when the failure looks like a block
 
 def too_few(n: int, review_count: str | None, c: dict, age_cut: bool) -> bool:
     """Under half the reviews the place shows (up to the cap) while no review past the age limit was reached: a
-    signed-out or throttled page stops at ~8. Maps' count runs a little above what it lists, hence the half."""
+    signed-out or throttled page stops at ~8. Maps' count runs a little above what it lists, hence the half.
+    Cut by age: under half of min_reviews_per_place (older reviews are kept up to that many) is too few as well."""
     total = count(review_count)
     cap = c.get("max_reviews_per_place")
-    if cap == 0 or not total or age_cut:
+    if cap == 0 or not total:
         return False
+    if age_cut:
+        return n < min(total, c.get("min_reviews_per_place") or 0) // 2
     return n < min(total, cap or total) // 2
 
 
