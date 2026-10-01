@@ -88,8 +88,8 @@ def test_many_reviews_are_split_into_batches(tmp_path, monkeypatch):
     assert len(json.loads(out.read_text(encoding="utf-8"))["observations"]) == 16
 
 
-def test_failed_batch_retries_once_then_logs_and_writes_nothing(tmp_path, monkeypatch):
-    calls, out = setup(tmp_path, monkeypatch, REVIEWS)
+def test_failed_single_review_retries_once_then_logs_and_writes_nothing(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)  # QC drops R4: one review goes to the model
 
     async def broken(client, model, city, place, ontology_text, reviews_text, note=""):
         calls.append({"reviews": reviews_text, "note": note})
@@ -102,6 +102,29 @@ def test_failed_batch_retries_once_then_logs_and_writes_nothing(tmp_path, monkey
     errors = (tmp_path / "gmaps" / "observe_errors.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(errors) == 1 and DIR in errors[0]
     assert summary["status"] == {"failed": 1}
+
+
+def test_failed_batch_is_split_in_halves(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(i, f"Review số {i} có view đẹp", f"a{i}") for i in range(4)])
+    ok = extract.ask_batch
+
+    async def big_fails(client, model, city, place, ontology_text, reviews_text, note=""):
+        if reviews_text.count("\n") >= 2:  # 3+ reviews: the model loops on whitespace and is cut
+            calls.append({"reviews": reviews_text, "note": note})
+            raise ValueError("Expecting ',' delimiter")
+        return await ok(client, model, city, place, ontology_text, reviews_text, note)
+
+    monkeypatch.setattr(extract, "ask_batch", big_fails)
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert sorted(o["source_id"] for o in res["observations"]) == ["R0", "R1", "R2", "R3"]
+    assert len(calls) == 3  # one failed 4-review call, then two 2-review calls
+
+
+def test_observation_schema_puts_quote_last():
+    from corpus.llm import REVIEW_OBSERVE
+    obs = REVIEW_OBSERVE.schema["properties"]["reviews"]["items"]["properties"]["observations"]["items"]
+    assert list(obs["properties"])[-1] == "quote" and obs["required"][-1] == "quote"
 
 
 def test_limit_takes_first_places(tmp_path, monkeypatch):

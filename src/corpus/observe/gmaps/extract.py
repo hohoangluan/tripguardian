@@ -49,18 +49,24 @@ def bad_review_ids(qc_file: Path) -> set[str]:
     return {b["review_id"] for b in llm.get("bad_reviews", []) if b.get("problem") in QC_DROP}
 
 
-async def ask_checked(client, model, sem, city, place, ont: Ontology, batch: list[tuple[str, dict]]):
+async def ask_checked(client, model, sem, city, place, ont: Ontology, batch: list[tuple[str, dict]], note: str = ""):
+    """A failed batch is split in halves (shorter answers, other context); a single review gets ATTEMPTS tries."""
     refs = dict(batch)
     text = "\n".join(f"{ref}: {' '.join(r['text'].split())}" for ref, r in batch)
-    note = ""
-    for _ in range(ATTEMPTS):
+    for attempt in range(1 if len(batch) > 1 else ATTEMPTS):
         async with sem:
             try:
                 return gate(await ask_batch(client, model, city, place, ont.prompt_text(), text, note), refs, ont)
             except Exception as e:
                 note = (f"Your previous answer was rejected ({type(e).__name__}: {str(e).splitlines()[0][:200]}). "
                         "Answer again with JSON that matches the schema.")
-    raise BadAnswer(note)
+    if len(batch) == 1:
+        raise BadAnswer(note)
+    mid = len(batch) // 2
+    halves = await asyncio.gather(*(ask_checked(client, model, sem, city, place, ont, b, note)
+                                    for b in (batch[:mid], batch[mid:])))
+    return ([x for h in halves for x in h[0]], [x for h in halves for x in h[1]],
+            sum((h[2] for h in halves), collections.Counter()))
 
 
 async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str]) -> dict:
