@@ -80,6 +80,27 @@ def seconds(ts: str) -> float:
     return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
 
 
+def alt_name() -> str:
+    """Second ASR model (.env ASR_ALT_MODEL), only for segments the first one got wrong."""
+    load_dotenv(ROOT / ".env")
+    return os.environ["ASR_ALT_MODEL"]
+
+
+@cache
+def _alt():
+    from transformers import pipeline  # heavy import, only when asr_alt runs
+
+    gpu = torch.cuda.is_available()
+    return pipeline("automatic-speech-recognition", model=alt_name(), device="cuda:0" if gpu else "cpu",
+                    torch_dtype=torch.float16 if gpu else torch.float32)
+
+
+def transcribe_alt(audio: torch.Tensor) -> str:
+    """Plain text of one 16 kHz mono clip from the second ASR model."""
+    # Whisper models hear 30 s windows; longer segments (a voice-over over music can run minutes) are chunked
+    return _alt()({"raw": audio.numpy(), "sampling_rate": RATE}, chunk_length_s=30)["text"].strip()
+
+
 def transcribe(path) -> list[dict]:
     """[{start_s, end_s, text}] for a 16 kHz mono wav."""
     out = _asr().endless_decode(audio_path=str(path), return_timestamps=True)

@@ -5,7 +5,7 @@ import types
 import pytest
 import torch
 
-from corpus.crawl.tiktok import asr, asr_check, place_verify
+from corpus.crawl.tiktok import asr, asr_alt, asr_check, place_verify
 from corpus.llm import asr as asr_model
 
 
@@ -136,6 +136,7 @@ def check_env(videos, monkeypatch):
     monkeypatch.setattr(asr_check, "load_config", lambda city: ("Đà Lạt", {}))
     monkeypatch.setattr(asr_check, "_client", lambda: (None, "gemma-test"))
     monkeypatch.setattr(asr_check, "places_by_video", lambda city: {"1": [{"fid": "f1", "name": "Thác Datanla"}]})
+    monkeypatch.setattr(asr_check, "frames", lambda mp4, total_s, out: [b"jpg"] * asr_check.FRAMES)
     calls = []
 
     async def ask(client, model, **fields):
@@ -149,25 +150,90 @@ def check_env(videos, monkeypatch):
 
 def test_asr_check_run_checks_once_with_place_names_and_skips_no_speech(check_env):
     root, add, calls = check_env
-    doc = add("1", transcript={"at": "t1", "segments": SEGS})
-    quiet = add("2", transcript={"at": "t1", "segments": []})
+    doc = add("1", transcript={"at": "t1", "total_s": 9, "segments": SEGS})
+    quiet = add("2", transcript={"at": "t1", "total_s": 9, "segments": []})
     add("3")  # asr not run yet
     asyncio.run(asr_check.run("dalat"))
     asyncio.run(asr_check.run("dalat"))
-    assert len(calls) == 1 and calls[0]["places"] == "Thác Datanla" and "0. [0.0-2.0s] hôm nay đi đa tan la" in calls[0]["segments"]
+    assert len(calls) == 1 and calls[0]["places"] == "Thác Datanla" and "0. [0.0-2.0s] ASR: hôm nay đi đa tan la" in calls[0]["segments"]
+    assert len(calls[0]["images"]) == asr_check.FRAMES
     assert _read(doc)["transcript"]["text"] == "hôm nay đi Datanla"
     assert _read(quiet)["transcript"]["check"]["quality"] == "no_speech"
 
 
 def test_asr_check_runs_again_after_a_new_transcript(check_env):
     root, add, calls = check_env
-    doc = add("1", transcript={"at": "t1", "segments": SEGS})
+    doc = add("1", transcript={"at": "t1", "total_s": 9, "segments": SEGS})
     asyncio.run(asr_check.run("dalat"))
     v = _read(doc)
-    v["transcript"] = {"at": "t2", "segments": SEGS}
+    v["transcript"] = {"at": "t2", "total_s": 9, "segments": SEGS}
     doc.write_text(json.dumps(v), encoding="utf-8")
     asyncio.run(asr_check.run("dalat"))
     assert len(calls) == 2
+
+
+CTX = asr_check.flat("Khám phá KDL QUỶ NÚI SUỐI MA #kayak #camping")
+
+
+@pytest.mark.parametrize("raw,fixed,alt,want,undone", [
+    ("khu du lịch mini đà lạt", "khu du lịch Quỷ Núi Đà Lạt", "", "khu du lịch mini Đà Lạt", 1),  # place forced in: undone
+    ("khu du lịch mini đà lạt", "khu du lịch Pini Đà Lạt", "", "khu du lịch Pini Đà Lạt", 0),  # sounds alike
+    ("chèo thuyền ca giắt", "chèo thuyền kayak", "", "chèo thuyền kayak", 0),  # near, and written in the context
+    ("ăn ở đây cam ngon", "ăn ở đây mình ngon", "", "ăn ở đây cam ngon", 1),  # neither alike nor in context
+    ("thì nhiều cá lắm", "Quỷ Núi thì nhiều cá lắm", "", "thì nhiều cá lắm", 1),  # inserted words need ASR2
+    ("thì nhiều cá lắm", "Quỷ Núi thì nhiều cá lắm", asr_check.flat("quỷ núi thì nhiều cá lắm"),
+     "Quỷ Núi thì nhiều cá lắm", 0),
+    ("quán này không ngon", "quán này ngon", "", "quán này không ngon", 1),  # a negation is never dropped
+    ("đi thác đa tan la nha", "đi thác Datanla nha", "", "đi thác Datanla nha", 0),
+])
+def test_guard_undoes_edits_that_do_not_sound_like_the_asr(raw, fixed, alt, want, undone):
+    assert asr_check.guard(raw, fixed, CTX, alt) == (want, undone)
+
+
+def test_untrusted_segments_are_marked_for_a_second_asr():
+    segs = [{"start_s": 0, "end_s": 2, "text": "khu du lịch mini đà lạt"}, {"start_s": 3, "end_s": 4, "text": "xg tr bm"},
+            {"start_s": 5, "end_s": 6, "text": "đẹp quá"}]
+    answer = {"quality": "partial", "screen_text": ["Pini Dalat"], "segments": [
+        {"i": 0, "status": "fixed", "text": "khu du lịch Quỷ Núi Đà Lạt"}, {"i": 1, "status": "garbled", "text": ""},
+        {"i": 2, "status": "ok", "text": "đẹp quá"}]}
+    t = asr_check.apply({"at": "t1", "segments": segs}, answer, "gemma-test")
+    assert [s["needs_alt"] for s in t["segments"]] == [True, True, False]
+    assert t["segments"][0]["checked_text"] == "khu du lịch mini Đà Lạt" and t["check"]["screen_text"] == ["Pini Dalat"]
+
+
+def test_screen_text_lets_a_name_fix_through():
+    segs = [{"start_s": 0, "end_s": 2, "text": "ghé pin đi nha"}]
+    answer = {"quality": "good", "screen_text": ["PiNi Đà Lạt"], "segments": [{"i": 0, "status": "fixed", "text": "ghé PiNi nha"}]}
+    assert asr_check.apply({"at": "t1", "segments": segs}, answer, "g")["text"] == "ghé PiNi nha"
+
+
+def test_a_second_asr_text_makes_the_video_checked_again(check_env):
+    root, add, calls = check_env
+    doc = add("1", transcript={"at": "t1", "total_s": 9, "segments": SEGS})
+    asyncio.run(asr_check.run("dalat"))
+    v = _read(doc)
+    v["transcript"]["segments"][2]["alt_text"] = "xin chào"
+    doc.write_text(json.dumps(v), encoding="utf-8")
+    asyncio.run(asr_check.run("dalat"))
+    assert len(calls) == 2 and "ASR2: xin chào" in calls[1]["segments"]
+
+
+def test_asr_alt_hears_only_marked_segments_once(videos, monkeypatch):
+    root, add = videos
+    segs = [{"start_s": 0, "end_s": 2, "text": "a", "needs_alt": False}, {"start_s": 3, "end_s": 5, "text": "xg", "needs_alt": True}]
+    doc = add("1", transcript={"at": "t1", "total_s": 9, "segments": segs})
+    monkeypatch.setattr(asr_alt, "load_audio", lambda mp4, wav: None)
+    heard = []
+    model = types.SimpleNamespace(read=lambda wav: torch.zeros(16000 * 9), alt_name=lambda: "alt-test",
+                                  transcribe_alt=lambda audio: heard.append(len(audio)) or "xin chào")
+    monkeypatch.setattr(asr_alt, "asr_model", model)
+    real = asr_alt.hear_again
+    monkeypatch.setattr(asr_alt, "hear_again", lambda mp4, s: real(mp4, s, model=model))
+    asr_alt.run("dalat")
+    asr_alt.run("dalat")
+    t = _read(doc)["transcript"]
+    assert heard == [16000 * 2] and t["segments"][1]["alt_text"] == "xin chào" and "alt_text" not in t["segments"][0]
+    assert t["alt_model"] == "alt-test"
 
 
 @pytest.fixture
@@ -248,3 +314,23 @@ def test_verify_shows_the_other_places_of_the_same_video(verify_env, monkeypatch
     monkeypatch.setattr(place_verify.PLACE_VIDEO_VERIFY, "ask", ask)
     asyncio.run(place_verify.run("dalat"))
     assert seen == [("Thác Datanla", "Máng trượt Datanla (address unknown)"), ("Máng trượt Datanla", "Thác Datanla (Đèo Prenn)")]
+
+
+def test_task_tries_again_after_broken_json_and_busy_server(monkeypatch):
+    import httpx
+    import openai
+    from corpus.llm import tasks
+
+    monkeypatch.setattr(tasks, "RETRY_S", 0)
+    busy = openai.RateLimitError("429", response=httpx.Response(429, request=httpx.Request("POST", "http://x")), body=None)
+    answers = [busy, '{"relevance": "yes", "reason": "r"\n\n\n', '{"relevance": "yes", "reason": "r"}']
+
+    async def create(**kw):
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=a))])
+
+    client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+    got = asyncio.run(tasks.VIDEO_FILTER.ask(client, "m", city="Đà Lạt", desc="d", hashtags=""))
+    assert got == {"relevance": "yes", "reason": "r"} and answers == []

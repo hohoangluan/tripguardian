@@ -3,12 +3,18 @@
 A task's prompt_hash is stored with each result, so changing a prompt re-runs that task on the next build.
 """
 
+import asyncio
 import base64
 import hashlib
 import json
 from dataclasses import dataclass
 
+import openai
+
 from .roles import EXTRACTOR, JUDGE, Role
+
+ATTEMPTS = 4  # per call: a broken JSON answer or a busy / unreachable server is tried again
+RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each time
 
 
 @dataclass(frozen=True)
@@ -35,11 +41,23 @@ class Task:
             content = [{"type": "text", "text": content}] + [
                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(b).decode()}}
                 for b in images]
-        r = await client.chat.completions.create(
-            model=model, messages=[{"role": "user", "content": content}],
-            temperature=self.temperature, max_tokens=self.max_tokens,
-            response_format={"type": "json_schema", "json_schema": {"name": self.name, "schema": self.schema, "strict": True}})
-        return json.loads(r.choices[0].message.content)
+        for attempt in range(1, ATTEMPTS + 1):
+            try:
+                r = await client.chat.completions.create(
+                    model=model, messages=[{"role": "user", "content": content}],
+                    temperature=self.temperature, max_tokens=self.max_tokens,
+                    response_format={"type": "json_schema", "json_schema": {"name": self.name, "schema": self.schema,
+                                                                            "strict": True}})
+                return json.loads(r.choices[0].message.content)
+            except json.JSONDecodeError:
+                # guided decoding now and then loops on whitespace until max_tokens cuts the JSON; a new call is fine
+                if attempt == ATTEMPTS:
+                    raise
+            except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError):
+                # the key's 40 concurrent calls are shared with other runs; wait for a free slot
+                if attempt == ATTEMPTS:
+                    raise
+                await asyncio.sleep(RETRY_S * 2 ** (attempt - 1))
 
 
 VIDEO_FILTER = Task(
@@ -193,27 +211,34 @@ ASR_CHECK = Task(
                 "text": {"type": "string"}},
                 "required": ["i", "status", "text"], "additionalProperties": False}},
             "quality": {"type": "string", "enum": ["good", "partial", "unusable"]},
+            "screen_text": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["segments", "quality"],
+        "required": ["screen_text", "segments", "quality"],
         "additionalProperties": False,
     },
     # The transcript becomes evidence, so a wrong "fix" is worse than a dropped segment: fix only what the sound and
-    # the context make certain, never add meaning. The raw ASR text is kept next to the checked text.
+    # the context make certain, never add meaning. Code (asr_check.guard) also undoes edits that do not sound like
+    # the ASR words; the raw ASR text is kept next to the checked text. screen_text first: names come from it.
     prompt="""Below is a Vietnamese speech-recognition transcript of a TikTok video about {city}, Vietnam, split into
-numbered segments. ASR mishears words, above all names, and turns background songs or noise into nonsense. Check each
-segment and return one entry per segment, same i, in order:
+numbered segments, with {frames} frames of the video attached (evenly spaced). ASR mishears words, above all names
+and English loanwords, and turns background songs or noise into nonsense.
+First, screen_text: every name or word you can read on screen in the frames (signs, menus, text overlays), exactly
+as written there. Then check each segment and return one entry per segment, same i, in order:
 - ok: the text is sensible Vietnamese (or English) speech; return it unchanged.
-- fixed: most of the segment is already correct words and only a few are misheard, with the intended words certain
-  from how they sound plus the caption, hashtags or place names below (e.g. "đa tan la" -> "Datanla"). Return the
-  segment with only those words fixed. Never rewrite a segment, and never add words, facts, prices or names that are
-  not in it: when most words are wrong, it is garbled.
+- fixed: most of the segment is already correct words and only a few are misheard. Fix a word only when the intended
+  word sounds like what ASR wrote (e.g. "đa tan la" -> "Datanla", "mátage" -> "massage", "sân bay" -> "săn mây" when
+  the video is about clouds). A name may only be fixed to a name written in the caption, hashtags or screen_text, and
+  only when it sounds alike: never put a place name in just because the video is about that place. Never rewrite a
+  segment, and never add words, facts, prices or names: when most words are wrong, it is garbled.
+- When a segment also has "ASR2" (a second model's hearing of the same audio), build the text from the words of
+  ASR and ASR2 only, taking whichever makes sense; mark it fixed (or ok if ASR was already right).
 - garbled: the text makes no sense and cannot be fixed with certainty; return "".
-- lyrics: the words are a song's lyrics (background music), not someone speaking; return "".
+- lyrics: the words are a song's lyrics (background music, in any language), not someone speaking; return "".
 quality: good = most segments ok / fixed; partial = some usable speech; unusable = nothing usable.
 
 Caption: {desc}
 Hashtags: {hashtags}
-Place names the video may be about: {places}
+Places the video was matched to (a hint for what it is about, not words to insert): {places}
 
 Segments:
 {segments}""",
@@ -246,7 +271,10 @@ or talks about THIS place.
   clearly show it and nothing points elsewhere. A video about several places counts when this is one of them.
 - no: the video is about another place (similar name, another branch, another city), or its content does not match
   this place (e.g. a waterfall video for a cafe), or it is about something else.
-- unsure: nothing in the text, speech or frames settles it.
+- unsure: nothing in the text, speech or frames settles it, or the video names a place that may contain or belong
+  to this one (a park, complex or area with several parts) and the data does not say how they relate.
+Read on-screen text exactly as it appears in the frame; do not copy spellings from the transcript, which is machine
+speech recognition and may mishear names.
 The same video was also matched to the other places listed below. Places with similar names are often different
 businesses: when the evidence fits one of them at least as well as this place, answer no or unsure, never yes for
 both.
@@ -262,4 +290,72 @@ Other places matched to this video: {others}
 Caption: {desc}
 Hashtags: {hashtags}
 Transcript: {transcript}""",
+)
+
+# quote last: with it before the context fields, guided decoding sometimes loops on whitespace after the quote
+# (the model wants to close the object) until max_tokens cuts the JSON.
+_REVIEW_OBS_KEYS = ("feature", "value", "time_of_day", "day_type", "weather", "quote")
+_REVIEW_OBS = {
+    "type": "object",
+    "properties": {k: {"type": "string"} for k in _REVIEW_OBS_KEYS},
+    "required": list(_REVIEW_OBS_KEYS),
+    "additionalProperties": False,
+}
+
+REVIEW_OBSERVE = Task(
+    name="review_observe",
+    role=EXTRACTOR,
+    max_tokens=6000,
+    schema={
+        "type": "object",
+        "properties": {"reviews": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "ref": {"type": "string"},
+                "observations": {"type": "array", "items": _REVIEW_OBS},
+                "proposed": {"type": "array", "items": {
+                    "type": "object", "properties": {"label": {"type": "string"}, "quote": {"type": "string"}},
+                    "required": ["label", "quote"], "additionalProperties": False}},
+            },
+            "required": ["ref", "observations", "proposed"],
+            "additionalProperties": False}}},
+        "required": ["reviews"],
+        "additionalProperties": False,
+    },
+    # Feature and value are plain strings: the whole ontology as enums is too big for a strict schema; the gate
+    # (corpus.observe.gmaps.gate) drops anything outside config/ontology.yaml and any quote not in the review.
+    prompt="""You extract evidence about one place in {city}, Vietnam from its Google Maps reviews, for a travel
+product that matches places to what a traveller wants. Use only what each review states, never your own knowledge.
+
+Place: {name} ({category})
+
+Features (id = allowed values: meaning) and context values:
+{ontology}
+
+For each review ref return the observations it states clearly:
+- feature and value: from the list above, spelled exactly.
+- quote: the shortest exact words of the review that state it; copy them, do not translate, shorten words or fix
+  spelling.
+- One review often gives several observations, one sentence can give several. The same feature can appear twice
+  with different context ("sáng vắng, chiều đông" -> crowd low with time_of_day morning, crowd high with afternoon).
+- time_of_day, day_type, weather: only when the review says it for that statement; otherwise "unknown".
+- Not mentioned means no observation. Never infer a value from silence, the category or the star rating.
+- Going with someone is not suitability: "đi cùng gia đình" is NOT kids suitable; "hợp cho trẻ em", "bé nhà mình
+  chơi rất thích" is. The same for elderly, couples, groups, wheelchair.
+- Praise without a concrete point ("tuyệt vời", "10 điểm", "sẽ quay lại") gives no observation.
+- Something useful for choosing the place that is not in the list: add it to proposed with a short English label
+  and its quote.
+- Questions, ads and owner replies give nothing.
+Return every ref, with empty lists when it states nothing.
+
+Examples:
+"View đồi thông đẹp, cà phê hơi dở, cuối tuần đông nghẹt" -> scenic_view present "View đồi thông đẹp";
+drink_quality poor "cà phê hơi dở"; crowd high "cuối tuần đông nghẹt" with day_type weekend.
+"Đường lên dốc đá lởm chởm, mém té mấy lần" -> rough_road_access present "dốc đá lởm chởm"; steep_or_stairs present
+"Đường lên dốc".
+"Giá nước ngáo giá, 1 ly 180k" -> value_for_money poor "ngáo giá"; tourist_trap present "ngáo giá".
+"Đi cùng gia đình, rất vui" -> nothing.
+{note}
+Reviews:
+{reviews}""",
 )

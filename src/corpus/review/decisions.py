@@ -14,6 +14,7 @@ ACTIONS = {
     "video_comments": ("retry", "accept"),
     "place_qc": ("accept", "disable"),
     "place_reviews": ("retry", "accept"),
+    "place_verify": ("keep", "drop"),  # id = "<video_id>@<fid>": is this video evidence for this place?
 }
 
 

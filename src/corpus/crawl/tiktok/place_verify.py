@@ -11,38 +11,33 @@ asr_check: a video whose transcript is not checked yet is left for the next run.
 import asyncio
 import collections
 import json
-import subprocess
-from pathlib import Path
 
 from ...llm import PLACE_VIDEO_VERIFY
+from ...review import decisions
 from ..common.files import data_dir, load_config, log_error, now, write_json
+from .frames import FRAMES, frames
 from .place_filter import places_by_video
-
-FRAMES = 4
-FRAME_WIDTH = 512  # enough to read signs and overlays, small enough for four images per call
 
 
 def _client():
     return PLACE_VIDEO_VERIFY.role.client()
 
 
-def frames(mp4: Path, total_s: float, out_dir: Path) -> list[bytes]:
-    """FRAMES JPEGs at the middle of equal slices of the video; extracted once, then read from disk."""
-    out = []
-    for i in range(FRAMES):
-        f = out_dir / f"f{i + 1}.jpg"
-        if not f.exists():
-            out_dir.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-ss", f"{(i + 0.5) * total_s / FRAMES:.2f}",
-                            "-i", str(mp4), "-frames:v", "1", "-vf", f"scale={FRAME_WIDTH}:-2", str(f)], check=True)
-        out.append(f.read_bytes())
-    return out
-
-
 def transcript_text(t: dict) -> str:
     if t["check"]["quality"] == "no_speech":
         return "(no speech)"
     return " ".join(f"[{s['start_s']:.0f}s] {s['checked_text']}" for s in t["segments"] if s["checked_text"]) or "(no usable speech)"
+
+
+def evidence_pairs() -> set[tuple[str, str]]:
+    """(video_id, fid) pairs that count as evidence: model "yes", with a person's keep / drop (review) overriding it."""
+    root = data_dir() / "tiktok" / "videos"
+    pairs = set()
+    for f in root.glob("*/video.json") if root.exists() else []:
+        v = json.loads(f.read_text(encoding="utf-8"))
+        pairs |= {(v["video_id"], p["fid"]) for p in v.get("places") or [] if p["verdict"] == "yes"}
+    person = {tuple(k.split("@", 1)): d for k, d in decisions("place_verify").items()}
+    return (pairs | {k for k, d in person.items() if d == "keep"}) - {k for k, d in person.items() if d == "drop"}
 
 
 def done(entry: dict | None, t: dict) -> bool:

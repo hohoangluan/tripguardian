@@ -103,3 +103,23 @@ def test_server_serves_queue_and_records_decisions(data):
             assert e.code == 400
     finally:
         srv.shutdown()
+
+
+def test_video_place_pairs_not_verified_go_to_review_and_a_person_decides(data):
+    from corpus.crawl.tiktok import place_verify
+
+    t = data / "tiktok"
+    places = [{"fid": "f1", "name": "Thác Datanla", "verdict": "yes", "reason": "sign", "evidence": []},
+              {"fid": "f2", "name": "Khu du lịch Quỷ Núi", "verdict": "no", "reason": "names PiNi",
+               "evidence": [{"source": "frame", "quote": "frame 1: sign 'Pini Dalat'"}]},
+              {"fid": "f3", "name": "Quán B", "verdict": "unsure", "reason": "no name", "evidence": []}]
+    _w(t / "videos" / "6" / "video.json", {"video_id": "6", "caption": "Khám phá Quỷ Núi", "comments_complete": True,
+                                           "comments": [], "places": places, "transcript": {"text": "quần thể PiNi"}})
+    (t / "videos" / "6" / "video.mp4").write_bytes(b"x")
+    items = {i["id"]: i for i in review.queue("dalat") if i["kind"] == "place_verify"}
+    assert set(items) == {"6@f2", "6@f3"} and items["6@f2"]["details"]["transcript"] == "quần thể PiNi"
+    assert place_verify.evidence_pairs() == {("6", "f1")}
+    review.decide("place_verify", "6@f2", "keep")
+    review.decide("place_verify", "6@f1", "drop")
+    assert place_verify.evidence_pairs() == {("6", "f2")}
+    assert {i["id"] for i in review.queue("dalat") if i["kind"] == "place_verify"} == {"6@f3"}

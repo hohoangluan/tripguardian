@@ -11,6 +11,7 @@ place_search.py  place name -> top videos data/tiktok/place_search/<city>/<fid_d
 place_filter.py  captions -> data/tiktok/place_filter/<fid_dir>.json (about this place: yes / no / unsure)
 place_crawl.py   "yes" videos -> data/tiktok/videos/<video_id>/ (same files as crawl.py)
 asr.py           every saved video's speech (VAD + ASR) -> video.json transcript
-asr_check.py     transcript -> kept / fixed / dropped per segment (Extractor) -> video.json transcript
+asr_check.py     transcript + frames -> kept / fixed / dropped per segment (Extractor, code-guarded) -> video.json
+asr_alt.py       segments asr_check could not trust -> second ASR model (alt_text), then asr_check again
 place_verify.py  caption + transcript + 4 frames -> is the video about its matched place -> video.json places
 """

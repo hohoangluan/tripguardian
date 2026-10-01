@@ -29,6 +29,14 @@ def _tiktok(city: str) -> list[dict]:
                       "details": {"hashtag": row.get("hashtags", []), "tìm thấy qua": row.get("queries", [])}})
     for f in sorted((root / "videos").glob("*/video.json")) if (root / "videos").exists() else []:
         doc = _read(f)
+        for p in doc.get("places") or []:
+            if p["verdict"] == "yes":
+                continue
+            items.append({"kind": "place_verify", "id": f"{doc['video_id']}@{p['fid']}", "source": "tiktok",
+                          "title": f"{p['name']} — {doc.get('caption') or '(no caption)'}", "url": doc.get("video_url"),
+                          "embed": doc["video_id"], "status": p["verdict"], "why": f"model: {p['verdict']} — {p['reason']}",
+                          "details": {"địa điểm": p["name"], "bằng chứng": [f"{e['source']}: {e['quote']}" for e in p["evidence"]],
+                                      "transcript": (doc.get("transcript") or {}).get("text", "")[:600]}})
         if doc.get("comments_complete") is True or not (f.parent / "video.mp4").exists():
             continue
         got = len(doc["comments"]) + sum(len(c.get("replies", [])) for c in doc["comments"])
