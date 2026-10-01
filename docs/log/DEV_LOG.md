@@ -106,7 +106,7 @@ _không có_
 - cách kiểm chứng: `python -m pytest -q tests/test_ontology.py tests/observe`; `python -m corpus gmaps observe --limit 20` (mạng UIT)
 
 ### Hiện tại (2026-10-01)
-- hành vi: ontology v2 (37 feature, 5 nhóm, 3 khóa bối cảnh). Phase `gmaps observe`: rule `details` + Extractor theo lô + gate, ghi `data/gmaps/observations/`; luồng và quy tắc: `docs/specs/CORPUS_SPEC.md` §4. Schema đặt `quote` cuối observation vì Gemma có lúc lặp khoảng trắng tới hết `max_tokens` khi `quote` đứng trước các field bối cảnh.
+- hành vi: ontology v3 (45 feature, 5 nhóm, 3 khóa bối cảnh). Phase `gmaps observe`: rule `details` + Extractor theo lô + gate, ghi `data/gmaps/observations/`; luồng và quy tắc: `docs/specs/CORPUS_SPEC.md` §4. Schema đặt `quote` cuối observation vì Gemma có lúc lặp khoảng trắng tới hết `max_tokens` khi `quote` đứng trước các field bối cảnh.
 
 ### Trước đó
 _không có_

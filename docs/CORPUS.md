@@ -43,8 +43,8 @@ RESOLVE      chuẩn hóa tên → match với Google (query kèm tên thành ph
              match rõ → POI · khu vực / con đường / cảnh quan → ZONE
              chưa rõ → Judge chọn một phương án có sẵn hoặc bỏ phiếu trắng · không có → UNRESOLVED
    ↓
-OBSERVE      segment, comment, trang official → observation (feature | fact_key,
-             value, stance, context, span)
+OBSERVE      review Google Maps (đang chạy) · segment, comment TikTok · trang official
+             → observation (feature | fact_key, value, context, span), một format chung cho mọi nguồn
    ↓
 AGGREGATE    chỉ bằng rule → Fact · Signal · Estimate, kèm các thành phần confidence
    ↓
@@ -62,14 +62,14 @@ Một địa điểm là **POI** (một điểm xác định được) hoặc **
 | Loại | Ví dụ | Rule | Hiển thị |
 |---|---|---|---|
 | Fact | giờ, giá, đặt chỗ, quy định vào cửa | Official > provider; bất đồng → `uncertain` + giữ xung đột | Một giá trị, hoặc "chưa xác nhận" kèm cả hai giá trị |
-| Signal | độ đông theo thời điểm, yên tĩnh / sôi động, view, đường dốc | Phân phối trên các observation liên quan | Một xu hướng kèm mẫu ("62% trong 123 comment về độ đông, 30 creator") |
+| Signal | độ đông theo thời điểm, yên tĩnh / sôi động, view, đường dốc | Phân phối trên các observation liên quan (1 tác giả 1 phiếu), theo bối cảnh, kèm xu hướng nửa mới / nửa cũ | Một xu hướng kèm mẫu ("62% trong 123 comment về độ đông, 30 creator") |
 | Estimate | thời gian tham quan min / typical / long | Rule trên observation | Luôn là một khoảng |
 
 **Bối cảnh quan trọng.** "Đông vào sáng cuối tuần" được lưu là `crowd × weekend × morning`, không phải "đông".
 
 **Confidence** giữ bốn thành phần, không gộp thành một số ẩn: số nguồn độc lập, mức đồng thuận, độ mới, loại nguồn.
 
-**Coverage** theo khía cạnh (`identity`, `operation`, `experience`, `environment`, `effort`, `suitability`): `COMPLETE | PARTIAL | NONE`. Địa điểm không có bằng chứng trải nghiệm (chỉ tìm thấy qua inventory Google) được dùng làm chỗ ăn, anchor, hoặc phương án dự phòng, không được gợi ý như một trải nghiệm.
+**Coverage** theo khía cạnh (`identity`, `operation`, `experience`, `environment`, `effort`, `suitability`): `COMPLETE | PARTIAL | NONE`. Code hiện tính coverage cho các nhóm của ontology (`experience`, `environment`, `service`, `effort`, `suitability`) từ observation; `identity`, `operation` chưa có. Địa điểm không có bằng chứng trải nghiệm (chỉ tìm thấy qua inventory Google) được dùng làm chỗ ăn, anchor, hoặc phương án dự phòng, không được gợi ý như một trải nghiệm.
 
 ## 5. Bản ghi địa điểm
 
