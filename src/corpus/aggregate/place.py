@@ -2,7 +2,9 @@
 
 Reads data/*/observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json. Per feature:
 votes (one per author; an author who gave k different values gives each 1/k), context breakdown, confidence parts,
-trend of the newer half of the dated evidence against the older half. Conflicts are kept as distributions, never flattened.
+trend of the newer half of the dated evidence against the older half. A value declared by an authoritative source
+(Maps attributes) is served without a person when no other source contradicts it; a contradiction makes it uncertain.
+Place facts (popular times, price) pass through as `operation`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
 """
 
 import collections
@@ -18,6 +20,18 @@ TREND_MIN = 5  # authors on each side
 TREND_DELTA = 0.2  # change in the share of the top value
 RATING_DELTA = 0.5  # stars
 COMPLETE_FEATURES, COMPLETE_N = 3, 3
+AUTHORITATIVE = {"gmaps_attribute"}
+WEEKEND = ("sat", "sun")
+DAY_ORDER = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
+
+
+def time_of_day(hour: int) -> str:
+    """Same buckets as the ontology context time_of_day."""
+    for name, lo, hi in (("early_morning", 4, 5), ("morning", 6, 10), ("noon", 11, 13), ("afternoon", 14, 16),
+                         ("evening", 17, 20)):
+        if lo <= hour <= hi:
+            return name
+    return "night"
 SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "tiktok_segment": "video",
                "tiktok_comment": "comment"}
 
@@ -91,16 +105,26 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date) -> dict:
         for c in sorted(groups):
             by_context[f"{k}={c}"] = votes(groups[c])
     dates = [o["observed_at"] for o in unique if o.get("observed_at")]
+    declared = {o["value"] for o in unique if o["source_type"] in AUTHORITATIVE}
+    authority = next(iter(declared)) if len(declared) == 1 else None
+    conflict = bool(declared) and bool({o["value"] for o in unique if o["source_type"] not in AUTHORITATIVE} - declared
+                                       or len(declared) > 1)
+    voters = len({_who(o) for o in unique if o["value"] == t})
+    if authority and not conflict:
+        needs_review = False
+    else:
+        needs_review = feat.verify == "always" and (conflict or t not in feat.caution_values or voters < 2)
     return {
         "n": n, "distribution": dist, "top_value": t,
-        "status": "signal" if agreement >= AGREEMENT_MIN else "uncertain",
+        "status": "uncertain" if conflict or agreement < AGREEMENT_MIN else "signal",
+        "authority": authority,
         "by_context": by_context,
         "by_source": dict(collections.Counter(o["source_type"] for o in obs)),
         "confidence": {"independent_sources": n, "agreement": agreement,
                        "freshness_days": _age(as_of, max(dates)) if dates else None,
                        "source_types": sorted({SOURCE_KIND.get(o["source_type"], o["source_type"]) for o in unique})},
         "trend": trend(unique, t),
-        "needs_review": feat.verify == "always" and (t not in feat.caution_values or n < 2),
+        "needs_review": needs_review,
         "observation_ids": [o["id"] for o in obs],
     }
 
@@ -115,6 +139,25 @@ def rating_trend(ratings: list[dict]) -> dict:
         d = res["recent_mean"] - res["older_mean"]
         res["direction"] = "rising" if d >= RATING_DELTA else "falling" if d <= -RATING_DELTA else "stable"
     return res
+
+
+def crowd_by_time(popular_times: dict | None) -> dict | None:
+    """Mean relative busyness (100 = the place's own peak) by weekday / weekend x time of day; 0 = closed, left out."""
+    if not popular_times:
+        return None
+    sums = collections.defaultdict(list)
+    cells = []
+    for day in DAY_ORDER:
+        for hour, pct in sorted(((int(h), p) for h, p in (popular_times.get(day) or {}).items())):
+            if pct:
+                sums[("weekend" if day in WEEKEND else "weekday", time_of_day(hour))].append(pct)
+                cells.append((pct, -DAY_ORDER.index(day), -hour, day, hour))
+    out = {"weekday": {}, "weekend": {}}
+    for (dt, tod), xs in sums.items():
+        out[dt][tod] = round(sum(xs) / len(xs))
+    best = max(cells) if cells else None
+    out["peak"] = {"day": best[3], "hour": best[4], "pct": best[0]} if best else None
+    return out
 
 
 def coverage(features: dict, ont: Ontology) -> dict:
@@ -138,11 +181,18 @@ def aggregate_place(files: list[dict], ont: Ontology) -> dict:
     for f in files:
         for p in f.get("proposed", []):
             proposed[p["label"].strip().casefold()].append(p.get("author"))
+    facts = {}
+    for f in files:
+        for k, v in (f.get("place_facts") or {}).items():
+            if v is not None:
+                facts.setdefault(k, v)
     return {
         "place_fid": files[0]["place_fid"],
         "place_name": next((f["place_name"] for f in files if f.get("place_name")), None),
         "as_of": as_of.isoformat(), "ontology_version": ont.version,
         "features": features, "coverage": coverage(features, ont),
+        "operation": {"price_range": facts.get("price"), "crowd_by_time": crowd_by_time(facts.get("popular_times")),
+                      "popular_times": facts.get("popular_times")},
         "rating_trend": rating_trend(ratings) if ratings else None,
         "proposed_features": sorted(({"label": k, "count": len(v), "authors": len(set(v))} for k, v in proposed.items()),
                                     key=lambda x: (-x["count"], x["label"])),

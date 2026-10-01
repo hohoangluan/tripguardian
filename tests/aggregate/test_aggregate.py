@@ -156,3 +156,39 @@ def test_unsuitable_needs_two_authors_voting_it():
     feats = aggregate_place([f([o(1, "kids", "unsuitable", "a"), o(2, "kids", "unsuitable", "a", time_of_day="morning"),
                                 o(3, "kids", "suitable", "b", time_of_day="evening")])], ONT)["features"]
     assert feats["kids"]["needs_review"] is True  # only a said unsuitable
+
+
+def attr(i, feature, value):
+    return {**o(i, feature, value, "gmaps:attributes", "2026-09-30", source_type="gmaps_attribute")}
+
+
+def test_attribute_alone_is_trusted():
+    k = aggregate_place([f([attr(1, "kids", "suitable")])], ONT)["features"]["kids"]
+    assert k["status"] == "signal" and k["needs_review"] is False and k["authority"] == "suitable"
+
+
+def test_attribute_agreeing_with_reviews_is_trusted():
+    w = aggregate_place([f([attr(1, "wheelchair", "unsuitable"), o(2, "wheelchair", "unsuitable", "a")])],
+                        ONT)["features"]["wheelchair"]
+    assert w["status"] == "signal" and w["needs_review"] is False and w["n"] == 2
+
+
+def test_attribute_contradicted_by_a_review_is_uncertain():
+    k = aggregate_place([f([attr(1, "kids", "suitable"), o(2, "kids", "unsuitable", "a")])], ONT)["features"]["kids"]
+    assert k["status"] == "uncertain" and k["needs_review"] is True
+    assert k["distribution"] == {"suitable": 1, "unsuitable": 1}
+
+
+def test_crowd_by_time_and_price_from_place_facts():
+    pt = {"sun": {"9": 80, "18": 20}, "sat": {"9": 60}, "mon": {"9": 20, "10": 30}}
+    price = {"min_vnd": 1, "max_vnd": 100000, "per": "person", "reports": 9}
+    op = aggregate_place([{**f([]), "place_facts": {"popular_times": pt, "price": price}}], ONT)["operation"]
+    assert op["price_range"] == price
+    assert op["crowd_by_time"]["weekend"] == {"morning": 70, "evening": 20}
+    assert op["crowd_by_time"]["weekday"] == {"morning": 25}
+    assert op["crowd_by_time"]["peak"] == {"day": "sun", "hour": 9, "pct": 80}
+    assert op["popular_times"] == pt
+
+
+def test_no_place_facts_gives_empty_operation():
+    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "crowd_by_time": None, "popular_times": None}
