@@ -2,7 +2,10 @@
 
 Structured details become observations by rule (details.py); review text goes to the Extractor in batches of one
 place (corpus.llm.REVIEW_OBSERVE) and through the gate (gate.py). Reviews the qc phase flagged as owner reply, spam
-or not a review are left out. A place is done again only when its reviews, the prompt or the ontology change; a
+or not a review are left out entirely. Place attributes become observations of one authoritative source and
+popular times / price go to place_facts (place_rules.py). Review observations of features with `check: span` are read
+again one by one (corpus.llm.REVIEW_VERIFY); only "supports" is kept.
+A place is done again only when its reviews, qc flags, the prompts, the ontology or the rules change; a
 place that fails gets no file (retried next run; an older file is removed) and one line in
 data/gmaps/observe_errors.jsonl. Only a bad answer is split / retried; a network or API error fails the place at once.
 """
@@ -16,14 +19,17 @@ from pathlib import Path
 import openai
 
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, write_json
-from ...llm import REVIEW_OBSERVE
+from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import observation
 from .details import day_type, details_pairs
-from .gate import BadAnswer, gate
+from .gate import BadAnswer, gate, norm
+from .place_rules import AUTHOR, RULES_VERSION, attribute_pairs, parse_popular_times, parse_price
 from .prep import batches, keep_for_llm, observed_at, stars
 
-DETAILS_EXTRACTOR = "details_rule@v1"
+DETAILS_EXTRACTOR = "details_rule@v2"
+PASSAGE_CHARS = 1200  # review text shown to REVIEW_VERIFY around the quote
+VERDICTS = ("supports", "contradicts", "insufficient")
 QC_DROP = {"owner_reply", "spam", "not_a_review"}
 ATTEMPTS = 2
 BAD_ANSWER = (BadAnswer, ValueError, TypeError, AttributeError, KeyError)  # JSONDecodeError is a ValueError
@@ -42,6 +48,37 @@ async def ask_batch(client, model: str, city: str, place: dict, ontology_text: s
     return await REVIEW_OBSERVE.ask(client, model, city=city, name=place.get("name"),
                                     category=place.get("category") or "none", ontology=ontology_text,
                                     reviews=reviews_text, note=note)
+
+
+async def verify_claim(client, model: str, place: dict, passage: str, claim: str) -> dict:
+    return await REVIEW_VERIFY.ask(client, model, name=place.get("name"), category=place.get("category") or "none",
+                                   claim=claim, passage=passage)
+
+
+def passage(text: str, quote: str) -> str:
+    if len(text) <= PASSAGE_CHARS:
+        return text
+    at = max(0, norm(text).find(norm(quote)[:40]))  # norm keeps length close enough for a window
+    start = max(0, at - PASSAGE_CHARS // 2)
+    return text[start:start + PASSAGE_CHARS]
+
+
+async def check_span(client, model, sem, place: dict, text: str, ont: Ontology, o: dict) -> str:
+    f = ont.features[o["feature"]]
+    async with sem:
+        try:
+            answer = await verify_claim(client, model, place, passage(text, o["quote"]),
+                                        f"{f.id} = {o['value']}: {f.hint}")
+        except openai.APIError:
+            raise
+        except BAD_ANSWER:
+            return "error"
+    return answer.get("verdict") if answer.get("verdict") in VERDICTS else "error"
+
+
+def cache_key(ont: Ontology) -> str:
+    parts = (REVIEW_OBSERVE.prompt_hash, REVIEW_VERIFY.prompt_hash, ont.prompt_text(), DETAILS_EXTRACTOR, RULES_VERSION)
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
 def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
@@ -96,7 +133,16 @@ async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city
             field=field, extractor=extractor, ontology_version=ont.version))
         seq[rid] += 1
 
+    for i, (feature, value, label) in enumerate(attribute_pairs(place.get("attributes"))):
+        obs.append(observation(
+            id=f"gmaps:attr:{i}", place_fid=fid, feature=feature, value=value,
+            context=dict.fromkeys(("time_of_day", "day_type", "weather"), UNKNOWN), source_type="gmaps_attribute",
+            source_id=fid, author=AUTHOR, observed_at=fetched[:10], quote=label, field="attributes",
+            extractor=RULES_VERSION, ontology_version=ont.version))
+
     for r in reviews:
+        if r["review_id"] in bad_ids:  # spam / owner reply / not a review: no evidence at all
+            continue
         s = stars(r.get("rating"))
         if s:
             ratings.append({"author": r.get("author_hash"), "observed_at": observed_at(r.get("published_text"), fetched),
@@ -112,9 +158,21 @@ async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city
         tasks = [tg.create_task(ask_checked(client, model, sem, city, place, ont, b)) for b in parts]
     results = [t.result() for t in tasks]
     dropped = collections.Counter()
-    for kept, prop, drop in results:
+    kept_all = [(ref, o) for kept, _, drop in results for ref, o in kept]
+    for _, _, drop in results:
         dropped.update(drop)
+    checks = [(ref, o) for ref, o in kept_all if ont.features[o["feature"]].span_check]
+    async with asyncio.TaskGroup() as tg:
+        verdicts = [tg.create_task(check_span(client, model, sem, place, refs[ref]["text"], ont, o)) for ref, o in checks]
+    rejected = set()
+    for (ref, o), v in zip(checks, verdicts):
+        if v.result() != "supports":
+            rejected.add(id(o))
+            dropped[f"span_check_{v.result()}"] += 1
+    for kept, prop, _ in results:
         for ref, o in kept:
+            if id(o) in rejected:
+                continue
             r = refs[ref]
             ctx = dict(o["context"])
             if day_type(r) != UNKNOWN:  # Maps' own "Đã đến vào" wins over the model's reading
@@ -125,6 +183,8 @@ async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city
                              "author": refs[ref].get("author_hash"), **p})
     return {"place_fid": fid, "place_name": place.get("name"), "as_of": fetched[:10], "observations": obs,
             "proposed": proposed, "ratings": ratings,
+            "place_facts": {"popular_times": parse_popular_times(place.get("popular_times")),
+                            "price": parse_price(place.get("price"))},
             "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}}
 
 
@@ -138,7 +198,7 @@ async def run(city: str, limit: int | None = None) -> dict:
         dirs = dirs[:limit]
     client, model = _client()
     sem = asyncio.Semaphore(REVIEW_OBSERVE.parallel)
-    key = (REVIEW_OBSERVE.prompt_hash, ont.version)
+    key = (cache_key(ont), ont.version)
 
     async def one(d: Path) -> str:
         target = out / f"{d.name}.json"

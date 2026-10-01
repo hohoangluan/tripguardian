@@ -14,12 +14,12 @@ def review(i, text, author, details=(), rating=None, published="2 tuần trướ
             "published_text": published, "likes": 0, "photos": 0, "author_meta": ""}
 
 
-def setup(tmp_path, monkeypatch, reviews, qc=None):
+def setup(tmp_path, monkeypatch, reviews, qc=None, place=None):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     d = tmp_path / "gmaps" / "places" / DIR
     d.mkdir(parents=True)
     (d / "place.json").write_text(json.dumps({"fid": "0xF:0x1", "name": "Quán A", "category": "Quán cà phê",
-                                              "fetched_at": FETCHED}), encoding="utf-8")
+                                              "fetched_at": FETCHED, **(place or {})}), encoding="utf-8")
     (d / "reviews.json").write_text(json.dumps(reviews, ensure_ascii=False), encoding="utf-8")
     if qc:
         (tmp_path / "gmaps" / "qc").mkdir(parents=True)
@@ -38,6 +38,11 @@ def setup(tmp_path, monkeypatch, reviews, qc=None):
         return {"reviews": items}
 
     monkeypatch.setattr(extract, "ask_batch", fake_ask)
+
+    async def fake_verify(client, model, place, passage, claim):
+        return {"verdict": "supports", "reason": ""}
+
+    monkeypatch.setattr(extract, "verify_claim", fake_verify)
     return calls, tmp_path / "gmaps" / "observations" / f"{DIR}.json"
 
 
@@ -202,3 +207,84 @@ def test_failed_rerun_removes_the_outdated_file(tmp_path, monkeypatch):
     monkeypatch.setattr(extract, "ask_batch", broken)
     asyncio.run(extract.run("dalat"))
     assert not out.exists()
+
+
+def test_attributes_and_place_facts(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [], place={
+        "attributes": ["Phù hợp cho trẻ em", "Không có lối vào cho xe lăn", "Có nhà vệ sinh"],
+        "popular_times": [["Mức độ đông là 40% lúc 09 giờ."]] + [[]] * 6,
+        "price": "Khoảng giá, 1-100.000 ₫/người, 9 người đã báo cáo"})
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    got = [(o["id"], o["feature"], o["value"], o["source_type"], o["author"], o["span"]["field"], o["observed_at"])
+           for o in res["observations"]]
+    assert got == [("gmaps:attr:0", "kids", "suitable", "gmaps_attribute", "gmaps:attributes", "attributes", "2026-09-30"),
+                   ("gmaps:attr:1", "wheelchair", "unsuitable", "gmaps_attribute", "gmaps:attributes", "attributes",
+                    "2026-09-30")]
+    assert res["place_facts"] == {"popular_times": {"sun": {"9": 40}},
+                                  "price": {"min_vnd": 1, "max_vnd": 100000, "per": "person", "reports": 9}}
+    assert calls == []
+
+
+def test_qc_flagged_review_gives_no_details_or_rating(tmp_path, monkeypatch):
+    bad = review(7, "Liên hệ 0909 để đặt tour giá rẻ nhất", "spam", ["Độ ồn\nRất ồn, khó nghe"], "1 sao")
+    calls, out = setup(tmp_path, monkeypatch, [bad], {"llm": {"bad_reviews": [{"review_id": "R7", "problem": "spam"}]}})
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert res["observations"] == [] and res["ratings"] == []
+
+
+def test_span_check_keeps_only_supported(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp, lối vào hẻm dốc, mấy chị hông chặt chém", "a")])
+
+    async def ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        def ob(f, v, q):
+            return {"feature": f, "value": v, "quote": q, "time_of_day": "unknown", "day_type": "unknown",
+                    "weather": "unknown"}
+        return {"reviews": [{"ref": "r1", "proposed": [], "observations": [
+            ob("scenic_view", "present", "view đẹp"), ob("steep_or_stairs", "present", "hẻm dốc"),
+            ob("tourist_trap", "present", "hông chặt chém")]}]}
+
+    checked = []
+
+    async def verify(client, model, place, passage, claim):
+        checked.append((passage, claim))
+        return {"verdict": "contradicts" if claim.startswith("tourist_trap") else "supports", "reason": ""}
+
+    monkeypatch.setattr(extract, "ask_batch", ask)
+    monkeypatch.setattr(extract, "verify_claim", verify)
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert [o["feature"] for o in res["observations"]] == ["scenic_view", "steep_or_stairs"]
+    assert len(checked) == 2 and "hông chặt chém" in checked[0][0]  # scenic_view is not span-checked
+    assert res["stats"]["dropped"] == {"span_check_contradicts": 1}
+
+
+def test_span_check_bad_answer_drops_the_observation(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Lối vào hẻm dốc khá cao", "a")])
+
+    async def ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        return {"reviews": [{"ref": "r1", "proposed": [], "observations": [
+            {"feature": "steep_or_stairs", "value": "present", "quote": "hẻm dốc", "time_of_day": "unknown",
+             "day_type": "unknown", "weather": "unknown"}]}]}
+
+    async def verify(client, model, place, passage, claim):
+        raise ValueError("not json")
+
+    monkeypatch.setattr(extract, "ask_batch", ask)
+    monkeypatch.setattr(extract, "verify_claim", verify)
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert res["observations"] == [] and res["stats"]["dropped"] == {"span_check_error": 1}
+
+
+def test_ontology_hint_change_redoes_cached_place(tmp_path, monkeypatch):
+    import dataclasses
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    asyncio.run(extract.run("dalat"))
+    ont = load()
+    f = ont.features["crowd"]
+    changed = dataclasses.replace(ont, features={**ont.features, "crowd": dataclasses.replace(f, hint=f.hint + "!")})
+    monkeypatch.setattr(extract, "load_ontology", lambda: changed)
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 2
