@@ -108,7 +108,7 @@ data/
     places/<fid_dir>/                    fid_dir = FID với ":" đổi thành "_" (Windows)
       reviews.json                       [{review_id, author_hash, author_meta, rating, text, details[], published_text, likes,
                                          photos}]; không lấy phản hồi của chủ (không phải bằng chứng); mới nhất
-                                         trước; mọi review dưới 1 năm, không trần số lượng (`max_reviews_per_place` null; `max_review_age_months` 11: Maps ghi "một năm trước" cho 12–23 tháng; `min_reviews_per_place` 0)
+                                         trước; mọi review dưới 1 năm, không trần số lượng (`max_reviews_per_place` null; `max_review_age_months` 11: Maps ghi "một năm trước" cho 12–23 tháng; `min_reviews_per_place` 40: 40 review mới nhất luôn được giữ dù cũ hơn, để nơi ít khách vẫn có bằng chứng; place đã lưu bị cắt theo tuổi mà có dưới nửa min(40, số review Maps) được crawl lại)
       place.json                         fid, name, url, lat, lng, category, address, phone, website, description,
                                          hours[], status, attributes[], popular_times[], rating, review_count,
                                          rating_histogram[], price, plus_code, tickets, queries[], reviews_complete, fetched_at;
@@ -164,8 +164,13 @@ Mọi nguồn thành `Observation`; không gì ghi thẳng vào entity.
 - **Review Google Maps** (bản demo, xem §Sai lệch; code `src/corpus/observe/gmaps/`, lệnh `python -m corpus gmaps observe [--limit N]`):
   - `details` có cấu trúc của Maps (Độ ồn, Thời gian đợi/chờ, Điểm đỗ xe, Thông tin đánh giá về mức giá, Đặt chỗ, Nên đặt vé trước, sao Đồ ăn / Dịch vụ) → observation bằng rule, không model; "Đã đến vào" thành `day_type` của mọi observation của review đó. Giá trị Maps cắt "…" chỉ dùng khi là tiền tố rõ nghĩa của đúng một nhãn ("Không rõ" cũng là nhãn, nên "Không…" bỏ).
   - Text: bỏ review rỗng, < 15 ký tự, trùng (tác giả + text), và review mà phase `qc` gắn cờ `owner_reply` / `spam` / `not_a_review`; còn lại → Extractor (`REVIEW_OBSERVE`), mỗi call một lô ≤ 15 review / ≤ 12.000 ký tự của một địa điểm, trả cho từng review nhiều observation (feature + value + context + quote) và `proposed_feature`. Một review cho nhiều observation; cùng feature khác bối cảnh được ghi riêng.
-  - Gate: feature + value có trong ontology, context đúng enum, quote là chuỗi con của review sau chuẩn hóa NFC + khoảng trắng + hoa thường. Câu trả lời hỏng (JSON, schema) → chia đôi lô rồi thử lại, lô một review thử 2 lần; lỗi mạng / API → địa điểm thất bại ngay. Địa điểm thất bại không có file (file cũ bị xóa), ghi `data/gmaps/observe_errors.jsonl`, chạy lại lần sau.
-  - Chạy lại một địa điểm chỉ khi `reviews.json` / `fetched_at` / cờ qc, prompt, hoặc version ontology đổi.
+  - `attributes` của place (chủ quán / Google khai: "Phù hợp cho trẻ em", "Không có lối vào cho xe lăn", "Có chỗ ngồi ngoài trời", …) → observation bằng rule (`src/corpus/observe/gmaps/place_rules.py`), `source_type = gmaps_attribute`, một tác giả `gmaps:attributes` (một nguồn có thẩm quyền, xem §5). Lối vào quyết định `wheelchair`; nhà vệ sinh / chỗ ngồi / chỗ đỗ cho xe lăn riêng lẻ không map.
+  - `popular_times` (độ đông tương đối theo giờ, 100 = đỉnh của chính nơi đó, Chủ nhật trước) và `price` (khoảng giá / người) → `place_facts` của file observation, không phải observation.
+  - Câu hỏi dạng trả lời tự do trong `details` ("Độ thân thiện với trẻ em", "Tình trạng có lối đi cho xe lăn", "Các món chay") → `kids`, `wheelchair`, `vegetarian_options` theo bảng câu trả lời viết thường, so nguyên câu.
+  - Gate: feature + value có trong ontology, context đúng enum, quote là chuỗi con của review sau chuẩn hóa NFC + khoảng trắng + hoa thường.
+  - Kiểm tra span: observation từ text của feature có `check: span` trong ontology (suitability, effort, `tourist_trap`, `entry_fee`, `condition_change`) được đọc lại riêng bằng Extractor (`REVIEW_VERIFY`: một review, một khẳng định); chỉ giữ `supports`, còn lại bỏ và đếm `span_check_<verdict>`. Bắt được phủ định ("hông chặt chém"), mỉa mai, nhận xét vị trí ("quán nằm ngay dốc"), ngoại lệ ("miễn phí bé dưới 80cm"). Câu trả lời hỏng (JSON, schema) → chia đôi lô rồi thử lại, lô một review thử 2 lần; lỗi mạng / API → địa điểm thất bại ngay. Địa điểm thất bại không có file (file cũ bị xóa), ghi `data/gmaps/observe_errors.jsonl`, chạy lại lần sau.
+  - Review bị qc gắn cờ không cho bằng chứng nào (cả `details` lẫn sao).
+  - Chạy lại một địa điểm chỉ khi `reviews.json` / `fetched_at` / cờ qc, hai prompt, text ontology (kể cả hint), version ontology hoặc version rule đổi.
   - Output `data/gmaps/observations/<fid_dir>.json` theo format observation chung (`src/corpus/observe/__init__.py`); span = quote + review id (tham chiếu vào provider store, không chép sang entity). Review cũ hơn `max_review_age_months` không được crawl.
 - **Comment / segment TikTok** (chưa làm): cùng format observation, `data/tiktok/observations/<fid_dir>.json`; chỉ video có `yes` trong `data/tiktok/place_filter/<fid_dir>.json` là bằng chứng cho địa điểm đó.
 - **Trang official:** website lấy từ bản ghi Google = `verified`; không có thì chạy vòng tìm trang official (§Vòng lặp tự động), trang tìm được và code khớp tên + địa chỉ = `probable`; còn lại không dùng. Chỉ tải các loại trang trong whitelist (about, giờ, giá, vé, đặt chỗ, quy định, tin tức, liên hệ). Extractor trích nhận định `fact_key` kèm span.
@@ -195,7 +200,9 @@ source_type           official | provider | video | comment
 - Phiếu: 1 tác giả 1 phiếu; tác giả nói k giá trị khác nhau → mỗi giá trị 1/k; trùng (tác giả, value, bối cảnh) tính một. `n` = `independent_sources` = số tác giả. `by_context` đếm theo từng giá trị bối cảnh, `by_source` đếm observation thô.
 - `agreement` = tỷ lệ giá trị đứng đầu; < 0.6 → `uncertain`, giữ nguyên phân phối.
 - `trend`: cắt observation có ngày tại ngày trung vị (hai nửa không chung ngày, `split_at`); `rising | falling | stable` theo tỷ lệ giá trị đứng đầu khi mỗi nửa ≥ 5 tác giả, chênh ≥ 0.2; còn lại `insufficient`. Tương đối vì crawl giữ review mới nhất. `rating_trend` của địa điểm: sao trung bình hai nửa, chênh ≥ 0.5 sao.
-- Feature `verify: always`: giá trị cho phép luôn `needs_review`; giá trị cảnh báo cần ≥ 2 tác giả.
+- Nguồn có thẩm quyền (`gmaps_attribute`): giá trị nó khai được phục vụ không cần người khi không nguồn nào nói khác (`authority` = giá trị đó); có review nói khác → `uncertain` + `needs_review`, giữ cả hai phía.
+- Feature `verify: always` không có nguồn thẩm quyền: giá trị cho phép luôn `needs_review`; giá trị cảnh báo cần ≥ 2 tác giả nói đúng giá trị đó.
+- `operation` của địa điểm: `price_range` (Maps, {min_vnd, max_vnd, per, reports} hoặc {level}), `popular_times` nguyên dạng, `crowd_by_time` = trung bình % độ đông theo `weekday | weekend` × `time_of_day` (cùng bucket với context ontology; giờ 0% = đóng cửa, bỏ) + `peak` (ngày, giờ, %). Đây là độ đông tương đối của chính nơi đó, không so được tuyệt đối giữa hai nơi.
 - Coverage theo nhóm ontology: `NONE` khi không feature nào, `COMPLETE` khi ≥ 3 feature có n ≥ 3, còn lại `PARTIAL`.
 
 ### 6. Kiểm tra và định tuyến

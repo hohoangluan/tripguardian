@@ -112,6 +112,17 @@ Sở thích người dùng → truy xuất địa điểm (serving index) → đ
    → Giờ / giá / vị trí: bằng chứng official hoặc Google, không trộn với bằng chứng trải nghiệm TikTok
 ```
 
+**Dữ liệu hiện có cho Place Decision** (`data/intel/places/<fid_dir>.json`, `python -m corpus aggregate`; quy tắc ở `docs/specs/CORPUS_SPEC.md` §4–5):
+
+| Place Decision cần (`docs/PLACE_DECISION.md`) | Field | Nguồn chính | Lưu ý |
+|---|---|---|---|
+| Sàng lọc cứng §6: trẻ em, nhóm, xe lăn | `features.kids / groups / wheelchair` (`authority`, `needs_review`, `status`) | `attributes` Maps (thẩm quyền) + review đã kiểm span | Không có → `unknown`, fail-closed |
+| Sàng lọc cứng §6: dốc, bậc, đường xấu, đi bộ xa | `features.steep_or_stairs / rough_road_access / long_walk` | Review đã kiểm span | Review hiếm khi nhắc → phần lớn `unknown` |
+| Ngân sách | `operation.price_range`, `features.value_for_money / entry_fee / tourist_trap` | Maps + review | |
+| Hợp bối cảnh §7: độ đông theo ngày / buổi | `operation.crowd_by_time`, `features.crowd.by_context` | `popular_times` Maps + review | % tương đối của chính nơi đó |
+| Xếp hạng §8: `preference_fit` | `features.<id>.distribution / n / confidence` | Review + attributes | Review thiên tích cực: tín hiệu phân biệt nằm ở phiếu tiêu cực |
+| Thẻ ứng viên §11: vì sao phù hợp, đánh đổi, độ tin cậy | `features.*.observation_ids` → quote, `trend`, `rating_trend`, `coverage` | | |
+
 Planner chỉ đọc serving record; không bao giờ duyệt đồ thị bằng chứng. Thời tiết, giao thông, thời gian di chuyển thực tế được lấy theo từng request và không bao giờ thành dữ liệu corpus.
 
 Khi người dùng nhập một địa điểm chưa có trong registry, cùng bộ matcher chạy theo yêu cầu. Match chắc chắn thì trả về và xếp hàng làm giàu dữ liệu; nếu không, người dùng chọn từ các phương án. Không đoán gì cả.
