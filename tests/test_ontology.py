@@ -5,7 +5,8 @@ from corpus.ontology import load, parse
 
 def test_shipped_ontology_loads():
     ont = load()
-    assert ont.version == 1
+    assert ont.version == 2
+    assert ont.features["service_quality"].values == ("good", "mixed", "poor")
     assert ont.valid("crowd", "high") and not ont.valid("crowd", "packed") and not ont.valid("wifi", "present")
     assert ont.features["kids"].verify == "always" and ont.features["kids"].caution_values == ("unsuitable",)
     assert ont.features["scenic_view"].group == "experience"

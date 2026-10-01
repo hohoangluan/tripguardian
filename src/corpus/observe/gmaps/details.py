@@ -23,8 +23,7 @@ DAY_TYPE = {"Ngày trong tuần": "weekday", "Cuối tuần": "weekend", "Ngày 
 TABLES = {"Độ ồn": ("noise", NOISE), "Thời gian đợi": ("wait_time", WAIT), "Thời gian chờ": ("wait_time", WAIT),
           "Điểm đỗ xe": ("parking", PARKING), "Thông tin đánh giá về mức giá": ("value_for_money", PRICE_INFO),
           "Đặt chỗ": ("booking_needed", BOOKING), "Nên đặt vé trước": ("booking_needed", TICKET)}
-STARS = {"Đồ ăn": "food_quality", "Dịch vụ": "service_attitude"}  # "Bầu không khí" has no clear feature
-NO_MIXED = {"service_attitude"}  # the ontology has only good / poor here: 3 stars says nothing
+STARS = {"Đồ ăn": "food_quality", "Dịch vụ": "service_quality"}  # "Bầu không khí" has no clear feature
 
 
 def split(line: str) -> tuple[str, str]:
@@ -65,7 +64,7 @@ def details_pairs(review: dict) -> list[tuple[str, str, str]]:
             feature, value = STARS[key], star_value(raw)
         else:
             continue
-        if value and not (value == "mixed" and feature in NO_MIXED):
+        if value:
             out.append((feature, value, line))
     return out
 

@@ -18,7 +18,7 @@ R = {"details": [
 def test_details_map_to_features_and_skip_the_rest():
     assert [(f, v) for f, v, _ in details_pairs(R)] == [
         ("noise", "quiet"), ("wait_time", "short"), ("food_quality", "good"),
-        ("service_attitude", "poor"), ("booking_needed", "yes"), ("value_for_money", "poor")]
+        ("service_quality", "poor"), ("booking_needed", "yes"), ("value_for_money", "poor")]
 
 
 def test_quote_is_the_raw_line():
@@ -39,8 +39,8 @@ def test_every_rule_value_is_in_the_ontology():
     rows = [f"Đồ ăn: {n}" for n in "12345"] + [f"Dịch vụ: {n}" for n in "12345"]
     pairs = details_pairs({"details": rows})
     assert all(ont.valid(f, v) for f, v, _ in pairs)
-    assert ("service_attitude", "mixed") not in [(f, v) for f, v, _ in pairs]  # no "mixed" service in the ontology
-    assert ("food_quality", "mixed") in [(f, v) for f, v, _ in pairs]
+    assert ("service_quality", "mixed") in [(f, v) for f, v, _ in pairs]  # Maps "Dịch vụ" stars rate the service
+    assert not any(f == "service_attitude" for f, _, _ in pairs)  # stars say nothing about staff attitude
 
 
 def test_day_type():
