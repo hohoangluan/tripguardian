@@ -1,0 +1,50 @@
+# Feature ontology shared by every source's observations and by the User Profile (docs/CORPUS.md §5).
+# Changing ids or values: bump version -> observations are re-extracted (docs/specs/CORPUS_SPEC.md §7 ledger).
+version: 1
+groups: [experience, environment, service, effort, suitability]
+contexts:
+  time_of_day: [early_morning, morning, noon, afternoon, evening, night]
+  day_type: [weekday, weekend, holiday]
+  weather: [sunny, rainy, foggy, cold]
+features:
+  # experience
+  - {id: scenic_view, group: experience, values: [present], hint: "view / cảnh đẹp nhìn ra núi, đồi, rừng thông, hồ, thung lũng, thành phố"}
+  - {id: cloud_hunting, group: experience, values: [present], hint: "săn mây, biển mây"}
+  - {id: sunset_view, group: experience, values: [present], hint: "ngắm hoàng hôn hoặc bình minh"}
+  - {id: photo_spot, group: experience, values: [present], hint: "chụp ảnh đẹp, sống ảo, nhiều góc check-in"}
+  - {id: nature, group: experience, values: [present], hint: "thiên nhiên, rừng, thác, suối, không khí trong lành"}
+  - {id: flower_garden, group: experience, values: [present], hint: "vườn hoa, đồi hoa, mùa hoa"}
+  - {id: heritage_architecture, group: experience, values: [present], hint: "kiến trúc đẹp/cổ, di tích, lịch sử, văn hóa"}
+  - {id: cozy_decor, group: experience, values: [present], hint: "decor, không gian xinh, ấm cúng, có gu"}
+  - {id: long_stay_chill, group: experience, values: [present], hint: "ngồi lâu được, chill, thư giãn, làm việc"}
+  - {id: live_music, group: experience, values: [present], hint: "nhạc sống, acoustic, band"}
+  - {id: adventure_activity, group: experience, values: [present], hint: "zipline, máng trượt, canyoning, cưỡi ngựa, trò mạo hiểm"}
+  - {id: hiking, group: experience, values: [present], hint: "trekking, leo núi, đi bộ đường dài"}
+  - {id: animals, group: experience, values: [present], hint: "có thú/vật nuôi để xem hoặc chơi cùng (mèo, cừu, ngựa…)"}
+  - {id: local_specialty_food, group: experience, values: [present], hint: "món đặc sản / đặc trưng địa phương"}
+  - {id: food_quality, group: experience, values: [good, mixed, poor], hint: "đồ ăn ngon / bình thường / dở"}
+  - {id: drink_quality, group: experience, values: [good, mixed, poor], hint: "đồ uống ngon / bình thường / dở"}
+  # environment
+  - {id: crowd, group: environment, values: [low, medium, high], hint: "vắng / vừa / đông người"}
+  - {id: noise, group: environment, values: [quiet, moderate, loud], hint: "yên tĩnh / hơi ồn / ồn"}
+  - {id: setting, group: environment, values: [indoor, outdoor, both], hint: "trong nhà / ngoài trời / cả hai"}
+  - {id: cleanliness, group: environment, values: [clean, dirty], hint: "sạch sẽ / bẩn, nhiều rác"}
+  - {id: weather_exposed, group: environment, values: [present], hint: "phụ thuộc thời tiết: mưa thì lầy, không che, sương mù che view"}
+  - {id: parking, group: environment, values: [easy, hard], hint: "gửi xe dễ / khó"}
+  # service
+  - {id: service_attitude, group: service, values: [good, poor], hint: "nhân viên/chủ nhiệt tình, thân thiện / thái độ tệ"}
+  - {id: value_for_money, group: service, values: [good, poor], hint: "giá hợp lý, đáng tiền / đắt, không xứng"}
+  - {id: tourist_trap, group: service, values: [present], hint: "chặt chém, ngáo giá, cò mồi, ép mua, lừa khách"}
+  - {id: wait_time, group: service, values: [none, short, long], hint: "không phải chờ / chờ chút / chờ lâu"}
+  - {id: booking_needed, group: service, values: ["yes", "no"], hint: "cần / không cần đặt chỗ, đặt vé trước"}
+  - {id: condition_change, group: service, values: [improved, declined], hint: "so với trước: tốt lên / xuống cấp (vd: trước đẹp, giờ chặt hết cây)"}
+  # effort
+  - {id: rough_road_access, group: effort, values: [present], hint: "đường vào xấu: đất, đá, lầy, khó đi xe"}
+  - {id: steep_or_stairs, group: effort, values: [present], hint: "dốc cao, nhiều bậc thang, phải leo"}
+  - {id: long_walk, group: effort, values: [present], hint: "phải đi bộ xa"}
+  # suitability: permissive values can harm when wrong -> always checked by a person (CORPUS_SPEC.md §6)
+  - {id: kids, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp trẻ em"}
+  - {id: elderly, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp người lớn tuổi"}
+  - {id: wheelchair, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ xe lăn đi được / không đi được"}
+  - {id: couples, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp cặp đôi, hẹn hò"}
+  - {id: groups, group: suitability, values: [suitable, unsuitable], verify: always, caution_values: [unsuitable], hint: "nói rõ hợp / không hợp đi nhóm đông"}
