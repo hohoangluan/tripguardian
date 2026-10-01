@@ -14,14 +14,42 @@ import { System } from './screens/System'
 import './admin.css'
 
 const NAV = [
-  { path: '/admin', label: 'Dashboard', icon: 'gauge', key: 'd' },
-  { path: '/admin/review', label: 'Review Queue', icon: 'inbox', key: 'r' },
-  { path: '/admin/places', label: 'Places', icon: 'pin', key: 'p' },
-  { path: '/admin/evidence', label: 'Evidence', icon: 'layers', key: 'e' },
-  { path: '/admin/sessions', label: 'Trip Sessions', icon: 'route', key: 's' },
-  { path: '/admin/analytics', label: 'Analytics', icon: 'chart', key: 'a' },
-  { path: '/admin/system', label: 'System Monitor', icon: 'server', key: 'm' },
+  { path: '/admin', label: 'Tổng quan', icon: 'gauge', key: 'd', group: 'Công việc' },
+  { path: '/admin/review', label: 'Hàng đợi duyệt', icon: 'inbox', key: 'r', group: 'Công việc' },
+  { path: '/admin/places', label: 'Địa điểm', icon: 'pin', key: 'p', group: 'Dữ liệu' },
+  { path: '/admin/evidence', label: 'Bằng chứng', icon: 'layers', key: 'e', group: 'Dữ liệu' },
+  { path: '/admin/sessions', label: 'Phiên chuyến đi', icon: 'route', key: 's', group: 'Vận hành' },
+  { path: '/admin/analytics', label: 'Phân tích', icon: 'chart', key: 'a', group: 'Vận hành' },
+  { path: '/admin/system', label: 'Hệ thống', icon: 'server', key: 'm', group: 'Vận hành' },
 ]
+const GROUPS = [...new Set(NAV.map((n) => n.group))]
+
+type Theme = 'light' | 'dark'
+const THEME_KEY = 'tg.admin.theme'
+
+// Follows the system until the reviewer picks one; the pick is a per-browser convenience.
+function useTheme() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_KEY)
+      if (saved === 'light' || saved === 'dark') return saved
+    } catch {
+      /* storage blocked: fall back to the system theme */
+    }
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+  const toggle = () =>
+    setTheme((t) => {
+      const next = t === 'dark' ? 'light' : 'dark'
+      try {
+        localStorage.setItem(THEME_KEY, next)
+      } catch {
+        /* applied, just not remembered */
+      }
+      return next
+    })
+  return [theme, toggle] as const
+}
 
 export default function AdminApp() {
   const path = usePath()
@@ -29,6 +57,7 @@ export default function AdminApp() {
   const decisions = useDecisions()
   const [palette, setPalette] = useState(false)
   const [help, setHelp] = useState(false)
+  const [theme, toggleTheme] = useTheme()
   const main = useRef<HTMLDivElement>(null)
   const base = '/' + path.split('?')[0].split('/').filter(Boolean).slice(0, 2).join('/')
   const pending = snap ? snap.review.filter((r) => !decisions[r.id]).length : 0
@@ -83,7 +112,7 @@ export default function AdminApp() {
   else screen = <p className="a-empty">Không có trang này.</p>
 
   return (
-    <div className="admin">
+    <div className="admin" data-theme={theme}>
       <aside className="a-side">
         <a
           className="a-brand"
@@ -95,25 +124,33 @@ export default function AdminApp() {
         >
           <Emblem />
           <span>
-            TripGuardian <small>Admin</small>
+            TripGuardian <small>Admin · Đà Lạt</small>
           </span>
         </a>
+        <button className="a-find" onClick={() => setPalette(true)}>
+          <Icon name="search" size={15} /> <span>Tìm nhanh</span> <kbd>Ctrl K</kbd>
+        </button>
         <nav aria-label="Admin">
-          {NAV.map((n) => (
-            <button key={n.path} className={base === n.path || (n.path !== '/admin' && base.startsWith(n.path)) ? 'is-on' : ''} onClick={() => navigate(n.path)}>
-              <Icon name={n.icon} size={17} />
-              <span>{n.label}</span>
-              {n.path === '/admin/review' && pending > 0 && <b className="a-badge">{pending}</b>}
-              <kbd>g {n.key}</kbd>
-            </button>
+          {GROUPS.map((g) => (
+            <div className="a-nav" key={g}>
+              <p className="a-nav__group">{g}</p>
+              {NAV.filter((n) => n.group === g).map((n) => (
+                <button key={n.path} className={base === n.path || (n.path !== '/admin' && base.startsWith(n.path)) ? 'is-on' : ''} onClick={() => navigate(n.path)}>
+                  <Icon name={n.icon} size={17} />
+                  <span>{n.label}</span>
+                  {n.path === '/admin/review' && pending > 0 && <b className="a-badge">{pending}</b>}
+                  <kbd>g {n.key}</kbd>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="a-side__foot">
-          <button onClick={() => setPalette(true)}>
-            <Icon name="search" size={15} /> Tìm nhanh <kbd>Ctrl K</kbd>
-          </button>
           <button onClick={() => setHelp(true)}>
             <Icon name="keyboard" size={15} /> Phím tắt <kbd>?</kbd>
+          </button>
+          <button onClick={toggleTheme}>
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} /> {theme === 'dark' ? 'Nền sáng' : 'Nền tối'}
           </button>
           {snap && <small>Snapshot {new Date(snap.build.at).toLocaleString('vi-VN')}</small>}
         </div>
@@ -180,12 +217,12 @@ function Help({ onClose }: { onClose: () => void }) {
   const rows = [
     ['g rồi d / r / p / e / s / a / m', 'Đi tới trang'],
     ['Ctrl K', 'Tìm nhanh'],
-    ['j / k', 'Mục kế / mục trước (Review)'],
-    ['a', 'Accept'],
-    ['d', 'Disable'],
-    ['r rồi 1–5', 'Report error theo loại'],
+    ['j / k', 'Mục kế / mục trước (hàng đợi duyệt)'],
+    ['a', 'Chấp nhận'],
+    ['d', 'Vô hiệu'],
+    ['r rồi 1–5', 'Báo lỗi theo loại'],
     ['x', 'Chọn mục để xử lý hàng loạt'],
-    ['Shift A', 'Accept các mục đã chọn'],
+    ['Shift A', 'Chấp nhận các mục đã chọn'],
     ['u', 'Hoàn tác mục đang xem'],
   ]
   return (

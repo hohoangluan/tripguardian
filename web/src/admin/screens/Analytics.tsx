@@ -12,7 +12,7 @@ export function Analytics() {
     <div className="a-page">
       <header className="a-head">
         <div>
-          <h1>Analytics</h1>
+          <h1>Phân tích</h1>
           <p>Chưa có sự kiện nào được ghi, nên mọi ô đều trống. Ngưỡng chỉ đặt sau khi có baseline thật.</p>
         </div>
       </header>

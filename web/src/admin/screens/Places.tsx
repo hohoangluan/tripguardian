@@ -4,10 +4,20 @@ import { mapsEmbed, placeById } from '../../data/store'
 import type { Place, Snapshot, Status } from '../../data/types'
 import { navigate } from '../../router'
 import { GoogleMap, Icon } from '../../ui/bits'
-import { decide, useDecisions, type Verdict } from '../decisions'
+import { decide, useDecisions, VERDICT_LABEL, type Verdict } from '../decisions'
 import { STATUS_COLOR, worstStatus } from '../model'
 
 type Sort = 'name' | 'evidence' | 'updated'
+
+const ASPECT_LABEL: Record<string, string> = {
+  experience: 'Trải nghiệm',
+  environment: 'Không gian',
+  service: 'Dịch vụ',
+  effort: 'Vận động',
+  suitability: 'Hợp với ai',
+  operation: 'Vận hành',
+}
+const COVERAGE_LABEL: Record<string, string> = { COMPLETE: 'Đủ', PARTIAL: 'Một phần', NONE: 'Chưa có' }
 
 export function Places({ snap, openId }: { snap: Snapshot; openId?: string }) {
   const [q, setQ] = useState('')
@@ -36,7 +46,7 @@ export function Places({ snap, openId }: { snap: Snapshot; openId?: string }) {
     <div className={`a-page places${open ? ' has-detail' : ''}`}>
       <header className="a-head">
         <div>
-          <h1>Places</h1>
+          <h1>Địa điểm</h1>
           <p>{rows.length} địa điểm khớp bộ lọc. Trạng thái hiển thị là khía cạnh tệ nhất của nơi đó.</p>
         </div>
       </header>
@@ -51,13 +61,13 @@ export function Places({ snap, openId }: { snap: Snapshot; openId?: string }) {
           <option value="ALL">Mọi trạng thái</option>
           {(['NEEDS_REVIEW', 'UNCERTAIN', 'OUTDATED', 'VERIFIED'] as Status[]).map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STATUS_LABEL[s]}
             </option>
           ))}
           <option value="NONE">Chưa có bằng chứng</option>
         </select>
-        <select value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
-          <option value="all">Mọi category</option>
+        <select value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Loại hình">
+          <option value="all">Mọi loại hình</option>
           {cats.map((c) => (
             <option key={c}>{c}</option>
           ))}
@@ -106,9 +116,9 @@ export function Places({ snap, openId }: { snap: Snapshot; openId?: string }) {
 
 export function StatusPill({ s }: { s: Status }) {
   return (
-    <span className="pill" style={{ ['--c' as string]: STATUS_COLOR[s] }}>
+    <span className="pill" style={{ ['--c' as string]: STATUS_COLOR[s] }} title={s}>
       <i />
-      {s}
+      {STATUS_LABEL[s]}
     </span>
   )
 }
@@ -133,19 +143,19 @@ function PlacePanel({ p }: { p: Place }) {
       </p>
       <dl className="parts parts--wide">
         <div>
-          <dt>Identity</dt>
+          <dt>Tọa độ</dt>
           <dd>
             {p.lat.toFixed(4)}, {p.lng.toFixed(4)}
           </dd>
         </div>
         <div>
-          <dt>Operation</dt>
-          <dd>{p.hours ? 'Có giờ mở cửa' : p.hoursText.length ? 'Giờ từ Google' : 'Chưa có giờ'}</dd>
+          <dt>Giờ mở cửa</dt>
+          <dd>{p.hours ? 'Có giờ' : p.hoursText.length ? 'Từ Google' : 'Chưa có'}</dd>
         </div>
         {Object.entries(p.coverage ?? {}).map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd className={`cov cov--${v}`}>{v}</dd>
+          <div key={k} title={`${k}=${v}`}>
+            <dt>{ASPECT_LABEL[k] ?? k}</dt>
+            <dd className={`cov cov--${v}`}>{COVERAGE_LABEL[v] ?? v}</dd>
           </div>
         ))}
       </dl>
@@ -154,7 +164,7 @@ function PlacePanel({ p }: { p: Place }) {
       <table className="a-table a-table--compact">
         <thead>
           <tr>
-            <th>Feature</th>
+            <th>Khía cạnh</th>
             <th>Giá trị</th>
             <th>Trạng thái</th>
             <th className="num">n</th>
@@ -178,25 +188,27 @@ function PlacePanel({ p }: { p: Place }) {
         </tbody>
       </table>
       <footer className="pp__actions">
-        <button className="a-btn a-btn--ok" onClick={() => act('accept', 'Đã Accept toàn bộ giá trị đang hiển thị.')}>
-          Accept
+        <button className="a-btn a-btn--ok" onClick={() => act('accept', 'Đã chấp nhận toàn bộ giá trị đang hiển thị.')}>
+          Chấp nhận
         </button>
-        <button className="a-btn a-btn--bad" onClick={() => act('disable', 'Đã Disable địa điểm. Provenance cũ vẫn được giữ.')}>
-          Disable
+        <button className="a-btn a-btn--bad" onClick={() => act('disable', 'Đã vô hiệu địa điểm. Provenance cũ vẫn được giữ.')}>
+          Vô hiệu
         </button>
-        <button className="a-btn" onClick={() => act('report', 'Đã Report error. Hệ thống sẽ build lại từ bằng chứng.')}>
-          Report error
+        <button className="a-btn" onClick={() => act('report', 'Đã báo lỗi. Hệ thống sẽ build lại từ bằng chứng.')}>
+          Báo lỗi
         </button>
         <button className="a-btn a-btn--ghost" onClick={() => act('refresh', 'Đã gửi yêu cầu làm mới nguồn.')}>
-          <Icon name="refresh" size={14} /> Request refresh
+          <Icon name="refresh" size={14} /> Yêu cầu làm mới
         </button>
       </footer>
       {(msg || d) && (
         <p className="a-note" role="status">
-          {msg ?? `${d!.verdict} lúc ${new Date(d!.at).toLocaleString('vi-VN')}`} Lưu trong trình duyệt (bản thử).
+          {msg ?? `${VERDICT_LABEL[d!.verdict]} lúc ${new Date(d!.at).toLocaleString('vi-VN')}.`} Lưu trong trình duyệt (bản thử).
         </p>
       )}
-      <p className="a-muted">{STATUS_LABEL.VERIFIED}: giá trị được phục vụ cho người dùng; NEEDS_REVIEW và DISABLED thì không.</p>
+      <p className="a-muted">
+        {STATUS_LABEL.VERIFIED}: giá trị được phục vụ cho người dùng; {STATUS_LABEL.NEEDS_REVIEW.toLowerCase()} và {STATUS_LABEL.DISABLED.toLowerCase()} thì không.
+      </p>
     </aside>
   )
 }

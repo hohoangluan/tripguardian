@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { useSnapshot } from '../data/store'
 import { Start } from '../pages/Start'
 import { match, navigate } from '../router'
-import { story } from '../scene/story'
 import { Icon } from '../ui/bits'
 import { Compare } from './screens/Compare'
 import { CurateBar } from './screens/Curate'
@@ -25,18 +24,18 @@ const STEPS = [
   { path: '/app/plan', label: 'Lịch trình' },
 ]
 
-// Background scene per screen: the plan visibly "comes together" behind the UI.
-const SCENE: Record<string, [number, number]> = {
-  '/app': [0, 0.2],
-  '/app/setup': [1, 0.28],
-  '/app/discover': [2, 0.36],
-  '/app/shortlist': [3, 0.5],
-  '/app/place': [3, 0.5],
-  '/app/compare': [3, 0.55],
-  '/app/feasibility': [4, 0.8],
-  '/app/plan': [5, 0.96],
-  '/app/profile': [6, 0.3],
-  '/app/feedback': [6, 0.96],
+// Poster illustration behind each screen's title (public/img/poster-*.webp).
+const POSTER: Record<string, string> = {
+  '/app': 'start',
+  '/app/setup': 'setup',
+  '/app/discover': 'discover',
+  '/app/shortlist': 'shortlist',
+  '/app/place': 'shortlist',
+  '/app/compare': 'shortlist',
+  '/app/feasibility': 'feasibility',
+  '/app/plan': 'plan',
+  '/app/profile': 'profile',
+  '/app/feedback': 'plan',
 }
 
 export function UserApp({ path, onHome }: { path: string; onHome: () => void }) {
@@ -53,9 +52,6 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   const base = '/' + path.split('?')[0].split('/').filter(Boolean).slice(0, 2).join('/')
 
   useEffect(() => {
-    const [step, scene] = SCENE[base] ?? [0, 0.2]
-    story.appStep = step
-    story.appScene = scene
     window.scrollTo({ top: 0 })
   }, [base])
 
@@ -82,8 +78,13 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   else if (base === '/app/feedback') screen = <Feedback />
   else screen = <div className="loading">Không có trang này.</div>
 
+  const poster = POSTER[base] ?? 'shortlist'
+
   return (
-    <div className="uapp">
+    <div className={`uapp${base === '/app' ? ' uapp--start' : ''}`}>
+      <div className="uposter" aria-hidden="true">
+        <img src={`/img/poster-${poster}.webp`} alt="" key={poster} decoding="async" />
+      </div>
       <header className="ubar">
         <a
           className="wordmark"
@@ -96,7 +97,13 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
           TripGuardian
         </a>
         {stepIndex >= 0 && (
-          <nav className="usteps" aria-label="Tiến trình">
+          <nav className="usteps" aria-label="Tiến trình" style={{ ['--done' as string]: (stepIndex + 1) / STEPS.length }}>
+            <p className="usteps__now" aria-hidden="true">
+              <span>
+                Bước {stepIndex + 1}/{STEPS.length}
+              </span>{' '}
+              {STEPS[stepIndex].label}
+            </p>
             <ol>
               {STEPS.map((s, i) => (
                 <li key={s.path} className={i === stepIndex ? 'is-active' : i < stepIndex ? 'is-done' : ''}>

@@ -20,7 +20,7 @@ export const REPORT_LABEL: Record<ReportKind, string> = {
   category: 'Sai category',
 }
 
-export const VERDICT_LABEL: Record<Verdict, string> = { accept: 'Accept', disable: 'Disable', report: 'Report error', refresh: 'Request refresh' }
+export const VERDICT_LABEL: Record<Verdict, string> = { accept: 'Đã chấp nhận', disable: 'Đã vô hiệu', report: 'Đã báo lỗi', refresh: 'Đã yêu cầu làm mới' }
 
 const KEY = 'tg.admin.decisions.v1'
 let state: Record<string, Decision> = (() => {

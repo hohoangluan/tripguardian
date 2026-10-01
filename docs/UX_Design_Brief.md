@@ -77,13 +77,26 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 
 ## 6. Ràng buộc cứng
 
-- Clip TikTok phát qua **embed TikTok** tại một timestamp. Không tự host video. Không hiển thị transcript.
+- Clip TikTok phát từ bản đã thu (`data/tiktok/videos/<id>/video.mp4`, ảnh bìa từ `frames/`), luôn ghi @creator và link về clip gốc; không có bản thu thì dùng embed TikTok. Không hiển thị transcript.
 - Dữ liệu lấy từ Google hiển thị kèm **bản đồ Google**, không dùng nhà cung cấp bản đồ khác.
 - Không màn nào trình bày estimate hay giá trị chưa chắc chắn như fact đã xác nhận.
 - Người dùng và admin không sửa tay dữ liệu địa điểm; chỉ báo lỗi hoặc duyệt.
 - Chỗ ở không được gợi ý. Người dùng đã có chỗ ở thì nhập; nó là anchor và chỉ quyết định điểm bắt đầu / kết thúc của lộ trình.
 
-## 7. Câu hỏi mở cho designer
+## 7. Hệ thị giác đang dùng
+
+| | User Web + landing | Admin Web |
+|---|---|---|
+| Hướng | Poster du lịch Đà Lạt, ưu tiên điện thoại | "Phòng điều khiển", chỉ desktop, sáng/tối theo hệ thống |
+| Chữ | Phudu (tiêu đề, nút; chữ hoa, chỉ câu ngắn), Geologica (nội dung, tên địa điểm), Space Mono (giờ, số, khoảng ước tính) | Mona Sans (độ rộng tạo phân cấp), JetBrains Mono (dữ liệu, phím tắt) |
+| Nền | Landing: thế giới 3D cuộn kể chuyện, rồi phần giấy kem (video demo, FAQ, CTA). App: giấy kem, bề mặt đặc, dải ảnh poster sau tiêu đề mỗi màn | Bề mặt trung tính; thẻ "Việc cần làm" nền thông đậm là điểm nhìn đầu tiên |
+| Màu | Giấy `#F4F0E6`, thông `#1D3B33`, hồ `#2F5D6B`, dã quỳ `#F2B31B` (chữ vàng chỉ trên nền tối) | Cùng thông và dã quỳ; màu trạng thái theo `admin/model.ts` |
+
+- Quy tắc cứng là khối nền thông đậm có khóa vàng; sở thích mềm là chip viền đứt.
+- Ảnh poster sinh qua `web/scripts/gen_images.py`; chúng là minh họa, không phải ảnh địa điểm thật. Ảnh bìa thẻ địa điểm lấy từ frame clip thật của chính nơi đó, có ghi creator.
+- Video demo landing quay từ app thật bằng `web/scripts/record_demo.mjs`.
+
+## 8. Câu hỏi mở cho designer
 
 1. Hiển thị "khả thi trực tiếp" trên điện thoại thế nào mà không che shortlist (bottom sheet, thanh dính, …)?
 2. Đánh dấu sở thích "từ hồ sơ của bạn" thế nào để chúng đọc như suy đoán sửa được, không phải cài đặt?

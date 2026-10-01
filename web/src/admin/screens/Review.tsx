@@ -2,7 +2,7 @@ import gsap from 'gsap'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { valueLabel } from '../../data/labels'
 import type { ReviewItem, Snapshot } from '../../data/types'
-import { Icon, TikTokEmbed } from '../../ui/bits'
+import { Clip, Icon } from '../../ui/bits'
 import { decide, REPORT_LABEL, undo, useDecisions, VERDICT_LABEL, type ReportKind, type Verdict } from '../decisions'
 import { itemTitle, KIND_LABEL, riskOf, signalOf, whyOf, type Risk } from '../model'
 
@@ -85,10 +85,18 @@ export function Review({ snap }: { snap: Snapshot }) {
     <div className="a-page rq">
       <header className="a-head">
         <div>
-          <h1>Review Queue</h1>
-          <p>
-            {handled} / {total} mục đã xử lý. Phiên này: {doneHere} mục, {(doneHere / minutes).toFixed(1)} mục/phút (mục tiêu 5).
-          </p>
+          <h1>Hàng đợi duyệt</h1>
+          <div className="rq__progress">
+            <span className="rq__bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={handled} aria-label="Đã xử lý">
+              <i style={{ width: `${(handled / Math.max(1, total)) * 100}%` }} />
+            </span>
+            <span>
+              <b>{handled}</b> / {total} đã xử lý
+            </span>
+            <span className={doneHere / minutes >= 5 ? 'is-ok' : ''}>
+              Phiên này <b>{doneHere}</b> mục · <b>{(doneHere / minutes).toFixed(1)}</b> mục/phút (mục tiêu 5)
+            </span>
+          </div>
         </div>
         <div className="a-filters">
           <div className="seg seg--admin" role="radiogroup" aria-label="Trạng thái">
@@ -108,36 +116,38 @@ export function Review({ snap }: { snap: Snapshot }) {
           </select>
         </div>
       </header>
-      <p className="rq__hint">
-        <kbd>j</kbd> <kbd>k</kbd> chuyển mục <kbd>a</kbd> Accept <kbd>d</kbd> Disable <kbd>r</kbd> Report error <kbd>x</kbd> chọn nhiều <kbd>u</kbd> hoàn tác <kbd>?</kbd> tất cả phím
-        <span className="a-note">
-          <Icon name="info" size={14} /> Bản thử: quyết định lưu trong trình duyệt này, chưa ghi vào pipeline.
-        </span>
-      </p>
-
       <div className="rq__split">
-        <div className="rq__list" role="listbox" aria-label="Mục cần duyệt">
-          {items.length === 0 && <p className="a-empty">{show === 'open' ? 'Hết mục cần duyệt. Tốt lắm.' : 'Chưa có quyết định nào.'}</p>}
-          {items.map((r, i) => {
-            const { place } = signalOf(r)
-            const d = decisions[r.id]
-            return (
-              <button
-                key={r.id}
-                role="option"
-                aria-selected={i === cursor}
-                className={`rq__row${i === cursor ? ' is-cur' : ''}${picked.has(r.id) ? ' is-picked' : ''}`}
-                onClick={() => setCursor(i)}
-              >
-                <span className={`risk risk--${riskOf(r)}`}>{riskOf(r)}</span>
-                <span className="rq__main">
-                  <b>{itemTitle(r)}</b>
-                  <small>{place?.name ?? r.placeId}</small>
-                </span>
-                <span className="rq__kind">{d ? VERDICT_LABEL[d.verdict] : KIND_LABEL[r.kind]}</span>
-              </button>
-            )
-          })}
+        <div className="rq__side">
+          <div className="rq__list" role="listbox" aria-label="Mục cần duyệt">
+            {items.length === 0 && <p className="a-empty">{show === 'open' ? 'Hết mục cần duyệt. Tốt lắm.' : 'Chưa có quyết định nào.'}</p>}
+            {items.map((r, i) => {
+              const { place } = signalOf(r)
+              const d = decisions[r.id]
+              return (
+                <button
+                  key={r.id}
+                  role="option"
+                  aria-selected={i === cursor}
+                  className={`rq__row${i === cursor ? ' is-cur' : ''}${picked.has(r.id) ? ' is-picked' : ''}`}
+                  onClick={() => setCursor(i)}
+                >
+                  <span className={`risk risk--${riskOf(r)}`}>{riskOf(r)}</span>
+                  <span className="rq__main">
+                    <b>{itemTitle(r)}</b>
+                    <small>{place?.name ?? r.placeId}</small>
+                  </span>
+                  <span className="rq__kind">{d ? VERDICT_LABEL[d.verdict] : KIND_LABEL[r.kind]}</span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="rq__keys">
+            <kbd>j</kbd>
+            <kbd>k</kbd> chuyển <kbd>x</kbd> chọn nhiều <kbd>u</kbd> hoàn tác <kbd>?</kbd> mọi phím
+          </p>
+          <p className="a-note">
+            <Icon name="info" size={14} /> Bản thử: quyết định lưu trong trình duyệt này, chưa ghi vào pipeline.
+          </p>
         </div>
 
         <div className="rq__detail">
@@ -147,23 +157,23 @@ export function Review({ snap }: { snap: Snapshot }) {
               <footer className="rq__actions">
                 {show === 'open' ? (
                   <>
-                    <button className="a-btn a-btn--ok" onClick={() => act('accept')}>
-                      Accept <kbd>a</kbd>
+                    <button className="a-btn a-btn--ok a-btn--big" onClick={() => act('accept')}>
+                      <Icon name="check" size={16} /> Chấp nhận <kbd>a</kbd>
                     </button>
-                    <button className="a-btn a-btn--bad" onClick={() => act('disable')}>
-                      Disable <kbd>d</kbd>
+                    <button className="a-btn a-btn--bad a-btn--big" onClick={() => act('disable')}>
+                      <Icon name="x" size={16} /> Vô hiệu <kbd>d</kbd>
                     </button>
-                    <button className={`a-btn${reporting ? ' is-on' : ''}`} onClick={() => setReporting((x) => !x)}>
-                      Report error <kbd>r</kbd>
+                    <button className={`a-btn a-btn--big${reporting ? ' is-on' : ''}`} onClick={() => setReporting((x) => !x)}>
+                      <Icon name="flag" size={16} /> Báo lỗi <kbd>r</kbd>
                     </button>
                     {sameLow.length > 1 && (
                       <button className="a-btn a-btn--ghost" onClick={() => act('accept', undefined, sameLow)}>
-                        Accept cả {sameLow.length} mục rủi ro thấp cùng loại
+                        Chấp nhận cả {sameLow.length} mục rủi ro thấp cùng loại
                       </button>
                     )}
                     {picked.size > 0 && (
                       <button className="a-btn a-btn--ghost" onClick={() => act('accept', undefined, [...picked])}>
-                        Accept {picked.size} mục đã chọn <kbd>Shift A</kbd>
+                        Chấp nhận {picked.size} mục đã chọn <kbd>Shift A</kbd>
                       </button>
                     )}
                   </>
@@ -180,7 +190,7 @@ export function Review({ snap }: { snap: Snapshot }) {
                       <kbd>{i + 1}</kbd> {REPORT_LABEL[k]}
                     </button>
                   ))}
-                  <p>Report error kích hoạt build lại từ bằng chứng. Không sửa giá trị bằng tay.</p>
+                  <p>Báo lỗi kích hoạt build lại từ bằng chứng. Không sửa giá trị bằng tay.</p>
                 </div>
               )}
             </div>
@@ -210,8 +220,10 @@ function Detail({ r }: { r: ReviewItem }) {
       {signal ? (
         <>
           <section className="rq__sec">
-            <h3>Giá trị</h3>
-            <p className="rq__value">{valueLabel(signal.value)}</p>
+            <h3>Giá trị đang phục vụ</h3>
+            <p className="rq__value">
+              {itemTitle(r)}: <b>{valueLabel(signal.value)}</b>
+            </p>
             <div className="dist" role="img" aria-label="Phân bố ý kiến">
               {Object.entries(signal.distribution)
                 .sort((a, b) => b[1] - a[1])
@@ -225,6 +237,25 @@ function Detail({ r }: { r: ReviewItem }) {
                   </div>
                 ))}
             </div>
+          </section>
+          <section className="rq__sec">
+            <h3>Bằng chứng</h3>
+            {signal.quotes.length ? (
+              <ul className="quotes">
+                {signal.quotes.map((q, i) => (
+                  <li key={i}>
+                    <Icon name="quote" size={14} />
+                    <span>{q.text}</span>
+                    <small>
+                      {q.source}
+                      {q.date ? `, ${q.date}` : ''}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="a-muted">Không có trích dẫn trong snapshot.</p>
+            )}
           </section>
           <section className="rq__sec">
             <h3>Thành phần độ tin cậy</h3>
@@ -247,42 +278,23 @@ function Detail({ r }: { r: ReviewItem }) {
               </div>
             </dl>
           </section>
-          <section className="rq__sec">
-            <h3>Bằng chứng</h3>
-            {signal.quotes.length ? (
-              <ul className="quotes">
-                {signal.quotes.map((q, i) => (
-                  <li key={i}>
-                    <Icon name="quote" size={14} />
-                    <span>{q.text}</span>
-                    <small>
-                      {q.source}
-                      {q.date ? `, ${q.date}` : ''}
-                    </small>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="a-muted">Không có trích dẫn trong snapshot.</p>
-            )}
-          </section>
         </>
       ) : (
         <section className="rq__sec">
           <h3>Đề xuất</h3>
           <p>
-            Nhãn <b>{r.feature}</b>, {r.value}. Accept để đưa vào danh sách xem xét ontology.
+            Nhãn <b>{r.feature}</b>, {r.value}. Chấp nhận để đưa vào danh sách xem xét ontology.
           </p>
         </section>
       )}
       {place && place.videos[0] && (
         <section className="rq__sec">
           <h3>Clip liên quan</h3>
-          <TikTokEmbed id={place.videos[0].id} />
+          <Clip video={place.videos[0]} />
         </section>
       )}
       <section className="rq__sec">
-        <h3>Finding của Judge</h3>
+        <h3>Nhận xét của Judge</h3>
         <p className="a-muted">Snapshot chưa kèm finding của Judge.</p>
       </section>
     </>

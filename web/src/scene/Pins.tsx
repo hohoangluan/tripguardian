@@ -13,6 +13,8 @@ const DIM = new THREE.Color('#56706a')
 
 export function Pins({ scene }: { scene: { p: number } }) {
   const pins = useMemo(buildPins, [])
+  // Portrait phones see the pins against open sky: keep them small there.
+  const size = useMemo(() => (innerWidth < 720 ? 0.6 : 1), [])
   const mesh = useRef<THREE.InstancedMesh>(null)
   const beams = useRef<(THREE.Mesh | null)[]>([])
   const labels = useRef<(HTMLDivElement | null)[]>([])
@@ -53,7 +55,7 @@ export function Pins({ scene }: { scene: { p: number } }) {
 
       e.set(0, t * 0.7 + i, (1 - drop) * Math.sin(t * 0.5 + i) * 0.4)
       q.setFromEuler(e)
-      s.setScalar(Math.max(k, 0.0001))
+      s.setScalar(Math.max(k * size, 0.0001))
       m.compose(v, q, s)
       im.setMatrixAt(i, m)
       im.setColorAt(i, c)

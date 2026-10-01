@@ -3,7 +3,7 @@ import { DAY_VI, featureLabel, isNegative, STATUS_LABEL, TIME_VI, valueLabel } f
 import { confidenceOf, DAYS, mapsEmbed, placeById, priceText, sectionOf, visible, visitRange } from '../../data/store'
 import type { Place, Signal } from '../../data/types'
 import { navigate } from '../../router'
-import { ConfidenceTag, GoogleMap, Icon, Page, SectionArt, StatusTag, TikTokEmbed } from '../../ui/bits'
+import { Clip, ConfidenceTag, GoogleMap, Icon, Page, SectionArt, StatusTag } from '../../ui/bits'
 import { area } from '../search'
 import { useTrip } from '../trip'
 
@@ -121,16 +121,13 @@ export function PlaceDetail({ id }: { id: string }) {
 
         {p.videos.length > 0 && (
           <section className="clips" aria-labelledby="clips-h">
-            <h2 id="clips-h">Clip TikTok về nơi này</h2>
-            <p className="block__hint">Clip phát qua TikTok. Đây là trải nghiệm của người đăng, khác với thông tin thực tế ở trên.</p>
+            <h2 id="clips-h">
+              Clip người đi trước quay <small>{p.videos.length} clip</small>
+            </h2>
+            <p className="block__hint">Trải nghiệm của người đăng, khác với thông tin thực tế. Chạm để xem, tên tác giả dẫn về clip gốc.</p>
             <div className="clips__row">
-              {p.videos.slice(0, 3).map((v) => (
-                <figure key={v.id}>
-                  <TikTokEmbed id={v.id} />
-                  <figcaption>
-                    {v.handle && <b>@{v.handle}</b>} {v.desc.slice(0, 90)}
-                  </figcaption>
-                </figure>
+              {p.videos.slice(0, 6).map((v) => (
+                <Clip key={v.id} video={v} />
               ))}
             </div>
           </section>

@@ -2,7 +2,7 @@ import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { STATUS_LABEL } from '../data/labels'
 import type { Confidence } from '../data/store'
-import type { Status } from '../data/types'
+import type { Status, Video } from '../data/types'
 import { story } from '../scene/story'
 
 // ---------- icons (stroke, currentColor) ----------
@@ -38,6 +38,8 @@ const PATHS: Record<string, string> = {
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   keyboard: 'M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10',
   refresh: 'M20 11a8 8 0 10-2.3 5.7M20 4v7h-7',
+  sun: 'M12 8a4 4 0 110 8 4 4 0 010-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  moon: 'M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z',
 }
 
 export function Icon({ name, size = 18, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
@@ -123,14 +125,14 @@ export function Segmented<T extends string | number>({
 
 // ---------- motion ----------
 
-// Pages enter from depth: a short tilt-and-rise that reads as moving forward.
+// Pages enter with a short fade-and-rise; cards inside stagger in via CSS.
 export function Page({ children, className = '' }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el || story.reducedMotion) return
     const ctx = gsap.context(() => {
-      gsap.fromTo(el, { opacity: 0, y: 30, rotateX: 7, z: -90 }, { opacity: 1, y: 0, rotateX: 0, z: 0, duration: 0.75, ease: 'power3.out', clearProps: 'transform' })
+      gsap.fromTo(el, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' })
     }, el)
     return () => ctx.revert()
   }, [])
@@ -163,23 +165,50 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
   )
 }
 
-// TikTok plays through its own embed (UX brief §6), never self-hosted.
-export function TikTokEmbed({ id }: { id: string }) {
-  const [on, setOn] = useState(false)
-  return on ? (
-    <iframe
-      className="tiktok"
-      src={`https://www.tiktok.com/embed/v2/${id}?lang=vi-VN`}
-      title="Clip TikTok"
-      allow="encrypted-media; fullscreen"
-      allowFullScreen
-      loading="lazy"
-    />
-  ) : (
-    <button type="button" className="tiktok tiktok--idle" onClick={() => setOn(true)}>
-      <Icon name="play" size={22} />
-      <span>Mở clip TikTok</span>
-    </button>
+// Crawled clips play from our own copy (data/tiktok/videos, served at /media/tiktok);
+// without a local file they fall back to TikTok's embed. The creator is always credited.
+const clipSrc = (id: string, file: string) => `/media/tiktok/${id}/${file}`
+
+export function Clip({ video }: { video: Video }) {
+  const [mode, setMode] = useState<'idle' | 'local' | 'embed'>('idle')
+  const [poster, setPoster] = useState(true)
+  return (
+    <figure className="clip">
+      {mode === 'idle' && (
+        <button type="button" className="clip__frame clip__frame--idle" onClick={() => setMode('local')} aria-label={`Phát clip${video.handle ? ` của @${video.handle}` : ''}`}>
+          {poster && <img src={clipSrc(video.id, 'frames/f2.jpg')} alt="" loading="lazy" decoding="async" onError={() => setPoster(false)} />}
+          <span className="clip__play">
+            <Icon name="play" size={22} />
+          </span>
+        </button>
+      )}
+      {mode === 'local' && (
+        <video className="clip__frame" src={clipSrc(video.id, 'video.mp4')} poster={poster ? clipSrc(video.id, 'frames/f2.jpg') : undefined} controls autoPlay playsInline onError={() => setMode('embed')} />
+      )}
+      {mode === 'embed' && (
+        <iframe className="clip__frame" src={`https://www.tiktok.com/embed/v2/${video.id}?lang=vi-VN`} title="Clip TikTok" allow="encrypted-media; fullscreen" allowFullScreen loading="lazy" />
+      )}
+      <figcaption>
+        <a href={video.url} target="_blank" rel="noreferrer">
+          {video.handle ? `@${video.handle}` : 'Xem trên TikTok'}
+        </a>
+        {video.desc && <span>{video.desc.slice(0, 80)}</span>}
+      </figcaption>
+    </figure>
+  )
+}
+
+// Cover for a place card: a frame from a real clip of that place, credited.
+// Not every clip has a local copy, so walk the list until one loads.
+export function ClipCover({ videos }: { videos: Video[] }) {
+  const [i, setI] = useState(0)
+  const v = videos[i]
+  if (!v || i > 5) return null
+  return (
+    <span className="cover">
+      <img key={v.id} src={clipSrc(v.id, 'frames/f2.jpg')} alt="" loading="lazy" decoding="async" onError={() => setI(i + 1)} />
+      {v.handle && <small>@{v.handle}</small>}
+    </span>
   )
 }
 

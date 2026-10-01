@@ -26,7 +26,7 @@ export function Sessions() {
     <div className="a-page">
       <header className="a-head">
         <div>
-          <h1>Trip Sessions</h1>
+          <h1>Phiên chuyến đi</h1>
           <p>Để debug, đánh giá pilot và tìm chỗ người dùng bỏ dở. Không hiện dữ liệu cá nhân không cần thiết.</p>
         </div>
       </header>

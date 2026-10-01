@@ -8,10 +8,10 @@ import { StatusPill } from './Places'
 type Filter = 'all' | 'fresh' | 'outdated' | 'conflicting' | 'single'
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'fresh', label: 'Fresh' },
-  { id: 'outdated', label: 'Outdated' },
-  { id: 'conflicting', label: 'Conflicting' },
-  { id: 'single', label: 'Single source' },
+  { id: 'fresh', label: 'Còn mới' },
+  { id: 'outdated', label: 'Quá hạn' },
+  { id: 'conflicting', label: 'Xung đột' },
+  { id: 'single', label: 'Một nguồn' },
 ]
 
 export function Evidence({ snap }: { snap: Snapshot }) {
@@ -52,7 +52,7 @@ export function Evidence({ snap }: { snap: Snapshot }) {
     <div className="a-page">
       <header className="a-head">
         <div>
-          <h1>Evidence</h1>
+          <h1>Bằng chứng</h1>
           <p>Mỗi dòng là một nhận định về một địa điểm. Xung đột chưa xử lý thì User Web hiển thị là chưa chắc chắn.</p>
         </div>
       </header>
@@ -106,13 +106,13 @@ export function Evidence({ snap }: { snap: Snapshot }) {
                     ) : (
                       <>
                         <button className="a-btn a-btn--tiny" onClick={() => decide([key], 'accept')}>
-                          Accept
+                          Giữ chưa chắc
                         </button>
                         <button className="a-btn a-btn--tiny" onClick={() => decide([key], 'report', 'value')}>
-                          Report nguồn sai
+                          Báo nguồn sai
                         </button>
                         <button className="a-btn a-btn--tiny a-btn--ghost" onClick={() => decide([key], 'refresh')}>
-                          Refresh
+                          Làm mới
                         </button>
                       </>
                     )}

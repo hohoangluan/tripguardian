@@ -3,6 +3,7 @@ import { Icon } from '../../ui/bits'
 import { fmtAgo } from '../model'
 
 type Health = 'Healthy' | 'Warning' | 'Unavailable'
+const HEALTH_LABEL: Record<Health, string> = { Healthy: 'Ổn định', Warning: 'Cần chú ý', Unavailable: 'Chưa có số liệu' }
 
 export function System({ snap }: { snap: Snapshot }) {
   const obs = snap.system.observe
@@ -32,7 +33,7 @@ export function System({ snap }: { snap: Snapshot }) {
     <div className="a-page">
       <header className="a-head">
         <div>
-          <h1>System Monitor</h1>
+          <h1>Hệ thống</h1>
           <p>Trạng thái từ snapshot lúc {new Date(snap.build.at).toLocaleString('vi-VN')}.</p>
         </div>
       </header>
@@ -40,7 +41,7 @@ export function System({ snap }: { snap: Snapshot }) {
         {parts.map((p) => (
           <section key={p.name} className={`health__item health--${p.health}`}>
             <span className="health__state">
-              <Icon name={p.health === 'Healthy' ? 'check' : p.health === 'Warning' ? 'alert' : 'x'} size={14} /> {p.health}
+              <Icon name={p.health === 'Healthy' ? 'check' : p.health === 'Warning' ? 'alert' : 'x'} size={14} /> {HEALTH_LABEL[p.health]}
             </span>
             <h2>{p.name}</h2>
             <p>{p.detail}</p>

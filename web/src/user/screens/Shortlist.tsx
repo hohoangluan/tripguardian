@@ -5,7 +5,7 @@ import { SECTION_LABEL, signal, useSnapshot, type Section } from '../../data/sto
 import type { Place } from '../../data/types'
 import { navigate } from '../../router'
 import { story } from '../../scene/story'
-import { Chip, ConfidenceTag, Icon, Page, SectionArt, Sheet } from '../../ui/bits'
+import { Chip, ClipCover, ConfidenceTag, Icon, Page, SectionArt, Sheet } from '../../ui/bits'
 import { buildShortlist, keepPick, sharedTraits, similarGroups, type Candidate, type Claim } from '../planner'
 import { area } from '../search'
 import { DROP_LABEL, useTrip, type DropReason } from '../trip'
@@ -193,6 +193,7 @@ export function PlaceCard({
 
   return (
     <article ref={ref} className={`pcard${chosen ? ' is-chosen' : ''}${p.kind === 'inventory' ? ' is-basic' : ''}`} onPointerMove={tilt} onPointerLeave={untilt}>
+      {p.videos.length > 0 && <ClipCover videos={p.videos} />}
       <header className="pcard__head">
         <button className="pcard__name" onClick={() => navigate(`/app/place/${encodeURIComponent(p.id)}`)}>
           {p.name}
@@ -242,16 +243,7 @@ export function PlaceCard({
       </div>
       <ConfidenceTag level={c.confidence.level} reason={c.confidence.reason} />
 
-      <footer className="pcard__actions">
-        {chosen ? (
-          <button className="btn btn--small btn--chosen" onClick={() => onDrop(c)}>
-            <Icon name="check" size={16} /> Đã chọn
-          </button>
-        ) : (
-          <button className="btn btn--small" onClick={add}>
-            <Icon name="plus" size={16} /> Thêm
-          </button>
-        )}
+      <div className="pcard__tools">
         <button className={`tbtn${locked ? ' is-on' : ''}`} aria-pressed={locked} title="Khóa: không bao giờ bị bỏ tự động" onClick={() => dispatch({ type: 'lock', id: p.id })}>
           <Icon name={locked ? 'lock' : 'unlock'} size={15} /> {locked ? 'Đã khóa' : 'Khóa'}
         </button>
@@ -260,11 +252,23 @@ export function PlaceCard({
         </button>
         {!chosen && (
           <button className="tbtn" onClick={() => onDrop(c)}>
-            <Icon name="x" size={15} /> Không quan tâm
+            <Icon name="x" size={15} /> Bỏ qua
           </button>
         )}
-        <button className="link pcard__more" onClick={() => navigate(`/app/place/${encodeURIComponent(p.id)}`)}>
-          Xem bằng chứng
+      </div>
+
+      <footer className="pcard__actions">
+        {chosen ? (
+          <button className="btn btn--small btn--chosen" onClick={() => onDrop(c)}>
+            <Icon name="check" size={16} /> Đã chọn
+          </button>
+        ) : (
+          <button className="btn btn--small" onClick={add}>
+            <Icon name="plus" size={16} /> Thêm vào chuyến
+          </button>
+        )}
+        <button className="pcard__more" onClick={() => navigate(`/app/place/${encodeURIComponent(p.id)}`)}>
+          Bằng chứng <Icon name="next" size={15} />
         </button>
       </footer>
     </article>
