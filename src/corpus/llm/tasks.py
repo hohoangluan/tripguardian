@@ -306,6 +306,7 @@ REVIEW_OBSERVE = Task(
     name="review_observe",
     role=EXTRACTOR,
     max_tokens=6000,
+    parallel=16,  # long calls; the key is shared (HTTP 429 at 36 when another client uses it), also caps REVIEW_VERIFY
     schema={
         "type": "object",
         "properties": {"reviews": {"type": "array", "items": {
