@@ -1,0 +1,720 @@
+:root {
+  --mist: #d5dee0;
+  --pine: #1e3a34;
+  --lake: #2f5d6b;
+  --daquy: #f2b31b;
+  --violet: #6f4fa0;
+  --brick: #a8412f;
+  --ink: #13231f;
+  --ink-soft: #3d4f4a;
+  --glass: rgba(238, 243, 243, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.65);
+
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'Be Vietnam Pro', system-ui, sans-serif;
+
+  --gutter: 16px;
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--mist);
+  color: var(--ink);
+  font: 400 1rem/1.6 var(--sans);
+  overflow-x: hidden;
+}
+
+h1,
+h2 {
+  font-family: var(--serif);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 560;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--daquy);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ---------- 3D world + transition veil ---------- */
+
+.world {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  /* Shown if WebGL never paints. */
+  background: linear-gradient(180deg, #e3e9ea 0%, var(--mist) 45%, #8fa59d 100%);
+}
+
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(120% 90% at 50% 45%, #f6f8f8 0%, #e2e9ea 70%, var(--mist) 100%);
+}
+
+/* ---------- shared chrome ---------- */
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--gutter);
+  pointer-events: none;
+}
+
+.topbar > * {
+  pointer-events: auto;
+}
+
+.wordmark {
+  font-family: var(--serif);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 640;
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+  color: var(--pine);
+  text-decoration: none;
+}
+
+.btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  background: var(--pine);
+  color: #eef3f1;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 14px 22px;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px -12px rgba(30, 58, 52, 0.7);
+  transition:
+    transform 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.btn:hover {
+  background: var(--lake);
+  transform: translateY(-2px);
+}
+
+.btn--small {
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  border-radius: 11px;
+}
+
+.only-narrow {
+  display: none;
+}
+
+.link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 6px 0;
+  cursor: pointer;
+  color: var(--lake);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+
+/* ---------- landing ---------- */
+
+.landing {
+  position: relative;
+  z-index: 1;
+}
+
+.beat {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: 88px 7vw 64px;
+}
+
+.hero {
+  position: relative;
+  align-items: flex-end;
+  padding-bottom: 12vh;
+}
+
+/* A bank of mist behind the headline keeps it legible over the scene. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(70% 60% at 18% 72%, rgba(226, 233, 234, 0.92) 0%, rgba(226, 233, 234, 0.55) 45%, rgba(226, 233, 234, 0) 75%);
+  pointer-events: none;
+}
+
+.hero__copy {
+  max-width: 46rem;
+}
+
+.hero__title {
+  font-size: clamp(2.5rem, 6.6vw, 5.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  color: var(--pine);
+  max-width: 14ch;
+}
+
+.hero__word {
+  display: inline-block;
+  white-space: pre;
+}
+
+.hero__lead {
+  margin-top: 22px;
+  max-width: 34rem;
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.hero__actions {
+  margin-top: 30px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.hint {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.panel {
+  width: min(31rem, 100%);
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  border-radius: 22px;
+  padding: 26px 26px 28px;
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: 0 30px 60px -40px rgba(19, 35, 31, 0.55);
+}
+
+.panel h2 {
+  font-size: clamp(1.75rem, 3.4vw, 2.5rem);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  color: var(--pine);
+  margin: 6px 0 14px;
+}
+
+.panel > p {
+  color: var(--ink-soft);
+}
+
+.panel__step {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--lake);
+}
+
+.panel .btn {
+  margin-top: 22px;
+}
+
+.aside {
+  margin-top: 14px;
+  font-size: 0.92rem;
+}
+
+/* Step rail: the five beats are a real sequence, so they are numbered. */
+.rail {
+  position: fixed;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+}
+
+.rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.rail button {
+  appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  position: relative;
+  display: block;
+  padding: 4px;
+  color: var(--ink);
+}
+
+.rail__n {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1.5px solid rgba(30, 58, 52, 0.35);
+  background: rgba(238, 243, 243, 0.6);
+  transition:
+    background-color 0.4s ease,
+    border-color 0.4s ease,
+    color 0.4s ease;
+}
+
+.rail__label {
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  margin-top: -14px;
+  line-height: 28px;
+  padding: 0 10px;
+  white-space: nowrap;
+  border-radius: 8px;
+  background: var(--glass);
+  font-size: 0.85rem;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(6px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.rail li.is-done .rail__n {
+  background: var(--pine);
+  border-color: var(--pine);
+  color: #eef3f1;
+}
+
+.rail li.is-active .rail__n {
+  background: var(--daquy);
+  border-color: var(--daquy);
+  color: var(--ink);
+}
+
+.rail li.is-active .rail__label,
+.rail button:hover .rail__label {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hard rules vs soft leanings must look different (UX brief §5). */
+.trip {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.trip__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.trip__kind {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.chip {
+  font-size: 0.88rem;
+  padding: 6px 12px;
+  line-height: 1.3;
+}
+
+.chip--rule {
+  background: var(--pine);
+  color: #eef3f1;
+  border-radius: 5px;
+  font-weight: 500;
+}
+
+.chip--rule::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  background: var(--daquy);
+  vertical-align: 1px;
+}
+
+.chip--lean {
+  border: 1.5px dashed rgba(30, 58, 52, 0.5);
+  border-radius: 999px;
+  color: var(--pine);
+}
+
+.chip--profile {
+  border-color: rgba(111, 79, 160, 0.6);
+  color: var(--violet);
+  font-style: italic;
+}
+
+/* Facts and lived experience are two kinds of truth (UX brief §4). */
+.evidence {
+  margin-top: 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  padding: 14px 16px 16px;
+}
+
+.evidence__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.evidence__head strong {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.demo-note {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.evidence__cols {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.facts {
+  margin: 0;
+  border-left: 3px solid var(--pine);
+  padding-left: 12px;
+}
+
+.facts dt {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.facts dd {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.facts small,
+.voices small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.unsure {
+  color: var(--violet);
+  text-decoration: underline dotted 2px;
+  text-underline-offset: 4px;
+}
+
+.voices {
+  position: relative;
+  background: rgba(47, 93, 107, 0.1);
+  border-radius: 14px 14px 14px 4px;
+  padding: 10px 12px;
+}
+
+.voices__quote {
+  font-family: var(--serif);
+  font-style: italic;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.pick {
+  margin-top: 18px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 14px;
+  border-left: 5px solid var(--daquy);
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.pick__title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.pick__title strong {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.pick__kept {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #7a5600;
+}
+
+.pick__group {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(30, 58, 52, 0.15);
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.conflict {
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 14px;
+  border-left: 5px solid var(--brick);
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.conflict__what {
+  font-weight: 600;
+  color: var(--brick);
+}
+
+.conflict__fix {
+  font-weight: 600;
+  color: var(--pine);
+}
+
+/* Labels pinned to the shortlist in the 3D scene. */
+.place-label {
+  display: grid;
+  text-align: center;
+  white-space: nowrap;
+  background: rgba(238, 243, 243, 0.88);
+  border-radius: 10px;
+  padding: 5px 10px 6px;
+  box-shadow: 0 8px 20px -10px rgba(19, 35, 31, 0.6);
+}
+
+.place-label__time {
+  font: 500 0.7rem/1.2 var(--sans);
+  color: var(--lake);
+}
+
+.place-label__name {
+  font: 600 0.9rem/1.25 var(--serif);
+  color: var(--pine);
+}
+
+/* ---------- /app start ---------- */
+
+.start {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.start__count {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  background: var(--glass);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.stage {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 90px var(--gutter) 40px;
+  perspective: 1400px;
+}
+
+.card {
+  width: min(34rem, 100%);
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  border-radius: 26px;
+  padding: 32px 28px 22px;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 40px 80px -50px rgba(19, 35, 31, 0.7);
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.card h1 {
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  color: var(--pine);
+}
+
+.card__note {
+  margin-top: 10px;
+  color: var(--ink-soft);
+}
+
+.choices {
+  margin-top: 22px;
+  display: grid;
+  gap: 10px;
+}
+
+.choice {
+  appearance: none;
+  cursor: pointer;
+  text-align: left;
+  border: 1.5px solid rgba(30, 58, 52, 0.18);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 14px;
+  padding: 16px 18px;
+  font-weight: 500;
+  font-size: 1.02rem;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.choice:hover {
+  border-color: var(--pine);
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateX(4px);
+}
+
+.choice.is-picked {
+  border-color: var(--daquy);
+  box-shadow: inset 5px 0 0 var(--daquy);
+}
+
+.card__foot {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.recap {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.recap li {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.recap span {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* ---------- phone first: panels sit low, the scene stays visible ---------- */
+
+@media (max-width: 720px) {
+  .only-wide {
+    display: none;
+  }
+  .only-narrow {
+    display: inline;
+  }
+  .beat {
+    align-items: flex-end;
+    padding: 80px var(--gutter) 24px;
+  }
+  .hero {
+    padding-bottom: 9svh;
+  }
+  .hero__lead {
+    font-size: 1.02rem;
+  }
+  .panel {
+    padding: 20px 18px 22px;
+    border-radius: 18px;
+  }
+  .panel > p {
+    font-size: 0.95rem;
+  }
+  .evidence__cols {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    top: 62px;
+    right: var(--gutter);
+    transform: none;
+  }
+  .rail ol {
+    display: flex;
+    gap: 2px;
+  }
+  .rail__label {
+    display: none;
+  }
+  .rail__n {
+    width: 24px;
+    height: 24px;
+    font-size: 0.72rem;
+  }
+  .card {
+    padding: 26px 20px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}
