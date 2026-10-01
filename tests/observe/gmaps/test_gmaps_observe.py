@@ -425,3 +425,22 @@ def test_only_places_in_the_list_are_observed(tmp_path, monkeypatch):
     assert summary["places"] == 1 and out.exists()
     assert not (obs_dir / "0xG_0x2.json").exists()
     assert all("Quán khác" not in c["reviews"] for c in calls)
+
+
+def test_endpoint_client_has_a_short_timeout_and_no_hidden_retries(monkeypatch):
+    seen = {}
+
+    class Client:
+        def with_options(self, **kw):
+            seen.update(kw)
+            return self
+
+    monkeypatch.setattr(extract.REVIEW_OBSERVE.role.__class__, "client", lambda self: (Client(), "m"))
+
+    async def ok(client, model):
+        return True
+
+    monkeypatch.setattr(extract, "healthy", ok)
+    providers = asyncio.run(extract._providers())
+    assert len(providers) == 1 and seen == {"timeout": extract.CALL_TIMEOUT_S, "max_retries": 0}
+    assert extract.CALL_TIMEOUT_S <= 300

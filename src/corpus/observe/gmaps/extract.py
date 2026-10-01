@@ -34,6 +34,7 @@ VERDICTS = ("supports", "contradicts", "insufficient")
 SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
 QC_DROP = {"owner_reply", "spam", "not_a_review"}
 ATTEMPTS = 2
+CALL_TIMEOUT_S = 240  # a batch takes ~50 s, the longest ~150 s; a dropped connection must not hold a slot for long
 BAD_ANSWER = (BadAnswer, ValueError, TypeError, AttributeError, KeyError)  # JSONDecodeError is a ValueError
 
 
@@ -71,6 +72,7 @@ async def healthy(client, model: str) -> bool:
 
 async def _providers() -> list[tuple]:
     client, model = REVIEW_OBSERVE.role.client()
+    client = client.with_options(timeout=CALL_TIMEOUT_S, max_retries=0)  # Task.ask retries with backoff
     found = [(client, model, REVIEW_OBSERVE.parallel)]
     ok = await asyncio.gather(*(healthy(c, m) for c, m, _ in found))
     return [p for p, good in zip(found, ok) if good]
