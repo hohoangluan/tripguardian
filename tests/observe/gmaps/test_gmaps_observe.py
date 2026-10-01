@@ -346,7 +346,7 @@ def test_span_check_setting_change_redoes_cached_place(tmp_path, monkeypatch):
     assert len(calls) == 2
 
 
-def test_two_endpoints_share_the_work(tmp_path, monkeypatch):
+def test_endpoints_share_one_queue_of_slots(tmp_path, monkeypatch):
     calls, out = setup(tmp_path, monkeypatch, [review(i, f"Review số {i} có view đẹp", f"a{i}") for i in range(30)])
     used = []
     ok = extract.ask_batch
@@ -357,14 +357,14 @@ def test_two_endpoints_share_the_work(tmp_path, monkeypatch):
         return await ok(client, model, city, place, ontology_text, reviews_text, note)
 
     async def providers():
-        return [("uit", "gemma-uit", 1), ("gemini", "gemma-gemini", 1)]
+        return [("a", "gemma-a", 1), ("b", "gemma-b", 1)]
 
     monkeypatch.setattr(extract, "ask_batch", ask)
     monkeypatch.setattr(extract, "_providers", providers)
     asyncio.run(extract.run("dalat"))
-    assert set(used) == {"gemma-uit", "gemma-gemini"}
+    assert set(used) == {"gemma-a", "gemma-b"}
     res = json.loads(out.read_text(encoding="utf-8"))
-    assert len(res["observations"]) == 30 and res["model"] == "gemma-gemini,gemma-uit"
+    assert len(res["observations"]) == 30 and res["model"] == "gemma-a,gemma-b"
 
 
 def test_unreachable_endpoint_is_left_out(monkeypatch):
@@ -396,24 +396,6 @@ def test_no_reachable_endpoint_stops(tmp_path, monkeypatch):
     monkeypatch.setattr(extract, "_providers", none)
     with pytest.raises(SystemExit, match="no LLM endpoint"):
         asyncio.run(extract.run("dalat"))
-
-
-def test_slots_respect_requests_per_minute():
-    import time
-    slots = extract.Slots([("c", "gemini", 3, 600)])  # 600 rpm = one call per 0.1 s
-
-    async def go():
-        stamps = []
-
-        async def call():
-            async with slots.take():
-                stamps.append(time.monotonic())
-
-        await asyncio.gather(*(call() for _ in range(4)))
-        return stamps
-
-    s = sorted(asyncio.run(go()))
-    assert all(b - a >= 0.08 for a, b in zip(s, s[1:])) and s[-1] - s[0] >= 0.28  # Windows timers wake a few ms early
 
 
 def test_slots_without_rpm_do_not_wait():

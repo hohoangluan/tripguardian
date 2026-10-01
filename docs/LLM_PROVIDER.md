@@ -5,7 +5,7 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 | Vai trò | Model hiện tại | Đường mạng |
 |---|---|---|
 | ASR | ChunkFormer trên GPU local | Local |
-| Extractor | Gemma 4 trên UIT API (miễn phí, nhận ảnh); thêm Gemma 4 trên Gemini API cho `gmaps observe` | UIT: trong mạng campus · Gemini: Internet |
+| Extractor | Gemma 4 trên UIT API (miễn phí, nhận ảnh) | Trực tiếp trong mạng UIT |
 | Judge | Gemma 4 trên UIT API (cùng model với Extractor) | Trực tiếp trong mạng UIT |
 
 Judge và Extractor dùng chung model, tách vai trò bằng prompt chuyên biệt riêng cho từng vai trò; Judge bật thinking. Vì chung model nên lỗi hai bên không hoàn toàn độc lập: nếu nhãn review cho thấy Judge bỏ sót lỗi của Extractor, chuyển Judge sang họ model khác (chỉ đổi config, ví dụ `qwen3.8-27b` tại `https://llm.uit.edu.vn/qwen/v1`).
@@ -24,15 +24,7 @@ Gemma: tối đa **40 request đồng thời mỗi key** (vượt → HTTP 429 "
 
 Thinking: bật bằng `extra_body={"chat_template_kwargs": {"enable_thinking": True}}`. Server không tách phần suy nghĩ ra field riêng; nó nằm trong `content` trước câu trả lời, nên code lấy khối JSON cuối cùng của `content` rồi mới validate.
 
-## Gemini API (endpoint phụ của Extractor)
-
-Cùng model Gemma 4 26B-A4B (`gemma-4-26b-a4b-it`) qua endpoint tương thích OpenAI của Google AI Studio (`https://generativelanguage.googleapis.com/v1beta/openai/`), structured output chạy được. Khai báo ở `EXTRACTOR_EXTRA` (`src/corpus/llm/roles.py`); tắt khi thiếu `GEMINI_API_KEY` hoặc `GEMINI_MODEL`.
-
-- Hạn mức free tier: **30 request / phút mỗi key**; request bị 429 cũng bị tính. Code giãn call theo `GEMINI_RPM` (28), không chỉ giới hạn số call đồng thời. Hiện chỉ `gmaps observe` dùng.
-- Đo 2026-10-01: 16 call đồng thời ổn; 32 call → phần lớn HTTP 500; sau ~60 call / phút → 429 "exceeded your current quota". `Task.ask` thử lại cả 500.
-- Một key duy nhất. Không ghép nhiều key / tài khoản để nhân hạn mức (điều khoản Gemini API); cần nhanh hơn thì bật billing cho key và tăng `GEMINI_RPM`.
-
-`gmaps observe` kiểm tra mọi endpoint bằng một call nhỏ khi bắt đầu, bỏ endpoint không trả lời (UIT khi ở ngoài campus trả trang chuyển hướng), rồi chia một hàng đợi slot chung: call lấy slot nào rảnh trước, nên endpoint nhanh làm nhiều hơn. Key UIT dùng chung với người khác: `REVIEW_OBSERVE.parallel` = 16 để tránh 429.
+`gmaps observe` kiểm tra endpoint bằng một call nhỏ khi bắt đầu (ngoài campus UIT trả trang chuyển hướng → dừng với thông báo rõ), rồi chạy `REVIEW_OBSERVE.parallel` = 32 call đồng thời; mỗi lô 15 review sinh ~2.500 token, ~50 s. Key dùng chung với người khác: gặp 429 thì `Task.ask` chờ rồi thử lại.
 
 ## Cấu hình
 
@@ -43,13 +35,12 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 | `LLM_API_KEY` | Key UIT API (Extractor) |
 | `EXTRACTOR_BASE_URL`, `EXTRACTOR_MODEL` | Endpoint và model của Extractor |
 | `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL` | Key, endpoint và model của Judge (hiện = UIT Gemma) |
-| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_RPM`, `GEMINI_PARALLEL`, `GEMINI_BASE_URL` (tùy chọn) | Endpoint phụ Gemini của Extractor |
 
 Đọc qua `os.environ[...]` / `python-dotenv`. Không bao giờ hardcode key trong source, test, hay tài liệu.
 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
-Mọi model được gọi trực tiếp: UIT trong mạng campus, Gemini qua Internet, ASR trên GPU local.
+Mọi model được gọi trực tiếp: UIT trong mạng campus, ASR trên GPU local.
 
 ## ASR local
 

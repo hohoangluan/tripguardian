@@ -54,7 +54,7 @@ class Task:
                 if attempt == ATTEMPTS:
                     raise
             except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError,
-                    openai.InternalServerError):  # Gemini answers a passing 500 now and then
+                    openai.InternalServerError):  # a passing 500 from the server
                 # the key's 40 concurrent calls are shared with other runs; wait for a free slot
                 if attempt == ATTEMPTS:
                     raise
@@ -307,7 +307,7 @@ REVIEW_OBSERVE = Task(
     name="review_observe",
     role=EXTRACTOR,
     max_tokens=6000,
-    parallel=16,  # long calls; the key is shared (HTTP 429 at 36 when another client uses it), also caps REVIEW_VERIFY
+    parallel=32,  # ~50 s per batch of 15; the key is shared (40 concurrent), Task.ask backs off on 429; caps REVIEW_VERIFY
     schema={
         "type": "object",
         "properties": {"reviews": {"type": "array", "items": {

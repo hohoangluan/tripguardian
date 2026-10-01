@@ -20,7 +20,7 @@ from pathlib import Path
 import openai
 
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, write_json
-from ...llm import EXTRACTOR_EXTRA, REVIEW_OBSERVE, REVIEW_VERIFY
+from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import observation
 from .details import day_type, details_pairs
@@ -42,16 +42,11 @@ def first_line(e: BaseException) -> str:
 
 
 class Slots:
-    """Concurrent-call slots over every reachable endpoint: a call takes whichever slot frees first, so the faster
-    endpoint does more of the work. An endpoint with a requests-per-minute cap spaces its calls 60/rpm s apart."""
+    """Concurrent-call slots over every reachable endpoint: a call takes whichever slot frees first."""
 
     def __init__(self, providers: list[tuple]):
         self.q = asyncio.Queue()
-        self.gap, self.next_at = {}, {}
-        for client, model, parallel, *rest in providers:
-            rpm = rest[0] if rest else None
-            if rpm:
-                self.gap[model], self.next_at[model] = 60 / rpm, 0.0
+        for client, model, parallel in providers:
             for _ in range(parallel):
                 self.q.put_nowait((client, model))
 
@@ -59,12 +54,6 @@ class Slots:
     async def take(self):
         slot = await self.q.get()
         try:
-            model = slot[1]
-            if model in self.gap:
-                now = asyncio.get_running_loop().time()
-                at = max(now, self.next_at[model])
-                self.next_at[model] = at + self.gap[model]
-                await asyncio.sleep(at - now)
             yield slot
         finally:
             self.q.put_nowait(slot)
@@ -82,8 +71,8 @@ async def healthy(client, model: str) -> bool:
 
 async def _providers() -> list[tuple]:
     client, model = REVIEW_OBSERVE.role.client()
-    found = [(client, model, REVIEW_OBSERVE.parallel, None)] + [e for e in (x.client() for x in EXTRACTOR_EXTRA) if e]
-    ok = await asyncio.gather(*(healthy(c, m) for c, m, *_ in found))
+    found = [(client, model, REVIEW_OBSERVE.parallel)]
+    ok = await asyncio.gather(*(healthy(c, m) for c, m, _ in found))
     return [p for p, good in zip(found, ok) if good]
 
 
@@ -245,8 +234,9 @@ async def run(city: str, limit: int | None = None) -> dict:
         dirs = dirs[:limit]
     providers = await _providers()
     if not providers:
-        raise SystemExit("no LLM endpoint reachable (UIT needs the campus network; Gemini needs GEMINI_API_KEY)")
+        raise SystemExit("no LLM endpoint reachable (UIT needs the campus network)")
     slots = Slots(providers)
+    in_flight = asyncio.Semaphore(sum(p[2] for p in providers))  # places in progress: they finish (and save) steadily
     model = ",".join(sorted({p[1] for p in providers}))
     print(f"observe {city}: endpoints {', '.join(f'{p[1]} x{p[2]}' for p in providers)}")
     key = (cache_key(ont), ont.version)
@@ -260,7 +250,8 @@ async def run(city: str, limit: int | None = None) -> dict:
             if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, *key):
                 return "cached"
         try:
-            res = await observe_place(slots, d, ont, name, bad_ids)
+            async with in_flight:
+                res = await observe_place(slots, d, ont, name, bad_ids)
         except Exception as e:
             if isinstance(e, ExceptionGroup):  # from the TaskGroup: report the first real cause
                 e = e.exceptions[0]
