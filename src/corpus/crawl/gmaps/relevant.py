@@ -37,13 +37,20 @@ async def scrape_relevant(ctx: BrowserContext, url: str, n: int) -> tuple[list[d
         await tab.first.click()
         await page.wait_for_selector(REVIEW_DIV, timeout=20000)  # default order: no sorting
         pane = page.locator("div.m6QErb.DxyBCb").first
-        complete = False
+        complete, detached = False, 0
         while True:
             k = await page.locator(REVIEW_DIV).count()
             if k >= n or await page.evaluate(LIST_END_JS):
                 complete = True
                 break
-            await page.locator(REVIEW_DIV).last.scroll_into_view_if_needed()
+            try:
+                await page.locator(REVIEW_DIV).last.scroll_into_view_if_needed(timeout=5000)
+            except Exception as e:  # the default-order list re-renders while loading: the last review is replaced
+                detached += 1
+                if "not attached" not in str(e) or detached > 3:
+                    raise
+                await page.wait_for_timeout(1000)
+                continue
             await pane.evaluate("e => e.scrollTo(0, e.scrollHeight)")
             if not await more(page, REVIEW_DIV, k, timeout=15000):
                 complete = await page.evaluate(LIST_END_JS)
