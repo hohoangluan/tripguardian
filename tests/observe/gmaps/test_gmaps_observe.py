@@ -25,7 +25,10 @@ def setup(tmp_path, monkeypatch, reviews, qc=None, place=None):
         (tmp_path / "gmaps" / "qc").mkdir(parents=True)
         (tmp_path / "gmaps" / "qc" / f"{DIR}.json").write_text(json.dumps(qc), encoding="utf-8")
     monkeypatch.setattr(extract, "load_config", lambda city: ("Đà Lạt", {}))
-    monkeypatch.setattr(extract, "_client", lambda: (None, "gemma-test"))
+    async def providers():
+        return [(None, "gemma-test", 4)]
+
+    monkeypatch.setattr(extract, "_providers", providers)
     calls = []
 
     async def fake_ask(client, model, city, place, ontology_text, reviews_text, note=""):
@@ -341,3 +344,55 @@ def test_span_check_setting_change_redoes_cached_place(tmp_path, monkeypatch):
     monkeypatch.setattr(extract, "load_ontology", lambda: changed)
     asyncio.run(extract.run("dalat"))
     assert len(calls) == 2
+
+
+def test_two_endpoints_share_the_work(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(i, f"Review số {i} có view đẹp", f"a{i}") for i in range(30)])
+    used = []
+    ok = extract.ask_batch
+
+    async def ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        used.append(model)
+        await asyncio.sleep(0.01)
+        return await ok(client, model, city, place, ontology_text, reviews_text, note)
+
+    async def providers():
+        return [("uit", "gemma-uit", 1), ("gemini", "gemma-gemini", 1)]
+
+    monkeypatch.setattr(extract, "ask_batch", ask)
+    monkeypatch.setattr(extract, "_providers", providers)
+    asyncio.run(extract.run("dalat"))
+    assert set(used) == {"gemma-uit", "gemma-gemini"}
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert len(res["observations"]) == 30 and res["model"] == "gemma-gemini,gemma-uit"
+
+
+def test_unreachable_endpoint_is_left_out(monkeypatch):
+    class Bad:
+        class chat:
+            class completions:
+                @staticmethod
+                async def create(**kw):
+                    return "<html>moved</html>"  # off campus: the UIT proxy answers with a redirect page
+
+    class Good:
+        class chat:
+            class completions:
+                @staticmethod
+                async def create(**kw):
+                    return type("R", (), {"choices": [object()]})()
+
+    assert asyncio.run(extract.healthy(Bad(), "m")) is False
+    assert asyncio.run(extract.healthy(Good(), "m")) is True
+
+
+def test_no_reachable_endpoint_stops(tmp_path, monkeypatch):
+    import pytest
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS)
+
+    async def none():
+        return []
+
+    monkeypatch.setattr(extract, "_providers", none)
+    with pytest.raises(SystemExit, match="no LLM endpoint"):
+        asyncio.run(extract.run("dalat"))

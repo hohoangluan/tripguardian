@@ -53,7 +53,8 @@ class Task:
                 # guided decoding now and then loops on whitespace until max_tokens cuts the JSON; a new call is fine
                 if attempt == ATTEMPTS:
                     raise
-            except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError):
+            except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError,
+                    openai.InternalServerError):  # Gemini answers a passing 500 now and then
                 # the key's 40 concurrent calls are shared with other runs; wait for a free slot
                 if attempt == ATTEMPTS:
                     raise

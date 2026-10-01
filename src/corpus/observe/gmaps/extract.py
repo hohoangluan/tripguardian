@@ -12,6 +12,7 @@ data/gmaps/observe_errors.jsonl. Only a bad answer is split / retried; a network
 
 import asyncio
 import collections
+import contextlib
 import hashlib
 import json
 from pathlib import Path
@@ -19,7 +20,7 @@ from pathlib import Path
 import openai
 
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, write_json
-from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
+from ...llm import EXTRACTOR_EXTRA, REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import observation
 from .details import day_type, details_pairs
@@ -40,8 +41,40 @@ def first_line(e: BaseException) -> str:
     return f"{type(e).__name__}: {(str(e).splitlines() or [''])[0][:300]}"
 
 
-def _client():
-    return REVIEW_OBSERVE.role.client()
+class Slots:
+    """Concurrent-call slots over every reachable endpoint: a call takes whichever slot frees first, so the faster
+    endpoint does more of the work."""
+
+    def __init__(self, providers: list[tuple]):
+        self.q = asyncio.Queue()
+        for client, model, parallel in providers:
+            for _ in range(parallel):
+                self.q.put_nowait((client, model))
+
+    @contextlib.asynccontextmanager
+    async def take(self):
+        slot = await self.q.get()
+        try:
+            yield slot
+        finally:
+            self.q.put_nowait(slot)
+
+
+async def healthy(client, model: str) -> bool:
+    """A tiny call answers; off campus the UIT proxy returns a redirect page instead of a completion."""
+    try:
+        r = await client.chat.completions.create(model=model, messages=[{"role": "user", "content": "OK"}],
+                                                 max_tokens=3, timeout=30)
+        return bool(r.choices)
+    except Exception:
+        return False
+
+
+async def _providers() -> list[tuple]:
+    client, model = REVIEW_OBSERVE.role.client()
+    found = [(client, model, REVIEW_OBSERVE.parallel)] + [e for e in (x.client() for x in EXTRACTOR_EXTRA) if e]
+    ok = await asyncio.gather(*(healthy(c, m) for c, m, _ in found))
+    return [p for p, good in zip(found, ok) if good]
 
 
 async def ask_batch(client, model: str, city: str, place: dict, ontology_text: str, reviews_text: str,
@@ -64,9 +97,9 @@ def passage(text: str, quote: str) -> str:
     return text[start:start + PASSAGE_CHARS]
 
 
-async def check_span(client, model, sem, place: dict, text: str, ont: Ontology, o: dict) -> str:
+async def check_span(slots: Slots, place: dict, text: str, ont: Ontology, o: dict) -> str:
     claim = f'{ont.features[o["feature"]].claims[o["value"]]} (quote: "{o["quote"]}")'
-    async with sem:
+    async with slots.take() as (client, model):
         try:
             answer = await verify_claim(client, model, place, passage(text, o["quote"]), claim)
             verdict = answer.get("verdict")
@@ -99,12 +132,12 @@ def bad_review_ids(qc_file: Path) -> set[str]:
     return {b["review_id"] for b in llm.get("bad_reviews", []) if b.get("problem") in QC_DROP}
 
 
-async def ask_checked(client, model, sem, city, place, ont: Ontology, batch: list[tuple[str, dict]], note: str = ""):
+async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tuple[str, dict]], note: str = ""):
     """A failed batch is split in halves (shorter answers, other context); a single review gets ATTEMPTS tries."""
     refs = dict(batch)
     text = "\n".join(f"{ref}: {' '.join(r['text'].split())}" for ref, r in batch)
     for attempt in range(1 if len(batch) > 1 else ATTEMPTS):
-        async with sem:
+        async with slots.take() as (client, model):
             try:
                 return gate(await ask_batch(client, model, city, place, ont.prompt_text(), text, note), refs, ont)
             except openai.APIError:
@@ -115,13 +148,13 @@ async def ask_checked(client, model, sem, city, place, ont: Ontology, batch: lis
     if len(batch) == 1:
         raise BadAnswer(note)
     mid = len(batch) // 2
-    halves = await asyncio.gather(*(ask_checked(client, model, sem, city, place, ont, b, note)
+    halves = await asyncio.gather(*(ask_checked(slots, city, place, ont, b, note)
                                     for b in (batch[:mid], batch[mid:])))
     return ([x for h in halves for x in h[0]], [x for h in halves for x in h[1]],
             sum((h[2] for h in halves), collections.Counter()))
 
 
-async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str]) -> dict:
+async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str]) -> dict:
     place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
     reviews = json.loads((place_dir / "reviews.json").read_text(encoding="utf-8"))
     fid, fetched = place["fid"], place["fetched_at"]
@@ -159,7 +192,7 @@ async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city
     refs = {f"r{i}": r for i, r in enumerate(to_llm, 1)}
     parts = batches(list(refs.items()))
     async with asyncio.TaskGroup() as tg:  # the first failed batch cancels its siblings
-        tasks = [tg.create_task(ask_checked(client, model, sem, city, place, ont, b)) for b in parts]
+        tasks = [tg.create_task(ask_checked(slots, city, place, ont, b)) for b in parts]
     results = [t.result() for t in tasks]
     dropped = collections.Counter()
     kept_all = [(ref, o) for kept, _, drop in results for ref, o in kept]
@@ -167,7 +200,7 @@ async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city
         dropped.update(drop)
     checks = [(ref, o) for ref, o in kept_all if ont.features[o["feature"]].span_check]
     async with asyncio.TaskGroup() as tg:
-        verdicts = [tg.create_task(check_span(client, model, sem, place, refs[ref]["text"], ont, o)) for ref, o in checks]
+        verdicts = [tg.create_task(check_span(slots, place, refs[ref]["text"], ont, o)) for ref, o in checks]
     rejected = set()
     for (ref, o), v in zip(checks, verdicts):
         if v.result() != "supports":
@@ -200,8 +233,12 @@ async def run(city: str, limit: int | None = None) -> dict:
     dirs = sorted(p.parent for p in (root / "places").glob("*/place.json"))
     if limit is not None:
         dirs = dirs[:limit]
-    client, model = _client()
-    sem = asyncio.Semaphore(REVIEW_OBSERVE.parallel)
+    providers = await _providers()
+    if not providers:
+        raise SystemExit("no LLM endpoint reachable (UIT needs the campus network; Gemini needs GEMINI_API_KEY)")
+    slots = Slots(providers)
+    model = ",".join(sorted({m for _, m, _ in providers}))
+    print(f"observe {city}: endpoints {', '.join(f'{m} x{n}' for _, m, n in providers)}")
     key = (cache_key(ont), ont.version)
 
     async def one(d: Path) -> str:
@@ -213,7 +250,7 @@ async def run(city: str, limit: int | None = None) -> dict:
             if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, *key):
                 return "cached"
         try:
-            res = await observe_place(client, model, sem, d, ont, name, bad_ids)
+            res = await observe_place(slots, d, ont, name, bad_ids)
         except Exception as e:
             if isinstance(e, ExceptionGroup):  # from the TaskGroup: report the first real cause
                 e = e.exceptions[0]
