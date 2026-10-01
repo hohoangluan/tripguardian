@@ -216,6 +216,7 @@ def test_attributes_and_place_facts(tmp_path, monkeypatch):
     calls, out = setup(tmp_path, monkeypatch, [], place={
         "attributes": ["Phù hợp cho trẻ em", "Không có lối vào cho xe lăn", "Có nhà vệ sinh"],
         "popular_times": [["Mức độ đông là 40% lúc 09 giờ."]] + [[]] * 6,
+        "hours": ["Thứ Hai 07:00–21:00"], "status": "Tạm thời đóng cửa", "lat": 11.9, "lng": 108.4,
         "price": "Khoảng giá, 1-100.000 ₫/người, 9 người đã báo cáo"})
     asyncio.run(extract.run("dalat"))
     res = json.loads(out.read_text(encoding="utf-8"))
@@ -225,8 +226,19 @@ def test_attributes_and_place_facts(tmp_path, monkeypatch):
                    ("gmaps:attr:1", "wheelchair", "unsuitable", "gmaps_attribute", "gmaps:attributes", "attributes",
                     "2026-09-30")]
     assert res["place_facts"] == {"popular_times": {"sun": {"9": 40}},
-                                  "price": {"min_vnd": 1, "max_vnd": 100000, "per": "person", "reports": 9}}
+                                  "price": {"min_vnd": 1, "max_vnd": 100000, "per": "person", "reports": 9},
+                                  "hours": {"mon": [["07:00", "21:00"]]}, "closure": "temporary"}
+    assert res["place"] == {"category": "Quán cà phê", "lat": 11.9, "lng": 108.4, "address": None}
+    assert res["voices"] == 0
     assert calls == []
+
+
+def test_voices_count_authors_read_once(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [
+        review(1, "Quán có view đẹp lắm luôn nha", "a"), review(2, "Ok", "b", ["Độ ồn\nRất yên tĩnh"]),
+        review(3, "Ok", "c"), review(4, "Lần hai quay lại vẫn view đẹp", "a")])
+    asyncio.run(extract.run("dalat"))
+    assert json.loads(out.read_text(encoding="utf-8"))["voices"] == 2  # a (text twice) + b (details); c says nothing
 
 
 def test_qc_flagged_review_gives_no_details_or_rating(tmp_path, monkeypatch):
@@ -477,3 +489,19 @@ def test_rate_limited_call_waits_and_retries_instead_of_failing_the_place(tmp_pa
     monkeypatch.setattr(extract, "ask_batch", busy_then_ok)
     summary = asyncio.run(extract.run("dalat"))
     assert summary["status"] == {"done": 1} and out.exists()
+
+
+def test_relevant_reviews_merge_by_id_and_change_the_input(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a")])
+    d = tmp_path / "gmaps" / "places" / DIR
+    before = extract.input_hash(d, set())
+    (d / "reviews_relevant.json").write_text(json.dumps({"fetched_at": FETCHED, "complete": True, "reviews": [
+        review(1, "Quán có view đẹp lắm luôn nha", "a"),
+        review(9, "Hai năm trước ghé, view đẹp, phải leo 100 bậc", "z", published="2 năm trước")]},
+        ensure_ascii=False), encoding="utf-8")
+    assert extract.input_hash(d, set()) != before
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert res["stats"]["reviews"] == 2 and res["voices"] == 2
+    old = [o for o in res["observations"] if o["source_id"] == "R9"]
+    assert old and all(o["observed_at"] == "2024-09-30" for o in old)  # its age is kept

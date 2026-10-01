@@ -3,7 +3,9 @@
 Structured details become observations by rule (details.py); review text goes to the Extractor in batches of one
 place (corpus.llm.REVIEW_OBSERVE) and through the gate (gate.py). Reviews the qc phase flagged as owner reply, spam
 or not a review are left out entirely. Place attributes become observations of one authoritative source and
-popular times / price go to place_facts (place_rules.py). Review observations of features with `check: span` are read
+popular times / price / hours / closure go to place_facts and name / category / location to place (place_rules.py).
+Reviews are reviews.json plus the "most relevant" ones of reviews_relevant.json not already there (any age; their
+date stays in published_text). `voices` = authors whose review details or text were read: the denominator of a feature's mention rate. Review observations of features with `check: span` are read
 again one by one (corpus.llm.REVIEW_VERIFY); only "supports" is kept.
 A place is done again only when its reviews, qc flags, the prompts, the ontology or the rules change; a
 place that fails gets no file (retried next run; an older file is removed) and one line in
@@ -25,10 +27,11 @@ from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import observation
 from .details import day_type, details_pairs
 from .gate import BadAnswer, gate, norm
-from .place_rules import AUTHOR, RULES_VERSION, attribute_pairs, parse_popular_times, parse_price
+from .place_rules import AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times, parse_price
 from .prep import batches, keep_for_llm, observed_at, stars
 
 DETAILS_EXTRACTOR = "details_rule@v2"
+RELEVANT_FILE = "reviews_relevant.json"  # written by corpus.crawl.gmaps.relevant
 PASSAGE_CHARS = 1200  # review text shown to REVIEW_VERIFY around the quote
 VERDICTS = ("supports", "contradicts", "insufficient")
 SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
@@ -153,8 +156,20 @@ def cache_key(ont: Ontology) -> str:
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
+def load_reviews(place_dir: Path) -> list[dict]:
+    """reviews.json (newest) + reviews_relevant.json (Maps' most relevant, any age) not already in it."""
+    reviews = json.loads((place_dir / "reviews.json").read_text(encoding="utf-8"))
+    extra = place_dir / RELEVANT_FILE
+    if extra.exists():
+        seen = {r["review_id"] for r in reviews}
+        reviews += [r for r in json.loads(extra.read_text(encoding="utf-8"))["reviews"] if r["review_id"] not in seen]
+    return reviews
+
+
 def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
     h = hashlib.sha256((place_dir / "reviews.json").read_bytes())
+    if (place_dir / RELEVANT_FILE).exists():
+        h.update((place_dir / RELEVANT_FILE).read_bytes())
     h.update(json.loads((place_dir / "place.json").read_text(encoding="utf-8"))["fetched_at"].encode())
     h.update(json.dumps(sorted(bad_ids)).encode())  # qc run after observe changes what goes to the model
     return h.hexdigest()[:16]
@@ -192,10 +207,11 @@ async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tupl
 
 async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str]) -> dict:
     place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
-    reviews = json.loads((place_dir / "reviews.json").read_text(encoding="utf-8"))
+    reviews = load_reviews(place_dir)
     fid, fetched = place["fid"], place["fetched_at"]
     obs, proposed, ratings = [], [], []
     seq = collections.Counter()
+    voices = set()  # authors whose details or text were read
 
     def add(r: dict, feature: str, value: str, context: dict, quote: str, field: str, extractor: str):
         rid = r["review_id"]
@@ -221,10 +237,13 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
             ratings.append({"author": r.get("author_hash"), "observed_at": observed_at(r.get("published_text"), fetched),
                             "stars": s})
         ctx = {"time_of_day": UNKNOWN, "day_type": day_type(r), "weather": UNKNOWN}
+        if r.get("details"):
+            voices.add(r.get("author_hash") or r["review_id"])
         for feature, value, line in details_pairs(r):
             add(r, feature, value, ctx, line, "details", DETAILS_EXTRACTOR)
 
     to_llm = keep_for_llm(reviews, bad_ids)
+    voices |= {r.get("author_hash") or r["review_id"] for r in to_llm}
     refs = {f"r{i}": r for i, r in enumerate(to_llm, 1)}
     parts = batches(list(refs.items()))
     async with asyncio.TaskGroup() as tg:  # the first failed batch cancels its siblings
@@ -256,8 +275,11 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
                              "author": refs[ref].get("author_hash"), **p})
     return {"place_fid": fid, "place_name": place.get("name"), "as_of": fetched[:10], "observations": obs,
             "proposed": proposed, "ratings": ratings,
+            "place": {k: place.get(k) for k in ("category", "lat", "lng", "address")},
+            "voices": len(voices),
             "place_facts": {"popular_times": parse_popular_times(place.get("popular_times")),
-                            "price": parse_price(place.get("price"))},
+                            "price": parse_price(place.get("price")), "hours": parse_hours(place.get("hours")),
+                            "closure": parse_closure(place.get("status"))},
             "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}}
 
 

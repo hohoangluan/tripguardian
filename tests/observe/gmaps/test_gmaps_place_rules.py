@@ -1,4 +1,5 @@
-from corpus.observe.gmaps.place_rules import attribute_pairs, parse_popular_times, parse_price
+from corpus.observe.gmaps.place_rules import (attribute_pairs, parse_closure, parse_hours, parse_popular_times,
+                                               parse_price)
 from corpus.ontology import load
 
 
@@ -52,3 +53,23 @@ def test_inferred_or_bare_labels_are_not_mapped():
 def test_price_above():
     assert parse_price("Khoảng giá, Trên 1.000.000\xa0₫/người, 3 người đã báo cáo") == {
         "min_vnd": 1000000, "max_vnd": None, "per": "person", "reports": 3}
+
+
+def test_more_attributes_map_and_highchair_or_wifi_alone_do_not():
+    attrs = ["Có chỗ ngồi trên sân thượng", "Có sân chơi", "Có nhạc sống", "Phù hợp để đi bộ đường dài",
+             "Có ghế cao cho bé", "Có Wi-Fi"]
+    assert [(f, v) for f, v, _ in attribute_pairs(attrs)] == [
+        ("outdoor_seating", "present"), ("kids", "suitable"), ("live_music", "present"), ("hiking", "present")]
+
+
+def test_hours_ranges_all_day_closed_and_unknown_shapes():
+    got = parse_hours(["Thứ Hai 07:00–11:00 13:00–17:00", "Thứ Ba Mở cửa cả ngày", "Chủ Nhật Đóng cửa",
+                       "Thứ Tư 7:30–22:00", "Thứ Năm Giờ có thể khác", "Lễ Quốc Khánh 08:00–12:00"])
+    assert got == {"mon": [["07:00", "11:00"], ["13:00", "17:00"]], "tue": [["00:00", "24:00"]], "sun": [],
+                   "wed": [["7:30", "22:00"]]}  # thu: unknown shape -> absent, never closed
+    assert parse_hours(None) is None and parse_hours(["Thứ Năm Giờ có thể khác"]) is None
+
+
+def test_closure_only_for_lasting_states():
+    assert parse_closure("Bị đóng vĩnh viễn") == "permanent" and parse_closure("Tạm thời đóng cửa") == "temporary"
+    assert parse_closure("Đang đóng cửa") is None and parse_closure("Đóng cửa hôm nay") is None and parse_closure(None) is None

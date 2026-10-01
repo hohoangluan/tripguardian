@@ -148,6 +148,17 @@ def test_run_reads_every_source_and_skips_old_ontology(tmp_path, monkeypatch):
     assert summary["places"] == 1 and summary["stale_files"] == 1
 
 
+def test_run_removes_intel_not_built_this_time(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    (tmp_path / "gmaps" / "observations").mkdir(parents=True)
+    (tmp_path / "gmaps" / "observations" / "F.json").write_text(json.dumps(f([o(1, "crowd", "high", "a")])), encoding="utf-8")
+    old = tmp_path / "intel" / "places"
+    old.mkdir(parents=True)
+    (old / "OLD.json").write_text("{}", encoding="utf-8")  # older ontology / place without observations now
+    summary = run("dalat")
+    assert sorted(p.name for p in old.glob("*.json")) == ["F.json"] and summary["removed"] == 1
+
+
 def test_unsuitable_needs_two_authors_voting_it():
     feats = aggregate_place([f([o(1, "kids", "unsuitable", "a"),
                                 o(2, "kids", "unsuitable", "b", time_of_day="morning"),
@@ -191,7 +202,31 @@ def test_crowd_by_time_and_price_from_place_facts():
 
 
 def test_no_place_facts_gives_empty_operation():
-    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "crowd_by_time": None, "popular_times": None}
+    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "hours": None, "closure": None,
+                                                          "crowd_by_time": None, "popular_times": None}
+
+
+def test_mention_rate_uses_voices_of_all_files_and_skips_authority():
+    a = {**f([o(1, "scenic_view", "present", "a"), o(2, "outdoor_seating", "present", "gmaps:attributes",
+                                                   source_type="gmaps_attribute")]), "voices": 30}
+    b = {**f([o(3, "scenic_view", "present", "b")]), "voices": 10}
+    res = aggregate_place([a, b], ONT)
+    assert res["voices"] == 40
+    assert res["features"]["scenic_view"]["mention_rate"] == 0.05
+    assert res["features"]["outdoor_seating"]["mention_rate"] == 0.0
+
+
+def test_no_voices_gives_no_mention_rate():
+    assert aggregate_place([f([o(1, "crowd", "high", "a")])], ONT)["features"]["crowd"]["mention_rate"] is None
+
+
+def test_identity_and_hours_pass_through_first_non_null():
+    a = {**f([]), "place": {"category": None, "lat": 11.9, "lng": 108.4, "address": "A"},
+         "place_facts": {"hours": {"mon": [["07:00", "21:00"]]}, "closure": "temporary"}}
+    b = {**f([]), "place": {"category": "Quán cà phê", "lat": 1.0}}
+    res = aggregate_place([a, b], ONT)
+    assert res["identity"] == {"lat": 11.9, "lng": 108.4, "address": "A", "category": "Quán cà phê"}
+    assert res["operation"]["hours"] == {"mon": [["07:00", "21:00"]]} and res["operation"]["closure"] == "temporary"
 
 
 def test_conflict_needs_review_for_any_feature_and_has_no_authority():

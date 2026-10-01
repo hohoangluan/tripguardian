@@ -1,10 +1,13 @@
 """Aggregate (docs/specs/CORPUS_SPEC.md §5), code only: every source's observations of a place -> one intel file.
 
-Reads data/*/observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json. Per feature:
+Reads data/*/observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
+every other file there (older ontology, or a place that has no observation file now): the folder is one build. Per feature:
 votes (one per author; an author who gave k different values gives each 1/k), context breakdown, confidence parts,
 trend of the newer half of the dated evidence against the older half. A value declared by an authoritative source
 (Maps attributes) is served without a person when no other source contradicts it; a contradiction makes it uncertain.
-Place facts (popular times, price) pass through as `operation`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
+`mention_rate` = people who named the feature / the place's `voices` (authors whose words were read): a value
+named by 1 of 200 reviewers is weak evidence even at agreement 1.0.
+Place facts (popular times, price, hours, closure) pass through as `operation`, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
 """
 
 import collections
@@ -91,7 +94,7 @@ def trend(obs: list[dict], top_value: str) -> dict:
     return res
 
 
-def feature_signal(feat: Feature, obs: list[dict], as_of: date) -> dict:
+def feature_signal(feat: Feature, obs: list[dict], as_of: date, voices: int = 0) -> dict:
     unique = list({(_who(o), o["value"], tuple(o["context"][k] for k in CONTEXT_KEYS)): o for o in obs}.values())
     dist, n = votes(unique), authors(unique)
     t = top(dist, feat.values)
@@ -122,6 +125,7 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date) -> dict:
         "authority": authority,
         "by_context": by_context,
         "by_source": dict(collections.Counter(o["source_type"] for o in obs)),
+        "mention_rate": round(min(1.0, len({_who(o) for o in people}) / voices), 3) if voices else None,
         "confidence": {"independent_sources": n, "agreement": agreement,
                        "freshness_days": _age(as_of, max(dates)) if dates else None,
                        "source_types": sorted({SOURCE_KIND.get(o["source_type"], o["source_type"]) for o in unique})},
@@ -177,7 +181,9 @@ def aggregate_place(files: list[dict], ont: Ontology) -> dict:
         for o in f["observations"]:
             if ont.valid(o["feature"], o["value"]):
                 by_feature[o["feature"]].append(o)
-    features = {fid: feature_signal(ont.features[fid], by_feature[fid], as_of) for fid in ont.features if fid in by_feature}
+    voices = sum(f.get("voices") or 0 for f in files)
+    features = {fid: feature_signal(ont.features[fid], by_feature[fid], as_of, voices)
+                for fid in ont.features if fid in by_feature}
     ratings = [r for f in files for r in f.get("ratings", [])]
     proposed = collections.defaultdict(list)
     for f in files:
@@ -188,12 +194,18 @@ def aggregate_place(files: list[dict], ont: Ontology) -> dict:
         for k, v in (f.get("place_facts") or {}).items():
             if v is not None:
                 facts.setdefault(k, v)
+    identity = {}
+    for f in files:
+        for k, v in (f.get("place") or {}).items():
+            if v is not None:
+                identity.setdefault(k, v)
     return {
         "place_fid": files[0]["place_fid"],
         "place_name": next((f["place_name"] for f in files if f.get("place_name")), None),
-        "as_of": as_of.isoformat(), "ontology_version": ont.version,
+        "as_of": as_of.isoformat(), "ontology_version": ont.version, "identity": identity, "voices": voices,
         "features": features, "coverage": coverage(features, ont),
-        "operation": {"price_range": facts.get("price"), "crowd_by_time": crowd_by_time(facts.get("popular_times")),
+        "operation": {"price_range": facts.get("price"), "hours": facts.get("hours"), "closure": facts.get("closure"),
+                      "crowd_by_time": crowd_by_time(facts.get("popular_times")),
                       "popular_times": facts.get("popular_times")},
         "rating_trend": rating_trend(ratings) if ratings else None,
         "proposed_features": sorted(({"label": k, "count": len(v), "authors": len(set(v))} for k, v in proposed.items()),
@@ -214,11 +226,19 @@ def run(city: str) -> dict:
         files[f["place_fid"]].append(f)
         inputs[f["place_fid"]].append(p.relative_to(root).as_posix())
     status = collections.Counter()
+    out = root / "intel" / "places"
     for fid, fs in files.items():
         intel = aggregate_place(fs, ont)
         status.update(f"{k}={v}" for k, v in intel["coverage"].items())
-        write_json(root / "intel" / "places" / f"{safe_name(fid)}.json", {**intel, "inputs": inputs[fid], "built_at": now()})
-    summary = {"at": now(), "places": len(files), "stale_files": stale, "coverage": dict(sorted(status.items()))}
+        write_json(out / f"{safe_name(fid)}.json", {**intel, "inputs": inputs[fid], "built_at": now()})
+    built = {f"{safe_name(fid)}.json" for fid in files}
+    removed = 0
+    for p in out.glob("*.json") if out.exists() else []:
+        if p.name not in built:  # older ontology or a place without observations now: derived, rebuilt from evidence
+            p.unlink()
+            removed += 1
+    summary = {"at": now(), "places": len(files), "stale_files": stale, "removed": removed,
+               "coverage": dict(sorted(status.items()))}
     write_json(root / "intel" / "summary.json", summary)
     print(f"aggregate {city}: {json.dumps(summary, ensure_ascii=False)}")
     return summary

@@ -5,7 +5,12 @@ from corpus.ontology import load, parse
 
 def test_shipped_ontology_loads():
     ont = load()
-    assert ont.version == 4
+    assert ont.version == 5
+    for fid in ("steep_or_stairs", "long_walk"):
+        assert ont.features[fid].values == ("present", "absent") and ont.features[fid].span_check
+    assert ont.valid("weather_exposed", "sheltered") and ont.features["weather_exposed"].span_check
+    assert ont.features["booking_needed"].span_check
+    assert ont.features["visit_duration"].group == "operation" and ont.valid("visit_duration", "half_day")
     assert ont.valid("outdoor_seating", "present") and ont.valid("laptop_friendly", "present")
     assert ont.valid("vegetarian_options", "no")
     assert ont.features["steep_or_stairs"].span_check and ont.features["kids"].span_check

@@ -2,7 +2,7 @@
 
 Phases per source, each reading only earlier phases' files: tiktok search -> list -> filter -> crawl, then per Maps
 place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify; gmaps search ->
-filter -> counts -> list -> crawl -> qc -> observe; `all` runs them in order.
+filter -> counts -> list -> crawl -> relevant -> qc -> observe; `all` runs them in order.
 """
 
 import argparse
@@ -11,7 +11,7 @@ import asyncio
 from .crawl.common import browser
 from .aggregate import run as aggregate_run
 from .review import server as review_server
-from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, search as gmaps_search
+from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, search as gmaps_search
 from .observe import gmaps as gmaps_observe
 from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check, crawl as tiktok_crawl,
                            filter as tiktok_filter, listing as tiktok_list, place_verify as tiktok_place_verify,
@@ -27,7 +27,7 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "place_verify": (tiktok_place_verify.run, False)},
     "gmaps": {"search": (gmaps_search.run, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
               "list": (gmaps_list.run, False),
-              "crawl": (gmaps_crawl.run, True), "qc": (gmaps_qc.run, False),
+              "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "qc": (gmaps_qc.run, False),
               "observe": (gmaps_observe.run, False)},
 }
 
