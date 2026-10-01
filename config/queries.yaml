@@ -1,13 +1,17 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
-  pause_s: [15, 30]  # wait per video tab; faster pacing gets the comment API blocked after ~15 videos
+  pause_s: [5, 10]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
   tabs: 8  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
   tabs_start: 2  # first run only
   cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 900
   downloads: 4  # parallel mp4 downloads (no browser tab needed)
   max_videos_per_query: 30
-  max_comments_per_video: null  # null = every top-level comment
+  max_comments_per_video: 200  # comments + replies, in TikTok's order; null = all (slow)
+  videos_per_place: 10  # place_search: top search results per Maps place; place_filter keeps those about the place
+  place_search_tabs: 3  # max parallel place searches; working level in data/tiktok/place_search_throttle.json
+  place_search_tabs_start: 1  # first run only
+  place_search_pause_s: [5, 10]  # wait per search tab
   queries:  # groups from docs/specs/CORPUS_SPEC.md §1
     general: ["{city} có gì chơi", "review du lịch {city}"]
     category: ["quán cà phê {city}", "quán ăn ngon {city}", "chợ đêm {city}"]
@@ -21,13 +25,13 @@ gmaps:
   search_tabs_start: 2  # first run only
   min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
   same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
-  tabs: 6  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
+  tabs: 10  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
   tabs_start: 3  # first run only
   cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 900
-  max_reviews_per_place: 200  # newest first
-  max_review_age_months: 12  # older reviews dropped (stale prices / hours / crowds) ...
-  min_reviews_per_place: 30  # ... except these first ones, so quiet places still have some
+  max_reviews_per_place: 200  # newest first, under the age limit; enough for signals, gaps filled on demand (spec)
+  max_review_age_months: 11  # only reviews under a year old (Maps says "một năm trước" for 12-23 months); older are stale
+  min_reviews_per_place: 0  # no old reviews kept, even for quiet places
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
     start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
     max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time

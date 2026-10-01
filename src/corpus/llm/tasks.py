@@ -3,6 +3,7 @@
 A task's prompt_hash is stored with each result, so changing a prompt re-runs that task on the next build.
 """
 
+import base64
 import hashlib
 import json
 from dataclasses import dataclass
@@ -27,9 +28,15 @@ class Task:
     def render(self, **fields) -> str:
         return self.prompt.format(**fields)
 
-    async def ask(self, client, model: str, **fields) -> dict:
+    async def ask(self, client, model: str, images: list[bytes] = (), **fields) -> dict:
+        """images: JPEG bytes sent after the prompt, in order (the model reads images, docs/LLM_PROVIDER.md)."""
+        content = self.render(**fields)
+        if images:
+            content = [{"type": "text", "text": content}] + [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(b).decode()}}
+                for b in images]
         r = await client.chat.completions.create(
-            model=model, messages=[{"role": "user", "content": self.render(**fields)}],
+            model=model, messages=[{"role": "user", "content": content}],
             temperature=self.temperature, max_tokens=self.max_tokens,
             response_format={"type": "json_schema", "json_schema": {"name": self.name, "schema": self.schema, "strict": True}})
         return json.loads(r.choices[0].message.content)
@@ -142,4 +149,117 @@ Place:
 
 Reviews (newest first, sample):
 {reviews}""",
+)
+
+PLACE_VIDEO_FILTER = Task(
+    name="place_video_filter",
+    role=EXTRACTOR,
+    max_tokens=300,
+    schema=VIDEO_FILTER.schema,
+    # Caption and hashtags only, as in VIDEO_FILTER. The video becomes evidence for this one place, so a video about
+    # a look-alike place, another branch or the city in general would put wrong facts on it: only "yes" is kept.
+    prompt="""A TikTok search for one Google Maps place in {city}, Vietnam returned the video below. Decide from its
+caption and hashtags whether the video is about THIS place, so it can be used as evidence for it.
+- yes: the text names this place (also without accents, abbreviated, as a hashtag, or in English / Vietnamese
+  variants) or clearly describes being at it; a video about several places counts when this is one of them.
+- no: the text is about another place: a similar name, another branch of a chain in another city or clearly another
+  address, a different kind of business than the category, or a place elsewhere; or it is about another topic, or
+  only about the city in general.
+- unsure: the text is too thin to tell (only generic hashtags, a quote, a song), or the place is a chain with several
+  branches in {city} and the text does not show which one.
+Examples for "Thác Datanla (Điểm thu hút khách du lịch)": "Máng trượt Datanla siêu phê" -> yes.
+"#thacdatanla #dalat" -> yes. "Thác Pongour mùa nước lớn" -> no. "Đà Lạt 3 ngày 2 đêm" -> no. "chill thôi #xuhuong" ->
+unsure. Give a one-sentence reason.
+
+Place: {name}
+Category: {category}
+Address: {address}
+
+Caption: {desc}
+Hashtags: {hashtags}""",
+)
+
+ASR_CHECK = Task(
+    name="asr_check",
+    role=EXTRACTOR,
+    max_tokens=4000,
+    parallel=8,  # long prompts
+    schema={
+        "type": "object",
+        "properties": {
+            "segments": {"type": "array", "items": {"type": "object", "properties": {
+                "i": {"type": "integer"},
+                "status": {"type": "string", "enum": ["ok", "fixed", "garbled", "lyrics"]},
+                "text": {"type": "string"}},
+                "required": ["i", "status", "text"], "additionalProperties": False}},
+            "quality": {"type": "string", "enum": ["good", "partial", "unusable"]},
+        },
+        "required": ["segments", "quality"],
+        "additionalProperties": False,
+    },
+    # The transcript becomes evidence, so a wrong "fix" is worse than a dropped segment: fix only what the sound and
+    # the context make certain, never add meaning. The raw ASR text is kept next to the checked text.
+    prompt="""Below is a Vietnamese speech-recognition transcript of a TikTok video about {city}, Vietnam, split into
+numbered segments. ASR mishears words, above all names, and turns background songs or noise into nonsense. Check each
+segment and return one entry per segment, same i, in order:
+- ok: the text is sensible Vietnamese (or English) speech; return it unchanged.
+- fixed: most of the segment is already correct words and only a few are misheard, with the intended words certain
+  from how they sound plus the caption, hashtags or place names below (e.g. "đa tan la" -> "Datanla"). Return the
+  segment with only those words fixed. Never rewrite a segment, and never add words, facts, prices or names that are
+  not in it: when most words are wrong, it is garbled.
+- garbled: the text makes no sense and cannot be fixed with certainty; return "".
+- lyrics: the words are a song's lyrics (background music), not someone speaking; return "".
+quality: good = most segments ok / fixed; partial = some usable speech; unusable = nothing usable.
+
+Caption: {desc}
+Hashtags: {hashtags}
+Place names the video may be about: {places}
+
+Segments:
+{segments}""",
+)
+
+PLACE_VIDEO_VERIFY = Task(
+    name="place_video_verify",
+    role=EXTRACTOR,
+    max_tokens=800,
+    parallel=8,  # four images per call
+    schema={
+        "type": "object",
+        "properties": {
+            "verdict": {"type": "string", "enum": ["yes", "no", "unsure"]},
+            "evidence": {"type": "array", "items": {"type": "object", "properties": {
+                "source": {"type": "string", "enum": ["caption", "hashtags", "transcript", "frame"]},
+                "quote": {"type": "string"}},
+                "required": ["source", "quote"], "additionalProperties": False}},
+            "reason": {"type": "string"},
+        },
+        "required": ["verdict", "evidence", "reason"],
+        "additionalProperties": False,
+    },
+    # Last gate before a video counts as evidence for a place: it must show or talk about THIS place. Caption-only
+    # matching (PLACE_VIDEO_FILTER) already passed; here the speech and the frames must agree with it.
+    prompt="""A TikTok video was matched to one Google Maps place in {city}, Vietnam. Decide from the video's caption,
+hashtags, speech transcript and the {frames} frames attached (evenly spaced, in order) whether the video really shows
+or talks about THIS place.
+- yes: the place is named in the caption, hashtags, speech or on screen (sign, menu, text overlay), or the frames
+  clearly show it and nothing points elsewhere. A video about several places counts when this is one of them.
+- no: the video is about another place (similar name, another branch, another city), or its content does not match
+  this place (e.g. a waterfall video for a cafe), or it is about something else.
+- unsure: nothing in the text, speech or frames settles it.
+The same video was also matched to the other places listed below. Places with similar names are often different
+businesses: when the evidence fits one of them at least as well as this place, answer no or unsure, never yes for
+both.
+evidence: up to 4 items that decide it. For caption / hashtags / transcript, quote the exact words; for a frame,
+write the text you read on screen or what it shows, prefixed by the frame number ("frame 2: sign 'Thác Datanla'").
+Give a one-sentence reason.
+
+Place: {name}
+Category: {category}
+Address: {address}
+Other places matched to this video: {others}
+
+Caption: {desc}
+Hashtags: {hashtags}
+Transcript: {transcript}""",
 )

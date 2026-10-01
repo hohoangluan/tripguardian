@@ -1,6 +1,6 @@
-"""LLM roles and tasks: every prompt and model setting lives here (roles.py, tasks.py)."""
+"""Model roles and tasks: every prompt and model setting lives here (roles.py, tasks.py; asr.py = the local ASR role)."""
 
 from .roles import EXTRACTOR, JUDGE, Role
-from .tasks import PLACE_FILTER, PLACE_QC, VIDEO_FILTER, Task
+from .tasks import ASR_CHECK, PLACE_FILTER, PLACE_QC, PLACE_VIDEO_FILTER, PLACE_VIDEO_VERIFY, VIDEO_FILTER, Task
 
-__all__ = ["EXTRACTOR", "JUDGE", "PLACE_FILTER", "PLACE_QC", "Role", "Task", "VIDEO_FILTER"]
+__all__ = ["ASR_CHECK", "EXTRACTOR", "JUDGE", "PLACE_FILTER", "PLACE_QC", "PLACE_VIDEO_FILTER", "PLACE_VIDEO_VERIFY", "Role", "Task", "VIDEO_FILTER"]

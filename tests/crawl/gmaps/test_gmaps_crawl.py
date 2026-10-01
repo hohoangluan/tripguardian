@@ -29,10 +29,17 @@ def test_parse_reviews_fixture():
     assert rows and all(r["review_id"] and r["text"] is not None and len(r["author_hash"]) == 16 for r in rows)
     assert len({r["review_id"] for r in rows}) == len(rows)
     assert "/contrib/" not in json.dumps(rows)  # authors hidden
-    replied = [r for r in rows if r["owner_response_text"]]
-    assert replied and all(r["owner_response_published_text"] for r in replied)
-    assert all(r["text"] != r["owner_response_text"] for r in replied)  # owner text never taken as the review
-    assert all(r["owner_response_truncated"] == r["owner_response_text"].endswith("…") for r in replied)
+    assert not any(k.startswith("owner") for r in rows for k in r)  # owner replies are not evidence
+
+
+def test_owner_reply_is_never_taken_as_the_review_text():
+    async def both(page):
+        owner = await page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('div.jftiEf[data-review-id]')]
+          .filter(r => r.querySelector('.CDe7pd .wiI7pd')).map(r => [r.dataset.reviewId, r.querySelector('.CDe7pd .wiI7pd').innerText.trim()]))""")
+        return owner, await crawl.parse_reviews(page)
+
+    owner, rows = parse_fixture("reviews.html", both)
+    assert owner and all(r["text"] != owner[r["review_id"]] for r in rows if r["review_id"] in owner)
     assert all(isinstance(r["details"], list) and isinstance(r["photos"], int) and isinstance(r["likes"], int) for r in rows)
     assert all(r["author_meta"] is None or re.search("đánh giá|ảnh", r["author_meta"]) for r in rows)
 
@@ -61,7 +68,7 @@ def test_keep_recent_keeps_minimum_then_drops_old():
 @pytest.fixture
 def env(data, monkeypatch):
     monkeypatch.setattr(crawl, "load_config", lambda city: ("Đà Lạt", {"gmaps": {
-        "max_reviews_per_place": 3, "cooldown_s": 0, "pause_s": [0.1, 0.2]}}))
+        "max_reviews_per_place": 200, "cooldown_s": 0, "pause_s": [0.1, 0.2]}}))
     pauses = []
 
     async def rec(*a):
@@ -113,7 +120,60 @@ def test_place_with_reviews_but_none_captured_is_not_done(env):
     calls["result"] = ({"name": "Thác Datanla", "review_count": "3.114 bài đánh giá"}, [])
     asyncio.run(crawl.run("dalat", profile=fake_profile))
     assert not (data / "places" / DIR / "place.json").exists()
-    assert "no reviews captured" in (data / "errors.jsonl").read_text(encoding="utf-8")
+    assert "too few reviews: 0 of 3.114" in (data / "errors.jsonl").read_text(encoding="utf-8")
+
+
+def test_place_with_a_handful_of_reviews_is_retried_not_saved(env):
+    # A signed-out or throttled page shows ~8 reviews and no more: never saved, so the next run tries again.
+    data, calls, _ = env
+    calls["result"] = ({"name": "Dinh III", "review_count": "9.636 bài đánh giá"}, [{"review_id": "r1"}, {"review_id": "r2"}])
+    asyncio.run(crawl.run("dalat", profile=fake_profile))
+    assert not (data / "places" / DIR / "place.json").exists()
+    assert calls["scrape"] == crawl.ATTEMPTS
+    assert "too few reviews: 2 of 9.636" in (data / "errors.jsonl").read_text(encoding="utf-8")
+
+
+def test_saved_place_with_too_few_reviews_is_crawled_again(env):
+    data, calls, _ = env
+    d = data / "places" / DIR
+    d.mkdir(parents=True)
+    (d / "reviews.json").write_text(json.dumps([{"review_id": "r1", "published_text": "2 tuần trước"}]), encoding="utf-8")
+    (d / "place.json").write_text(json.dumps({"fid": FID, "review_count": "340 bài đánh giá", "fetched_at": "t"}), encoding="utf-8")
+    calls["result"] = ({"name": "Thác Datanla", "review_count": "340 bài đánh giá"}, [{"review_id": f"r{i}"} for i in range(300)])
+    asyncio.run(crawl.run("dalat", profile=fake_profile))
+    asyncio.run(crawl.run("dalat", profile=fake_profile))
+    assert calls["scrape"] == 1 and len(json.loads((d / "reviews.json").read_text(encoding="utf-8"))) == 300
+
+
+def test_incomplete_reviews_are_retried_then_saved_flagged(env):
+    data, calls, _ = env
+    calls["result"] = ({"name": "Suối Bình Yên", "reviews_complete": False}, [{"review_id": "r1"}])
+    asyncio.run(crawl.run("dalat", profile=fake_profile))
+    p = json.loads((data / "places" / DIR / "place.json").read_text(encoding="utf-8"))
+    assert calls["scrape"] == crawl.ATTEMPTS and p["reviews_complete"] is False
+    assert "reviews incomplete after retries" in (data / "errors.jsonl").read_text(encoding="utf-8")
+
+
+CAP = {"max_reviews_per_place": 200}
+
+
+@pytest.mark.parametrize("n,count,cfg,age_cut,thin", [
+    (8, "9.636 bài đánh giá", CAP, False, True),  # signed-out / throttled page
+    (8, "9.636 bài đánh giá", CAP, True, False),  # only 8 reviews under a year old
+    (13, "14 bài đánh giá", CAP, False, False),  # Maps' count runs a little above the list
+    (120, "9.636 bài đánh giá", CAP, False, False),
+    (0, None, CAP, False, False),  # no count shown
+    (300, "9.636 bài đánh giá", {"max_reviews_per_place": None}, False, True),  # no cap: all of them expected
+    (5000, "9.636 bài đánh giá", {"max_reviews_per_place": None}, False, False),
+    (0, "50 bài đánh giá", {"max_reviews_per_place": 0}, False, False),  # reviews not wanted
+])
+def test_too_few(n, count, cfg, age_cut, thin):
+    assert crawl.too_few(n, count, cfg, age_cut) is thin
+
+
+def test_keep_recent_without_minimum_drops_every_old_review():
+    rows = [{"published_text": t} for t in ["2 tuần trước", "11 tháng trước", "một năm trước", "2 năm trước"]]
+    assert [r["published_text"] for r in crawl.keep_recent(rows, 11, 0)] == ["2 tuần trước", "11 tháng trước"]
 
 
 def test_crawl_needs_list(data, monkeypatch):

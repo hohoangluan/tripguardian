@@ -1,7 +1,8 @@
 """Phase 4, crawl: open every place of data/gmaps/list/<city>.json and save its details and reviews.
 
 Writes only data/gmaps/places/<fid_dir>/: reviews.json, then place.json (= done; a rerun skips it). Places are
-scraped in parallel tabs (throttle.py); a place that says it has reviews but yields none is retried, never saved.
+scraped in parallel tabs (throttle.py). A place with fewer reviews than too_few() allows is retried, never saved, and
+a saved one is crawled again: a signed-out or throttled page shows only a handful of reviews.
 """
 
 import asyncio
@@ -14,7 +15,7 @@ from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import author_hash, data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
 from ...review import retry_ids
-from .page import ensure_login, more, open_page
+from .page import check_signed_in, ensure_login, more, open_page
 
 HOURS_BUTTON = '[role="button"][jsaction*="openhours"][jsaction*="dropdown"]'
 SORT_BUTTON = 'button[aria-haspopup="true"][aria-label="Phù hợp nhất"]'  # label = current review order
@@ -47,7 +48,9 @@ PLACE_JS = r"""() => {
   };
 }"""
 
-EXPAND_JS = "() => { const b = [...document.querySelectorAll('div.jftiEf button.w8nwRe')]; b.forEach(e => e.click()); return b.length; }"
+# "Xem thêm" of the review only: the owner's reply (.CDe7pd) is not evidence (docs/specs/CORPUS_SPEC.md, source roles)
+EXPAND_JS = """() => { const b = [...document.querySelectorAll('div.jftiEf button.w8nwRe')].filter(e => !e.closest('.CDe7pd'));
+  b.forEach(e => e.click()); return b.length; }"""
 
 # The review pane ends in a loader (a div with a spinner) while more reviews can load; Maps empties it once the
 # last batch is in. An empty last child = end of list, known without waiting for a timeout.
@@ -65,13 +68,11 @@ REVIEWS_JS = r"""() => [...document.querySelectorAll('div.jftiEf[data-review-id]
     author_meta: r.querySelector('.RfnDt')?.innerText.trim() || null,  // "Local Guide · 56 bài đánh giá · 235 ảnh"
     rating: r.querySelector('[role="img"][aria-label*="sao"]')?.getAttribute('aria-label').trim()
       ?? r.querySelector('.fzvQIb')?.innerText.trim() ?? null,  // lodging layout: "4/5"
-    text: mine('.wiI7pd')?.innerText.trim() ?? '',  // the owner's reply uses the same class
+    text: mine('.wiI7pd')?.innerText.trim() ?? '',  // the owner's reply (not kept) uses the same class
     details: [...r.querySelectorAll('.PBK6be')].map(e => e.innerText.trim()).filter(Boolean),  // "Dịch vụ: 5", ...
     published_text: r.querySelector('.rsqaWe, .xRkPPb')?.innerText.trim() ?? null,  // lodging: "… trước trên Google"
     likes: parseInt(r.querySelector('.pkWtMe')?.innerText ?? '0', 10) || 0,
     photos: photos.filter(a => /^Ảnh số/.test(a)).length + photos.reduce((n, a) => n + +(a.match(/^và (\d+)/)?.[1] ?? 0), 0),
-    owner_response_text: own?.querySelector('.wiI7pd')?.innerText.trim() ?? null,
-    owner_response_published_text: own?.querySelector('.DZSIDd')?.innerText.trim() ?? null,
   };
 })"""
 
@@ -110,12 +111,11 @@ async def parse_reviews(page: Page) -> list[dict]:
     rows = []
     for r in await page.evaluate(REVIEWS_JS):
         r["author_hash"] = author_hash(r.pop("author"))
-        r["owner_response_truncated"] = (r["owner_response_text"] or "").endswith("…")  # Maps has no expand for replies
         rows.append(r)
     return list({r["review_id"]: r for r in rows}.values())
 
 
-async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int, max_age_months: int | None = None,
+async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int | None, max_age_months: int | None = None,
                        min_reviews: int = 0) -> tuple[dict, list[dict]]:
     page = await ctx.new_page()
     try:
@@ -132,7 +132,7 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int, max_age_
             place["attributes"] = (await parse_place(page))["attributes"]
         reviews: list[dict] = []
         tab = page.locator('button[role="tab"]:has-text("Bài đánh giá")')
-        if max_reviews and await tab.count():
+        if max_reviews != 0 and await tab.count():  # None = no cap, 0 = no reviews
             await tab.first.click()
             await page.wait_for_timeout(1500)
             sort = page.locator(SORT_BUTTON)
@@ -154,7 +154,7 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int, max_age_
             complete = False  # stopped on an explicit signal, not on silence
             while True:
                 n = await page.locator(REVIEW_DIV).count()
-                if n >= max_reviews or (total and n >= total) or await page.evaluate(LIST_END_JS):
+                if (max_reviews and n >= max_reviews) or (total and n >= total) or await page.evaluate(LIST_END_JS):
                     complete = True
                     break
                 # scrollBy / wheel often fail to trigger the next batch; bringing the last review into view does
@@ -172,7 +172,11 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int, max_age_
                 if not await page.evaluate(EXPAND_JS):
                     break
                 await page.wait_for_timeout(500)
-            reviews = keep_recent((await parse_reviews(page))[:max_reviews], max_age_months, min_reviews)
+            loaded = (await parse_reviews(page))[:max_reviews]
+            reviews = keep_recent(loaded, max_age_months, min_reviews)
+            # newest first: once an older one loaded, the kept ones are all the recent ones there are
+            place["reviews_age_cut"] = len(reviews) < len(loaded)
+        await check_signed_in(page)  # the Google bar, with its sign-in link, renders well after the title
         return place, reviews
     finally:
         await page.close()
@@ -182,15 +186,29 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int, max_age_
 ATTEMPTS = 3  # per place, when the failure looks like a block
 
 
+def too_few(n: int, review_count: str | None, c: dict, age_cut: bool) -> bool:
+    """Under half the reviews the place shows (up to the cap) while no review past the age limit was reached: a
+    signed-out or throttled page stops at ~8. Maps' count runs a little above what it lists, hence the half."""
+    total = count(review_count)
+    cap = c.get("max_reviews_per_place")
+    if cap == 0 or not total or age_cut:
+        return False
+    return n < min(total, cap or total) // 2
+
+
 async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Throttle) -> None:
     d = root / "places" / safe_name(row["fid"])
     for attempt in range(1, ATTEMPTS + 1):
         async with throttle:
             try:
-                place, reviews = await scrape_place(ctx, row["url"], c["max_reviews_per_place"],
+                place, reviews = await scrape_place(ctx, row["url"], c.get("max_reviews_per_place"),
                                                     c.get("max_review_age_months"), c.get("min_reviews_per_place", 0))
-                if not reviews and c["max_reviews_per_place"] and place.get("review_count"):
-                    raise RuntimeError("no reviews captured")  # list not loaded yet
+                if too_few(len(reviews), place.get("review_count"), c, place.get("reviews_age_cut", False)):
+                    raise RuntimeError(f"too few reviews: {len(reviews)} of {place.get('review_count')}")
+                if place.get("reviews_complete") is False and attempt < ATTEMPTS:
+                    raise RuntimeError("reviews incomplete: the list stopped loading without its end signal")
+                if place.get("reviews_complete") is False:  # last attempt: keep what loaded, flagged, and say so
+                    log_error(root, row["fid"], "reviews", RuntimeError("reviews incomplete after retries"))
                 write_json(d / "reviews.json", reviews)
                 write_json(d / "place.json", {**row, **place, "fetched_at": now()})  # written last = done
                 throttle.success()
@@ -198,7 +216,9 @@ async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thrott
             except LoginRequired:
                 raise
             except Exception as e:
-                slow, blocked = "no reviews" in str(e), type(e).__name__ == "TimeoutError"
+                slow = "too few reviews: 0 " in str(e)  # list not loaded yet
+                slow = slow or "incomplete" in str(e)  # a slow batch, not a block: retry without cutting tabs
+                blocked = type(e).__name__ == "TimeoutError" or ("too few reviews" in str(e) and not slow)
                 if attempt < ATTEMPTS and (slow or blocked):
                     print(f"retry {row['fid']} ({attempt}/{ATTEMPTS}): {str(e).splitlines()[0][:120]}")
                     if blocked:  # a page that never loads is Google throttling; a slow review list is not
@@ -216,11 +236,20 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
     lst = root / "list" / f"{city}.json"
     if not lst.exists():
         raise SystemExit(f"no {lst}; run `python -m corpus gmaps list --city {city}` first")
-    fetched = {json.loads(f.read_text(encoding="utf-8"))["fid"]: json.loads(f.read_text(encoding="utf-8"))["fetched_at"]
-               for f in (root / "places").glob("*/place.json")}
-    again = retry_ids("place_reviews", fetched)  # a person asked to crawl these again (review)
+    fetched, thin = {}, set()
+    for f in (root / "places").glob("*/place.json"):
+        p = json.loads(f.read_text(encoding="utf-8"))
+        fetched[p["fid"]] = p["fetched_at"]
+        reviews = json.loads((f.parent / "reviews.json").read_text(encoding="utf-8"))
+        age_cut = p.get("reviews_age_cut") or any((age_months(r.get("published_text")) or 0) > (c.get("max_review_age_months") or 10**6)
+                                                  for r in reviews)  # older files kept a few old reviews
+        if too_few(len(reviews), p.get("review_count"), c, age_cut):
+            thin.add(p["fid"])  # saved from a signed-out or throttled page
+    again = retry_ids("place_reviews", fetched) | thin  # a person asked to crawl these again (review)
     todo = [r for r in json.loads(lst.read_text(encoding="utf-8"))["items"]
             if r["fid"] in again or not (root / "places" / safe_name(r["fid"]) / "place.json").exists()]
+    if thin:
+        print(f"crawl {city}: {len(thin)} saved places have too few reviews, crawling them again")
     print(f"crawl {city}: {len(todo)} places left")
     throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))

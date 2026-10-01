@@ -147,6 +147,13 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
             and (r["video_id"] in again or not (root / "videos" / r["video_id"] / "video.mp4").exists())]
     print(f"crawl {city}: {len(todo)} videos left ({sum(bool(r.get('photo')) for r in rows)} photo posts, "
           f"{sum(1 for r in rows if not r.get('photo') and r['video_id'] not in kept)} not kept by filter)")
+    await crawl_videos(todo, c, root, headed, profile)
+    done = sum((root / "videos" / r["video_id"] / "video.mp4").exists() for r in todo)
+    print(f"crawl {city}: {done}/{len(todo)} done, the rest in errors.jsonl")
+
+
+async def crawl_videos(todo: list[dict], c: dict, root, headed: bool, profile) -> None:
+    """Every row's video into data/tiktok/videos/<video_id>/, in parallel tabs; failures go to errors.jsonl."""
     throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     downloads = asyncio.Semaphore(c.get("downloads", 4))
@@ -158,5 +165,3 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
                     tg.create_task(_video(ctx, row, root, c, throttle, downloads))
         except* LoginRequired as eg:
             raise eg.exceptions[0] from None
-    done = sum((root / "videos" / r["video_id"] / "video.mp4").exists() for r in todo)
-    print(f"crawl {city}: {done}/{len(todo)} done, the rest in errors.jsonl")
