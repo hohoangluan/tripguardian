@@ -13,6 +13,7 @@ from .crawl.common.files import ROOT
 PATH = ROOT / "config" / "ontology.yaml"
 UNKNOWN = "unknown"
 VERIFY = ("always", "sampled")
+CHECK = ("span",)  # review observations of this feature get a second Extractor read (REVIEW_VERIFY)
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class Feature:
     hint: str
     verify: str = "sampled"
     caution_values: tuple[str, ...] = ()
+    span_check: bool = False
 
 
 @dataclass(frozen=True)
@@ -63,7 +65,10 @@ def parse(raw: dict) -> Ontology:
         verify = spec.get("verify", "sampled")
         if verify not in VERIFY:
             raise ValueError(f"feature {fid}: verify must be one of {VERIFY}")
-        features[fid] = Feature(fid, spec["group"], values, spec["hint"], verify, caution)
+        check = spec.get("check")
+        if check is not None and check not in CHECK:
+            raise ValueError(f"feature {fid}: check must be one of {CHECK}")
+        features[fid] = Feature(fid, spec["group"], values, spec["hint"], verify, caution, check == "span")
     return Ontology(int(raw["version"]), groups, {k: tuple(v) for k, v in raw["contexts"].items()}, features)
 
 

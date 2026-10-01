@@ -26,6 +26,15 @@ TABLES = {"Độ ồn": ("noise", NOISE), "Thời gian đợi": ("wait_time", WA
           "Điểm đỗ xe": ("parking", PARKING), "Thông tin đánh giá về mức giá": ("value_for_money", PRICE_INFO),
           "Đặt chỗ": ("booking_needed", BOOKING), "Nên đặt vé trước": ("booking_needed", TICKET)}
 STARS = {"Đồ ăn": "food_quality", "Dịch vụ": "service_quality"}  # "Bầu không khí" has no clear feature
+# questions Maps asks with a free-text answer: matched lower-case and whole, never by prefix
+KIDS = {**dict.fromkeys(("có", "ok", "yes", "đúng", "rất thân thiện", "thân thiện", "rất tốt", "tốt", "có thể",
+                          "phù hợp"), "suitable"), **dict.fromkeys(("không", "no", "ko", "không có"), "unsuitable")}
+WHEELCHAIR = {**dict.fromkeys(("có", "yes", "đúng", "ok", "thoải mái"), "suitable"),
+              **dict.fromkeys(("không", "không có", "no", "ko", "không có lối đi cho xe lăn"), "unsuitable")}
+VEGETARIAN = {**dict.fromkeys(("có", "yes", "đúng", "có món chay", "nhà hàng chay", "thuần chay"), "yes"),
+              **dict.fromkeys(("không", "no", "ko", "không có", "không có món chay"), "no")}
+ANSWERS = {"Độ thân thiện với trẻ em": ("kids", KIDS), "Tình trạng có lối đi cho xe lăn": ("wheelchair", WHEELCHAIR),
+           "Các món chay": ("vegetarian_options", VEGETARIAN)}
 
 
 def split(line: str) -> tuple[str, str]:
@@ -64,6 +73,9 @@ def details_pairs(review: dict) -> list[tuple[str, str, str]]:
             value = lookup(table, raw)
         elif key in STARS:
             feature, value = STARS[key], star_value(raw)
+        elif key in ANSWERS:
+            feature, table = ANSWERS[key]
+            value = table.get(raw.rstrip(ELLIPSIS).strip().lower())
         else:
             continue
         if value:

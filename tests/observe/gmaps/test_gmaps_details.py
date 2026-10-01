@@ -64,3 +64,11 @@ def test_cut_value_that_could_be_khong_ro_gives_nothing():
     rows = ["Đặt chỗ\nKhông…", "Thời gian đợi\nKhông…", "Nên đặt vé trước\nKhông…", "Độ ồn\nKhông rõ",
             "Nên đặt vé trước\nKhông", "Thời gian đợi\nKhông cần đ…"]
     assert [(f, v) for f, v, _ in details_pairs({"details": rows})] == [("booking_needed", "no"), ("wait_time", "none")]
+
+
+def test_free_text_answers_for_kids_wheelchair_vegetarian():
+    rows = ["Độ thân thiện với trẻ em\nRất thân thiện", "Độ thân thiện với trẻ em\nBình thường",
+            "Tình trạng có lối đi cho xe lăn\nKo", "Các món chay\nThuần chay", "Các món chay\nKHÔNG",
+            "Các món chay\nKhông rõ"]
+    assert [(f, v) for f, v, _ in details_pairs({"details": rows})] == [
+        ("kids", "suitable"), ("wheelchair", "unsuitable"), ("vegetarian_options", "yes"), ("vegetarian_options", "no")]

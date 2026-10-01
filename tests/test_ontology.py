@@ -5,7 +5,11 @@ from corpus.ontology import load, parse
 
 def test_shipped_ontology_loads():
     ont = load()
-    assert ont.version == 3
+    assert ont.version == 4
+    assert ont.valid("outdoor_seating", "present") and ont.valid("laptop_friendly", "present")
+    assert ont.valid("vegetarian_options", "no")
+    assert ont.features["steep_or_stairs"].span_check and ont.features["kids"].span_check
+    assert ont.features["tourist_trap"].span_check and not ont.features["food_quality"].span_check
     for fid in ("hands_on_workshop", "pick_your_own", "cultural_show", "camping", "spacious", "cash_only"):
         assert ont.features[fid].values == ("present",)
     assert ont.valid("entry_fee", "free") and ont.valid("portion_size", "generous")
@@ -46,3 +50,8 @@ def test_caution_value_outside_values_rejected():
 def test_bad_verify_rejected():
     with pytest.raises(ValueError, match="verify"):
         parse({**BASE, "features": [{**A, "verify": "never"}]})
+
+
+def test_bad_check_rejected():
+    with pytest.raises(ValueError, match="check"):
+        parse({**BASE, "features": [{**A, "check": "maybe"}]})
