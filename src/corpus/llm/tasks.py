@@ -307,7 +307,7 @@ REVIEW_OBSERVE = Task(
     name="review_observe",
     role=EXTRACTOR,
     max_tokens=6000,
-    parallel=32,  # ~50 s per batch of 15; the key is shared (40 concurrent), Task.ask backs off on 429; caps REVIEW_VERIFY
+    parallel=38,  # ~50 s per batch of 15; the key allows 40 concurrent, Task.ask backs off on 429; caps REVIEW_VERIFY
     schema={
         "type": "object",
         "properties": {"reviews": {"type": "array", "items": {
