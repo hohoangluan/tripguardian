@@ -444,3 +444,36 @@ def test_endpoint_client_has_a_short_timeout_and_no_hidden_retries(monkeypatch):
     providers = asyncio.run(extract._providers())
     assert len(providers) == 1 and seen == {"timeout": extract.CALL_TIMEOUT_S, "max_retries": 0}
     assert extract.CALL_TIMEOUT_S <= 300
+
+
+def test_slots_shrink_on_429_and_grow_back():
+    slots = extract.Slots([("c", "m", 8)], min_cap=2)
+    assert slots.cap == 8
+    slots.busy()
+    assert slots.cap == 6
+    for _ in range(20):
+        slots.busy()
+    assert slots.cap == 2
+    for _ in range(2 + 3 + 4):  # one more slot after `cap` calls in a row went through
+        slots.ok()
+    assert slots.cap == 5
+
+
+def test_rate_limited_call_waits_and_retries_instead_of_failing_the_place(tmp_path, monkeypatch):
+    import httpx
+    import openai
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    monkeypatch.setattr(extract, "BUSY_WAIT_S", 0)
+    ok = extract.ask_batch
+    left = [3]
+
+    async def busy_then_ok(client, model, city, place, ontology_text, reviews_text, note=""):
+        if left[0]:
+            left[0] -= 1
+            req = httpx.Request("POST", "http://llm")
+            raise openai.RateLimitError("Too many concurrent requests", response=httpx.Response(429, request=req), body=None)
+        return await ok(client, model, city, place, ontology_text, reviews_text, note)
+
+    monkeypatch.setattr(extract, "ask_batch", busy_then_ok)
+    summary = asyncio.run(extract.run("dalat"))
+    assert summary["status"] == {"done": 1} and out.exists()

@@ -24,7 +24,7 @@ Gemma: tối đa **40 request đồng thời mỗi key** (vượt → HTTP 429 "
 
 Thinking: bật bằng `extra_body={"chat_template_kwargs": {"enable_thinking": True}}`. Server không tách phần suy nghĩ ra field riêng; nó nằm trong `content` trước câu trả lời, nên code lấy khối JSON cuối cùng của `content` rồi mới validate.
 
-`gmaps observe` kiểm tra endpoint bằng một call nhỏ khi bắt đầu (ngoài campus UIT trả trang chuyển hướng → dừng với thông báo rõ), rồi chạy `REVIEW_OBSERVE.parallel` = 38 call đồng thời; mỗi lô 15 review sinh ~2.500 token, ~50 s. Key dùng chung với người khác: gặp 429 thì `Task.ask` chờ rồi thử lại.
+`gmaps observe` kiểm tra endpoint bằng một call nhỏ khi bắt đầu (ngoài campus UIT trả trang chuyển hướng → dừng với thông báo rõ), rồi chạy `REVIEW_OBSERVE.parallel` = 38 call đồng thời; mỗi lô 15 review sinh ~2.500 token, ~50 s. Key dùng chung với người khác nên số slot tự điều chỉnh: gặp 429 → giảm còn 3/4 (tối thiểu 4), call đó chờ 20 s ngoài slot rồi thử lại (tối đa 30 lần, không đánh lỗi cả địa điểm); `cap` call liên tiếp thành công → thêm 1 slot, tối đa 38. Mỗi call có timeout 240 s, tắt retry ngầm của SDK.
 
 ## Cấu hình
 

@@ -35,6 +35,8 @@ SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
 QC_DROP = {"owner_reply", "spam", "not_a_review"}
 ATTEMPTS = 2
 CALL_TIMEOUT_S = 240  # a batch takes ~50 s, the longest ~150 s; a dropped connection must not hold a slot for long
+BUSY_WAIT_S = 20  # after HTTP 429 (the key is shared): wait outside the slots, then try the same call again
+BUSY_TRIES = 30
 BAD_ANSWER = (BadAnswer, ValueError, TypeError, AttributeError, KeyError)  # JSONDecodeError is a ValueError
 
 
@@ -43,21 +45,53 @@ def first_line(e: BaseException) -> str:
 
 
 class Slots:
-    """Concurrent-call slots over every reachable endpoint: a call takes whichever slot frees first."""
+    """Concurrent-call slots over every reachable endpoint: a call takes whichever slot frees first. How many may be
+    in use adapts to a shared key: HTTP 429 cuts it to 3/4 (not below min_cap), `cap` calls in a row that went
+    through add one back, up to all of them."""
 
-    def __init__(self, providers: list[tuple]):
-        self.q = asyncio.Queue()
-        for client, model, parallel in providers:
-            for _ in range(parallel):
-                self.q.put_nowait((client, model))
+    def __init__(self, providers: list[tuple], min_cap: int = 4):
+        self.free = [(client, model) for client, model, parallel in providers for _ in range(parallel)]
+        self.max = len(self.free)
+        self.cap, self.min_cap = self.max, min(min_cap, self.max)
+        self.in_use = self.streak = 0
+        self.cond = asyncio.Condition()
+
+    def busy(self):
+        self.cap, self.streak = max(self.min_cap, int(self.cap * 0.75)), 0
+
+    def ok(self):
+        self.streak += 1
+        if self.streak >= self.cap:
+            self.cap, self.streak = min(self.max, self.cap + 1), 0
 
     @contextlib.asynccontextmanager
     async def take(self):
-        slot = await self.q.get()
+        async with self.cond:
+            await self.cond.wait_for(lambda: self.in_use < self.cap and self.free)
+            self.in_use += 1
+            slot = self.free.pop()
         try:
             yield slot
         finally:
-            self.q.put_nowait(slot)
+            async with self.cond:
+                self.in_use -= 1
+                self.free.append(slot)
+                self.cond.notify_all()
+
+
+async def call(slots: Slots, fn):
+    """fn(client, model) on a free slot; HTTP 429 shrinks the slots and the call waits outside them, then retries."""
+    for tries in range(1, BUSY_TRIES + 1):
+        async with slots.take() as (client, model):
+            try:
+                out = await fn(client, model)
+                slots.ok()
+                return out
+            except openai.RateLimitError:
+                slots.busy()
+                if tries == BUSY_TRIES:
+                    raise
+        await asyncio.sleep(BUSY_WAIT_S)
 
 
 async def healthy(client, model: str) -> bool:
@@ -100,14 +134,14 @@ def passage(text: str, quote: str) -> str:
 
 async def check_span(slots: Slots, place: dict, text: str, ont: Ontology, o: dict) -> str:
     claim = f'{ont.features[o["feature"]].claims[o["value"]]} (quote: "{o["quote"]}")'
-    async with slots.take() as (client, model):
-        try:
-            answer = await verify_claim(client, model, place, passage(text, o["quote"]), claim)
-            verdict = answer.get("verdict")
-        except openai.APIError:
-            raise
-        except BAD_ANSWER:
-            return "error"
+    try:
+        answer = await call(slots, lambda client, model: verify_claim(client, model, place, passage(text, o["quote"]),
+                                                                      claim))
+        verdict = answer.get("verdict")
+    except openai.APIError:
+        raise
+    except BAD_ANSWER:
+        return "error"
     return verdict if verdict in VERDICTS else "error"
 
 
@@ -138,14 +172,15 @@ async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tupl
     refs = dict(batch)
     text = "\n".join(f"{ref}: {' '.join(r['text'].split())}" for ref, r in batch)
     for attempt in range(1 if len(batch) > 1 else ATTEMPTS):
-        async with slots.take() as (client, model):
-            try:
-                return gate(await ask_batch(client, model, city, place, ont.prompt_text(), text, note), refs, ont)
-            except openai.APIError:
-                raise  # splitting cannot fix the network or the API
-            except BAD_ANSWER as e:
-                note = (f"Your previous answer was rejected ({first_line(e)[:200]}). "
-                        "Answer again with JSON that matches the schema.")
+        try:
+            answer = await call(slots, lambda client, model, note=note: ask_batch(client, model, city, place,
+                                                                                ont.prompt_text(), text, note))
+            return gate(answer, refs, ont)
+        except openai.APIError:
+            raise  # splitting cannot fix the network or the API
+        except BAD_ANSWER as e:
+            note = (f"Your previous answer was rejected ({first_line(e)[:200]}). "
+                    "Answer again with JSON that matches the schema.")
     if len(batch) == 1:
         raise BadAnswer(note)
     mid = len(batch) // 2
