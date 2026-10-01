@@ -26,7 +26,6 @@ const lookCurve = new THREE.CatmullRomCurve3(LOOK, false, 'centripetal')
 
 const MIST = new THREE.Color('#d5dee0')
 const CLEAR = new THREE.Color('#bcd5df')
-const APP_SCENE_P = 0.2 // the floating "possibilities" cloud behind /app
 
 export function Director({ scene }: { scene: { p: number } }) {
   const { camera, scene: three, size } = useThree()
@@ -43,7 +42,7 @@ export function Director({ scene }: { scene: { p: number } }) {
   useFrame(({ clock }, dt) => {
     const k = 1 - Math.exp(-dt * (story.reducedMotion ? 30 : 3.2))
     const t = story.reducedMotion ? 0 : clock.elapsedTime
-    const target = story.mode === 'landing' ? story.progress : APP_SCENE_P
+    const target = story.mode === 'landing' ? story.progress : story.appScene
     scene.p += (target - scene.p) * (story.mode === 'landing' ? k : 1 - Math.exp(-dt * 1.2))
     const p = scene.p
     const { pos, tgt, col } = tmp

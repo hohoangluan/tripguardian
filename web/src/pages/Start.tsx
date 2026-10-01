@@ -1,24 +1,35 @@
 import gsap from 'gsap'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { story } from '../scene/story'
+import { useTrip } from '../user/trip'
 
 // Role_Web_Functional_Design.md §2.1: two questions, each skippable.
 const QUESTIONS = [
   {
+    key: 'experience',
     title: 'Bạn đã đến Đà Lạt chưa?',
     note: 'Lần đầu thì mình dẫn từng bước. Đã từng đến thì mình bỏ qua phần cơ bản.',
-    options: ['Đây là lần đầu', 'Đã từng đến'],
+    options: [
+      { value: 'first', label: 'Đây là lần đầu' },
+      { value: 'returning', label: 'Đã từng đến' },
+    ],
   },
   {
+    key: 'startWith',
     title: 'Bạn đang có gì trong tay?',
     note: 'Mình bắt đầu từ chỗ bạn đang đứng, không bắt bạn làm lại.',
-    options: ['Chưa có ý tưởng gì', 'Vài địa điểm đã lưu', 'Một nơi nhất định phải đến', 'Một lịch trình có sẵn'],
+    options: [
+      { value: 'nothing', label: 'Chưa có ý tưởng gì' },
+      { value: 'saved', label: 'Vài địa điểm đã lưu' },
+      { value: 'must', label: 'Một nơi nhất định phải đến' },
+      { value: 'itinerary', label: 'Một lịch trình có sẵn' },
+    ],
   },
-]
+] as const
 
-export function Start({ onHome }: { onHome: () => void }) {
+export function Start({ onHome, onDone }: { onHome: () => void; onDone: () => void }) {
+  const { trip, dispatch } = useTrip()
   const [step, setStep] = useState(0)
-  const [answers, setAnswers] = useState<string[]>([])
   const card = useRef<HTMLDivElement>(null)
   const dir = useRef(1)
 
@@ -38,11 +49,12 @@ export function Start({ onHome }: { onHome: () => void }) {
     return () => ctx.revert()
   }, [step])
 
-  const move = (next: number, answer?: string) => {
+  const move = (next: number, answer?: string | null) => {
     dir.current = next > step ? 1 : -1
     const commit = () => {
-      if (answer !== undefined) setAnswers((a) => Object.assign([...a], { [step]: answer }))
-      setStep(next)
+      if (answer !== undefined) dispatch({ type: 'set', patch: { [QUESTIONS[step].key]: answer } })
+      if (next >= QUESTIONS.length) onDone()
+      else setStep(next)
     }
     if (story.reducedMotion || !card.current) return commit()
     gsap.to(card.current, {
@@ -57,73 +69,42 @@ export function Start({ onHome }: { onHome: () => void }) {
   }
 
   const q = QUESTIONS[step]
+  const current = trip[q.key]
 
   return (
-    <main className="start">
-      <header className="topbar">
-        <a
-          className="wordmark"
-          href="/"
-          onClick={(e) => {
-            e.preventDefault()
-            onHome()
-          }}
-        >
-          TripGuardian
-        </a>
-        <span className="start__count">{step < QUESTIONS.length ? `Câu ${step + 1} trên ${QUESTIONS.length}` : 'Xong phần mở đầu'}</span>
-      </header>
-
+    <div className="start">
+      <div className="start__top">
+        <span className="start__count">
+          Câu {step + 1} trên {QUESTIONS.length}
+        </span>
+      </div>
       <div className="stage">
         <div className="card" ref={card} key={step}>
-          {q ? (
-            <>
-              <h1>{q.title}</h1>
-              <p className="card__note">{q.note}</p>
-              <div className="choices">
-                {q.options.map((o) => (
-                  <button key={o} className={`choice${answers[step] === o ? ' is-picked' : ''}`} onClick={() => move(step + 1, o)}>
-                    {o}
-                  </button>
-                ))}
-              </div>
-              <div className="card__foot">
-                {step > 0 ? (
-                  <button className="link" onClick={() => move(step - 1)}>
-                    Quay lại
-                  </button>
-                ) : (
-                  <span />
-                )}
-                <button className="link" onClick={() => move(step + 1, 'Chưa chắc')}>
-                  Chưa chắc, bỏ qua
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h1>Tiếp theo là thiết lập chuyến đi.</h1>
-              <ul className="recap">
-                {QUESTIONS.map((x, i) => (
-                  <li key={x.title}>
-                    <span>{x.title}</span>
-                    <b>{answers[i] ?? 'Chưa chắc'}</b>
-                  </li>
-                ))}
-              </ul>
-              <p className="card__note">Màn thiết lập chuyến đi đang được dựng. Bản thử này dừng ở đây.</p>
-              <div className="card__foot">
-                <button className="link" onClick={() => move(step - 1)}>
-                  Sửa câu trả lời
-                </button>
-                <button className="link" onClick={onHome}>
-                  Về trang giới thiệu
-                </button>
-              </div>
-            </>
-          )}
+          <h1>{q.title}</h1>
+          <p className="card__note">{q.note}</p>
+          <div className="choices">
+            {q.options.map((o) => (
+              <button key={o.value} className={`choice${current === o.value ? ' is-picked' : ''}`} onClick={() => move(step + 1, o.value)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <div className="card__foot">
+            {step > 0 ? (
+              <button className="link" onClick={() => move(step - 1)}>
+                Quay lại
+              </button>
+            ) : (
+              <button className="link" onClick={onHome}>
+                Về trang giới thiệu
+              </button>
+            )}
+            <button className="link" onClick={() => move(step + 1, null)}>
+              Chưa chắc, bỏ qua
+            </button>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 }

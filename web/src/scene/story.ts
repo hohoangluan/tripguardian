@@ -6,7 +6,8 @@ export const story = {
   mode: 'landing' as Mode,
   progress: 0, // landing scroll progress, 0..1
   dive: 0, // 0..1 while the camera plunges into the mist between pages
-  appStep: 0, // question index on /app, rotates the orbit
+  appStep: 0, // screen index on /app, rotates the orbit
+  appScene: 0.2, // scene progress the /app background settles on (pins, route)
   pointer: { x: 0, y: 0 }, // -1..1, for subtle parallax
   reducedMotion:
     typeof window !== 'undefined' &&

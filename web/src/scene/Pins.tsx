@@ -62,7 +62,8 @@ export function Pins({ scene }: { scene: { p: number } }) {
     if (im.instanceColor) im.instanceColor.needsUpdate = true
 
     // Light columns mark the shortlist; labels arrive with the itinerary.
-    const labelIn = smooth(span(p, 0.92, 0.98))
+    // Landing labels name demo places; never show them behind the real app.
+    const labelIn = story.mode === 'landing' ? smooth(span(p, 0.92, 0.98)) : 0
     CHOSEN.forEach((_, i) => {
       const beam = beams.current[i]
       if (beam) {

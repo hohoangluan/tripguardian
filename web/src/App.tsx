@@ -1,39 +1,36 @@
 import gsap from 'gsap'
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { Landing } from './pages/Landing'
-import { Start } from './pages/Start'
+import { navigate, usePath } from './router'
 import { World } from './scene/World'
 import { story } from './scene/story'
+import { UserApp } from './user/UserApp'
 
-type Route = 'landing' | 'app'
+const AdminApp = lazy(() => import('./admin/AdminApp'))
 
-const routeOf = (path: string): Route => (path.startsWith('/app') ? 'app' : 'landing')
+type Surface = 'landing' | 'app' | 'admin'
+const surfaceOf = (path: string): Surface => (path.startsWith('/admin') ? 'admin' : path.startsWith('/app') ? 'app' : 'landing')
 
 export function App() {
-  const [route, setRoute] = useState<Route>(() => routeOf(location.pathname))
-  story.mode = route
+  const path = usePath()
+  const surface = surfaceOf(path)
+  if (surface !== 'admin') story.mode = surface
 
   useEffect(() => {
-    const onPop = () => setRoute(routeOf(location.pathname))
     const onMove = (e: PointerEvent) => {
       story.pointer.x = (e.clientX / innerWidth) * 2 - 1
       story.pointer.y = -((e.clientY / innerHeight) * 2 - 1)
     }
-    addEventListener('popstate', onPop)
     addEventListener('pointermove', onMove)
-    return () => {
-      removeEventListener('popstate', onPop)
-      removeEventListener('pointermove', onMove)
-    }
+    return () => removeEventListener('pointermove', onMove)
   }, [])
 
-  // Page change = the camera dives into the mist, the page swaps while
+  // Landing <-> app: the camera dives into the mist, the page swaps while
   // everything is white, then the mist lets go.
-  const go = useCallback((next: Route) => {
+  const dive = useCallback((to: string) => {
     const swap = () => {
-      history.pushState(null, '', next === 'app' ? '/app' : '/')
+      navigate(to)
       window.scrollTo(0, 0)
-      setRoute(next)
     }
     if (story.reducedMotion) return swap()
     gsap
@@ -45,11 +42,19 @@ export function App() {
       .to('.veil', { opacity: 0, duration: 0.9, ease: 'power2.out' }, '<0.15')
   }, [])
 
+  if (surface === 'admin') {
+    return (
+      <Suspense fallback={<div className="admin-boot">Đang mở Admin</div>}>
+        <AdminApp />
+      </Suspense>
+    )
+  }
+
   return (
     <>
       <World />
       <div className="veil" aria-hidden="true" />
-      {route === 'landing' ? <Landing onStart={() => go('app')} /> : <Start onHome={() => go('landing')} />}
+      {surface === 'landing' ? <Landing onStart={() => dive('/app')} /> : <UserApp path={path} onHome={() => dive('/')} />}
     </>
   )
 }
