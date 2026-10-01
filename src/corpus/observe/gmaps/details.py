@@ -1,6 +1,7 @@
 """Maps' structured review details ("Độ ồn\nYên tĩnh, dễ trò chuyện", "Đồ ăn: 5") -> observations by rule, no model.
 
 Maps cuts long labels with "…"; a cut value is used only when it is the unambiguous start of one known label.
+"Không rõ" (and "Tuỳ theo ngày/giờ") are labels too, meaning no observation, so "Không…" stays ambiguous.
 """
 
 from ...ontology import UNKNOWN
@@ -19,6 +20,7 @@ BOOKING = {"Không cần đặt chỗ trước": "no", "Nên đặt chỗ trư�
            "Chỉ khách vãng lai": "no"}
 TICKET = {"Có": "yes", "Không": "no"}
 DAY_TYPE = {"Ngày trong tuần": "weekday", "Cuối tuần": "weekend", "Ngày nghỉ lễ": "holiday"}
+NO_VALUE = ("Không rõ", "Tuỳ theo ngày/giờ")
 
 TABLES = {"Độ ồn": ("noise", NOISE), "Thời gian đợi": ("wait_time", WAIT), "Thời gian chờ": ("wait_time", WAIT),
           "Điểm đỗ xe": ("parking", PARKING), "Thông tin đánh giá về mức giá": ("value_for_money", PRICE_INFO),
@@ -36,13 +38,13 @@ def split(line: str) -> tuple[str, str]:
 
 def lookup(table: dict[str, str], raw: str) -> str | None:
     value = raw.rstrip(ELLIPSIS).strip()
-    if value in table:
-        return table[value]
-    if raw.endswith(ELLIPSIS) and len(value) >= MIN_PREFIX:
-        hits = {v for label, v in table.items() if label.startswith(value)}
-        if len(hits) == 1:
-            return hits.pop()
-    return None
+    if not raw.endswith(ELLIPSIS):
+        return table.get(value)
+    if len(value) < MIN_PREFIX:
+        return None
+    labels = {**table, **dict.fromkeys(NO_VALUE)}
+    hits = {v for label, v in labels.items() if label.startswith(value)}
+    return hits.pop() if len(hits) == 1 else None
 
 
 def star_value(raw: str) -> str | None:

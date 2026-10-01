@@ -3,7 +3,8 @@
 Structured details become observations by rule (details.py); review text goes to the Extractor in batches of one
 place (corpus.llm.REVIEW_OBSERVE) and through the gate (gate.py). Reviews the qc phase flagged as owner reply, spam
 or not a review are left out. A place is done again only when its reviews, the prompt or the ontology change; a
-place whose batch fails twice gets no file (retried next run) and one line in data/gmaps/observe_errors.jsonl.
+place that fails gets no file (retried next run; an older file is removed) and one line in
+data/gmaps/observe_errors.jsonl. Only a bad answer is split / retried; a network or API error fails the place at once.
 """
 
 import asyncio
@@ -11,6 +12,8 @@ import collections
 import hashlib
 import json
 from pathlib import Path
+
+import openai
 
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, write_json
 from ...llm import REVIEW_OBSERVE
@@ -23,6 +26,11 @@ from .prep import batches, keep_for_llm, observed_at, stars
 DETAILS_EXTRACTOR = "details_rule@v1"
 QC_DROP = {"owner_reply", "spam", "not_a_review"}
 ATTEMPTS = 2
+BAD_ANSWER = (BadAnswer, ValueError, TypeError, AttributeError, KeyError)  # JSONDecodeError is a ValueError
+
+
+def first_line(e: BaseException) -> str:
+    return f"{type(e).__name__}: {(str(e).splitlines() or [''])[0][:300]}"
 
 
 def _client():
@@ -36,9 +44,10 @@ async def ask_batch(client, model: str, city: str, place: dict, ontology_text: s
                                     reviews=reviews_text, note=note)
 
 
-def input_hash(place_dir: Path) -> str:
+def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
     h = hashlib.sha256((place_dir / "reviews.json").read_bytes())
     h.update(json.loads((place_dir / "place.json").read_text(encoding="utf-8"))["fetched_at"].encode())
+    h.update(json.dumps(sorted(bad_ids)).encode())  # qc run after observe changes what goes to the model
     return h.hexdigest()[:16]
 
 
@@ -57,8 +66,10 @@ async def ask_checked(client, model, sem, city, place, ont: Ontology, batch: lis
         async with sem:
             try:
                 return gate(await ask_batch(client, model, city, place, ont.prompt_text(), text, note), refs, ont)
-            except Exception as e:
-                note = (f"Your previous answer was rejected ({type(e).__name__}: {str(e).splitlines()[0][:200]}). "
+            except openai.APIError:
+                raise  # splitting cannot fix the network or the API
+            except BAD_ANSWER as e:
+                note = (f"Your previous answer was rejected ({first_line(e)[:200]}). "
                         "Answer again with JSON that matches the schema.")
     if len(batch) == 1:
         raise BadAnswer(note)
@@ -97,7 +108,9 @@ async def observe_place(client, model, sem, place_dir: Path, ont: Ontology, city
     to_llm = keep_for_llm(reviews, bad_ids)
     refs = {f"r{i}": r for i, r in enumerate(to_llm, 1)}
     parts = batches(list(refs.items()))
-    results = await asyncio.gather(*(ask_checked(client, model, sem, city, place, ont, b) for b in parts))
+    async with asyncio.TaskGroup() as tg:  # the first failed batch cancels its siblings
+        tasks = [tg.create_task(ask_checked(client, model, sem, city, place, ont, b)) for b in parts]
+    results = [t.result() for t in tasks]
     dropped = collections.Counter()
     for kept, prop, drop in results:
         dropped.update(drop)
@@ -129,16 +142,19 @@ async def run(city: str, limit: int | None = None) -> dict:
 
     async def one(d: Path) -> str:
         target = out / f"{d.name}.json"
-        h = input_hash(d)
+        bad_ids = bad_review_ids(root / "qc" / f"{d.name}.json")
+        h = input_hash(d, bad_ids)
         if target.exists():
             old = json.loads(target.read_text(encoding="utf-8"))
             if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, *key):
                 return "cached"
         try:
-            res = await observe_place(client, model, sem, d, ont, name, bad_review_ids(root / "qc" / f"{d.name}.json"))
+            res = await observe_place(client, model, sem, d, ont, name, bad_ids)
         except Exception as e:
-            append_jsonl(root / "observe_errors.jsonl",
-                         {"at": now(), "place": d.name, "error": f"{type(e).__name__}: {str(e).splitlines()[0][:300]}"})
+            if isinstance(e, ExceptionGroup):  # from the TaskGroup: report the first real cause
+                e = e.exceptions[0]
+            append_jsonl(root / "observe_errors.jsonl", {"at": now(), "place": d.name, "error": first_line(e)})
+            target.unlink(missing_ok=True)  # an older file would describe reviews that changed
             return "failed"
         write_json(target, {**res, "input_hash": h, "prompt_hash": key[0], "ontology_version": key[1],
                             "model": model, "built_at": now()})

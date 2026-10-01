@@ -146,3 +146,13 @@ def test_run_reads_every_source_and_skips_old_ontology(tmp_path, monkeypatch):
     assert intel["inputs"] == ["gmaps/observations/F.json", "tiktok/observations/F.json"]
     assert not (tmp_path / "intel" / "places" / "G.json").exists()
     assert summary["places"] == 1 and summary["stale_files"] == 1
+
+
+def test_unsuitable_needs_two_authors_voting_it():
+    feats = aggregate_place([f([o(1, "kids", "unsuitable", "a"),
+                                o(2, "kids", "unsuitable", "b", time_of_day="morning"),
+                                o(3, "kids", "suitable", "b", time_of_day="evening")])], ONT)["features"]
+    assert feats["kids"]["top_value"] == "unsuitable" and feats["kids"]["needs_review"] is False  # a and b both said it
+    feats = aggregate_place([f([o(1, "kids", "unsuitable", "a"), o(2, "kids", "unsuitable", "a", time_of_day="morning"),
+                                o(3, "kids", "suitable", "b", time_of_day="evening")])], ONT)["features"]
+    assert feats["kids"]["needs_review"] is True  # only a said unsuitable

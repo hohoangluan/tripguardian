@@ -58,3 +58,9 @@ def test_truncated_value_needs_unambiguous_prefix():
     assert lookup(table, "Abcd") is None  # not cut by Maps: must match exactly
     assert lookup(table, "Ef…") is None  # too short to trust
     assert lookup({"Ồn ào ở mức vừa phải": "moderate", "Ồn ào, nhưng bạn vẫn trò chuyện được": "moderate"}, "Ồn ào…") == "moderate"
+
+
+def test_cut_value_that_could_be_khong_ro_gives_nothing():
+    rows = ["Đặt chỗ\nKhông…", "Thời gian đợi\nKhông…", "Nên đặt vé trước\nKhông…", "Độ ồn\nKhông rõ",
+            "Nên đặt vé trước\nKhông", "Thời gian đợi\nKhông cần đ…"]
+    assert [(f, v) for f, v, _ in details_pairs({"details": rows})] == [("booking_needed", "no"), ("wait_time", "none")]

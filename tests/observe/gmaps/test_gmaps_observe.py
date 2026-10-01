@@ -131,3 +131,73 @@ def test_limit_takes_first_places(tmp_path, monkeypatch):
     calls, out = setup(tmp_path, monkeypatch, REVIEWS)
     summary = asyncio.run(extract.run("dalat", limit=0))
     assert summary["places"] == 0 and not out.exists()
+
+
+def add_place(tmp_path, dir_name, reviews):
+    d = tmp_path / "gmaps" / "places" / dir_name
+    d.mkdir(parents=True)
+    (d / "place.json").write_text(json.dumps({"fid": dir_name.replace("_", ":"), "name": "B", "category": "Quán",
+                                              "fetched_at": FETCHED}), encoding="utf-8")
+    (d / "reviews.json").write_text(json.dumps(reviews, ensure_ascii=False), encoding="utf-8")
+
+
+def test_transport_error_is_not_split_and_other_places_finish(tmp_path, monkeypatch):
+    import httpx
+    import openai
+    calls, out = setup(tmp_path, monkeypatch, [review(i, f"Review số {i} có view đẹp", f"a{i}") for i in range(4)])
+    add_place(tmp_path, "0xG_0x2", [review(9, "Quán khác cũng có view đẹp", "z")])
+    ok, a_calls = extract.ask_batch, []
+
+    async def down_for_a(client, model, city, place, ontology_text, reviews_text, note=""):
+        if place["name"] == "Quán A":
+            a_calls.append(reviews_text)
+            raise openai.APIConnectionError(request=httpx.Request("POST", "http://llm"))
+        return await ok(client, model, city, place, ontology_text, reviews_text, note)
+
+    monkeypatch.setattr(extract, "ask_batch", down_for_a)
+    summary = asyncio.run(extract.run("dalat"))
+    assert len(a_calls) == 1  # no halves, no retries: splitting cannot fix the network
+    assert summary["status"] == {"failed": 1, "done": 1}
+    assert "APIConnectionError" in (tmp_path / "gmaps" / "observe_errors.jsonl").read_text(encoding="utf-8")
+
+
+def test_error_without_message_is_logged_and_run_finishes(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    add_place(tmp_path, "0xG_0x2", [review(9, "Quán khác cũng có view đẹp", "z")])
+    ok = extract.ask_batch
+
+    async def timeout_for_a(client, model, city, place, ontology_text, reviews_text, note=""):
+        if place["name"] == "Quán A":
+            raise asyncio.TimeoutError()
+        return await ok(client, model, city, place, ontology_text, reviews_text, note)
+
+    monkeypatch.setattr(extract, "ask_batch", timeout_for_a)
+    summary = asyncio.run(extract.run("dalat"))
+    assert summary["status"] == {"failed": 1, "done": 1}
+    assert "TimeoutError" in (tmp_path / "gmaps" / "observe_errors.jsonl").read_text(encoding="utf-8")
+    assert (tmp_path / "gmaps" / "observe_summary.json").exists()
+
+
+def test_qc_run_after_observe_redoes_the_place(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS)
+    asyncio.run(extract.run("dalat"))
+    assert "Liên hệ" in calls[0]["reviews"]
+    (tmp_path / "gmaps" / "qc").mkdir(parents=True)
+    (tmp_path / "gmaps" / "qc" / f"{DIR}.json").write_text(json.dumps(QC), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 2 and "Liên hệ" not in calls[1]["reviews"]
+
+
+def test_failed_rerun_removes_the_outdated_file(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    asyncio.run(extract.run("dalat"))
+    assert out.exists()
+    (tmp_path / "gmaps" / "places" / DIR / "reviews.json").write_text(
+        json.dumps(REVIEWS + [review(5, "Một quán khác có view đẹp", "a5")]), encoding="utf-8")
+
+    async def broken(client, model, city, place, ontology_text, reviews_text, note=""):
+        raise ValueError("not json")
+
+    monkeypatch.setattr(extract, "ask_batch", broken)
+    asyncio.run(extract.run("dalat"))
+    assert not out.exists()
