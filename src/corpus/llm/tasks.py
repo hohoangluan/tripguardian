@@ -359,3 +359,34 @@ drink_quality poor "cà phê hơi dở"; crowd high "cuối tuần đông nghẹ
 Reviews:
 {reviews}""",
 )
+
+REVIEW_VERIFY = Task(
+    name="review_verify",
+    role=EXTRACTOR,
+    max_tokens=300,
+    schema={
+        "type": "object",
+        "properties": {"verdict": {"type": "string", "enum": ["supports", "contradicts", "insufficient"]},
+                       "reason": {"type": "string"}},
+        "required": ["verdict", "reason"],
+        "additionalProperties": False,
+    },
+    # Second read of a high-impact observation (ontology `check: span`): the extractor reads many reviews at once
+    # and misses negation, sarcasm, location remarks and exceptions; this call sees one review and one claim.
+    prompt="""You check one claim about a place against one Google Maps review of it. Decide from the review only.
+
+Place: {name} ({category})
+Claim, with the words it was taken from: {claim}
+
+The claim can itself be negative ("người đi xe lăn không vào được nơi này"): a review saying that SUPPORTS it.
+- supports: the review clearly says the claim is true of this place.
+- contradicts: the review says the opposite of the claim, e.g. it denies what the claim affirms ("mấy chị hông chặt
+  chém" against "nơi này chặt chém"), or says it with sarcasm ("dành cho người lớn tuổi chứ decor sến" is not
+  "hợp với người lớn tuổi").
+- insufficient: anything else, e.g. a remark about the location ("quán nằm ngay dốc" does not mean visitors must
+  climb), an exception for some people ("miễn phí bé dưới 80cm" does not mean free entry), the reviewer's own route
+  ("đi bộ từ khách sạn qua"), a seat they were given, or a guess.
+Give a one-sentence reason.
+
+Review: {passage}""",
+)
