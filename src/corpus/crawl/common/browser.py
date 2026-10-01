@@ -78,8 +78,10 @@ async def wait_for_person(page: Page, source: str, wait_s: float = 300) -> None:
     raise LoginRequired(source)
 
 
-async def login(source: str) -> None:
-    async with open_profile(source, headed=True) as ctx:
+async def login(source: str, profile: str | None = None) -> None:
+    """profile overrides the .browser/<dir> name, so a second account can log in under e.g. "tiktok2"
+    while LOGIN_URL still comes from the real source."""
+    async with open_profile(profile or source, headed=True) as ctx:
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         await page.goto(LOGIN_URL[source])
         print(f"Log in to {source} in the browser window (solve any captcha), then close the window.")

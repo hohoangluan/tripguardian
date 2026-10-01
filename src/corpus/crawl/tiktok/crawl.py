@@ -132,7 +132,7 @@ async def _video(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thrott
             log_error(root, row["video_id"], "download", e)
 
 
-async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, profile_name: str | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
     lst = root / "list" / f"{city}.json"
@@ -147,17 +147,18 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
             and (r["video_id"] in again or not (root / "videos" / r["video_id"] / "video.mp4").exists())]
     print(f"crawl {city}: {len(todo)} videos left ({sum(bool(r.get('photo')) for r in rows)} photo posts, "
           f"{sum(1 for r in rows if not r.get('photo') and r['video_id'] not in kept)} not kept by filter)")
-    await crawl_videos(todo, c, root, headed, profile)
+    await crawl_videos(todo, c, root, headed, profile, profile_name)
     done = sum((root / "videos" / r["video_id"] / "video.mp4").exists() for r in todo)
     print(f"crawl {city}: {done}/{len(todo)} done, the rest in errors.jsonl")
 
 
-async def crawl_videos(todo: list[dict], c: dict, root, headed: bool, profile) -> None:
+async def crawl_videos(todo: list[dict], c: dict, root, headed: bool, profile, profile_name: str | None = None) -> None:
     """Every row's video into data/tiktok/videos/<video_id>/, in parallel tabs; failures go to errors.jsonl."""
-    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
+    suffix = f"_{profile_name}" if profile_name else ""
+    throttle = Throttle(root / f"throttle{suffix}.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     downloads = asyncio.Semaphore(c.get("downloads", 4))
-    async with profile("tiktok", headed) as ctx:
+    async with profile(profile_name or "tiktok", headed) as ctx:
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:  # one LoginRequired stops all

@@ -56,7 +56,8 @@ async def _place(ctx: BrowserContext, row: dict, out, city_name: str, root, c: d
                 await pause(*c.get("place_search_pause_s", (0.0, 0.0)))
 
 
-async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, profile_name: str | None = None,
+             shard: tuple[int, int] | None = None) -> None:
     name, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
     lst = data_dir() / "gmaps" / "list" / f"{city}.json"
@@ -65,11 +66,15 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
     out = root / "place_search" / city
     todo = [r for r in json.loads(lst.read_text(encoding="utf-8"))["items"]
             if not (out / f"{safe_name(r['fid'])}.json").exists()]
-    print(f"place_search {city}: {len(todo)} places left")
-    throttle = Throttle(root / "place_search_throttle.json", start=c.get("place_search_tabs_start", 1),
+    if shard:
+        i, n = shard
+        todo = [r for idx, r in enumerate(todo) if idx % n == i]  # same source order every run: no overlap between shards
+    print(f"place_search {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
+    suffix = f"_{profile_name}" if profile_name else ""
+    throttle = Throttle(root / f"place_search_throttle{suffix}.json", start=c.get("place_search_tabs_start", 1),
                         hi=c.get("place_search_tabs", 1), cooldown_s=c.get("cooldown_s", 60),
                         max_cooldown_s=c.get("max_cooldown_s", 900))
-    async with profile("tiktok", headed) as ctx:
+    async with profile(profile_name or "tiktok", headed) as ctx:
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:  # one LoginRequired stops all

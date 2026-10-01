@@ -32,10 +32,21 @@ PHASES = {  # source -> phase -> (run, needs a browser)
 }
 
 
-def run(source: str, phase: str, city: str, headed: bool, limit: int | None = None, wait_relevant: bool = False) -> None:
+SHARDABLE = {"place_search", "place_crawl"}  # tiktok phases that split their todo list by --shard for a second account
+
+
+def run(source: str, phase: str, city: str, headed: bool, limit: int | None = None, wait_relevant: bool = False,
+        profile: str | None = None, shard: tuple[int, int] | None = None) -> None:
     for p in PHASES[source] if phase == "all" else (phase,):
         fn, browser_phase = PHASES[source][p]
-        out = fn(city, headed) if browser_phase else fn(city, limit=limit, wait_relevant=wait_relevant) if p == "observe" else fn(city)
+        if browser_phase and source == "tiktok":
+            out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}))
+        elif browser_phase:
+            out = fn(city, headed)
+        elif p == "observe":
+            out = fn(city, limit=limit, wait_relevant=wait_relevant)
+        else:
+            out = fn(city)
         if asyncio.iscoroutine(out):
             asyncio.run(out)
 
@@ -43,7 +54,9 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
 def main() -> None:
     ap = argparse.ArgumentParser(prog="python -m corpus")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("login").add_argument("source", choices=list(browser.LOGIN_URL))
+    lp = sub.add_parser("login")
+    lp.add_argument("source", choices=list(browser.LOGIN_URL))
+    lp.add_argument("--profile", help="second browser profile name, e.g. tiktok2, for a second account")
     rp = sub.add_parser("review", help="local page for the items that need a person")
     rp.add_argument("--city", default="dalat")
     rp.add_argument("--port", type=int, default=8765)
@@ -56,16 +69,26 @@ def main() -> None:
         sp.add_argument("--limit", type=int, help="observe: only the first N places")
         sp.add_argument("--wait-relevant", action="store_true",
                         help="gmaps observe: skip places whose relevant reviews are not crawled yet")
+        if source == "tiktok":
+            sp.add_argument("--profile", help="second browser profile name, e.g. tiktok2, for a second account "
+                                               "(login it first: `python -m corpus login tiktok --profile tiktok2`)")
+            sp.add_argument("--shard", help="i/n: only this process's 1/n share of the todo list, for "
+                                             "place_search/place_crawl run in parallel under a second --profile")
     args = ap.parse_args()
     try:
         if args.cmd == "login":
-            asyncio.run(browser.login(args.source))
+            asyncio.run(browser.login(args.source, args.profile))
         elif args.cmd == "review":
             review_server.run(args.city, args.port)
         elif args.cmd == "aggregate":
             aggregate_run(args.city)
         else:
-            run(args.cmd, args.phase, args.city, args.headed, args.limit, args.wait_relevant)
+            shard = None
+            if getattr(args, "shard", None):
+                i, n = (int(x) for x in args.shard.split("/"))
+                shard = (i, n)
+            run(args.cmd, args.phase, args.city, args.headed, args.limit, args.wait_relevant,
+                getattr(args, "profile", None), shard)
     except browser.LoginRequired as e:
         raise SystemExit(str(e))
 

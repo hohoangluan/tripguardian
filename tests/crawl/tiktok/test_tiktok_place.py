@@ -170,7 +170,7 @@ def test_place_crawl_opens_only_kept_videos_not_yet_saved(tmp_path, monkeypatch)
     done.write_bytes(b"mp4")
     got = []
 
-    async def fake_crawl(todo, c, root, headed, profile):
+    async def fake_crawl(todo, c, root, headed, profile, profile_name=None):
         got.extend(r["video_id"] for r in todo)
 
     monkeypatch.setattr(crawl, "crawl_videos", fake_crawl)

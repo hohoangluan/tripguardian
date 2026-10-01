@@ -40,10 +40,10 @@ async def search(ctx: BrowserContext, query: str, limit: int) -> list[dict]:
     return rows
 
 
-async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, profile_name: str | None = None) -> None:
     name, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
-    async with profile("tiktok", headed) as ctx:
+    async with profile(profile_name or "tiktok", headed) as ctx:
         await ensure_login(ctx)
         for group, queries in c["queries"].items():
             for q in queries:
