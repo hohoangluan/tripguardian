@@ -1,0 +1,110 @@
+import asyncio
+import json
+import re
+
+from corpus.observe.gmaps import extract
+
+FETCHED = "2026-09-30T08:00:00+00:00"
+DIR = "0xF_0x1"
+
+
+def review(i, text, author, details=(), rating=None, published="2 tuần trước"):
+    return {"review_id": f"R{i}", "text": text, "author_hash": author, "details": list(details), "rating": rating,
+            "published_text": published, "likes": 0, "photos": 0, "author_meta": ""}
+
+
+def setup(tmp_path, monkeypatch, reviews, qc=None):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    d = tmp_path / "gmaps" / "places" / DIR
+    d.mkdir(parents=True)
+    (d / "place.json").write_text(json.dumps({"fid": "0xF:0x1", "name": "Quán A", "category": "Quán cà phê",
+                                              "fetched_at": FETCHED}), encoding="utf-8")
+    (d / "reviews.json").write_text(json.dumps(reviews, ensure_ascii=False), encoding="utf-8")
+    if qc:
+        (tmp_path / "gmaps" / "qc").mkdir(parents=True)
+        (tmp_path / "gmaps" / "qc" / f"{DIR}.json").write_text(json.dumps(qc), encoding="utf-8")
+    monkeypatch.setattr(extract, "load_config", lambda city: ("Đà Lạt", {}))
+    monkeypatch.setattr(extract, "_client", lambda: (None, "gemma-test"))
+    calls = []
+
+    async def fake_ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        calls.append({"reviews": reviews_text, "note": note})
+        items = []
+        for ref, text in re.findall(r"^(r\d+): (.*)$", reviews_text, re.M):
+            obs = [{"feature": "scenic_view", "value": "present", "quote": "view đẹp", "time_of_day": "unknown",
+                    "day_type": "unknown", "weather": "unknown"}] if "view đẹp" in text else []
+            items.append({"ref": ref, "observations": obs, "proposed": []})
+        return {"reviews": items}
+
+    monkeypatch.setattr(extract, "ask_batch", fake_ask)
+    return calls, tmp_path / "gmaps" / "observations" / f"{DIR}.json"
+
+
+REVIEWS = [
+    review(1, "Quán có view đẹp, cuối tuần đông", "a1", ["Đã đến vào\nCuối tuần", "Độ ồn\nRất yên tĩnh"], "5 sao"),
+    review(2, "", "a2", ["Đồ ăn: 1"], "1 sao", "3 tháng trước"),
+    review(3, "Được rồi", "a3"),
+    review(4, "Liên hệ 0909 để đặt tour giá rẻ nhất", "a4"),
+]
+QC = {"llm": {"bad_reviews": [{"review_id": "R4", "problem": "spam"}]}}
+
+
+def test_observe_writes_details_and_llm_observations(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    got = [(o["id"], o["feature"], o["value"], o["source_type"], o["context"]["day_type"], o["observed_at"])
+           for o in res["observations"]]
+    assert got == [
+        ("gmaps:R1:0", "noise", "quiet", "gmaps_details", "weekend", "2026-09-16"),
+        ("gmaps:R2:0", "food_quality", "poor", "gmaps_details", "unknown", "2026-07-02"),
+        ("gmaps:R1:1", "scenic_view", "present", "gmaps_review", "weekend", "2026-09-16"),
+    ]
+    assert res["observations"][2]["span"] == {"quote": "view đẹp", "field": "text", "start_s": None, "end_s": None}
+    assert res["observations"][0]["span"]["quote"] == "Độ ồn\nRất yên tĩnh"
+    assert res["place_fid"] == "0xF:0x1" and res["as_of"] == "2026-09-30" and res["ontology_version"] == 1
+    assert res["ratings"] == [{"author": "a1", "observed_at": "2026-09-16", "stars": 5},
+                              {"author": "a2", "observed_at": "2026-07-02", "stars": 1}]
+    assert len(calls) == 1 and "r1: Quán có view đẹp" in calls[0]["reviews"]
+    assert "Liên hệ" not in calls[0]["reviews"] and "Được rồi" not in calls[0]["reviews"]
+    assert res["stats"]["to_llm"] == 1
+
+
+def test_observe_is_cached_until_reviews_change(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS)
+    asyncio.run(extract.run("dalat"))
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 1
+    reviews_file = tmp_path / "gmaps" / "places" / DIR / "reviews.json"
+    reviews_file.write_text(json.dumps(REVIEWS + [review(5, "Một quán khác có view đẹp", "a5")]), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 2
+
+
+def test_many_reviews_are_split_into_batches(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(i, f"Review số {i} có view đẹp", f"a{i}") for i in range(16)])
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 2
+    assert len(json.loads(out.read_text(encoding="utf-8"))["observations"]) == 16
+
+
+def test_failed_batch_retries_once_then_logs_and_writes_nothing(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS)
+
+    async def broken(client, model, city, place, ontology_text, reviews_text, note=""):
+        calls.append({"reviews": reviews_text, "note": note})
+        raise ValueError("not json")
+
+    monkeypatch.setattr(extract, "ask_batch", broken)
+    summary = asyncio.run(extract.run("dalat"))
+    assert len(calls) == 2 and calls[0]["note"] == "" and "rejected" in calls[1]["note"]
+    assert not out.exists()
+    errors = (tmp_path / "gmaps" / "observe_errors.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(errors) == 1 and DIR in errors[0]
+    assert summary["status"] == {"failed": 1}
+
+
+def test_limit_takes_first_places(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS)
+    summary = asyncio.run(extract.run("dalat", limit=0))
+    assert summary["places"] == 0 and not out.exists()
