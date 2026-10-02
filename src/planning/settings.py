@@ -51,6 +51,16 @@ class Settings:
     exact_n: int
     improve_passes: int
     weights: dict
+    rain_high: float
+    buffer_extra_rain: int
+    robustness: dict
+    max_variants: int
+    objective_order: list
+    objective_weights: dict
+    near_close_min: int
+    far_leg_min: int
+    backup_radius_min: int
+    backups_per_place: int
 
 
 @cache

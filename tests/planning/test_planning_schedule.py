@@ -151,3 +151,11 @@ def test_a_meal_place_takes_a_window_the_day_can_still_reach_not_one_already_ove
 def test_a_wait_for_a_meal_window_says_so():
     cx = day_ctx([rec("m", 1, 1, usable=("meal", "backup"))], start_node="h", extra_nodes=["h"])
     assert simulate(["m"], cx).items[1].note == "meal"
+
+
+def test_a_rainy_day_gets_a_longer_buffer_and_a_missing_forecast_changes_nothing():
+    def size(rain):
+        r = simulate(["a", "b"], day_ctx([rec("a", 1, 1), rec("b", 1, 1)], rain=rain))
+        return next(i.end - i.start for i in r.items if i.kind == "buffer")
+
+    assert (size(0.8), size(0.6), size(0.3), size(None)) == (30, 30, 20, 20)

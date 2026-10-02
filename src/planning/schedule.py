@@ -20,6 +20,8 @@ class DayCtx:
     cfg: Settings
     pace: str
     sun: tuple[int, int] | None     # (sunrise, sunset) of the day; None when the date or place is unknown
+    rain: float | None = None       # rain probability of the day; None = no forecast, rain is not considered
+    prefs: dict | None = None       # place id -> how much the trip's soft weights want it (traits.preference)
 
 
 def intervals_for(place: Place, ctx: DayCtx) -> list[tuple[int, int]]:
@@ -138,6 +140,8 @@ def simulate(order: list[str], ctx: DayCtx) -> DayResult:
                 buffer += cfg.buffer_extra_long
             if p.hours_status in ("UNCERTAIN", "OUTDATED"):
                 buffer += cfg.buffer_extra_uncertain
+            if ctx.rain is not None and ctx.rain >= cfg.rain_high:
+                buffer += cfg.buffer_extra_rain
             items.append(Item("buffer", t, t + buffer))
             t += buffer
     if order and day.end_node not in (None, here):

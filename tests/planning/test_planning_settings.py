@@ -14,3 +14,10 @@ def test_the_shipped_config_loads_with_minutes_not_clock_strings():
 def test_fmt_and_to_min_round_trip():
     assert settings.to_min("08:30") == 510
     assert settings.fmt(510) == "08:30"
+
+
+def test_the_p4_keys_load():
+    cfg = settings.load(settings.PATH)
+    assert (cfg.rain_high, cfg.buffer_extra_rain, cfg.max_variants) == (0.6, 10, 3)
+    assert [s["id"] for s in cfg.robustness["scenarios"]] == ["late_15", "visit_20", "travel_25", "late_30", "rain"]
+    assert set(cfg.objective_weights) == set(cfg.objective_order)

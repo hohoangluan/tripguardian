@@ -19,7 +19,7 @@ def all_days(a="08:00", b="21:00"):
 
 
 def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours="open", visit=(30, 60, 90),
-        features=None, price=None, dup=None, name=None, status="VERIFIED"):
+        features=None, price=None, dup=None, name=None, status="VERIFIED", group="x"):
     """A serving record. hours: "open" = 08:00-21:00 every day, None = no hours, or a {weekday: [[open, close]]} dict.
     features: {feature id: value}, filed under the feature's group."""
     ontology = load_ontology()
@@ -29,15 +29,16 @@ def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours=
             "value": value, "distribution": {value: 3}, "status": "VERIFIED", "n": 3}
     h = all_days() if hours == "open" else hours
     return {"id": pid, "status": "VERIFIED", "status_reason": None,
-            "identity": {"name": name or pid, "kind": "POI", "category": "x", "category_group": "x", "lat": lat,
+            "identity": {"name": name or pid, "kind": "POI", "category": "x", "category_group": group, "lat": lat,
                          "lng": lng, "address": None, "area": area},
             "operation": {"hours": None if h is None else {"value": h, "status": status, "as_of": "2026-09-30"},
                           "price_per_person": None, "entry_fee": price,
                           "visit_minutes": {"short": visit[0], "typical": visit[1], "long": visit[2],
                                             "source": "category_default", "n": 0, "kind": "estimate"},
                           "booking": None, "crowd_by_time": None},
-            "experience": groups.get("experience", {}), "environment": {}, "service": {},
-            "effort": groups.get("effort", {}), "suitability": {}, "usable_as": list(usable),
+            "experience": groups.get("experience", {}), "environment": groups.get("environment", {}),
+            "service": groups.get("service", {}), "effort": groups.get("effort", {}),
+            "suitability": groups.get("suitability", {}), "usable_as": list(usable),
             "near_duplicate_group": dup}
 
 
@@ -97,7 +98,7 @@ def line_travel(positions: dict, scale=5):
 
 
 def day_ctx(recs, *, minutes=10, pace="normal", weekday="mon", start=480, end=1260, start_node=None, end_node=None,
-            sun=None, roles=None, travel=None, hard=(), extra_nodes=()):
+            sun=None, roles=None, travel=None, hard=(), extra_nodes=(), rain=None, prefs=None):
     """A DayCtx over the given rec(...) places with a flat travel matrix."""
     from planning.model import Day
     from planning.places import build_places
@@ -107,4 +108,4 @@ def day_ctx(recs, *, minutes=10, pace="normal", weekday="mon", start=480, end=12
     assert not unplaced, unplaced
     by_id = {p.id: p for p in places}
     day = Day(0, None, weekday, start, end, start_node, end_node)
-    return DayCtx(day, by_id, travel or flat_travel([*by_id, *extra_nodes], minutes), CFG, pace, sun)
+    return DayCtx(day, by_id, travel or flat_travel([*by_id, *extra_nodes], minutes), CFG, pace, sun, rain, prefs)

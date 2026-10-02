@@ -46,3 +46,36 @@ max_clusters: 8
 exact_n: 7                  # up to this many stops a day the order is found by trying every permutation
 improve_passes: 5
 weights: {travel: 1.0, overflow: 3.0, count: 15.0, closed: 1000.0}
+
+# Weather. P4 takes a forecast as input; P5 fetches it (live.weather). A day whose rain probability is at or above
+# rain_high is a rainy day: its buffers grow, and its weather-exposed places are lost in the rain scenario.
+rain_high: 0.6
+buffer_extra_rain: 10
+
+# Robustness (docs/specs/PLANNING_SPEC.md ⓕ): fixed perturbations, never random. Each scenario re-runs the order of
+# every day and counts the places that no longer fit. tier small = the few small delays a solid plan must absorb.
+robustness:
+  scenarios:
+    - {id: late_15, tier: small, start_min: 15}
+    - {id: visit_20, tier: small, visit_pct: 20}
+    - {id: travel_25, tier: small, travel_pct: 25}
+    - {id: late_30, tier: large, start_min: 30}
+    - {id: rain, tier: large, rain: true}
+  solid_max_lost: 0         # every scenario loses at most this many places -> solid
+  feasible_max_lost: 0      # every small scenario loses at most this many -> feasible; otherwise fragile
+
+# Objectives (docs/ARCHITECTURE.md §10): tried in this order when the trip calls for them, at most max_variants.
+max_variants: 3
+objective_order: [least_travel, weather_robust, preference_fit, low_cost, diverse]
+objective_weights:          # merged over `weights` when the days are split for that objective
+  least_travel: {travel: 2.0}
+  low_cost: {}
+  weather_robust: {exposed: 400.0}
+  diverse: {repeat: 40.0}
+  preference_fit: {pref_risk: 200.0}
+
+# Backups (ⓗ): which visits are sensitive, and how far a replacement may be.
+near_close_min: 30          # a visit that ends this close to closing time
+far_leg_min: 40             # a place this far from where its day starts
+backup_radius_min: 25       # rough minutes from the sensitive place to a replacement
+backups_per_place: 2
