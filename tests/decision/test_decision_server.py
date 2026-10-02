@@ -5,7 +5,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 import pytest
-from test_engine import engine, trip
+from test_decision_engine import engine, trip
 
 from decision.server import handler
 

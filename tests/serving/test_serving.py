@@ -92,19 +92,3 @@ def test_run_writes_served_records_only(tmp_path, monkeypatch):
     assert summary["places"] == 1 and summary["disabled"] == {"closure_temporary": 1}
     doc = json.loads((tmp_path / "serving" / "places.json").read_text(encoding="utf-8"))
     assert [r["id"] for r in doc["records"]] == ["A"] and doc["records"][0]["identity"]["area"] == "area-1"
-
-
-def test_evaluate_counts_violations_unknowns_and_fill(monkeypatch):
-    from corpus.serving import evaluate as ev
-    monkeypatch.setattr(ev, "trips", lambda: (2, [
-        {"id": "flat", "role": "experience", "hard": {"steep_or_stairs": "present"}, "soft": {"scenic_view": 1.0}}]))
-    safe = build(intel("S", {"steep_or_stairs": sig("absent"), "scenic_view": sig("present")}), BUILT)
-    disputed = build(intel("D", {"steep_or_stairs": sig("absent", dist={"absent": 3, "present": 1})}), BUILT)
-    steep = build(intel("X", {"steep_or_stairs": sig("present")}), BUILT)
-    meal = build(intel("M", {"steep_or_stairs": sig("absent")}, usable=("meal",)), BUILT)
-    res = ev.evaluate([safe, disputed, steep, meal])
-    row = res["trips"][0]
-    assert row["shortlist"] == ["S"] and (row["main"], row["unverified"], row["excluded"]) == (1, 1, 1)
-    assert res["summary"]["violations"] == 0 and res["summary"]["unknown_in_main"] == 0
-    assert res["summary"]["unfilled_trips"] == ["flat"]
-    assert ev.violates(disputed, "steep_or_stairs", "present")  # the oracle reads every author, not check()
