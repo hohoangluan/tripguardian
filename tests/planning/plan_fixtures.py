@@ -1,0 +1,110 @@
+"""Synthetic serving records, Decision Outputs and travel matrices that need no network, for the planning tests.
+
+Helpers that need a module a later task creates import it inside the function, so this file works from task 2 on.
+"""
+
+from functools import cache
+
+from planning import settings
+
+from corpus.ontology import load as _load_ontology
+
+load_ontology = cache(_load_ontology)       # rec() runs once per place, so the ontology file is read once
+CFG = settings.load(settings.PATH)
+DAYS7 = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def all_days(a="08:00", b="21:00"):
+    return {d: [[a, b]] for d in DAYS7}
+
+
+def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours="open", visit=(30, 60, 90),
+        features=None, price=None, dup=None, name=None, status="VERIFIED"):
+    """A serving record. hours: "open" = 08:00-21:00 every day, None = no hours, or a {weekday: [[open, close]]} dict.
+    features: {feature id: value}, filed under the feature's group."""
+    ontology = load_ontology()
+    groups: dict = {}
+    for fid, value in (features or {}).items():
+        groups.setdefault(ontology.features[fid].group, {})[fid] = {
+            "value": value, "distribution": {value: 3}, "status": "VERIFIED", "n": 3}
+    h = all_days() if hours == "open" else hours
+    return {"id": pid, "status": "VERIFIED", "status_reason": None,
+            "identity": {"name": name or pid, "kind": "POI", "category": "x", "category_group": "x", "lat": lat,
+                         "lng": lng, "address": None, "area": area},
+            "operation": {"hours": None if h is None else {"value": h, "status": status, "as_of": "2026-09-30"},
+                          "price_per_person": None, "entry_fee": price,
+                          "visit_minutes": {"short": visit[0], "typical": visit[1], "long": visit[2],
+                                            "source": "category_default", "n": 0, "kind": "estimate"},
+                          "booking": None, "crowd_by_time": None},
+            "experience": groups.get("experience", {}), "environment": {}, "service": {},
+            "effort": groups.get("effort", {}), "suitability": {}, "usable_as": list(usable),
+            "near_duplicate_group": dup}
+
+
+def decision(ids, *, roles=None, days=2, start_date="2026-12-12", pace="normal", mobility="motorbike", base=None,
+             entry=None, exit=None, hard=(), budget=None, max_leg=None, relaxed=None, arrive_at=None, leave_at=None,
+             flags=None, log=()):
+    """A Decision Output (docs/PLACE_DECISION.md §15) as the JSON a session would write."""
+    roles = roles or {}
+    return {
+        "confirmed": [{"id": i, "name": i, "role": roles.get(i, "selected"), "visit": None,
+                       "flags": (flags or {}).get(i, []), "relaxed": (relaxed or {}).get(i, [])} for i in ids],
+        "backup_pool": [], "wishlist": [], "decision_log": list(log), "feasibility": {},
+        "trip_context": {
+            "context": {"start_date": start_date, "month": None, "days": days, "base": base, "entry_point": entry,
+                        "exit_point": exit, "mobility": mobility, "companions": [], "people": 2,
+                        "arrive_at": arrive_at, "leave_at": leave_at, "day_end": None, "budget_vnd": budget},
+            "hard_filters": list(hard),
+            "anchors": [{"place_id": i, "priority": "must"} for i in roles if roles[i] == "anchor"],
+            "soft_weights": [], "pace": {"level": pace, "max_leg_min": max_leg, "crowd_tolerance": None},
+            "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []},
+    }
+
+
+def fake_matrix(points, mode, cfg):
+    """Straight line x 1.4 at 25 km/h: what live.travel_matrix would answer, with no OSRM."""
+    from planning.travel import km
+    n = len(points)
+    return {"minutes": [[0 if i == j else max(1, round(km(points[i], points[j]) * 1.4 / 25 * 60)) for j in range(n)]
+                        for i in range(n)], "source": "osrm", "fetched_at": "2026-10-02T00:00:00+00:00"}
+
+
+def no_geocode(text):
+    return None
+
+
+def fixed_sun(d, lat, lng, tz):
+    return (6 * 60, 17 * 60 + 30)
+
+
+def flat_travel(ids, minutes=10, **pairs):
+    """Every pair `minutes` apart, except the pairs given as a_b=minutes (either direction)."""
+    from planning.travel import Travel
+
+    def m(a, b):
+        return pairs.get(f"{a}_{b}", pairs.get(f"{b}_{a}", minutes))
+
+    return Travel(list(ids), [[(0, "none") if a == b else (m(a, b), "motorbike") for b in ids] for a in ids],
+                  "osrm", "t")
+
+
+def line_travel(positions: dict, scale=5):
+    """Nodes on a line: |difference of positions| x scale minutes, so every distance is easy to read."""
+    from planning.travel import Travel
+    ids = list(positions)
+    return Travel(ids, [[(0, "none") if a == b else (max(1, round(abs(positions[a] - positions[b]) * scale)),
+                                                      "motorbike") for b in ids] for a in ids], "osrm", "t")
+
+
+def day_ctx(recs, *, minutes=10, pace="normal", weekday="mon", start=480, end=1260, start_node=None, end_node=None,
+            sun=None, roles=None, travel=None, hard=(), extra_nodes=()):
+    """A DayCtx over the given rec(...) places with a flat travel matrix."""
+    from planning.model import Day
+    from planning.places import build_places
+    from planning.schedule import DayCtx
+    d = decision([r["id"] for r in recs], roles=roles, hard=hard)
+    places, unplaced = build_places(d, {r["id"]: r for r in recs}, CFG)
+    assert not unplaced, unplaced
+    by_id = {p.id: p for p in places}
+    day = Day(0, None, weekday, start, end, start_node, end_node)
+    return DayCtx(day, by_id, travel or flat_travel([*by_id, *extra_nodes], minutes), CFG, pace, sun)
