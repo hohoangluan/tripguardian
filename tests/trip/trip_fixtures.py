@@ -1,5 +1,7 @@
 """Helpers shared by tests/trip (a module, not a package: tests/trip has no __init__)."""
 
+from trip.guard import TurnPlan
+
 
 def rec(i, name, feats, hours=None, status="signal", needs_review=False):
     """One data/intel/places record; feats: {feature: (top_value, n) or (top_value, n, by_context)}."""
@@ -12,3 +14,17 @@ def rec(i, name, feats, hours=None, status="signal", needs_review=False):
 
 MONDAY_CLOSED = {"mon": [], "tue": [["07:00", "22:00"]], "wed": [["07:00", "22:00"]], "thu": [["07:00", "22:00"]],
                  "fri": [["07:00", "22:00"]], "sat": [["07:00", "22:00"]], "sun": [["07:00", "22:00"]]}
+
+
+class FakeAgent:
+    def __init__(self, plan=None, error=None, chunks=()):
+        self.plan, self.error, self.chunks, self.calls = plan, error, chunks, 0
+
+    async def __call__(self, fields, on_say):
+        self.calls += 1
+        self.fields = fields
+        for c in self.chunks:
+            on_say(c)
+        if self.error:
+            raise self.error
+        return TurnPlan.model_validate(self.plan)
