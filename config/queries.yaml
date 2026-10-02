@@ -1,7 +1,9 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
   pause_s: [5, 10]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
-  tabs: 8  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
+  tabs: 3  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
+           # capped well under TikTok's real limit: this machine's low free RAM caused a MemoryError at 8, and 5
+           # alone (plus place_search's own tabs on a second account) still left free RAM under 2 GB (2026-10-02)
   tabs_start: 2  # first run only
   cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 900

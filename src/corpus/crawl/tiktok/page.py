@@ -41,10 +41,18 @@ ROUND_S = 1.5  # max wait for the next API page after each scroll
 STALE_ROUNDS = 10  # safety net only: rounds with nothing new before an unfinished list is given up (incomplete)
 FIRST_ROUNDS = 40  # rounds to wait for the first page (~60 s): slow networks take 20+ s
 _HEAVY = {"media"}  # video streams; the mp4 is fetched directly. Blocking images/fonts hides the comment button.
+_RENDERING = {"media", "image", "font", "stylesheet"}  # open_item reads a <script> tag's text: nothing here renders
 
 
 async def _skip_heavy(route) -> None:
     if route.request.resource_type in _HEAVY:
+        await route.abort()
+    else:
+        await route.continue_()
+
+
+async def _skip_rendering(route) -> None:
+    if route.request.resource_type in _RENDERING:
         await route.abort()
     else:
         await route.continue_()
@@ -96,7 +104,7 @@ async def open_item(ctx: BrowserContext, url: str) -> dict | None:
     """The video page's item JSON (desc, stats, playAddr) with no comment panel opened — for the video-only crawl
     that defers the costly comment fetch until place_verify confirms the video is worth it."""
     page = await ctx.new_page()
-    await page.route("**/*", _skip_heavy)
+    await page.route("**/*", _skip_rendering)
     try:
         await page.goto(url, wait_until="domcontentloaded")
         return await _wait_state(page, ITEM_JS)
@@ -115,7 +123,7 @@ async def collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: in
     does it give up with complete=False. An empty API body (throttled session) raises at once.
     """
     page = await ctx.new_page()
-    await page.route("**/*", _skip_heavy)
+    await page.route("**/*", _skip_heavy if click else _skip_rendering)  # no click = no button that images hide
     got: dict[str, dict] = {}  # by id: TikTok re-sends pages it already served
     ended: set[str] = set()
     pending, blocked = [0], [False]
