@@ -51,11 +51,11 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 - file: `src/corpus/review/` (`decisions.py`, `queue.py`, `server.py`, `page.html`), `tests/review/`
 - cách kiểm chứng: `python -m pytest -q tests/review`; `python -m corpus review` rồi mở `http://127.0.0.1:8765`
 
-### Hiện tại (2026-09-29)
-- hành vi: hàng đợi 4 loại mục và tác dụng của quyết định: `docs/specs/CORPUS_SPEC.md` §1 (Review lúc crawl). Server chỉ nghe `127.0.0.1`. Trang: danh sách theo loại + chi tiết (TikTok nhúng video, Maps có link), phím ↑ ↓ / 1–2 / N. Dữ liệu TikTok và quyết định review đã xóa cùng TikTok (tạm ngoài phạm vi); loại `place_*` dùng lại ở phase 2.
+### Hiện tại (2026-10-02, chiều)
+- hành vi: nhãn khóa theo nội dung (`key` = review / video id + feature + value + quote chuẩn hóa), không theo id observation: chạy lại observe không làm mất nhãn, nhãn của khẳng định mà lần chạy mới không còn tạo thì không vào thống kê; `migrate()` ghi key cho bản ghi cũ. Observation của mọi version ontology được tính khi giá trị còn trong ontology. Màn `Gán nhãn` hiện thêm bằng chứng: nghĩa của nhãn (claim + hint), sao / ngày / tác giả / mục chấm điểm Maps của review, các observation khác cùng nơi về feature đó (đồng ý / ngược lại), category / giá / thuộc tính / link Maps. Nguồn TikTok (`tiktok_segment` / `tiktok_caption` / `tiktok_frame`): transcript quanh quote, caption, link video, khung hình (`GET /api/labels/frame`). `stats` có `by_source`. Index cache theo từng file (lúc observe chạy lại không quét lại 1.437 file mỗi request). Kiểm chứng: 14 test review, `npm run build`, API thật.
 
-### Trước đó
-_không có_
+### Trước đó (2026-10-02)
+- hành vi: như bản trước, thêm: (1) `labels.py` + `GET /api/labels/next`, `POST /api/labels`, `GET /api/labels/stats`: lấy mẫu observation từ review chưa gán nhãn (giá trị ít nhãn nhất trước, bỏ observation do rule và file ontology cũ), nhãn `correct | wrong | unsure` ghi nối vào `data/review/labels.jsonl`, thống kê độ chính xác theo (feature, value) với cận dưới Wilson và ngưỡng (`GATE_MIN_N = 30`, `GATE_LOWER = 0.8`); (2) loại quyết định `feature_review` (accept / disable / report / refresh / undo, id `<fid>#<feature>`) và `GET /api/decisions?kind=`; (3) Admin Web (`web/`): màn `Gán nhãn` (`/admin/labels`, phím c / w / u / s), `decisions.ts` ghi quyết định về backend và đọc lại khi mở trang, Vite proxy `/api` tới `127.0.0.1:8765`. `aggregate` chưa đọc nhãn và quyết định. Kế hoạch tiếp: `docs/plans/CORPUS_QUALITY.md`. Kiểm chứng: 12 test review, chạy thật với Chrome không lỗi console, mẫu lấy từ 249.605 bằng chứng (lần đọc đầu ~4 giây).
 
 ## corpus-crawl — Crawl dữ liệu thô TikTok + Google Maps
 
@@ -107,22 +107,44 @@ _không có_
 
 ## corpus-observe — Observation từ review Google Maps
 
-- file: `config/ontology.yaml`, `src/corpus/ontology.py`, `src/corpus/observe/` (`__init__.py`, `gmaps/details.py`, `gmaps/place_rules.py`, `gmaps/prep.py`, `gmaps/gate.py`, `gmaps/extract.py`), `REVIEW_OBSERVE` + `REVIEW_VERIFY` trong `src/corpus/llm/tasks.py`, `tests/test_ontology.py`, `tests/observe/`
+- file: `config/ontology.yaml`, `src/corpus/ontology.py`, `src/corpus/observe/` (`__init__.py`, `gmaps/details.py`, `gmaps/place_rules.py`, `gmaps/prep.py`, `gmaps/gate.py`, `gmaps/extract.py`), `REVIEW_OBSERVE` + `REVIEW_VERIFY` trong `src/corpus/llm/tasks.py`, `scripts/observe_prompt_eval.py`, `scripts/rerun_observe.sh`, `tests/test_ontology.py`, `tests/observe/`
 - cách kiểm chứng: `python -m pytest -q tests/test_ontology.py tests/observe`; `python -m corpus gmaps observe --limit 20` (mạng UIT)
 
-### Hiện tại (2026-10-01, chiều)
-- hành vi: ontology v4 (48 feature, thêm `outdoor_seating`, `laptop_friendly`, `vegetarian_options`; `check: span` cho suitability / effort / `tourist_trap` / `entry_fee` / `condition_change`). Ngoài review: `attributes` Maps → observation nguồn thẩm quyền, `popular_times` + `price` → `place_facts`, câu trả lời tự do trong `details` (trẻ em, xe lăn, món chay). Observation tác động cao từ text được `REVIEW_VERIFY` đọc lại với khẳng định riêng cho từng giá trị (`claims` trong ontology) kèm quote, chỉ giữ `supports` — khẳng định phủ định như "xe lăn không vào được" không còn bị đọc thành phủ nhận. Không map "Có thực đơn dành cho trẻ em" (suy diễn) và nhãn trần "Lối vào cho xe lăn" (không thuộc tab Giới thiệu). Review qc gắn cờ không cho bằng chứng nào. Cache key gồm hai prompt, text ontology, version rule. Quy tắc: `docs/specs/CORPUS_SPEC.md` §4. Lý do: kiểm tra 58 observation cho ~95% đúng ở feature thường nhưng 2/5 effort, 3/4 `tourist_trap` (đảo nghĩa), mỉa mai ở suitability; review chỉ phủ 0–4% place cho ràng buộc cứng trong khi `attributes` phủ ~45%.
+### Hiện tại (2026-10-02)
+- hành vi: ontology v6 (54 feature): `condition_change` chỉ còn `declined` (`improved` đúng ~30%, đa số "xe mới" của tiệm thuê xe); `long_walk` cần lời nói về đi bộ / khoảng cách / thời gian đi bộ; `weather_exposed` `sheltered` cần mái che / trong nhà của chính nơi đó (không phải nhân viên che dù, xe thuê); thêm phản ví dụ cho `booking_needed` (đặt bàn được xác nhận), `visit_duration` (liệu trình spa), `steep_or_stairs` absent ("đi thẳng xe lên"); `entry_fee` giữ số tiền trong quote; feature mới `tasting_available`, `costume_rental`, `small_space`, `toilet`, `mosquitoes` (đề xuất ≥ 50 lần trong `proposed_top`). Rule v4: `place_facts.tickets` (giá vé US$ của Maps); category lấy từ `list` khi trang place không có (41 nơi). Kiểm chứng: `scripts/observe_prompt_eval.py` 29/29 (thêm 8 câu cho lỗi v5, thoát mã 1 khi lỗi cũ quay lại); chạy lại toàn bộ bằng `scripts/rerun_observe.sh` (chờ mạng UIT, chặn nếu eval trượt, giữ bản cũ ở `data/gmaps/observations_before_v6`). Thử 9router (`cx/gpt-5.6-*`) làm extractor: 3–4 phút cho một lô 16 câu và `REVIEW_VERIFY` trả lỗi, không dùng cho 8.500 lô.
 
-### Trước đó (2026-10-01)
-- hành vi: ontology v3 (45 feature, 5 nhóm, 3 khóa bối cảnh). Phase `gmaps observe`: rule `details` + Extractor theo lô + gate, ghi `data/gmaps/observations/`; luồng và quy tắc: `docs/specs/CORPUS_SPEC.md` §4. Schema đặt `quote` cuối observation vì Gemma có lúc lặp khoảng trắng tới hết `max_tokens` khi `quote` đứng trước các field bối cảnh.
+### Trước đó (2026-10-01, đêm)
+- hành vi: ontology v5 (49 feature, 6 nhóm): thêm nhóm `operation` với `visit_duration` (Estimate); `steep_or_stairs` / `long_walk` thêm `absent`, `weather_exposed` thêm `sheltered`; `check: span` thêm `booking_needed`, `weather_exposed`; hint loại câu kể của người viết ("mình đặt bàn trước", "đường đi hơi xa", "xe mới"). Prompt: phủ định không bao giờ thành `present`. Rule v3: thêm attribute sân thượng, sân chơi, nhạc sống, đi bộ đường dài; `place_facts.hours` / `closure`; file observation có `place` và `voices`. Lý do: kiểm tay ~150 observation v4: `booking_needed` ~50%, `weather_exposed` ~60% (đảo nghĩa "mái che kín"), `long_walk` ~65%. Kiểm chứng: 16 câu chuẩn 18/18 đúng; 6 place thật v4 → v5: bỏ 3/3 `booking yes` sai ở một quán, weather sai giảm 7 → 3, recall effort gần như giữ; `absent` vẫn hiếm (1 / 6 place).
 
 ## corpus-aggregate — Signal + xu hướng theo địa điểm
 
-- file: `src/corpus/aggregate/` (`__init__.py`, `place.py`), `tests/aggregate/`
+- file: `src/corpus/aggregate/` (`__init__.py`, `place.py`, `estimates.py`), `config/category_defaults.yaml`, `tests/aggregate/`
 - cách kiểm chứng: `python -m pytest -q tests/aggregate`; `python -m corpus aggregate`
 
-### Hiện tại (2026-10-01, chiều)
-- hành vi: thêm nguồn thẩm quyền (`gmaps_attribute`: không bị nói ngược → phục vụ không cần người; bị review nói ngược → `uncertain` + `needs_review` với mọi feature, `authority` null; không tính vào độ mới và trend), `needs_review` của giá trị cảnh báo đếm tác giả nói đúng giá trị đó, `operation` (`price_range`, `popular_times`, `crowd_by_time` theo ngày thường / cuối tuần × buổi + `peak`). Quy tắc: `docs/specs/CORPUS_SPEC.md` §5.
+### Hiện tại (2026-10-02)
+- hành vi: mỗi feature có `quality` (độ chính xác đo bằng nhãn của giá trị đứng đầu), `servable` (nguồn thẩm quyền, qua ngưỡng nhãn, hoặc người `accept`), `review_decision`; quyết định `feature_review` của người: `disable` → `status = disabled`, `accept` bỏ `needs_review`, `report` / `refresh` đặt `needs_review`. File observation ontology cũ vẫn được đọc tới khi observe chạy lại (trước đây bị bỏ: đổi ontology là xóa sạch intel); intel ghi `observation_versions`. `estimates` (`aggregate/estimates.py`, `config/category_defaults.yaml`): nhóm category, thời gian tham quan [ngắn, thường, dài] (review khi ≥ 3 tác giả đồng ý, còn lại mặc định theo category), giá vé VND (số tiền trong quote `entry_fee`, mỗi tác giả một giá trị lớn nhất, hoặc vé Maps), `usable_as` mặc định, `effort_hint` (chỉ để xếp hạng: dốc có ở 16% nhà hàng, 37% quán cà phê đã có bằng chứng). Lần chạy: 1.437 nơi, 100% có thời gian tham quan (51 từ review), 241 có giá vé.
 
-### Trước đó (2026-10-01)
-- hành vi: gộp observation mọi nguồn thành `data/intel/places/<fid_dir>.json` (phân phối, bối cảnh, confidence, trend nửa mới / nửa cũ, coverage, `proposed_features`); quy tắc: `docs/specs/CORPUS_SPEC.md` §5 (Signal từ observation).
+### Trước đó (2026-10-01, đêm)
+- hành vi: thêm `mention_rate` mỗi feature (tác giả nói / `voices`), `identity` (category, lat, lng, address), `operation.hours` / `closure`. Lý do: feature chỉ `present` có `agreement` luôn 1 (1/250 review nói view đẹp vẫn là "có view"); Place Decision cần giờ mở cửa, đóng cửa, vị trí. Quy tắc: `docs/specs/CORPUS_SPEC.md` §5.
+
+## corpus-observe-tiktok — Observation từ video TikTok
+
+- file: `src/corpus/observe/tiktok/extract.py`, `VIDEO_OBSERVE` + `VIDEO_VERIFY` trong `src/corpus/llm/tasks.py`, `tests/observe/tiktok/`
+- cách kiểm chứng: `python -m pytest -q tests/observe/tiktok`; `python -m corpus tiktok observe --limit 5` (mạng UIT)
+
+### Hiện tại (2026-10-02)
+- hành vi: mỗi cặp (video, địa điểm) trong `place_verify.evidence_pairs()` → một call đọc caption, segment transcript `ok` / `fixed` (đánh số, có giây) và 4 keyframe khi video chỉ nói về nơi đó. Gate: quote lời nói phải nằm trong đúng segment, quote caption trong caption / hashtag, observation từ khung hình chỉ cho giá trị ảnh chứng minh được (`FRAME_VALUES`: bậc thang, trong nhà / ngoài trời, đông, view, hoa, thiên nhiên, chỗ ngồi ngoài trời, decor, cắm trại, đường xấu; không `absent`, không suitability, không "vắng" vì video quảng cáo quay phòng trống). Feature `check: span` đọc lại (`VIDEO_VERIFY`: segment quanh quote hoặc đúng khung hình). Một phiếu mỗi người đăng, ngày = ngày đăng. Ghi `data/tiktok/observations/<fid_dir>.json`; `aggregate` đọc không đổi code (loại nguồn `video`). Thử 5 nơi: trích đúng "giá cả rất là bình dân", "nằm trong căn nhà cổ hơn trăm năm tuổi", "nhớ đặt lịch trước"; lỗi đã sửa: cầu thang trong ảnh bị gán `nature`, chó trong ảnh thành `animals`. Chạy chung key Gemma với `gmaps observe` gặp 429 → `scripts/after_rerun.sh` chạy sau khi observe Maps xong.
+
+### Trước đó
+_không có_
+
+## corpus-serving — Serving record + đánh giá offline cho Place Decision
+
+- file: `src/corpus/serving/` (`record.py`, `groups.py`, `run.py`, `evaluate.py`), `config/serving.yaml`, `config/eval_trips.yaml`, `tests/serving/`
+- cách kiểm chứng: `python -m pytest -q tests/serving`; `python -m corpus serving` rồi `python -m corpus evaluate`
+
+### Hiện tại (2026-10-02)
+- hành vi: `serving` đọc intel → `data/serving/places.json`: trạng thái theo khía cạnh (`VERIFIED` khi `servable` và còn mới; chưa đo / xung đột / đồng thuận thấp → `UNCERTAIN` kèm lý do; quá cửa sổ độ mới → `OUTDATED`; `NEEDS_REVIEW`, `DISABLED` không xuất hiện), nơi đóng cửa (tạm hoặc hẳn) không vào; giờ / giá là fact có độ mới, thời gian tham quan / giá vé / `effort_hint` là estimate; `usable_as` = mặc định category trừ `experience` khi coverage `NONE`; `check()` fail-closed (pass cần giá trị chắc chắn mà không ai nói ngược). Khu vực: leader clustering bán kính 1,2 km quanh nơi đông nhất (118 khu). Gần trùng: cùng nhóm category + vai trò, Jaccard ≥ 0,6 trên feature "loại nơi" được ≥ 2 người và ≥ 3% người viết nhắc, so với leader (không nối chuỗi: single linkage cho một nhóm 416 nơi). MMR. 1.394 nơi trong ~11 s. `evaluate`: 30 Trip State ẩn, sàng lọc + xếp hạng + MMR: 0 vi phạm ràng buộc cứng (kiểm bằng phân phối gốc, không bằng `check()`), 0 `unknown` trong danh sách chính, gần trùng 0%; 18/30 chuyến không đủ 8 nơi vì mọi điều kiện effort / thời tiết / chặt chém chưa có giá trị `pass` nào được đo (chưa có nhãn, `absent` hiếm).
+
+### Trước đó
+_không có_
