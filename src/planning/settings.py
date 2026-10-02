@@ -66,6 +66,9 @@ class Settings:
     lodging_share: float
     min_reviews: int
     split_min: int
+    history_max: int
+    repair_diff_weight: float
+    decision_url: str
 
 
 @cache

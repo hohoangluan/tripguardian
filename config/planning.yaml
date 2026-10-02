@@ -86,3 +86,8 @@ lodging_k: 6
 lodging_share: 0.3  # share of budget_vnd spent on lodging, over the whole stay
 min_reviews: 5
 split_min: 20       # minutes of real travel diameter beyond which the search area splits into two centres
+
+# Sessions (P6, docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp ý).
+history_max: 20              # versions kept for undo / redo
+repair_diff_weight: 5.0      # repair_day's penalty per stop whose relative order changes from the version before it
+decision_url: http://127.0.0.1:8767   # Place Decision's HTTP API, to resolve a decision_session_id at session create

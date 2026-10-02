@@ -21,3 +21,10 @@ def test_the_p4_keys_load():
     assert (cfg.rain_high, cfg.buffer_extra_rain, cfg.max_variants) == (0.6, 10, 3)
     assert [s["id"] for s in cfg.robustness["scenarios"]] == ["late_15", "visit_20", "travel_25", "late_30", "rain"]
     assert set(cfg.objective_weights) == set(cfg.objective_order)
+
+
+def test_the_p6_keys_load():
+    cfg = settings.load(settings.PATH)
+    assert cfg.history_max == 20
+    assert cfg.repair_diff_weight == 5.0
+    assert cfg.decision_url == "http://127.0.0.1:8767"
