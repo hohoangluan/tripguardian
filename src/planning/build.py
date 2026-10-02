@@ -1,10 +1,10 @@
 """Decision Output + serving records -> a checked itinerary (docs/specs/PLANNING_SPEC.md, phase P3).
 
 One path, no randomness: places -> one travel matrix -> clusters -> days -> stop order -> clock -> validate.
-This phase builds one plan around the user's base; variants, robustness, backups and lodging come later.
+prepare() does once what every variant shares; schedule_trip() lays the trip out for one objective's weights.
 """
 
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, field, replace
 
 import live
 
@@ -17,7 +17,8 @@ from .route import order_day
 from .schedule import DayCtx, pin_window
 from .settings import Settings, fmt
 from .settings import load as load_settings
-from .travel import build_travel
+from .traits import preference
+from .travel import Travel, build_travel
 from .validate import validate
 
 HOME, ENTRY, EXIT = "@home", "@entry", "@exit"
@@ -51,8 +52,37 @@ def _item(it: Item) -> dict:
     return {k: v for k, v in d.items() if v is not None}
 
 
-def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None, live_cfg=None, geocode_fn=None,
-               matrix_fn=None, sun_fn=None) -> dict:
+@dataclass
+class Trip:
+    """Everything the variants of one trip share: places, points, one travel matrix, the days. Built once a turn."""
+    decision: dict
+    cfg: Settings
+    pace: str
+    by_place: dict                  # id -> Place
+    unplaced: list
+    by_id: dict                     # every serving record by id, for the backups
+    points: dict                    # node -> Point | None
+    travel: Travel
+    days: list
+    ctxs: list                      # one DayCtx a day, with the default weights
+    warnings: list
+    weather: dict | None
+    routes: dict = field(default_factory=dict)      # (day index, sorted ids) -> DayResult, shared by every variant
+
+
+@dataclass(frozen=True)
+class Schedule:
+    """One way of laying the trip out: which places on which day, in which order, and what validate said."""
+    per_day: list
+    results: list
+    ctxs: list
+    violations: list
+    warnings: list
+
+
+def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, live_cfg=None, geocode_fn=None,
+            matrix_fn=None, sun_fn=None, weather: dict | None = None) -> Trip:
+    """weather: {"YYYY-MM-DD": {"rain_prob": 0..1, "source", "fetched_at"}} or None. P5 fills it from live.weather."""
     cfg = cfg or load_settings()
     live_cfg = live_cfg or live.load_settings()
     geocode_fn = geocode_fn or (lambda text: live.geocode(text, live_cfg))
@@ -60,8 +90,8 @@ def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None,
     sun_fn = sun_fn or live.sun_times
     by_id = {r["id"]: r for r in records}
     tc = decision["trip_context"]
-    ctx, pace_spec = tc["context"], tc.get("pace") or {}
-    pace = pace_spec.get("level") or "normal"
+    ctx = tc["context"]
+    pace = (tc.get("pace") or {}).get("level") or "normal"
     mobility = ctx.get("mobility")
     warnings: list[dict] = []
 
@@ -98,57 +128,108 @@ def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None,
     if not (ctx.get("start_date") and ctx.get("days")):
         warnings.append(_warn("dates_unknown"))
     centre = (sum(p.lat for p in placed) / len(placed), sum(p.lng for p in placed) / len(placed)) if placed else None
-    ctxs = [DayCtx(d, by_place, travel, cfg, pace,
-                   sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None) for d in days]
+    soft = tc.get("soft_weights") or []
+    prefs = {p.id: preference(p, soft) for p in placed}
 
-    ids = sorted(by_place)
-    cap = int(cfg.fill_ratio * max(d.end - d.start for d in days))
-    clusters = cluster_places(ids, {p.id: p.area for p in placed}, travel, cfg)
+    def rain_on(d) -> float | None:
+        day = (weather or {}).get(d.date.isoformat()) if d.date else None
+        return day.get("rain_prob") if day else None
+
+    ctxs = [DayCtx(d, by_place, travel, cfg, pace,
+                   sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None, rain_on(d), prefs)
+            for d in days]
+    return Trip(decision, cfg, pace, by_place, unplaced, by_id, points, travel, days, ctxs, warnings, weather)
+
+
+def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
+    """Lay the trip out with one objective's day-split weights merged over the defaults (None = the defaults)."""
+    cfg = trip.cfg
+    ctxs = trip.ctxs if not weights else [replace(cx, cfg=replace(cfg, weights={**cfg.weights, **weights}))
+                                          for cx in trip.ctxs]
+    warnings: list[dict] = []
+    ids = sorted(trip.by_place)
+    cap = int(cfg.fill_ratio * max(d.end - d.start for d in trip.days))
+    clusters = cluster_places(ids, {p.id: p.area for p in trip.by_place.values()}, trip.travel, cfg)
     # a cluster is cut when it holds more places than a day is planned for, or more than a day can carry
-    size = lambda c: cap + 1 if len(c) > cfg.per_day[pace] else day_load(c, by_place, cfg, pace)
-    clusters = split_to_fit(clusters, size, cap, travel)
+    size = lambda c: cap + 1 if len(c) > cfg.per_day[trip.pace] else day_load(c, trip.by_place, cfg, trip.pace)
+    clusters = split_to_fit(clusters, size, cap, trip.travel)
     per_day, flag = assign_days(isolate_constrained(clusters, ctxs), ctxs)
     if flag:
         warnings.append(_warn(flag))
+    ctxs = list(ctxs)
     for k, (cx, day_ids) in enumerate(zip(ctxs, per_day)):      # a sunrise place pulls a later day's start forward
-        early = [(pin_window(by_place[i], cx)[0], i) for i in day_ids if 0 < pin_window(by_place[i], cx)[0] < cx.day.start]
+        early = [(pin_window(trip.by_place[i], cx)[0], i) for i in day_ids
+                 if 0 < pin_window(trip.by_place[i], cx)[0] < cx.day.start]
         if early and cx.day.index > 0:
             lo, pid = min(early)
             first = cx.day.start_node
-            start = max(0, lo - (travel.leg(first, pid)[0] if first else 0))
+            start = max(0, lo - (trip.travel.leg(first, pid)[0] if first else 0))
             ctxs[k] = replace(cx, day=replace(cx.day, start=start))
-            days[k] = ctxs[k].day
-            warnings.append(_warn("early_start", day=cx.day.index + 1, start=fmt(start), name=by_place[pid].name))
-    results = [order_day(day_ids, cx) for day_ids, cx in zip(per_day, ctxs)]
+            warnings.append(_warn("early_start", day=cx.day.index + 1, start=fmt(start),
+                                  name=trip.by_place[pid].name))
+    results = []
+    for day_ids, cx in zip(per_day, ctxs):
+        key = (cx.day.index, tuple(sorted(day_ids)))
+        if key not in trip.routes:      # the order inside a day does not depend on the day-split weights
+            trip.routes[key] = order_day(day_ids, cx)
+        results.append(trip.routes[key])
     for cx, r in zip(ctxs, results):
         for note in r.notes:
             code, _, meal = note.partition(":")
             warnings.append(_warn(code, day=cx.day.index + 1, meal=MEAL_NAME.get(meal, meal)))
+    tc = trip.decision["trip_context"]
+    anchors = {c["id"] for c in trip.decision["confirmed"] if c.get("role") == "anchor"}
+    violations = validate(ctxs, results, tc.get("hard_filters") or [], anchors, tc["context"].get("budget_vnd"),
+                          (tc.get("pace") or {}).get("max_leg_min"))
+    return Schedule(per_day, results, ctxs, violations, warnings)
 
-    anchors = {c["id"] for c in decision["confirmed"] if c.get("role") == "anchor"}
-    violations = validate(ctxs, results, tc.get("hard_filters") or [], anchors, ctx.get("budget_vnd"),
-                          pace_spec.get("max_leg_min"))
+
+def itinerary(days: list, results: list) -> list[dict]:
+    return [{"day": d.index + 1, "date": d.date.isoformat() if d.date else None, "weekday": d.weekday,
+             "window": [fmt(d.start), fmt(d.end)], "method": r.method,
+             "items": [_item(i) for i in r.items]} for d, r in zip(days, results)]
+
+
+def travel_load(days: list, results: list) -> list[dict]:
+    return [{"day": d.index + 1, "travel_min": r.travel_min, "wait_min": r.wait_min,
+             "longest_leg_min": max((i.end - i.start for i in r.items if i.kind == "travel"), default=0)}
+            for d, r in zip(days, results)]
+
+
+def flag_warnings(decision: dict) -> list[dict]:
+    return [{"code": "flag", "text": f} for c in decision["confirmed"] for f in c.get("flags") or []]
+
+
+def shared_output(trip: Trip) -> dict:
+    """The parts of the Plan Output that do not depend on how the trip is laid out."""
+    decision, travel = trip.decision, trip.travel
     return {
-        "ok": not violations,
-        "itinerary": [{"day": d.index + 1, "date": d.date.isoformat() if d.date else None, "weekday": d.weekday,
-                       "window": [fmt(d.start), fmt(d.end)], "method": r.method,
-                       "items": [_item(i) for i in r.items]} for d, r in zip(days, results)],
-        "travel_load": [{"day": d.index + 1, "travel_min": r.travel_min, "wait_min": r.wait_min,
-                         "longest_leg_min": max((i.end - i.start for i in r.items if i.kind == "travel"), default=0)}
-                        for d, r in zip(days, results)],
-        "violations": [asdict(v) for v in violations],
-        "warnings": warnings + [{"code": "flag", "text": f} for c in decision["confirmed"] for f in c.get("flags") or []],
-        "unplaced": [asdict(u) for u in unplaced],
+        "unplaced": [asdict(u) for u in trip.unplaced],
         "uncertainty": {"travel_source": travel.source, "rough_pairs": travel.rough_pairs,
                         "estimated": ["travel_minutes", "visit_minutes", "cost"]},
         "provenance": {"travel": {"source": travel.source, "fetched_at": travel.fetched_at},
                        "points": {n: {"text": pt.text, "source": pt.source, "fetched_at": pt.fetched_at}
-                                  for n, pt in points.items() if pt}},
+                                  for n, pt in trip.points.items() if pt}},
         "reasons": decision.get("decision_log") or [],
         "tradeoffs": [{"kind": "relaxed", "place_id": c["id"], "features": c["relaxed"]}
                       for c in decision["confirmed"] if c.get("relaxed")]
-                     + [{"kind": "unplaced", "place_id": u.id, "reason": u.reason} for u in unplaced],
-        "trip_context": tc,
+                     + [{"kind": "unplaced", "place_id": u.id, "reason": u.reason} for u in trip.unplaced],
+        "trip_context": decision["trip_context"],
+    }
+
+
+def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None, live_cfg=None, geocode_fn=None,
+               matrix_fn=None, sun_fn=None) -> dict:
+    trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn)
+    sched = schedule_trip(trip)
+    days = [cx.day for cx in sched.ctxs]      # schedule_trip may pull a later day's start earlier (early_start)
+    return {
+        "ok": not sched.violations,
+        "itinerary": itinerary(days, sched.results),
+        "travel_load": travel_load(days, sched.results),
+        "violations": [asdict(v) for v in sched.violations],
+        "warnings": trip.warnings + sched.warnings + flag_warnings(decision),
+        **shared_output(trip),
     }
 
 

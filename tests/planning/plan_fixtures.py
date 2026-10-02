@@ -109,3 +109,32 @@ def day_ctx(recs, *, minutes=10, pace="normal", weekday="mon", start=480, end=12
     by_id = {p.id: p for p in places}
     day = Day(0, None, weekday, start, end, start_node, end_node)
     return DayCtx(day, by_id, travel or flat_travel([*by_id, *extra_nodes], minutes), CFG, pace, sun, rain, prefs)
+
+
+CENTRE = (11.9404, 108.4583)
+SOUTH = (11.9029, 108.4482)     # about 4 km from the centre
+
+
+class FakeLive:
+    """The one live setting build.prepare reads."""
+    tz_offset_h = 7
+
+
+def spot(pid, anchor, i, **kw):
+    """A place i steps (about 300 m each) from one of the two centres; the area follows the centre."""
+    return rec(pid, anchor[0] + i * 0.002, anchor[1] + i * 0.002, area="area-1" if anchor == CENTRE else "area-2", **kw)
+
+
+def sample_trip(**kw):
+    """Four places in the centre, three out south and a restaurant: the two-day trip the P4 tests share."""
+    recs = [spot("c1", CENTRE, 0), spot("c2", CENTRE, 1), spot("c3", CENTRE, 2), spot("c4", CENTRE, 3),
+            spot("s1", SOUTH, 0), spot("s2", SOUTH, 1), spot("s3", SOUTH, 2),
+            spot("r1", CENTRE, 4, usable=("meal", "backup"))]
+    return decision([r["id"] for r in recs], **kw), recs
+
+
+def prepared(d, recs, weather=None, matrix=fake_matrix):
+    """build.prepare with every outside source replaced."""
+    from planning.build import prepare
+    return prepare(d, recs, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=matrix, sun_fn=fixed_sun,
+                   weather=weather)
