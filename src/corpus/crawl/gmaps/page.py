@@ -12,12 +12,13 @@ async def ensure_login(ctx: BrowserContext) -> None:
 
 
 SIGN_IN_LINK = 'a[href*="accounts.google.com/ServiceLogin"]'
+LIMITED = 'text=/xem Google Maps ở chế độ bị hạn chế/'  # signed in, yet no reviews / photos / hours
 
 
 async def check_signed_in(page: Page) -> None:
-    """Google can end the session while the SID cookie stays; signed-out Maps lists fewer places (still with the
-    end-of-list marker) and no reviews, so stop instead of saving a thinner copy."""
-    if await page.locator(SIGN_IN_LINK).count():
+    """Google can end the session while the SID cookie stays; signed-out or "limited view" Maps lists fewer places
+    (still with the end-of-list marker), no reviews and no photos, so stop instead of saving a thinner copy."""
+    if await page.locator(SIGN_IN_LINK).count() or await page.locator(LIMITED).count():
         raise LoginRequired("gmaps")
 
 

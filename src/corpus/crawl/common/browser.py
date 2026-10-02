@@ -16,6 +16,22 @@ LOGIN_URL = {
 _CAPTCHA = re.compile(r"Kéo thanh trượt|Drag the slider|Verify to continue|Xác minh để tiếp tục")
 
 
+_ua: dict = {}
+
+
+async def _user_agent(p, headless: bool) -> str | None:
+    """Headless Chrome says "HeadlessChrome" in its user agent and Google then serves Maps in "limited view" (no
+    reviews, photos or hours, even signed in): headless runs present the installed Chrome's normal user agent."""
+    if not headless:
+        return None
+    if "ua" not in _ua:
+        browser = await p.chromium.launch(channel="chrome", headless=True)
+        page = await browser.new_page()
+        _ua["ua"] = (await page.evaluate("navigator.userAgent")).replace("HeadlessChrome", "Chrome")
+        await browser.close()
+    return _ua["ua"]
+
+
 class LoginRequired(RuntimeError):
     def __init__(self, source: str):
         super().__init__(f"{source}: login or captcha needed, run `python -m corpus login {source}`")
@@ -26,7 +42,7 @@ async def open_profile(source: str, headed: bool = False):
     async with async_playwright() as p:
         ctx: BrowserContext = await p.chromium.launch_persistent_context(
             ROOT / ".browser" / source, channel="chrome", headless=not headed, locale="vi-VN",
-            viewport={"width": 1280, "height": 900},
+            viewport={"width": 1280, "height": 900}, user_agent=await _user_agent(p, not headed),
             ignore_default_args=["--enable-automation"], args=["--disable-blink-features=AutomationControlled"])
         try:
             yield ctx
@@ -44,7 +60,8 @@ async def open_sessions(headed: bool = False):
             ignore_default_args=["--enable-automation"], args=["--disable-blink-features=AutomationControlled"])
 
         async def new_session() -> BrowserContext:
-            return await browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900})
+            return await browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900},
+                                             user_agent=await _user_agent(p, not headed))
 
         try:
             yield new_session
