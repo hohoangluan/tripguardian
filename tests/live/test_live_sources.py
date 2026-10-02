@@ -14,3 +14,10 @@ def test_osrm_answers_for_two_points_in_dalat():
     m = travel_matrix(DALAT, "motorbike", settings.load())
     assert m["source"] == "osrm"
     assert 3 <= m["minutes"][0][1] <= 60, m["minutes"]
+
+
+def test_nominatim_finds_a_place_in_dalat():
+    from live.geocode import geocode
+    p = geocode("Bến xe Liên tỉnh Đà Lạt", settings.load())
+    assert p is not None
+    assert 11.8 < p["lat"] < 12.1 and 108.3 < p["lng"] < 108.6, p
