@@ -1110,6 +1110,123 @@ button {
   color: var(--pine);
 }
 
+/* ---------- landing: choose (tabletop miniature) ---------- */
+
+.choose {
+  height: 300vh;
+}
+
+.choose__stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 36fr) minmax(0, 64fr);
+  align-items: center;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 0 0 7vw;
+}
+
+.choose__copy {
+  position: relative;
+  z-index: 1;
+}
+
+.choose__steps {
+  display: grid;
+  list-style: none;
+  margin: 18px 0 28px;
+  padding: 0;
+}
+
+.choose__steps li {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  pointer-events: none;
+}
+
+.choose__steps li.is-done {
+  transform: translateY(-22px);
+}
+
+.choose__steps li.is-on {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.choose h2 {
+  margin: 0 0 18px;
+  font-size: clamp(2.2rem, 4.6vw, 3.8rem);
+  max-width: 11ch;
+}
+
+.choose__steps p {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--ink-soft);
+  font-size: 1.08rem;
+}
+
+.choose__note {
+  color: var(--ink-soft);
+  opacity: 0.7;
+  font-size: 0.8rem;
+}
+
+.choose__canvas {
+  height: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 720px) {
+  .choose__stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 54% auto;
+    align-items: start;
+    padding: 64px var(--gutter) 0;
+  }
+  .choose__canvas {
+    grid-row: 1;
+  }
+  .choose__copy {
+    grid-row: 2;
+  }
+  .choose__steps {
+    margin: 4px 0 12px;
+  }
+  .choose h2 {
+    font-size: clamp(1.9rem, 9vw, 2.6rem);
+    margin-bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choose {
+    height: auto;
+  }
+  .choose__stage {
+    position: static;
+    height: auto;
+    min-height: 100vh;
+  }
+  .choose__steps {
+    gap: 26px;
+  }
+  .choose__canvas {
+    height: 70vh;
+  }
+  .choose__steps li {
+    grid-area: auto;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .demo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

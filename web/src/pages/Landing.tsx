@@ -3,6 +3,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { story } from '../scene/story'
+import { Choose } from './Choose'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -391,6 +392,8 @@ function Outro({ onStart }: { onStart: () => void }) {
 
   return (
     <div className="outro">
+      <Choose />
+
       <section className="demo">
         <div className="demo__copy">
           <p className="eyebrow reveal">Xem thử 40 giây</p>
