@@ -12,7 +12,7 @@ Trong phạm vi:
 - `python -m decision evaluate` thay `python -m corpus evaluate`.
 - `trip.SearchInput.Context` thêm `budget_vnd`, `experience`.
 
-Ngoài phạm vi: Planning & Validation, Live Context, User Profile dài hạn (`recent_interest = 0`), giờ cố định của anchor (Search Input chưa có giờ anchor → không kiểm chồng giờ anchor), thẻ do LLM viết.
+Ngoài phạm vi: Planning & Validation, Live Context, User Profile dài hạn (`recent_interest = 0`), giờ do user tự hẹn cho anchor ("19h ăn ở X": Trip State `Anchor` chưa có field giờ; việc của Trip Understanding), thẻ do LLM viết. Khung giờ suy từ corpus thì có kiểm (§11 `time_windows`).
 
 ## 2. Ranh giới module
 
@@ -169,11 +169,29 @@ cần           Σ visit.typical + Σ buffer[pace] + đi lại
 |---|---|---|
 | `time` | cần > có | physical (`partial`; > có × `infeasible_ratio` → `infeasible`) |
 | `hours` | biết thứ, nơi đóng mọi ngày đi | physical |
+| `time_windows` | số nơi cần cùng một buổi hẹp > số buổi đó còn trong chuyến (cách tính dưới bảng) | physical |
 | `far_areas` | số khu có km tới tâm > `far_km` > số ngày | user (`partial`) |
 | `per_day` | số nơi trải nghiệm > ngày × `per_day_max[pace]` | user |
 | `budget` | biết `budget_vnd`: Σ giá giữa khoảng / ngày > budget × `budget_slack` | user |
 | `relax` | nơi khóa vi phạm hard filter chưa nới | user |
 | `wishlist` | nơi khóa vi phạm physical | physical |
+
+Khung giờ (`time_windows`), từ corpus, không cần giờ user hẹn:
+
+```text
+buổi         early_morning 05:00–07:00 · morning 07–11 · noon 11–13 · afternoon 13–17 · evening 17–19 · night 19–22  (config)
+buổi cần     (a) feature hẹn giờ (config timed_features: cloud_hunting, sunset_view, live_music) mà user love trong
+                 soft_weights, hoặc là feature trải nghiệm mạnh nhất (n lớn nhất) của một anchor:
+                 các buổi chiếm ≥ timed_share tổng nhắc theo time_of_day trong by_context của feature đó
+             (b) hours mọi ngày đi chỉ mở từ night_open trở đi → evening | night
+buổi hẹp     buổi cần chỉ gồm buổi thuộc narrow_buckets (early_morning, evening, night)
+còn trong chuyến  mỗi ngày một suất cho mỗi buổi hẹp, trừ buổi nằm ngoài khung ngày
+                  (ngày 1 tới sau 07:00 → mất early_morning; ngày cuối rời trước 17:00 → mất evening, night)
+fail         với mỗi tập buổi hẹp B: số nơi cần ⊆ B > tổng suất của B
+cảnh báo     buổi cần không giao với hours của nơi đó ở ngày nào ("mở 07:00, săn mây cần sáng sớm")
+```
+
+Fix: bỏ nơi `score` thấp nhất trong nhóm tranh buổi (chưa khóa) · "cần thêm 1 ngày" (chỉ hiển thị, không tự đổi ngày).
 
 - `hours` `OUTDATED`/thiếu → cảnh báo "kiểm tra lại trước chuyến", không fail.
 - Mỗi conflict có `fixes: [{label, effect, action}]`, `action` là đúng payload của `POST /act`. `effect` tính bằng cùng phép tính: "Bỏ C: bớt ≈<phút> phút". Bỏ gợi ý nơi có `score` thấp nhất chưa khóa trong ngày / khu gây lỗi.
@@ -288,6 +306,12 @@ leave_at: "15:00"
 buffer_min: {slow: 30, normal: 20, packed: 10}
 intra_leg_min: 10
 far_km: 8
+buckets: {early_morning: ["05:00", "07:00"], morning: ["07:00", "11:00"], noon: ["11:00", "13:00"],
+          afternoon: ["13:00", "17:00"], evening: ["17:00", "19:00"], night: ["19:00", "22:00"]}
+narrow_buckets: [early_morning, evening, night]
+timed_features: [cloud_hunting, sunset_view, live_music]
+timed_share: 0.6
+night_open: "16:00"
 infeasible_ratio: 1.35
 budget_slack: 1.0
 far_step: 0.8
