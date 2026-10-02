@@ -1,8 +1,8 @@
+import importlib
 from datetime import date
 
-import pytest
-
-from live import holidays as mod
+# live.holidays the function shadows live.holidays the module once live/__init__ exports it, so load the module by name.
+mod = importlib.import_module("live.holidays")
 
 
 def test_a_listed_date_comes_back_with_its_name():

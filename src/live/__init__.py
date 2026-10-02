@@ -1,4 +1,18 @@
 """Live Context: facts fetched per request from outside (docs/specs/PLANNING_SPEC.md §Live Context).
 
-Never writes Place Intelligence. A source that does not answer raises Unavailable; nothing here invents a value.
+Three rules hold for everything in here:
+  - it never writes Place Intelligence; the only thing it writes is its own cache under data/live/;
+  - every value it returns carries `source` and `fetched_at`, so Planning can label it an estimate;
+  - a source that does not answer raises Unavailable. Nothing here invents a value to fill a gap.
 """
+
+from .geocode import geocode
+from .holidays import holidays
+from .http import Unavailable
+from .osrm import route_shape, travel_matrix
+from .settings import Settings
+from .settings import load as load_settings
+from .sun import sun_times
+
+__all__ = ["Settings", "Unavailable", "geocode", "holidays", "load_settings", "route_shape", "sun_times",
+           "travel_matrix"]
