@@ -6,7 +6,7 @@ clicks): every card is read as Maps shows it by default, and a price over price_
 
 import asyncio
 
-from corpus.crawl import LoginRequired, maps_search, open_sessions
+from corpus.crawl import maps_search, open_sessions
 
 from ..cache import get as cache_get
 from ..cache import put as cache_put
@@ -31,8 +31,8 @@ def lodging_near(center: tuple[float, float], radius_km: float, check_in: str | 
                  price_max: int | None, cfg: Settings) -> list[dict]:
     """[{"id", "name", "lat", "lng", "rating", "reviews", "price_vnd", "amenities", "source", "fetched_at"}].
 
-    radius_km narrows nothing here (planning.lodging's sieve does the real distance cut); it only keeps a request
-    for a different area from being wrongly served the cached one.
+    radius_km narrows nothing here (planning.lodging.candidates does the real distance cut); it only keeps a
+    request for a different area from being wrongly served the cached one.
     """
     payload = {"center": [round(center[0], 4), round(center[1], 4)], "radius_km": radius_km,
               "check_in": check_in, "check_out": check_out}
@@ -40,7 +40,7 @@ def lodging_near(center: tuple[float, float], radius_km: float, check_in: str | 
     if hit is None:
         try:
             rows, is_lodging = asyncio.run(_fetch(center, cfg.lodging_query_limit))
-        except LoginRequired as e:
+        except Exception as e:  # a dead browser, a login wall, a throttled page: none of these invent a value
             raise Unavailable(str(e)) from e
         if not is_lodging:
             raise Unavailable("maps did not switch to its hotel list")

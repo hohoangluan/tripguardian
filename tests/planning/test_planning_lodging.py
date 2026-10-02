@@ -57,6 +57,16 @@ def test_shortlist_keeps_the_k_candidates_closest_to_any_centre():
     assert [c["id"] for c in shortlist(raw, centres, 3)] == ["h0", "h1", "h2"]
 
 
+def test_candidates_drops_a_hit_outside_every_centres_search_radius():
+    # Maps' hotel list ignores the viewport and can pad a short list with hotels far from any searched centre.
+    places = by(rec("a", *CENTRE))
+    far = cand(0, reviews=20)
+    far["lat"], far["lng"] = 10.78, 106.70  # Hồ Chí Minh, far outside motorbike's radius_km around CENTRE
+
+    out = candidates(places, decision(["a"]), CFG, lambda *a: [far], None)
+    assert out == []
+
+
 def test_candidates_merges_two_centres_without_duplicates_and_passes_the_price_cap_through():
     places = by(rec("a", *CENTRE), rec("b", 11.60, 108.10))
     seen = []

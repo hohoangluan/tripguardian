@@ -154,7 +154,9 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
         t2 = trip if opt["home"] == home0 else with_home(trip, opt["home"])
         for obj in objectives:
             s = schedule_trip(t2, cfg.objective_weights[obj])
-            m = add_lodging_cost(metrics(s.ctxs, s.results), opt["price"], nights) if not s.violations else None
+            m = metrics(s.ctxs, s.results) if not s.violations else None
+            if m is not None and opt["id"] is not None:    # "no lodging" adds no cost, known or unknown
+                m = add_lodging_cost(m, opt["price"], nights)
             rows[obj].append({**opt, "sched": s, "metrics": m})
 
     warnings += list(trip.warnings)

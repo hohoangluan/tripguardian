@@ -3,7 +3,7 @@
  "chosen": null,
  "comparison": [
   {
-   "cost_unknown": 9,
+   "cost_unknown": 8,
    "cost_vnd": 0,
    "label": "Ít di chuyển",
    "objective": "least_travel",
@@ -295,7 +295,7 @@
     "price_vnd": null
    },
    "metrics": {
-    "cost_unknown": 9,
+    "cost_unknown": 8,
     "cost_vnd": 0,
     "exposure_unknown": 8,
     "pref_risk": 0.0,

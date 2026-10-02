@@ -53,6 +53,14 @@ def test_the_same_input_gives_the_same_output():
     assert a == b
 
 
+def test_no_lodging_is_not_counted_as_an_unknown_cost():
+    d, recs = sample_trip()  # 8 places, all with no known cost
+    out = run(d, recs, fake_lodging([hit(0, price=None)]))
+    lt = next(v for v in out["variants"] if v["objective"] == "least_travel")
+    assert lt["lodging"]["id"] is None
+    assert lt["metrics"]["cost_unknown"] == 8  # the 8 places only, not +1 for "no lodging" having no price
+
+
 def test_no_valid_schedule_for_any_lodging_goes_back_to_place_decision():
     d, recs = sample_trip()
     d["confirmed"].append({"id": "gone", "name": "Gone", "role": "anchor", "flags": [], "relaxed": []})

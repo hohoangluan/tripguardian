@@ -91,7 +91,11 @@ def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, lodgin
         except Unavailable:
             continue
         for c in found:
-            if c["id"] not in seen:
+            # a generous multiple of radius_km, not radius_km itself: search_area may not split into two centres
+            # even when a far cluster's places sit a bit past one centre's radius (split_min is about travel time,
+            # not raw distance) -- this only needs to catch Maps padding a short list with another city entirely.
+            if c["id"] not in seen and any(km((c["lat"], c["lng"]), (ct["lat"], ct["lng"])) <= 2 * ct["radius_km"]
+                                           for ct in centres):
                 seen.add(c["id"])
                 raw.append(c)
     return shortlist(sieve(raw, hard_filters, cfg.min_reviews), centres, cfg.lodging_k)

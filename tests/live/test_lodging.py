@@ -94,3 +94,13 @@ def test_login_required_is_unavailable_not_a_crash(cfg, monkeypatch):
     monkeypatch.setattr(maps, "maps_search", blocked)
     with pytest.raises(Unavailable):
         maps.lodging_near((11.94, 108.45), 3.0, None, None, None, cfg)
+
+
+def test_a_crawl_timeout_is_unavailable_not_a_crash(cfg, monkeypatch):
+    async def timed_out(ctx, query, limit, at):
+        raise TimeoutError("Page.goto: Timeout 30000ms exceeded")
+
+    monkeypatch.setattr(maps, "open_sessions", fake_sessions)
+    monkeypatch.setattr(maps, "maps_search", timed_out)
+    with pytest.raises(Unavailable):
+        maps.lodging_near((11.94, 108.45), 3.0, None, None, None, cfg)
