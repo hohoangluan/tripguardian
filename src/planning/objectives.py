@@ -54,3 +54,13 @@ def score(objective: str, m: dict) -> tuple:
     main = {"least_travel": m["travel_min"], "low_cost": m["cost_vnd"], "weather_robust": m["rain_exposed"],
             "diverse": m["repeats"], "preference_fit": m["pref_risk"]}[objective]
     return main, m["travel_min"]
+
+
+def add_lodging_cost(m: dict, price_vnd: int | None, nights: int) -> dict:
+    """metrics() with a lodging candidate's cost merged into cost_vnd / cost_unknown over the whole stay."""
+    out = dict(m)
+    if price_vnd is None:
+        out["cost_unknown"] += 1
+    else:
+        out["cost_vnd"] += price_vnd * nights
+    return out

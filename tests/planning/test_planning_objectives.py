@@ -1,7 +1,7 @@
 import pytest
 from plan_fixtures import CFG, day_ctx, rec
 
-from planning.objectives import LABEL, choose, metrics, score
+from planning.objectives import LABEL, add_lodging_cost, choose, metrics, score
 from planning.route import order_day
 
 
@@ -42,3 +42,9 @@ def test_each_objective_scores_on_its_own_measure_then_on_travel():
     assert [score(o, m) for o in ("least_travel", "low_cost", "weather_robust", "diverse", "preference_fit")] == [
         (90, 90), (120000, 90), (0.4, 90), (2, 90), (1.5, 90)]
     assert set(LABEL) == set(CFG.objective_order)
+
+
+def test_add_lodging_cost_merges_a_known_price_or_counts_it_unknown():
+    m = {"cost_vnd": 100000, "cost_unknown": 1}
+    assert add_lodging_cost(m, 50000, 3)["cost_vnd"] == 250000
+    assert add_lodging_cost(m, None, 3)["cost_unknown"] == 2
