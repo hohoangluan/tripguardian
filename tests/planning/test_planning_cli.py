@@ -42,3 +42,32 @@ def test_build_can_also_write_the_full_plan_output_as_json(tmp_path, monkeypatch
     assert cli.main(["build", str(write_decision(tmp_path, ["a"])), "--out", str(out)]) == 0
     plan = json.loads(out.read_text(encoding="utf-8"))
     assert plan["ok"] and {"itinerary", "travel_load", "warnings", "uncertainty", "provenance"} <= set(plan)
+
+
+def test_variants_prints_each_variant_its_robustness_and_the_verdict(tmp_path, monkeypatch, capsys, offline):
+    monkeypatch.setattr(cli, "load_records", lambda: [rec("a", 11.94, 108.45), rec("b", 11.941, 108.451)])
+    assert cli.main(["variants", str(write_decision(tmp_path, ["a", "b"]))]) == 0
+    out = capsys.readouterr().out
+    assert "== Phương án 1 · Ít di chuyển" in out and "Độ vững:" in out and out.rstrip().endswith("Hợp lệ.")
+
+
+def test_variants_reads_a_forecast_file_and_writes_the_plan_output(tmp_path, monkeypatch, capsys, offline):
+    wet = rec("a", 11.94, 108.45, features={"weather_exposed": "present"})
+    monkeypatch.setattr(cli, "load_records", lambda: [wet])
+    forecast = tmp_path / "forecast.json"
+    rain = {"rain_prob": 0.9, "source": "open-meteo", "fetched_at": "t"}
+    forecast.write_text(json.dumps({"2026-12-12": rain, "2026-12-13": rain}), encoding="utf-8")
+    out = tmp_path / "plan.json"
+    assert cli.main(["variants", str(write_decision(tmp_path, ["a"])), "--weather", str(forecast),
+                     "--out", str(out)]) == 0
+    plan = json.loads(out.read_text(encoding="utf-8"))
+    assert plan["provenance"]["weather"] == [{"source": "open-meteo", "fetched_at": "t"}]
+    assert "rain" in plan["variants"][0]["backups"]["places"][0]["reasons"]
+
+
+def test_variants_exits_two_and_points_back_to_place_decision(tmp_path, monkeypatch, capsys, offline):
+    monkeypatch.setattr(cli, "load_records", lambda: [rec("a", 11.94, 108.45)])
+    path = write_decision(tmp_path, ["a", "gone"], roles={"gone": "anchor"})
+    assert cli.main(["variants", str(path)]) == 2
+    out = capsys.readouterr().out
+    assert "quay lại chọn địa điểm (gone)" in out and out.rstrip().endswith("KHÔNG hợp lệ.")

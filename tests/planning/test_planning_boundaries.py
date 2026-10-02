@@ -45,6 +45,7 @@ def test_no_module_names_a_directory_only_the_corpus_writes(path):
 
 def test_the_public_api_is_the_plan_builder_and_its_settings():
     import planning
-    assert set(planning.__all__) == {"Settings", "build_plan", "load_settings", "render_text"}
+    assert set(planning.__all__) == {"Settings", "build_plan", "build_variants", "load_settings", "render_text",
+                                     "render_variants"}
     for name in planning.__all__:
         assert hasattr(planning, name)

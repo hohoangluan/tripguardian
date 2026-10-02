@@ -141,7 +141,7 @@ Visit theo pace: thong thả → `long`, cân bằng → `typical`, đi nhiều 
 
 ### ⓕ Độ vững — `robustness.py`
 
-Nhiễu cố định trong config, không random: xuất phát trễ +15 / +30 phút; visit +20%; travel +25%; mưa theo xác suất dự báo. Mỗi kịch bản xếp lại và đếm số nơi bị mất. Ba mức Vững / Khả thi / Mong manh theo ngưỡng. `travel_source = rough` → trần "Khả thi".
+Nhiễu cố định trong config, không random: xuất phát trễ +15 / +30 phút; visit +20%; travel +25%; mưa theo xác suất dự báo. Mỗi kịch bản chạy lại thứ tự đã chọn của từng ngày và đếm số nơi bị mất (ngoài giờ mở, hoặc sau nó không kịp về điểm kết ngày; đệm là thứ hấp thụ trễ). Mưa không random: nơi phơi mưa ở ngày `rain_prob ≥ rain_high` tính là mất; không có dự báo thì bỏ kịch bản này và nói rõ. Ba mức: Vững = mọi kịch bản mất ≤ `solid_max_lost`; Khả thi = các kịch bản `tier: small` mất ≤ `feasible_max_lost`; còn lại Mong manh. `travel_source = rough` → trần "Khả thi".
 
 ### ⓖ Mục tiêu và phương án — `objectives.py`, `variants.py`
 
@@ -259,7 +259,7 @@ Web: `web/src/user/screens/Itinerary.tsx` đổi sang gọi `/api/planning`; `we
 
 ## Cấu hình — `config/planning.yaml`
 
-`version`; `road_factor`, `rough_speed_kmh` (đường lui khi OSRM chết), `walk_km`, `walk_kmh`; `default_days`, `day_start`, `day_end`, `leave_at`; `visit_key`, `per_day`, `buffer_min` (+ phụ phí `long_leg_min`, `buffer_extra_long`, `buffer_extra_uncertain`), `rest_min`, `max_consecutive_min`; `meals_per_day`, `meal_min`, `meal_windows`; `pins`; `cluster_max_min`, `cluster_merge_min`, `fill_ratio`, `intra_leg_min`, `max_days`, `max_clusters`, `exact_n`, `improve_passes`; `weights` (`travel`, `overflow`, `count`, `closed`). Các phase sau thêm: `radius_km` theo mobility, `lodging_k`, `lodging_share`, `min_reviews`, `split_min`, kịch bản nhiễu của độ vững + ngưỡng 3 mức, trọng số từng mục tiêu, trọng số phạt của `repair_day`.
+`version`; `road_factor`, `rough_speed_kmh` (đường lui khi OSRM chết), `walk_km`, `walk_kmh`; `default_days`, `day_start`, `day_end`, `leave_at`; `visit_key`, `per_day`, `buffer_min` (+ phụ phí `long_leg_min`, `buffer_extra_long`, `buffer_extra_uncertain`), `rest_min`, `max_consecutive_min`; `meals_per_day`, `meal_min`, `meal_windows`; `pins`; `cluster_max_min`, `cluster_merge_min`, `fill_ratio`, `intra_leg_min`, `max_days`, `max_clusters`, `exact_n`, `improve_passes`; `weights` (`travel`, `overflow`, `count`, `closed`). P4 thêm: `rain_high`, `buffer_extra_rain`; `robustness` (kịch bản nhiễu có `tier` small / large, `solid_max_lost`, `feasible_max_lost`); `max_variants`, `objective_order`, `objective_weights` (trộn lên `weights` khi chia ngày: `travel`, `exposed`, `repeat`, `pref_risk`); `near_close_min`, `far_leg_min`, `backup_radius_min`, `backups_per_place`. Các phase sau thêm: `radius_km` theo mobility, `lodging_k`, `lodging_share`, `min_reviews`, `split_min`, trọng số phạt của `repair_day`.
 
 TTL từng nguồn live và endpoint OSRM nằm ở `config/live.yaml`, không nằm ở đây: `src/live` không được đọc config của `planning` (phụ thuộc một hướng).
 
@@ -301,7 +301,7 @@ Mỗi phase chạy được và test được riêng.
 | P1 | `src/live` nền: `cache`, `osrm`, `geocode`, `sun`, `holidays`; `scripts/osrm_setup.sh`; fixture |
 | P2 | Trip State: `entry_point` / `exit_point` + một câu hỏi + sửa `docs/TRIP_UNDERSTANDING.md` |
 | P3 | Planning lõi: `cluster` → `days` → `route` → `schedule` → `validate` → `output`; CLI `python -m planning build <decision_output.json>` in lịch. Chưa web, chưa agent |
-| P4 | `robustness`, `backup`, `objectives`, `variants` |
+| P4 | `traits`, `robustness`, `backup`, `objectives`, `variants`; CLI `python -m planning variants` (thời tiết vào qua `--weather`, P5 mới tự lấy) |
 | P5 | `live/weather`, `live/lodging`, `lodging.py`, chấm K × mục tiêu, event `progress` |
 | P6 | `session` (phiên bản, undo), `act`, `repair_day`, `scope`, `server` + SSE |
 | P7 | `agent`, `guard`, `policy` |

@@ -8,7 +8,7 @@ valid -> back to Place Decision with the places that broke it. Lodging joins the
 from dataclasses import asdict
 
 from .backup import backups
-from .build import flag_warnings, itinerary, prepare, schedule_trip, shared_output, travel_load
+from .build import flag_warnings, itinerary, prepare, render_text, schedule_trip, shared_output, travel_load
 from .objectives import LABEL, choose, metrics, score
 from .robustness import robustness
 
@@ -73,3 +73,36 @@ def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None,
            "warnings": warnings + flag_warnings(decision), "back_to_decision": None, **shared_output(trip)}
     out["provenance"]["weather"] = [{"source": s, "fetched_at": f} for s, f in weather_src]
     return out
+
+
+def render_variants(out: dict) -> str:
+    """The variants as plain lines, for the command line."""
+    lines = []
+    for n, v in enumerate(out["variants"], 1):
+        rob = v["robustness"]
+        lines.append(f'== Phương án {n} · {v["label"]} · {rob["label"]}')
+        body = render_text({"itinerary": v["itinerary"], "warnings": v["warnings"], "violations": [], "ok": True})
+        lines += body.splitlines()[:-1]                 # its last line is the verdict, said once at the end
+        lines.append("  Độ vững: " + "; ".join(rob["reasons"]))
+        for p in v["backups"]["places"]:
+            alts = ", ".join(f'{a["name"]} (~{a["minutes_rough"]} phút)' for a in p["alternatives"])
+            lines.append(f'  Dự phòng cho {p["name"]} ({p["text"]}): {alts or p["none_text"]}')
+        for x in v["backups"]["on_delay"]:
+            lines.append(f'  Nếu trễ ở ngày {x["day"]}: bỏ {x["name"]} trước.')
+    if len(out["comparison"]) > 1:
+        lines.append("So sánh:")
+        for r in out["comparison"]:
+            cost = f'{r["cost_vnd"]:,} VND/người'
+            if r["cost_unknown"]:
+                cost += f' (+{r["cost_unknown"]} nơi chưa có giá)'
+            lines.append(f'  {r["label"]}: {r["travel_min"]} phút di chuyển (+{r["travel_vs_best"]}), {cost}')
+    for w in out["warnings"]:
+        lines.append("! " + w["text"])
+    for x in out["violations"]:
+        lines.append(f'X {x["kind"]} ngày {(x["day"] + 1) if x["day"] is not None else "-"}: {x["detail"]}'
+                     + (" (physical)" if x["physical"] else ""))
+    if out["back_to_decision"]:
+        lines.append("Không dựng được phương án hợp lệ: quay lại chọn địa điểm ("
+                     + ", ".join(out["back_to_decision"]["places"]) + ").")
+    lines.append("Hợp lệ." if out["ok"] else "KHÔNG hợp lệ.")
+    return "\n".join(lines)
