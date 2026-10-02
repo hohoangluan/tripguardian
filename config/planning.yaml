@@ -1,0 +1,48 @@
+# Planning & Validation thresholds (docs/specs/PLANNING_SPEC.md §Cấu hình). Starting values; tune after the pilot.
+# Live endpoints and TTLs live in config/live.yaml: src/live may not read this file.
+version: 1
+
+# Rough travel, used only when OSRM is down or has no road for a pair. Every number built on it is an estimate.
+road_factor: 1.4            # straight line -> road distance
+rough_speed_kmh: {motorbike: 25, car: 25, ride: 22}
+walk_km: 0.4                # a leg shorter than this is walked
+walk_kmh: 4.5
+
+# The trip frame when the user did not say.
+default_days: 2
+day_start: "08:00"
+day_end: "21:00"
+leave_at: "15:00"
+
+# Pace. visit_key picks which of the record's visit minutes (short / typical / long) a pace uses.
+visit_key: {slow: long, normal: typical, packed: short}
+per_day: {slow: 3, normal: 4, packed: 6}
+buffer_min: {slow: 30, normal: 20, packed: 10}
+long_leg_min: 30            # a leg longer than this adds buffer_extra_long
+buffer_extra_long: 10
+buffer_extra_uncertain: 10  # a place whose opening hours are UNCERTAIN / OUTDATED
+rest_min: {slow: 20, normal: 15, packed: 10}
+max_consecutive_min: {slow: 90, normal: 120, packed: 180}   # active minutes (visit + travel) before a rest is forced
+
+# Meals. A confirmed meal place takes a window; a window nobody takes gets a free block, never an invented place.
+meals_per_day: 2
+meal_min: 60
+meal_windows: {lunch: ["11:30", "13:30"], dinner: ["18:00", "20:30"]}   # earliest and latest start
+
+# Timed features: where in the day a place that is known for it has to start.
+# anchor sunrise / sunset: minutes from it; anchor clock: absolute times.
+pins:
+  sunset_view: {anchor: sunset, from_min: -75, to_min: -20}
+  cloud_hunting: {anchor: sunrise, from_min: -30, to_min: 60}
+  live_music: {anchor: clock, from: "18:00", to: "20:00"}
+
+# Grouping and day assignment.
+cluster_max_min: 25         # complete-link diameter of one cluster, in minutes of real travel
+cluster_merge_min: 8        # clusters of different areas merge only when this close
+fill_ratio: 0.8             # a cluster whose load exceeds this share of a day is split
+intra_leg_min: 10           # minutes charged per place for moving inside a cluster when sizing a day
+max_days: 7
+max_clusters: 8
+exact_n: 7                  # up to this many stops a day the order is found by trying every permutation
+improve_passes: 5
+weights: {travel: 1.0, overflow: 3.0, count: 15.0, closed: 1000.0}
