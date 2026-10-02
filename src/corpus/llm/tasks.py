@@ -598,6 +598,68 @@ USER MESSAGE:
 {text}""",
 )
 
+DECISION_OPS = ["select", "drop", "lock", "travel", "crowd", "price", "soft", "visited", "unmapped"]
+
+DECISION_TURN = Task(
+    name="decision_turn",
+    role=AGENT,
+    max_tokens=700,
+    temperature=0.2,
+    parallel=4,
+    # `say` first: the server streams it before the updates arrive (src/decision/agent.py).
+    schema={
+        "type": "object",
+        "properties": {
+            "say": {"type": "string"},
+            "updates": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "op": {"type": "string", "enum": DECISION_OPS},
+                    "place": {"type": "string"},
+                    "value": {"type": "string"},
+                    "quote": {"type": "string"},
+                },
+                "required": ["op", "place", "value", "quote"],
+                "additionalProperties": False,
+            }},
+        },
+        "required": ["say", "updates"],
+        "additionalProperties": False,
+    },
+    prompt="""You help a traveller choose the places for a trip to Đà Lạt, Vietnam. The places on screen are listed
+under PLACES with an alias (P1, P2, ...). In this turn: understand the user's latest message, turn what it asks
+into updates, and reply.
+
+`say` (Vietnamese): 1-2 short sentences, warm but not chummy, "mình" for yourself and "bạn" for the user, no slang,
+no emoji. Say what you changed or understood. Name a place only with a name from PLACES. Never state a number or a
+fact that is not in PLACES or in the user's message. If OPEN QUESTION is not "none", end by pointing the user to it.
+
+`updates`: one entry per request in the message.
+- select | lock: the user wants place `place` in the trip (lock: must keep it). value "".
+- drop: the user does not want `place`; value = the reason if stated: far | crowded | pricey | dislike | visited,
+  else "".
+- visited: the user has been to `place` already. value "".
+- travel | crowd | price: the user wants places closer | less crowded | cheaper in general, no single place. value "".
+- soft: a wish about the kind of place: value "feature=value:love" or "feature=value:avoid", ids from FEATURES only.
+- unmapped: a wish FEATURES cannot express; value = the user's words.
+- place: an alias from PLACES, or "" when the update is about no single place.
+- quote: the exact words from the user's message that support the update, copied, not paraphrased.
+- When unsure, leave it out. Never invent a place.
+
+FEATURES (id: values)
+{features}
+
+PLACES (alias | name | group | chosen | notes)
+{places}
+
+SESSION PROFILE: {profile}
+FEASIBILITY: {feasibility}
+OPEN QUESTION: {pending}
+
+USER MESSAGE:
+{text}""",
+)
+
 _PHOTO_OBS_KEYS = ("feature", "value", "photo", "quote")
 PHOTO_OBSERVE = Task(
     name="photo_observe",
