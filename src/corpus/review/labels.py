@@ -3,6 +3,11 @@
 A person reads the review text next to what the Extractor claimed and says correct / wrong / unsure. The labels give
 the precision per (feature, value) that docs/specs/CORPUS_SPEC.md §Đo chất lượng asks for; a value whose measured
 precision is below the gate is not served by itself. They never edit observations.
+
+A label judges what a person can read: this review, this feature and value, these quoted words. It is keyed by that
+content (`key`), not by the observation id, so it survives a re-run of observe with another prompt or model: a new
+observation with the same review, feature, value and quote is already labelled; one the new run no longer makes
+drops out of the statistics. Observations of any ontology version count while their value is still in the ontology.
 """
 
 import collections
@@ -10,6 +15,8 @@ import json
 import math
 import os
 import random
+import re
+import unicodedata
 
 from ..crawl.common.files import append_jsonl, data_dir, now
 from ..ontology import load as load_ontology
@@ -31,25 +38,59 @@ def _all() -> list[dict]:
     return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
 
 
+def _norm(text: str) -> str:
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", text or "")).strip().casefold()
+
+
+def key(source_id: str, feature: str, value: str, quote: str) -> str:
+    return "|".join((source_id, feature, value, _norm(quote)))
+
+
 def latest() -> dict[str, dict]:
-    return {rec["id"]: rec for rec in _all()}
+    """content key -> latest label. Records written before labels kept their quote are keyed through the current
+    observations by id (migrate() writes the key into them once)."""
+    by_id = {r[1]: r[4] for r in _rows()}
+    out = {}
+    for rec in _all():
+        k = rec.get("key") or by_id.get(rec["id"])
+        if k:
+            out[k] = rec
+    return out
 
 
 def _rows() -> list[tuple]:
-    """(file stem, observation id, feature, value) of every review observation of the current ontology, cached until
-    an observation file changes."""
+    """(file stem, observation id, feature, value, key) of every review observation whose value the ontology still
+    has, cached until an observation file changes."""
     root = data_dir() / "gmaps" / "observations"
     files = sorted(root.glob("*.json")) if root.exists() else []
-    key = (len(files), max((os.stat(f).st_mtime_ns for f in files), default=0))
-    if _index["key"] != key:
-        version, rows = load_ontology().version, []
+    stamp = (len(files), max((os.stat(f).st_mtime_ns for f in files), default=0))
+    if _index["key"] != stamp:
+        ont, rows = load_ontology(), []
         for f in files:
             doc = json.loads(f.read_text(encoding="utf-8"))
-            if doc.get("ontology_version") != version:
-                continue
-            rows += [(f.stem, o["id"], o["feature"], o["value"]) for o in doc["observations"] if o["source_type"] == SOURCE]
-        _index.update(key=key, rows=rows)
+            rows += [(f.stem, o["id"], o["feature"], o["value"], key(o["source_id"], o["feature"], o["value"],
+                                                                     o["span"]["quote"]))
+                     for o in doc["observations"] if o["source_type"] == SOURCE and ont.valid(o["feature"], o["value"])]
+        _index.update(key=stamp, rows=rows)
     return _index["rows"]
+
+
+def migrate() -> int:
+    """Write the content key and quote into label records that lack them, resolved through the current observation
+    files. Run before observe is re-run (afterwards the ids may point at other content). Returns records changed."""
+    by_id = {r[1]: r for r in _rows()}
+    recs, changed = _all(), 0
+    for rec in recs:
+        row = by_id.get(rec["id"])
+        if "key" not in rec and row:
+            rec["key"] = row[4]
+            rec["quote"] = row[4].split("|", 3)[3]
+            changed += 1
+    if changed:
+        tmp = _file().with_suffix(".tmp")
+        tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs), encoding="utf-8")
+        tmp.replace(_file())
+    return changed
 
 
 def _review_text(stem: str, review_id: str) -> str:
@@ -79,9 +120,10 @@ def sample(n: int = 1, feature: str | None = None, seed: int | None = None) -> l
     """Unlabelled observations, the least-labelled (feature, value) first so every value gets its sample."""
     done = latest()
     counts = collections.Counter((r["feature"], r["value"]) for r in done.values())
-    pool = collections.defaultdict(list)
-    for stem, obs_id, feat, value in _rows():
-        if obs_id not in done and (feature is None or feat == feature):
+    pool, seen = collections.defaultdict(list), set()
+    for stem, obs_id, feat, value, k in _rows():
+        if k not in done and k not in seen and (feature is None or feat == feature):
+            seen.add(k)  # the same claim twice in one review is one item
             pool[(feat, value)].append((stem, obs_id))
     rng, out = random.Random(seed), []
     for _ in range(n):
@@ -103,7 +145,8 @@ def label(id: str, label_: str, note: str = "") -> dict:
     row = next((r for r in _rows() if r[1] == id), None)
     if row is None:
         raise ValueError(f"unknown observation {id}")
-    rec = {"at": now(), "id": id, "place": row[0], "feature": row[2], "value": row[3], "label": label_, "note": note}
+    rec = {"at": now(), "id": id, "key": row[4], "place": row[0], "feature": row[2], "value": row[3],
+           "quote": row[4].split("|", 3)[3], "label": label_, "note": note}
     append_jsonl(_file(), rec)
     return rec
 
@@ -117,10 +160,13 @@ def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:
 
 def stats() -> dict:
     """Per (feature, value): labels, precision, Wilson lower bound and whether the value passes the gate."""
-    pool = collections.Counter((r[2], r[3]) for r in _rows())
+    rows = _rows()
+    pool = collections.Counter((r[2], r[3]) for r in rows)
+    current = {r[4] for r in rows}
     got = collections.defaultdict(collections.Counter)
-    for rec in latest().values():
-        got[(rec["feature"], rec["value"])][rec["label"]] += 1
+    for k, rec in latest().items():
+        if k in current:  # a label on a claim the current observations no longer make says nothing about them
+            got[(rec["feature"], rec["value"])][rec["label"]] += 1
     rows = []
     for key in sorted(set(pool) | set(got)):
         c = got[key]

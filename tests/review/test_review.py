@@ -146,17 +146,18 @@ def labelled(tmp_path, monkeypatch):
     _w(tmp_path / "gmaps" / "observations" / "0x1_0x2.json", {"place_fid": "0x1:0x2", "place_name": "Quán A",
                                                               "ontology_version": version, "observations": obs})
     _w(tmp_path / "gmaps" / "observations" / "0x3_0x4.json", {"place_fid": "0x3:0x4", "ontology_version": version - 1,
-                                                              "observations": [_obs(7, "kids", "suitable")]})
+                                                              "observations": [_obs(7, "kids", "suitable"), _obs(8, "crowd", "dropped_value")]})
     _w(tmp_path / "gmaps" / "places" / "0x1_0x2" / "reviews.json", [{"review_id": "R1", "text": "Nên đặt bàn trước"}])
     _w(tmp_path / "gmaps" / "places" / "0x1_0x2" / "reviews_relevant.json",
        {"reviews": [{"review_id": "R5", "text": "Đi bộ rất xa"}]})
     return tmp_path
 
 
-def test_sample_gives_each_value_its_turn_and_skips_rule_made_and_old_ontology(labelled):
+def test_sample_gives_each_value_its_turn_and_skips_rule_made_and_dropped_values(labelled):
     got = labels.sample(3, seed=1)
-    assert {(i["feature"], i["value"]) for i in got} == {("booking_needed", "yes"), ("long_walk", "present")}
-    assert len({i["id"] for i in got}) == 3 and all(i["id"] not in ("gmaps:R6:0", "gmaps:R7:0") for i in got)
+    assert {(i["feature"], i["value"]) for i in got} == {("booking_needed", "yes"), ("long_walk", "present"),
+                                                        ("kids", "suitable")}  # an older ontology version still counts
+    assert all(i["id"] not in ("gmaps:R6:0", "gmaps:R8:0") for i in labels.sample(10))
     first = next(i for i in labels.sample(10) if i["id"] == "gmaps:R1:0")
     assert first["text"] == "Nên đặt bàn trước" and first["placeName"] == "Quán A" and first["quote"] == "quote 1"
     assert labels.sample(1, feature="long_walk")[0]["text"] == "Đi bộ rất xa"  # from reviews_relevant.json
@@ -165,13 +166,28 @@ def test_sample_gives_each_value_its_turn_and_skips_rule_made_and_old_ontology(l
 def test_label_is_append_only_latest_wins_and_leaves_the_sample(labelled):
     labels.label("gmaps:R5:0", "wrong")
     labels.label("gmaps:R5:0", "correct", "re-read")
-    assert labels.latest()["gmaps:R5:0"]["label"] == "correct"
+    assert labels.latest()[labels.key("R5", "long_walk", "present", "quote 5")]["label"] == "correct"
     assert len((labelled / "review" / "labels.jsonl").read_text(encoding="utf-8").splitlines()) == 2
     assert all(i["id"] != "gmaps:R5:0" for i in labels.sample(10))
     with pytest.raises(ValueError):
         labels.label("gmaps:R5:0", "maybe")
     with pytest.raises(ValueError):
         labels.label("gmaps:nope:0", "correct")
+
+
+def test_label_survives_a_rerun_by_content_and_migrate_keys_old_records(labelled):
+    labels.label("gmaps:R1:0", "correct")
+    (labelled / "review" / "labels.jsonl").open("a", encoding="utf-8").write(
+        json.dumps({"at": "t", "id": "gmaps:R2:0", "feature": "booking_needed", "value": "yes", "label": "wrong"}) + "\n")
+    assert labels.migrate() == 1 and labels.migrate() == 0
+    f = labelled / "gmaps" / "observations" / "0x1_0x2.json"
+    doc = json.loads(f.read_text(encoding="utf-8"))
+    doc["observations"] = [{**_obs(1, "booking_needed", "yes"), "id": "gmaps:R1:3", "span": {"quote": "QUOTE  1"}},
+                           {**_obs(2, "booking_needed", "yes"), "span": {"quote": "other words"}}]
+    _w(f, doc)  # re-run: R1 same claim under another id, R2 another quote
+    row = next(r for r in labels.stats()["rows"] if r["feature"] == "booking_needed")
+    assert (row["correct"], row["wrong"]) == (1, 0)
+    assert [i["id"] for i in labels.sample(10, feature="booking_needed")] == ["gmaps:R2:0"]
 
 
 def test_stats_precision_and_gate(labelled):
