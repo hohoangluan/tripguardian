@@ -340,3 +340,22 @@ Sau P3 đã có lịch thật dùng được bằng CLI — bằng chứng sớm
 - Chưa có User Profile dài hạn nên `preference_fit` chỉ dùng `soft_weights` của phiên.
 - Giá và tiện nghi của chỗ ở đọc bằng quét văn bản thô trên thẻ Maps (không phải DOM đã dò kỹ): có thể trống hoặc
 sai nếu Maps đổi cách hiển thị; ngày check-in / check-out chưa đặt qua bộ lọc của Maps.
+- `place_live_status` (đóng cửa tạm, giờ ngày lễ) chưa gọi mạng gì ở P6: không có nguồn nào được đặt tên trong spec.
+`confirm` chỉ gom lại cờ `UNCERTAIN` / `OUTDATED` đã có.
+- `repair_day` ép "ghim ngày" của nơi `locked`, không ép cứng "ghim giờ" (vị trí chính xác trong ngày) — chỉ phạt
+lệch qua `repair_diff_weight`.
+- `Trip` / `Schedule` sống trong RAM của tiến trình server, không ghi đĩa: một restart rebuild lại từ `decision` +
+`states[0..position]` (gọi `prepare()` một lần rồi phát lại từng version qua `_relayout` / `_rebuild_variant`) —
+tốn thêm một lượt dựng Trip (mạng OSRM / geocode đã có cache theo TTL của `live.cache`), không tốn thêm crawl chỗ ở
+nếu TTL `lodging` (24h, `config/live.yaml`) còn hiệu lực.
+- SSE `.../lodging/events` hiện poll nội bộ mỗi 50ms tới khi crawl xong hoặc tối đa 10s rồi vẫn phát `progress` với
+candidates hiện có — chưa có cơ chế callback trực tiếp từ thread nền (P7, khi `/turn` thật sự cần streaming dài
+hơi, nên thay bằng `queue.Queue` giữa thread crawl và handler thay vì poll).
+- `decision_session_id` yêu cầu server của `decision` đang chạy ở `decision_url` (`config/planning.yaml`); không có
+cơ chế retry / backoff — một lần lỗi mạng trả thẳng `ActionError` cho người dùng thử lại.
+- Sau khi chỗ ở crawl xong, các phương án đã dựng **không** tự chấm lại theo K ứng viên chỗ ở ("chấm lại K × mục
+tiêu → diff" ở §Chỗ ở không làm người dùng chờ chưa làm ở P6): người dùng vẫn chọn được chỗ ở qua `pick_lodging` /
+`set_lodging` và lịch xếp lại đúng, nhưng chưa có bảng so sánh "đổi sang chỗ ở X: −N phút/ngày" tự động. `act`'s
+`diff` hiện chỉ có `scope`, chưa phải diff đầy đủ theo nghĩa spec mô tả. Plan Output's `lodging.candidates` luôn
+`[]` (chỉ `lodging.chosen` có dữ liệu). Để lại cho một task riêng, không phải lỗi — không có đường nào trả kết quả
+sai, chỉ thiếu tính năng so sánh.
