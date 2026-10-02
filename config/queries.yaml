@@ -1,9 +1,10 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
   pause_s: [5, 10]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
-  tabs: 3  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
-           # capped well under TikTok's real limit: this machine's low free RAM caused a MemoryError at 8, and 5
-           # alone (plus place_search's own tabs on a second account) still left free RAM under 2 GB (2026-10-02)
+  tabs: 2  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
+           # measured empirically on this account (2026-10-02): tab 3 got blocked immediately, twice in a row;
+           # tab 2 held clean. 8 also caused a MemoryError on this machine (low free RAM) well before TikTok's
+           # own limit mattered — 2 is both the fast-and-stable tab count and safely under the RAM ceiling.
   tabs_start: 2  # first run only
   cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 900
@@ -11,7 +12,10 @@ tiktok:
   max_videos_per_query: 30
   max_comments_per_video: 200  # comments + replies, in TikTok's order; null = all (slow)
   videos_per_place: 10  # place_search: top search results per Maps place; place_filter keeps those about the place
-  place_search_tabs: 3  # max parallel place searches; working level in data/tiktok/place_search_throttle.json
+  place_search_tabs: 1  # max parallel place searches; working level in data/tiktok/place_search_throttle.json
+                        # this account (tiktok2) got blocked repeatedly even back at tab 1 on 2026-10-02, right
+                        # after a network switch (UIT) — a soft IP/account block, not a tab-count problem. Capped
+                        # at 1 until it's confirmed to hold clean again; raise once a session runs block-free.
   place_search_tabs_start: 1  # first run only
   place_search_pause_s: [5, 10]  # wait per search tab
   queries:  # groups from docs/specs/CORPUS_SPEC.md §1
