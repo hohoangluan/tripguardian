@@ -7,6 +7,7 @@ POST /api/decision    {kind, id, decision, note} -> the stored record
 GET  /api/labels/next ?n=1&feature=<id> -> {items:[...]}   unlabelled review observations, least-labelled value first
 POST /api/labels      {id, label, note} -> the stored record   label: correct | wrong | unsure
 GET  /api/labels/stats                    precision per (feature, value) and the gate
+GET  /api/labels/frame ?video=<id>&n=<1-4>  a TikTok keyframe (image/jpeg) a frame observation was read from
 """
 
 import json
@@ -51,6 +52,15 @@ def handler(city: str):
                 self._json(200, {"items": labels.sample(n, q.get("feature", [None])[0] or None)})
             elif url.path == "/api/labels/stats":
                 self._json(200, labels.stats())
+            elif url.path == "/api/labels/frame":
+                q = parse_qs(url.query)
+                try:
+                    f = labels.frame_path(q.get("video", [""])[0], int(q.get("n", ["0"])[0]))
+                except ValueError:
+                    f = None
+                if f is None:
+                    return self._json(404, {"error": "no such frame"})
+                self._send(200, f.read_bytes(), "image/jpeg")
             else:
                 self._json(404, {"error": "not found"})
 

@@ -227,3 +227,25 @@ def test_server_labels_and_feature_review_decisions(labelled):
             post("/api/labels", {"id": "gmaps:nope:0", "label": "correct"})
     finally:
         srv.shutdown()
+
+
+def test_tiktok_observations_are_labelled_with_their_words_or_frame(labelled):
+    v = labelled / "tiktok" / "videos" / "V1"
+    (v / "frames").mkdir(parents=True)
+    (v / "frames" / "f2.jpg").write_bytes(b"jpg")
+    _w(v / "video.json", {"video_id": "V1", "video_url": "https://tiktok/v1", "caption": "Đồi A", "hashtags": ["doia"],
+                          "author_id": "u1", "transcript": {"total_s": 12.0, "segments": [
+                              {"start_s": 0.0, "end_s": 3.0, "checked_text": "leo ba trăm bậc thang"}]}})
+    seg = {**_obs(9, "steep_or_stairs", "present", "tiktok_segment"), "source_id": "V1",
+           "span": {"quote": "ba trăm bậc thang", "start_s": 0.0}}
+    frame = {**_obs(10, "setting", "outdoor", "tiktok_frame"), "id": "gmaps:R10:0", "source_id": "V1",
+             "span": {"quote": "open hill", "start_s": 4.5}}
+    _w(labelled / "tiktok" / "observations" / "0x1_0x2.json", {"place_fid": "0x1:0x2", "place_name": "Quán A",
+                                                              "observations": [seg, frame]})
+    items = {i["id"]: i for i in labels.sample(20)}
+    assert items["gmaps:R9:0"]["source"] == "tiktok" and "[0s] leo ba trăm bậc thang" in items["gmaps:R9:0"]["text"]
+    assert items["gmaps:R10:0"]["review"]["frame"] == "/api/labels/frame?video=V1&n=2"
+    labels.label("gmaps:R9:0", "correct")
+    row = next(r for r in labels.stats()["rows"] if r["feature"] == "steep_or_stairs")
+    assert row["by_source"] == {"tiktok": {"correct": 1, "wrong": 0}}
+    assert labels.frame_path("V1", 2).read_bytes() == b"jpg" and labels.frame_path("../V1", 3) is None

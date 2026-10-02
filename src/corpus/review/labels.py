@@ -18,6 +18,7 @@ import os
 import random
 import re
 import unicodedata
+from pathlib import Path
 
 from ..crawl.common.files import append_jsonl, data_dir, now
 from ..ontology import load as load_ontology
@@ -25,9 +26,10 @@ from ..ontology import load as load_ontology
 LABELS = ("correct", "wrong", "unsure")
 GATE_MIN_N = 30  # labelled (correct + wrong) before a value can pass
 GATE_LOWER = 0.8  # Wilson lower bound of the precision must reach this
-SOURCE = "gmaps_review"  # rule-made observations (details, attributes) are not model output
+# model-made observations per source folder; rule-made ones (Maps details, attributes) are not labelled
+SOURCES = {"gmaps": {"gmaps_review"}, "tiktok": {"tiktok_segment", "tiktok_caption", "tiktok_frame"}}
 
-_index: dict = {"key": None, "rows": []}
+_files: dict = {}  # observation file -> (mtime, its rows): a re-run rewrites files one by one
 
 
 def _file():
@@ -60,20 +62,23 @@ def latest() -> dict[str, dict]:
 
 
 def _rows() -> list[tuple]:
-    """(file stem, observation id, feature, value, key) of every review observation whose value the ontology still
-    has, cached until an observation file changes."""
-    root = data_dir() / "gmaps" / "observations"
-    files = sorted(root.glob("*.json")) if root.exists() else []
-    stamp = (len(files), max((os.stat(f).st_mtime_ns for f in files), default=0))
-    if _index["key"] != stamp:
-        ont, rows = load_ontology(), []
-        for f in files:
-            doc = json.loads(f.read_text(encoding="utf-8"))
-            rows += [(f.stem, o["id"], o["feature"], o["value"], key(o["source_id"], o["feature"], o["value"],
-                                                                     o["span"]["quote"]))
-                     for o in doc["observations"] if o["source_type"] == SOURCE and ont.valid(o["feature"], o["value"])]
-        _index.update(key=stamp, rows=rows)
-    return _index["rows"]
+    """(file stem, observation id, feature, value, key, source folder) of every model-made observation whose value
+    the ontology still has; each file is read again only when it changed."""
+    ont, rows, seen = load_ontology(), [], set()
+    for source, types in SOURCES.items():
+        root = data_dir() / source / "observations"
+        for f in sorted(root.glob("*.json")) if root.exists() else []:
+            seen.add(f)
+            mtime = os.stat(f).st_mtime_ns
+            if _files.get(f, (None,))[0] != mtime:
+                doc = json.loads(f.read_text(encoding="utf-8"))
+                _files[f] = (mtime, [(f.stem, o["id"], o["feature"], o["value"],
+                                      key(o["source_id"], o["feature"], o["value"], o["span"]["quote"]), source)
+                                     for o in doc["observations"] if o["source_type"] in types])
+            rows += [r for r in _files[f][1] if ont.valid(r[2], r[3])]
+    for f in set(_files) - seen:
+        del _files[f]
+    return rows
 
 
 def migrate() -> int:
@@ -132,13 +137,42 @@ def _review_card(r: dict) -> dict:
             "photos": r.get("photos"), "list": r.get("list")}
 
 
-def _item(stem: str, obs_id: str) -> dict | None:
-    doc = json.loads((data_dir() / "gmaps" / "observations" / f"{stem}.json").read_text(encoding="utf-8"))
+def _video_card(v: dict, o: dict) -> tuple[str, dict]:
+    """The words around a TikTok observation (the quoted segment and its neighbours, or the caption) and the video."""
+    caption = " ".join([v.get("caption") or "", *(f"#{h}" for h in v.get("hashtags") or [])]).strip()
+    segs = [s for s in (v.get("transcript") or {}).get("segments") or [] if (s.get("checked_text") or "").strip()]
+    text = caption
+    if o["source_type"] == "tiktok_segment" and o["span"].get("start_s") is not None:
+        at = next((i for i, s in enumerate(segs) if s["start_s"] == o["span"]["start_s"]), None)
+        if at is not None:
+            text = " ".join(f"[{s['start_s']:.0f}s] {s['checked_text']}" for s in segs[max(0, at - 2): at + 3])
+    frame = None
+    if o["source_type"] == "tiktok_frame":
+        n = round(o["span"]["start_s"] * 4 / max(1e-6, (v.get("transcript") or {}).get("total_s") or 1) + 0.5)
+        frame = f"/api/labels/frame?video={v['video_id']}&n={max(1, min(4, n))}"
+    return text, {"kind": "video", "url": v.get("video_url"), "caption": caption, "author": v.get("author_id"),
+                  "published": o.get("observed_at"), "source": o["source_type"], "frame": frame,
+                  "details": [], "rating": None, "likes": (v.get("stats") or {}).get("diggCount"), "photos": None,
+                  "list": None}
+
+
+def frame_path(video_id: str, n: int) -> Path | None:
+    f = data_dir() / "tiktok" / "videos" / Path(video_id).name / "frames" / f"f{int(n)}.jpg"
+    return f if f.exists() else None
+
+
+def _item(stem: str, obs_id: str, source: str = "gmaps") -> dict | None:
+    doc = json.loads((data_dir() / source / "observations" / f"{stem}.json").read_text(encoding="utf-8"))
     o = next((o for o in doc["observations"] if o["id"] == obs_id), None)
     if o is None:
         return None
     reviews = _reviews(stem)
     review = reviews.get(o["source_id"]) or {}
+    text, card = review.get("text") or "", _review_card(review) if review else None
+    if source == "tiktok":
+        vf = data_dir() / "tiktok" / "videos" / o["source_id"] / "video.json"
+        if vf.exists():
+            text, card = _video_card(json.loads(vf.read_text(encoding="utf-8")), o)
     f = load_ontology().features.get(o["feature"])
     others = []  # what the rest of this place's evidence says on the same feature: agree, other value, rule-made
     for x in doc["observations"]:
@@ -151,10 +185,10 @@ def _item(stem: str, obs_id: str) -> dict | None:
     place = json.loads(place_file.read_text(encoding="utf-8")) if place_file.exists() else {}
     return {"id": obs_id, "place": doc["place_fid"], "placeName": doc.get("place_name"), "feature": o["feature"],
             "value": o["value"], "quote": o["span"]["quote"], "context": o["context"],
-            "observedAt": o["observed_at"], "text": review.get("text") or "",
+            "observedAt": o["observed_at"], "text": text, "source": source,
             "definition": {"hint": f.hint if f else "", "claim": (f.claims.get(o["value"]) if f else None),
                            "values": list(f.values) if f else []},
-            "review": _review_card(review) if review else None,
+            "review": card,
             "placeInfo": {k: place.get(k) for k in ("category", "address", "url", "rating", "review_count", "price",
                                                      "status", "description")}
                          | {"attributes": [str(a) for a in _as_list(place.get("attributes"))]},
@@ -168,18 +202,18 @@ def sample(n: int = 1, feature: str | None = None, seed: int | None = None) -> l
     done = latest()
     counts = collections.Counter((r["feature"], r["value"]) for r in done.values())
     pool, seen = collections.defaultdict(list), set()
-    for stem, obs_id, feat, value, k in _rows():
+    for stem, obs_id, feat, value, k, source in _rows():
         if k not in done and k not in seen and (feature is None or feat == feature):
             seen.add(k)  # the same claim twice in one review is one item
-            pool[(feat, value)].append((stem, obs_id))
+            pool[(feat, value)].append((stem, obs_id, source))
     rng, out = random.Random(seed), []
     for _ in range(n):
         live = [k for k, v in pool.items() if v]
         if not live:
             break
         key = min(live, key=lambda k: (counts[k], rng.random()))
-        stem, obs_id = pool[key].pop(rng.randrange(len(pool[key])))
-        item = _item(stem, obs_id)
+        stem, obs_id, source = pool[key].pop(rng.randrange(len(pool[key])))
+        item = _item(stem, obs_id, source)
         if item:
             out.append(item)
             counts[key] += 1  # the next pick of this call goes to another value
@@ -192,7 +226,7 @@ def label(id: str, label_: str, note: str = "") -> dict:
     row = next((r for r in _rows() if r[1] == id), None)
     if row is None:
         raise ValueError(f"unknown observation {id}")
-    rec = {"at": now(), "id": id, "key": row[4], "place": row[0], "feature": row[2], "value": row[3],
+    rec = {"at": now(), "id": id, "key": row[4], "place": row[0], "source": row[5], "feature": row[2], "value": row[3],
            "quote": row[4].split("|", 3)[3], "label": label_, "note": note}
     append_jsonl(_file(), rec)
     return rec
@@ -206,14 +240,17 @@ def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:
 
 
 def stats() -> dict:
-    """Per (feature, value): labels, precision, Wilson lower bound and whether the value passes the gate."""
+    """Per (feature, value): labels, precision, Wilson lower bound and whether the value passes the gate; by_source
+    splits the correct / wrong counts per source folder (a new source has to earn its own precision)."""
     rows = _rows()
     pool = collections.Counter((r[2], r[3]) for r in rows)
-    current = {r[4] for r in rows}
+    current = {r[4]: r[5] for r in rows}
     got = collections.defaultdict(collections.Counter)
+    per_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     for k, rec in latest().items():
         if k in current:  # a label on a claim the current observations no longer make says nothing about them
             got[(rec["feature"], rec["value"])][rec["label"]] += 1
+            per_source[(rec["feature"], rec["value"])][current[k]][rec["label"]] += 1
     rows = []
     for key in sorted(set(pool) | set(got)):
         c = got[key]
@@ -221,7 +258,9 @@ def stats() -> dict:
         lower = round(wilson_lower(c["correct"], n), 3)
         rows.append({"feature": key[0], "value": key[1], "observations": pool[key], "correct": c["correct"],
                      "wrong": c["wrong"], "unsure": c["unsure"], "precision": round(c["correct"] / n, 3) if n else None,
-                     "lower": lower, "gate": n >= GATE_MIN_N and lower >= GATE_LOWER, "needed": max(0, GATE_MIN_N - n)})
+                     "lower": lower, "gate": n >= GATE_MIN_N and lower >= GATE_LOWER, "needed": max(0, GATE_MIN_N - n),
+                     "by_source": {src: {"correct": sc["correct"], "wrong": sc["wrong"]}
+                                   for src, sc in sorted(per_source[key].items())}})
     return {"gate": {"min_n": GATE_MIN_N, "lower": GATE_LOWER}, "rows": rows,
             "labelled": sum(r["correct"] + r["wrong"] + r["unsure"] for r in rows),
             "total": sum(pool.values())}

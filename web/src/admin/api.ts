@@ -11,7 +11,13 @@ export interface LabelItem {
   observedAt: string | null
   text: string
   definition: { hint: string; claim: string | null; values: string[] }
+  source?: 'gmaps' | 'tiktok'
   review: {
+    kind?: 'video'
+    url?: string | null
+    caption?: string
+    frame?: string | null
+    source?: string
     rating: string | null
     published: string | null
     author: string | null

@@ -1730,6 +1730,14 @@
   font-size: 0.82rem;
 }
 
+.lb__frame {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin: 6px 0 10px;
+  border-radius: 8px;
+}
+
 .lb__others {
   margin: 10px 0;
   font-size: 0.86rem;

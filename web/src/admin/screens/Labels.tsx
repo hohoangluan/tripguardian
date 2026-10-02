@@ -149,7 +149,22 @@ export function Labels() {
                 <b>Nghĩa của nhãn:</b> {cur.definition.claim ?? cur.definition.hint}
                 {cur.definition.claim && <small>{cur.definition.hint}</small>}
               </div>
-              {cur.review && (
+              {cur.review?.kind === 'video' && (
+                <div className="lb__video">
+                  <p className="lb__meta">
+                    <span>TikTok · {cur.review.source === 'tiktok_frame' ? 'khung hình' : cur.review.source === 'tiktok_caption' ? 'caption' : 'lời nói (máy nghe, có thể sai chữ)'}</span>
+                    {cur.review.published && <span>đăng {cur.review.published}</span>}
+                    {cur.review.url && (
+                      <a href={cur.review.url} target="_blank" rel="noreferrer">
+                        Mở video ↗
+                      </a>
+                    )}
+                  </p>
+                  {cur.review.caption && <p className="a-muted">Caption: {cur.review.caption}</p>}
+                  {cur.review.frame && <img className="lb__frame" src={cur.review.frame} alt="Khung hình video mà bằng chứng được đọc ra" />}
+                </div>
+              )}
+              {cur.review && cur.review.kind !== 'video' && (
                 <p className="lb__meta">
                   {cur.review.rating && <span>★ {cur.review.rating}</span>}
                   {cur.review.published && <span>{cur.review.published}</span>}
@@ -163,7 +178,7 @@ export function Labels() {
               <p className="lb__quote">
                 <Icon name="quote" size={14} /> Trích dẫn: <b>{cur.quote}</b>
               </p>
-              {cur.review && cur.review.details.length > 0 && (
+              {cur.review && cur.review.kind !== 'video' && cur.review.details.length > 0 && (
                 <p className="lb__meta">
                   {cur.review.details.map((d) => (
                     <span key={d}>{d}</span>
