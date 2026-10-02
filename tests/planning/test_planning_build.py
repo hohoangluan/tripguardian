@@ -1,6 +1,6 @@
 import json
 
-from plan_fixtures import CFG, decision, fake_matrix, fixed_sun, no_geocode, rec
+from plan_fixtures import CFG, all_days, decision, fake_matrix, fixed_sun, no_geocode, rec
 
 from live import Unavailable
 from planning import build_plan, render_text
@@ -165,3 +165,39 @@ def test_the_text_rendering_lists_each_day_a_free_meal_and_the_verdict():
     text = render_text(build(d, recs))
     assert "Ngày 1 (2026-12-12)" in text and "Ngày 2 (2026-12-13)" in text and text.endswith("Hợp lệ.")
     assert "ăn trưa (tự chọn)" in text
+
+
+def test_six_places_of_one_area_are_spread_over_both_days_and_the_plan_is_valid():
+    recs = [spot(f"c{i}", CENTRE, i) for i in range(6)]
+    d = decision([r["id"] for r in recs])
+    plan = build(d, recs)
+    assert plan["ok"], plan["violations"]
+    assert all(len(day) >= 2 for day in visits(plan))
+
+
+def test_a_sunrise_place_opens_a_later_day_early_instead_of_failing_the_plan():
+    recs = [spot("c1", CENTRE, 0), spot("c2", CENTRE, 1), spot("c3", CENTRE, 2),
+            spot("cloud", CENTRE, 3, hours=None, features={"cloud_hunting": "present"})]
+    plan = build(decision([r["id"] for r in recs]), recs)
+    assert plan["ok"], plan["violations"]
+    day = next(i for i, v in enumerate(visits(plan)) if "cloud" in v)
+    assert day >= 1 and plan["itinerary"][day]["window"][0] <= "07:00"
+    assert any(w["code"] == "early_start" for w in plan["warnings"])
+
+
+def test_a_trip_without_dates_uses_the_hours_every_open_day_shares_and_says_so():
+    d, recs = trip(start_date=None, days=None)
+    recs[0] = spot("c1", CENTRE, 0, hours={**all_days(), "mon": [["15:00", "21:00"]]})
+    plan = build(d, recs)
+    assert any(w["code"] == "hours_vary" and "c1" in w["text"] for w in plan["warnings"])
+    first = next(i for day in plan["itinerary"] for i in day["items"] if i.get("place_id") == "c1" and i["kind"] == "visit")
+    assert first["start"] >= "15:00"
+
+
+def test_an_evening_only_place_goes_on_the_long_day_and_the_rest_fills_the_short_last_day():
+    evening = all_days("18:00", "22:00")
+    recs = [spot("c0", CENTRE, 0, hours=evening)] + [spot(f"c{i}", CENTRE, i) for i in range(1, 6)]
+    plan = build(decision([r["id"] for r in recs]), recs)
+    assert plan["ok"], plan["violations"]
+    day1, day2 = visits(plan)
+    assert "c0" in day1 and day2

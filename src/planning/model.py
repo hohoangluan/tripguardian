@@ -86,6 +86,6 @@ class DayResult:
     method: str = ""                # exact | heuristic | single
 
     @property
-    def key(self) -> tuple[int, int]:
-        """Fewer violations first, then the earlier the day ends."""
-        return (len(self.violations), self.end)
+    def key(self) -> tuple[int, int, int]:
+        """Fewer violations first, then fewer skipped meals, then the earlier the day ends."""
+        return (len(self.violations), sum(n.startswith("meal_missed") for n in self.notes), self.end)

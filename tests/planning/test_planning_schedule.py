@@ -44,7 +44,8 @@ def test_a_visit_that_would_end_after_closing_is_a_violation():
 def test_the_second_opening_interval_is_used_when_the_first_is_missed():
     split = rec("a", 1, 1, hours={d: [["08:00", "09:00"], ["15:00", "20:00"]] for d in all_days()})
     r = simulate(["a"], day_ctx([split], start=600, start_node="h", extra_nodes=["h"]))    # arrives 10:10, morning over
-    assert [(i.kind, i.start) for i in r.items][1:] == [("wait", 610), ("visit", 900)] and r.violations == ()
+    assert [(i.kind, i.start) for i in r.items][1:] == [("wait", 610), ("meal_free", 690), ("wait", 750), ("visit", 900)]
+    assert r.violations == () and r.items[1].note == "opening"
 
 
 def test_hours_unknown_do_not_constrain():
@@ -57,7 +58,8 @@ def test_a_sunset_place_is_held_until_the_sun_is_about_to_set():
                  extra_nodes=["h"])
     assert pin_window(cx.places["a"], cx) == (975, 1030)           # 75 to 20 minutes before 17:30
     r = simulate(["a"], cx)
-    assert [(i.kind, i.start) for i in r.items][1:] == [("wait", 490), ("visit", 975)] and r.violations == ()
+    assert [(i.kind, i.start) for i in r.items][1:] == [("wait", 490), ("meal_free", 690), ("wait", 750), ("visit", 975)]
+    assert r.violations == () and r.items[1].note == "pin"
 
 
 def test_a_dawn_place_is_pinned_to_sunrise_and_missing_it_is_a_violation():
@@ -124,3 +126,28 @@ def test_the_way_back_to_the_end_node_counts_and_a_day_that_runs_late_is_a_viola
 def test_an_empty_day_is_empty():
     r = simulate([], day_ctx([rec("a", 1, 1)], start_node="h", end_node="h", extra_nodes=["h"]))
     assert (r.items, r.end, r.violations) == ((), 480, ())
+
+
+def test_the_order_search_does_not_prefer_an_order_that_skips_lunch_just_to_end_earlier():
+    from planning.route import order_day
+    recs = [rec("long", 1, 1, visit=(60, 240, 240)), rec("s1", 1, 1), rec("s2", 1, 1)]
+    r = order_day(["s1", "long", "s2"], day_ctx(recs))
+    assert "meal_missed:lunch" not in r.notes
+
+
+def test_a_lunch_missed_after_the_last_stop_is_noted_even_with_no_end_point():
+    r = simulate(["a"], day_ctx([rec("a", 1, 1, visit=(60, 420, 420))]))
+    assert "meal_missed:lunch" in r.notes
+
+
+def test_a_meal_place_takes_a_window_the_day_can_still_reach_not_one_already_over():
+    cx = day_ctx([rec("a", 1, 1), rec("m", 1, 1, usable=("meal", "backup"))], start=840)
+    r = simulate(["a", "m"], cx)
+    assert r.violations == ()
+    assert next(i.start for i in r.items if i.place_id == "m" and i.kind == "visit") >= 1080
+    assert not any(i.kind == "meal_free" and i.name == "dinner" for i in r.items)
+
+
+def test_a_wait_for_a_meal_window_says_so():
+    cx = day_ctx([rec("m", 1, 1, usable=("meal", "backup"))], start_node="h", extra_nodes=["h"])
+    assert simulate(["m"], cx).items[1].note == "meal"

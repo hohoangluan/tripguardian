@@ -93,3 +93,50 @@ def test_load_is_visit_minutes_by_pace_plus_the_moves_inside_the_cluster():
     cx = day_ctx([rec("a", 1, 1, visit=(10, 20, 30))])
     assert load_of(["a"], cx.places, CFG, "slow") == 30 + CFG.intra_leg_min
     assert load_of(["a"], cx.places, CFG, "packed") == 10 + CFG.intra_leg_min
+
+
+def test_a_timed_place_is_blocked_on_a_day_that_ends_before_its_time_of_day():
+    music = rec("m", 1, 1, features={"live_music": "present"})              # starts 18:00-20:00
+    assert blocked(["m"], day_ctx([music], end=900)) == 1
+    assert blocked(["m"], day_ctx([music])) == 0
+    sunset = rec("s", 1, 1, features={"sunset_view": "present"})
+    assert blocked(["s"], day_ctx([sunset], sun=(360, 1050), end=900)) == 1
+
+
+def test_a_cluster_with_a_timed_place_never_goes_on_the_day_that_ends_early():
+    pos = {"m1": 0, "m2": 1, "x1": 50, "x2": 51}
+    recs = [rec("m1", 1, 1, features={"live_music": "present"}), rec("m2", 1, 1), rec("x1", 1, 1), rec("x2", 1, 1)]
+    travel = line_travel(pos)
+    ctxs = [day_ctx(recs, weekday="mon", travel=travel), day_ctx(recs, weekday="tue", end=900, travel=travel)]
+    out, _ = assign_days([["m1", "m2"], ["x1", "x2"]], ctxs)
+    assert "m1" in out[0]
+
+
+def test_day_load_counts_buffers_and_meals_so_six_places_do_not_fit_one_day():
+    from planning.days import day_load
+    cx = day_ctx([rec(f"p{i}", 1, 1) for i in range(6)])
+    six = day_load([f"p{i}" for i in range(6)], cx.places, CFG, "normal")
+    assert six == load_of([f"p{i}" for i in range(6)], cx.places, CFG, "normal") + 6 * CFG.buffer_min["normal"] \
+        + CFG.meals_per_day * CFG.meal_min
+    assert six > int(CFG.fill_ratio * (1260 - 480))
+
+
+def test_equal_costs_do_not_push_the_whole_load_onto_the_short_last_day():
+    pos = {f"p{i}": i * 3 for i in range(3)}
+    recs = [rec(i, 1, 1) for i in pos]
+    travel = line_travel(pos)
+    ctxs = [day_ctx(recs, travel=travel), day_ctx(recs, end=900, travel=travel)]
+    out, _ = assign_days([[i] for i in pos], ctxs)
+    assert len(out[0]) >= len(out[1])
+
+
+def test_a_place_only_some_days_can_host_is_taken_out_of_its_cluster_so_it_can_go_where_it_fits():
+    from planning.days import isolate_constrained
+    evening = rec("e", 1, 1, hours=all_days("18:00", "22:00"))
+    recs = [evening, rec("d1", 1, 1), rec("d2", 1, 1), rec("d3", 1, 1)]
+    travel = line_travel({"e": 0, "d1": 1, "d2": 2, "d3": 3})
+    ctxs = [day_ctx(recs, weekday="mon", end=900, travel=travel), day_ctx(recs, weekday="tue", travel=travel)]
+    assert isolate_constrained([["d1", "d2", "d3", "e"]], ctxs) == [["d1", "d2", "d3"], ["e"]]
+    assert isolate_constrained([["d1", "d2"]], ctxs) == [["d1", "d2"]]                 # nothing constrained: left alone
+    shut = day_ctx([rec("s", 1, 1, hours={d: [] for d in all_days()})], weekday="mon")
+    assert isolate_constrained([["s"]], [shut, shut]) == [["s"]]                       # blocked everywhere: no day helps

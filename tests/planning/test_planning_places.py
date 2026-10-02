@@ -19,7 +19,7 @@ def test_windows_on_tells_closed_from_unknown():
     assert pl.windows_on(hours, "mon") == []                       # closed that day
     assert pl.windows_on(hours, "tue") == [(480, 1260)]
     assert pl.windows_on(None, "tue") is None                      # the record has no hours
-    assert pl.windows_on(hours, None) is None                      # days differ and the weekday is unknown
+    assert pl.windows_on(hours, None) == [(480, 1260)]             # weekday unknown: the hours every open day shares
     assert pl.windows_on(pl.parse_hours(all_days()), None) == [(480, 1260)]   # the same every day: weekday not needed
 
 
@@ -82,3 +82,10 @@ def test_a_dead_geocoder_is_a_reason_not_a_crash():
         raise Unavailable("down")
 
     assert pl.resolve_point({"place_id": None, "text": "Bến xe"}, {}, dead) == (None, "geocode_unavailable")
+
+
+def test_with_an_unknown_weekday_a_place_open_later_some_days_is_held_to_the_later_hours():
+    hours = pl.parse_hours({**all_days(), "mon": [["15:00", "21:00"]]})
+    assert pl.windows_on(hours, None) == [(900, 1260)]
+    assert pl.windows_on(pl.parse_hours({"mon": [["08:00", "10:00"]], "tue": [["15:00", "20:00"]]}), None) is None
+    assert pl.hours_vary(hours) and not pl.hours_vary(pl.parse_hours(all_days()))

@@ -24,15 +24,39 @@ def parse_hours(value: dict) -> dict:
     return out
 
 
+def _intersect(a: list, b: list) -> list:
+    out = []
+    for o1, c1 in a:
+        for o2, c2 in b:
+            o, c = max(o1, o2), min(c1, c2)
+            if o < c:
+                out.append((o, c))
+    return sorted(out)
+
+
+def hours_vary(hours: dict | None) -> bool:
+    """True when the days of the week do not all have the same opening intervals."""
+    if not hours:
+        return False
+    days = list(hours.values())
+    return any(d != days[0] for d in days)
+
+
 def windows_on(hours: dict | None, weekday: str | None) -> list | None:
     """Opening intervals on a weekday: [] = closed that day, None = not known (no hours, or the weekday is unknown
-    and the days differ), so the caller must not constrain on it."""
+    and the open days share no common time), so the caller must not constrain on it. With the weekday unknown the
+    hours every open day shares are used, so a place that opens late on some day is never planned for the morning."""
     if hours is None:
         return None
     if weekday is not None:
         return hours.get(weekday, [])
-    days = list(hours.values())
-    return days[0] if days and all(d == days[0] for d in days) else None
+    open_days = [d for d in hours.values() if d]
+    if not open_days:
+        return [] if hours else None
+    common = open_days[0]
+    for d in open_days[1:]:
+        common = _intersect(common, d)
+    return common or None
 
 
 def kind_of(rec: dict) -> str | None:

@@ -4,17 +4,17 @@ One path, no randomness: places -> one travel matrix -> clusters -> days -> stop
 This phase builds one plan around the user's base; variants, robustness, backups and lodging come later.
 """
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import live
 
 from . import places as pl
 from .cluster import cluster_places, split_to_fit
-from .days import assign_days, load_of
+from .days import assign_days, day_load, isolate_constrained
 from .frame import trip_days
 from .model import Item
 from .route import order_day
-from .schedule import DayCtx
+from .schedule import DayCtx, pin_window
 from .settings import Settings, fmt
 from .settings import load as load_settings
 from .travel import build_travel
@@ -32,10 +32,13 @@ WARNING_TEXT = {
     "days_fallback": "Quá nhiều ngày hoặc cụm để tìm chính xác: chia ngày theo cách tham lam.",
     "hours_unknown": "{name}: chưa có giờ mở cửa, không kiểm.",
     "meal_missed": "Ngày {day}: quá khung giờ {meal}, chưa xếp bữa.",
+    "hours_vary": "{name}: giờ mở cửa khác nhau theo thứ, chưa biết ngày đi nên dùng khung giờ chung các ngày mở.",
+    "early_start": "Ngày {day}: bắt đầu sớm lúc {start} để kịp {name}.",
 }
 
 
 MEAL_NAME = {"lunch": "trưa", "dinner": "tối"}
+WAIT_TEXT = {"opening": "chờ mở cửa", "meal": "chờ khung giờ ăn", "pin": "chờ đúng giờ (hoàng hôn / bình minh / nhạc)"}
 
 
 def _warn(code: str, **kw) -> dict:
@@ -67,6 +70,8 @@ def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None,
     for p in placed:
         if p.hours is None:
             warnings.append(_warn("hours_unknown", name=p.name))
+        elif not (ctx.get("start_date") and ctx.get("days")) and pl.hours_vary(p.hours):
+            warnings.append(_warn("hours_vary", name=p.name))
 
     points, why = {}, {}
     for node, base in ((HOME, ctx.get("base")), (ENTRY, ctx.get("entry_point")), (EXIT, ctx.get("exit_point"))):
@@ -99,10 +104,21 @@ def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None,
     ids = sorted(by_place)
     cap = int(cfg.fill_ratio * max(d.end - d.start for d in days))
     clusters = cluster_places(ids, {p.id: p.area for p in placed}, travel, cfg)
-    clusters = split_to_fit(clusters, lambda c: load_of(c, by_place, cfg, pace), cap, travel)
-    per_day, flag = assign_days(clusters, ctxs)
+    # a cluster is cut when it holds more places than a day is planned for, or more than a day can carry
+    size = lambda c: cap + 1 if len(c) > cfg.per_day[pace] else day_load(c, by_place, cfg, pace)
+    clusters = split_to_fit(clusters, size, cap, travel)
+    per_day, flag = assign_days(isolate_constrained(clusters, ctxs), ctxs)
     if flag:
         warnings.append(_warn(flag))
+    for k, (cx, day_ids) in enumerate(zip(ctxs, per_day)):      # a sunrise place pulls a later day's start forward
+        early = [(pin_window(by_place[i], cx)[0], i) for i in day_ids if 0 < pin_window(by_place[i], cx)[0] < cx.day.start]
+        if early and cx.day.index > 0:
+            lo, pid = min(early)
+            first = cx.day.start_node
+            start = max(0, lo - (travel.leg(first, pid)[0] if first else 0))
+            ctxs[k] = replace(cx, day=replace(cx.day, start=start))
+            days[k] = ctxs[k].day
+            warnings.append(_warn("early_start", day=cx.day.index + 1, start=fmt(start), name=by_place[pid].name))
     results = [order_day(day_ids, cx) for day_ids, cx in zip(per_day, ctxs)]
     for cx, r in zip(ctxs, results):
         for note in r.notes:
@@ -152,7 +168,8 @@ def render_text(plan: dict) -> str:
             elif i["kind"] == "meal_free":
                 out.append(span + f'ăn {MEAL_NAME.get(i["name"], i["name"])} (tự chọn)')
             else:
-                out.append(span + {"wait": "chờ mở cửa", "buffer": "đệm", "rest": "nghỉ"}[i["kind"]])
+                out.append(span + (WAIT_TEXT.get(i.get("note"), "chờ") if i["kind"] == "wait"
+                                   else {"buffer": "đệm", "rest": "nghỉ"}[i["kind"]]))
     for w in plan["warnings"]:
         out.append("! " + w["text"])
     for v in plan["violations"]:
