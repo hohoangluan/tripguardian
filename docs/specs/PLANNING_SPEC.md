@@ -101,7 +101,11 @@ Dùng mặt **"Khách sạn"** của Maps, không phải search địa điểm t
 - `price_per_night` là giá OTA tại thời điểm crawl → mang `source` + `fetched_at`, nhãn "giá tham khảo, kiểm lại khi đặt". Không phải Fact.
 - `start_date` chưa biết (chỉ có `month`) → crawl không đặt ngày; giá bỏ trống, gắn cờ.
 - Dùng lại code crawl đúng ranh giới: `src/corpus/crawl/__init__.py` hiện không export gì nên deep import là vi phạm RULE §2. Thêm public API tối thiểu — `open_sessions`, `LoginRequired`, `maps_search(ctx, query, limit, at)` — rồi `src/live/lodging` gọi qua đó và chỉ ghi `data/live/lodging/`. Không copy code Playwright.
-- `LoginRequired` hoặc captcha → trả rỗng kèm lý do; Planning chạy tiếp ở phương án không chỗ ở.
+- `LoginRequired` hoặc captcha → trả rỗng kèm lý do; Planning chạy tiếp ở phương án không chỗ ở. Ngày check-in /
+check-out và trần giá hiện mới lọc được ở phía Planning (`price_max`), chưa gửi lên bộ lọc của Maps — giá đọc được
+là giá Maps hiển thị mặc định tại thời điểm crawl, không phải giá đúng hai ngày đó; cần dò lại bằng trình duyệt
+thật trước khi nối UI ngày / giá của Maps. Giá và tiện nghi đọc bằng quét văn bản thô của thẻ (không phải một
+class CSS riêng): best-effort, kiểm lại trước khi tin.
 
 ### Trạng thái vận hành theo thời điểm
 
@@ -156,7 +160,10 @@ for lodging in K+1 ứng viên:          # 6 + phương án không chỗ ở
 best mỗi obj → 2–3 phương án; bỏ phương án trùng (cùng chỗ ở + cùng thứ tự mọi ngày)
 ```
 
-21 lần dựng lịch mỗi lượt, dùng chung một ma trận OSRM. Ngân sách: **< 2 s** khi cache nóng, đo trong `evaluate.py`.
+21 lần dựng lịch mỗi lượt (K+1 chỗ ở × tối đa 3 mục tiêu), dùng chung một ma trận OSRM (toạ độ ứng viên nằm
+trong CÙNG ma trận đó) và cache thứ tự trong ngày theo `(ngày, điểm mở, điểm đóng, tập nơi)` — đổi chỗ ở chỉ đổi
+điểm mở/đóng ngày, không tính lại cụm hay chia ngày. Mỗi mục tiêu giữ tổ hợp (chỗ ở, lịch) tốt nhất riêng cho nó.
+Ngân sách: **< 2 s** khi cache nóng, đo trong `evaluate.py`.
 
 ### ⓗ Dự phòng — `backup.py`
 
@@ -302,7 +309,7 @@ Mỗi phase chạy được và test được riêng.
 | P2 | Trip State: `entry_point` / `exit_point` + một câu hỏi + sửa `docs/TRIP_UNDERSTANDING.md` |
 | P3 | Planning lõi: `cluster` → `days` → `route` → `schedule` → `validate` → `output`; CLI `python -m planning build <decision_output.json>` in lịch. Chưa web, chưa agent |
 | P4 | `traits`, `robustness`, `backup`, `objectives`, `variants`; CLI `python -m planning variants` (thời tiết vào qua `--weather`, P5 mới tự lấy) |
-| P5 | `live/weather`, `live/lodging`, `lodging.py`, chấm K × mục tiêu, event `progress` |
+| P5 | `live/weather` (Open-Meteo + `config/climate.yaml`), `live/lodging` (qua `corpus.crawl`), `planning/lodging.py`, `build.with_home`, chấm K × mục tiêu trong `variants.build_lodging_variants`, hình dạng event `progress`; CLI `python -m planning lodging` |
 | P6 | `session` (phiên bản, undo), `act`, `repair_day`, `scope`, `server` + SSE |
 | P7 | `agent`, `guard`, `policy` |
 | P8 | Web: `Itinerary` thật; xoá `planner.ts` |
@@ -331,3 +338,5 @@ Sau P3 đã có lịch thật dùng được bằng CLI — bằng chứng sớm
 - Mặt lodging của Maps không liệt kê đủ theo khung bản đồ.
 - Vét cạn chỉ trong giới hạn `max_days` / `max_clusters` / `exact_n`; vượt thì rơi về heuristic và gắn cờ.
 - Chưa có User Profile dài hạn nên `preference_fit` chỉ dùng `soft_weights` của phiên.
+- Giá và tiện nghi của chỗ ở đọc bằng quét văn bản thô trên thẻ Maps (không phải DOM đã dò kỹ): có thể trống hoặc
+sai nếu Maps đổi cách hiển thị; ngày check-in / check-out chưa đặt qua bộ lọc của Maps.
