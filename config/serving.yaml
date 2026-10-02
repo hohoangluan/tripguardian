@@ -1,0 +1,13 @@
+# Serving record (src/corpus/serving, docs/PLACE_DECISION.md §2.2). Thresholds here, logic in code.
+freshness_days:          # older evidence -> OUTDATED (still served, with a warning)
+  hours: 90
+  price: 180
+  crowd: 365
+  default: 730
+experience_min_n: 2      # a feature says what kind of place it is (grouping) from this many authors
+experience_min_mention_rate: 0.03  # ... and this share of the people whose words were read
+area_km: 1.2             # radius of an area around its densest place
+near_duplicate:
+  jaccard: 0.6           # share of evidenced experience/environment features two places of one group must share
+  min_features: 3        # places with fewer evidenced features are never grouped (too little to compare)
+mmr_lambda: 0.7          # score vs difference when picking the next place of a shortlist

@@ -1,4 +1,4 @@
-"""python -m corpus {login <source> | <source> <phase> | review | aggregate} --city <key> [--headed]
+"""python -m corpus {login <source> | <source> <phase> | review | aggregate | serving} --city <key> [--headed]
 
 Phases per source, each reading only earlier phases' files: tiktok search -> list -> filter -> crawl, then per Maps
 place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify
@@ -11,6 +11,7 @@ import asyncio
 
 from .crawl.common import browser
 from .aggregate import run as aggregate_run
+from .serving import run as serving_run
 from .review import server as review_server
 from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, search as gmaps_search
 from .observe import gmaps as gmaps_observe
@@ -64,6 +65,7 @@ def main() -> None:
     rp.add_argument("--city", default="dalat")
     rp.add_argument("--port", type=int, default=8765)
     sub.add_parser("aggregate", help="every source's observations -> data/intel/places/").add_argument("--city", default="dalat")
+    sub.add_parser("serving", help="intel -> data/serving/places.json for Place Decision").add_argument("--city", default="dalat")
     for source, phases in PHASES.items():
         sp = sub.add_parser(source)
         sp.add_argument("phase", choices=[*phases, "all"])
@@ -85,6 +87,8 @@ def main() -> None:
             review_server.run(args.city, args.port)
         elif args.cmd == "aggregate":
             aggregate_run(args.city)
+        elif args.cmd == "serving":
+            serving_run(args.city)
         else:
             shard = None
             if getattr(args, "shard", None):
