@@ -45,4 +45,6 @@ function clips(): Plugin {
 
 export default defineConfig({
   plugins: [react(), clips()],
+  // `python -m corpus review` (src/corpus/review/server.py): decisions and gold labels
+  server: { proxy: { '/api': 'http://127.0.0.1:8765' } },
 })

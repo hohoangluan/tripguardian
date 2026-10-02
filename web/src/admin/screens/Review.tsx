@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { valueLabel } from '../../data/labels'
 import type { ReviewItem, Snapshot } from '../../data/types'
 import { Clip, Icon } from '../../ui/bits'
-import { decide, REPORT_LABEL, undo, useDecisions, VERDICT_LABEL, type ReportKind, type Verdict } from '../decisions'
+import { decide, REPORT_LABEL, undo, useBackend, useDecisions, VERDICT_LABEL, type ReportKind, type Verdict } from '../decisions'
 import { itemTitle, KIND_LABEL, riskOf, signalOf, whyOf, type Risk } from '../model'
 
 const REPORTS = Object.keys(REPORT_LABEL) as ReportKind[]
@@ -11,6 +11,7 @@ const RISK_RANK: Record<Risk, number> = { Cao: 0, Vừa: 1, Thấp: 2 }
 
 export function Review({ snap }: { snap: Snapshot }) {
   const decisions = useDecisions()
+  const backend = useBackend()
   const [show, setShow] = useState<'open' | 'done'>('open')
   const [kind, setKind] = useState<ReviewItem['kind'] | 'all'>('all')
   const [cursor, setCursor] = useState(0)
@@ -146,7 +147,12 @@ export function Review({ snap }: { snap: Snapshot }) {
             <kbd>k</kbd> chuyển <kbd>x</kbd> chọn nhiều <kbd>u</kbd> hoàn tác <kbd>?</kbd> mọi phím
           </p>
           <p className="a-note">
-            <Icon name="info" size={14} /> Bản thử: quyết định lưu trong trình duyệt này, chưa ghi vào pipeline.
+            <Icon name="info" size={14} />{' '}
+            {backend === 'online'
+              ? 'Quyết định ghi vào data/review/decisions.jsonl.'
+              : backend === 'checking'
+                ? 'Đang nối backend duyệt.'
+                : 'Chưa nối được backend: quyết định chỉ lưu trong trình duyệt này. Chạy python -m corpus review rồi tải lại.'}
           </p>
         </div>
 

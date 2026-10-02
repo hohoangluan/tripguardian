@@ -2,7 +2,11 @@
 
 GET  /                page.html
 GET  /api/queue       {items:[…]}   ?decided=1 also returns decided items
+GET  /api/decisions   ?kind=feature_review -> {decisions: {id: record}}   latest per item
 POST /api/decision    {kind, id, decision, note} -> the stored record
+GET  /api/labels/next ?n=1&feature=<id> -> {items:[...]}   unlabelled review observations, least-labelled value first
+POST /api/labels      {id, label, note} -> the stored record   label: correct | wrong | unsure
+GET  /api/labels/stats                    precision per (feature, value) and the gate
 """
 
 import json
@@ -10,7 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .decisions import decide
+from . import labels
+from .decisions import ACTIONS, decide, latest
 from .queue import queue
 
 PAGE = Path(__file__).with_name("page.html")
@@ -35,15 +40,30 @@ def handler(city: str):
             elif url.path == "/api/queue":
                 decided = parse_qs(url.query).get("decided", ["0"])[0] == "1"
                 self._json(200, {"city": city, "items": queue(city, decided=decided)})
+            elif url.path == "/api/decisions":
+                kind = parse_qs(url.query).get("kind", [""])[0]
+                if kind not in ACTIONS:
+                    return self._json(400, {"error": f"unknown kind {kind!r}"})
+                self._json(200, {"decisions": latest(kind)})
+            elif url.path == "/api/labels/next":
+                q = parse_qs(url.query)
+                n = max(1, min(20, int(q.get("n", ["1"])[0])))
+                self._json(200, {"items": labels.sample(n, q.get("feature", [None])[0] or None)})
+            elif url.path == "/api/labels/stats":
+                self._json(200, labels.stats())
             else:
                 self._json(404, {"error": "not found"})
 
         def do_POST(self):
-            if urlparse(self.path).path != "/api/decision":
+            path = urlparse(self.path).path
+            if path not in ("/api/decision", "/api/labels"):
                 return self._json(404, {"error": "not found"})
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-                self._json(200, decide(body["kind"], str(body["id"]), body["decision"], body.get("note", "")))
+                if path == "/api/labels":
+                    self._json(200, labels.label(str(body["id"]), body["label"], body.get("note", "")))
+                else:
+                    self._json(200, decide(body["kind"], str(body["id"]), body["decision"], body.get("note", "")))
             except (KeyError, ValueError) as e:
                 self._json(400, {"error": str(e)})
 

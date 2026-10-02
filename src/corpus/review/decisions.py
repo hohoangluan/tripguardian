@@ -1,7 +1,7 @@
 """A person's decisions on review items: data/review/decisions.jsonl, append-only; the latest per item wins.
 
 Decisions are labels (docs/specs/CORPUS_SPEC.md §7): they never edit crawled values. The crawl reads them:
-video_filter / place_filter keep/drop overrides the model; retry puts an item back into the next crawl.
+video_filter keep/drop overrides the model; retry puts an item back into the next crawl.
 """
 
 import json
@@ -10,11 +10,13 @@ from ..crawl.common.files import append_jsonl, data_dir, now
 
 ACTIONS = {
     "video_filter": ("keep", "drop"),
-    "place_filter": ("keep", "drop"),
     "video_comments": ("retry", "accept"),
     "place_qc": ("accept", "disable"),
     "place_reviews": ("retry", "accept"),
     "place_verify": ("keep", "drop"),  # id = "<video_id>@<fid>": is this video evidence for this place?
+    # a served value that needs a person (intel needs_review); id = "<fid>#<feature>", note = the report kind;
+    # "undo" takes the item back to open. Written by the Admin Web.
+    "feature_review": ("accept", "disable", "report", "refresh", "undo"),
 }
 
 

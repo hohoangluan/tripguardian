@@ -7,6 +7,7 @@ import { useDecisions } from './decisions'
 import { Analytics } from './screens/Analytics'
 import { Dashboard } from './screens/Dashboard'
 import { Evidence } from './screens/Evidence'
+import { Labels } from './screens/Labels'
 import { Places } from './screens/Places'
 import { Review } from './screens/Review'
 import { Sessions } from './screens/Sessions'
@@ -16,6 +17,7 @@ import './admin.css'
 const NAV = [
   { path: '/admin', label: 'Tổng quan', icon: 'gauge', key: 'd', group: 'Công việc' },
   { path: '/admin/review', label: 'Hàng đợi duyệt', icon: 'inbox', key: 'r', group: 'Công việc' },
+  { path: '/admin/labels', label: 'Gán nhãn', icon: 'check', key: 'l', group: 'Công việc' },
   { path: '/admin/places', label: 'Địa điểm', icon: 'pin', key: 'p', group: 'Dữ liệu' },
   { path: '/admin/evidence', label: 'Bằng chứng', icon: 'layers', key: 'e', group: 'Dữ liệu' },
   { path: '/admin/sessions', label: 'Phiên chuyến đi', icon: 'route', key: 's', group: 'Vận hành' },
@@ -103,6 +105,7 @@ export default function AdminApp() {
   if (!snap) screen = <p className="a-empty">{error ? `Không tải được snapshot: ${error}` : 'Đang tải snapshot'}</p>
   else if (base === '/admin') screen = <Dashboard snap={snap} />
   else if (base === '/admin/review') screen = <Review snap={snap} />
+  else if (base === '/admin/labels') screen = <Labels />
   else if ((m = match(path, '/admin/places/:id'))) screen = <Places snap={snap} openId={m.id} />
   else if (base === '/admin/places') screen = <Places snap={snap} />
   else if (base === '/admin/evidence') screen = <Evidence snap={snap} />
@@ -215,7 +218,7 @@ function Palette({ snap, onClose }: { snap: NonNullable<ReturnType<typeof useSna
 
 function Help({ onClose }: { onClose: () => void }) {
   const rows = [
-    ['g rồi d / r / p / e / s / a / m', 'Đi tới trang'],
+    ['g rồi d / r / l / p / e / s / a / m', 'Đi tới trang'],
     ['Ctrl K', 'Tìm nhanh'],
     ['j / k', 'Mục kế / mục trước (hàng đợi duyệt)'],
     ['a', 'Chấp nhận'],
@@ -224,6 +227,7 @@ function Help({ onClose }: { onClose: () => void }) {
     ['x', 'Chọn mục để xử lý hàng loạt'],
     ['Shift A', 'Chấp nhận các mục đã chọn'],
     ['u', 'Hoàn tác mục đang xem'],
+    ['c / w / u / s', 'Gán nhãn: đúng / sai / không chắc / bỏ qua (trang Gán nhãn)'],
   ]
   return (
     <div className="a-modal" role="dialog" aria-modal="true" aria-label="Phím tắt" onClick={onClose}>

@@ -3,6 +3,8 @@ import json
 import pytest
 
 from corpus import review
+from corpus.ontology import load as load_ontology
+from corpus.review import labels
 
 
 def _w(path, obj):
@@ -127,3 +129,85 @@ def test_video_place_pairs_not_verified_go_to_review_and_a_person_decides(data):
     review.decide("place_verify", "6@f1", "drop")
     assert place_verify.evidence_pairs() == {("6", "f2")}
     assert {i["id"] for i in review.queue("dalat") if i["kind"] == "place_verify"} == {"6@f3"}
+
+
+def _obs(i, feature, value, source_type="gmaps_review"):
+    return {"id": f"gmaps:R{i}:0", "feature": feature, "value": value, "source_type": source_type, "source_id": f"R{i}",
+            "context": {"time_of_day": "unknown", "day_type": "unknown", "weather": "unknown"}, "observed_at": "2026-09-01",
+            "span": {"quote": f"quote {i}", "field": "text"}}
+
+
+@pytest.fixture
+def labelled(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    version = load_ontology().version
+    obs = [_obs(i, "booking_needed", "yes") for i in range(1, 5)] + [_obs(5, "long_walk", "present"),
+                                                                        _obs(6, "crowd", "high", "gmaps_details")]
+    _w(tmp_path / "gmaps" / "observations" / "0x1_0x2.json", {"place_fid": "0x1:0x2", "place_name": "Quán A",
+                                                              "ontology_version": version, "observations": obs})
+    _w(tmp_path / "gmaps" / "observations" / "0x3_0x4.json", {"place_fid": "0x3:0x4", "ontology_version": version - 1,
+                                                              "observations": [_obs(7, "kids", "suitable")]})
+    _w(tmp_path / "gmaps" / "places" / "0x1_0x2" / "reviews.json", [{"review_id": "R1", "text": "Nên đặt bàn trước"}])
+    _w(tmp_path / "gmaps" / "places" / "0x1_0x2" / "reviews_relevant.json",
+       {"reviews": [{"review_id": "R5", "text": "Đi bộ rất xa"}]})
+    return tmp_path
+
+
+def test_sample_gives_each_value_its_turn_and_skips_rule_made_and_old_ontology(labelled):
+    got = labels.sample(3, seed=1)
+    assert {(i["feature"], i["value"]) for i in got} == {("booking_needed", "yes"), ("long_walk", "present")}
+    assert len({i["id"] for i in got}) == 3 and all(i["id"] not in ("gmaps:R6:0", "gmaps:R7:0") for i in got)
+    first = next(i for i in labels.sample(10) if i["id"] == "gmaps:R1:0")
+    assert first["text"] == "Nên đặt bàn trước" and first["placeName"] == "Quán A" and first["quote"] == "quote 1"
+    assert labels.sample(1, feature="long_walk")[0]["text"] == "Đi bộ rất xa"  # from reviews_relevant.json
+
+
+def test_label_is_append_only_latest_wins_and_leaves_the_sample(labelled):
+    labels.label("gmaps:R5:0", "wrong")
+    labels.label("gmaps:R5:0", "correct", "re-read")
+    assert labels.latest()["gmaps:R5:0"]["label"] == "correct"
+    assert len((labelled / "review" / "labels.jsonl").read_text(encoding="utf-8").splitlines()) == 2
+    assert all(i["id"] != "gmaps:R5:0" for i in labels.sample(10))
+    with pytest.raises(ValueError):
+        labels.label("gmaps:R5:0", "maybe")
+    with pytest.raises(ValueError):
+        labels.label("gmaps:nope:0", "correct")
+
+
+def test_stats_precision_and_gate(labelled):
+    for i in range(1, 5):
+        labels.label(f"gmaps:R{i}:0", "correct" if i < 4 else "wrong")
+    row = next(r for r in labels.stats()["rows"] if r["feature"] == "booking_needed")
+    assert (row["correct"], row["wrong"], row["precision"], row["gate"], row["needed"]) == (3, 1, 0.75, False, 26)
+    assert labels.wilson_lower(30, 30) >= labels.GATE_LOWER and labels.wilson_lower(0, 0) == 0.0
+    assert labels.wilson_lower(9, 10) < 0.9
+
+
+def test_server_labels_and_feature_review_decisions(labelled):
+    import threading
+    import urllib.error
+    import urllib.request
+
+    from corpus.review.server import ThreadingHTTPServer, handler
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), handler("dalat"))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def get(p):
+        return json.loads(urllib.request.urlopen(base + p).read())
+
+    def post(p, b):
+        req = urllib.request.Request(base + p, json.dumps(b).encode(), {"Content-Type": "application/json"})
+        return json.loads(urllib.request.urlopen(req).read())
+
+    try:
+        item = get("/api/labels/next?n=1&feature=long_walk")["items"][0]
+        assert post("/api/labels", {"id": item["id"], "label": "wrong"})["label"] == "wrong"
+        assert get("/api/labels/stats")["labelled"] == 1
+        post("/api/decision", {"kind": "feature_review", "id": "0x1:0x2#kids", "decision": "report", "note": "value"})
+        post("/api/decision", {"kind": "feature_review", "id": "0x1:0x2#kids", "decision": "undo"})
+        assert get("/api/decisions?kind=feature_review")["decisions"]["0x1:0x2#kids"]["decision"] == "undo"
+        with pytest.raises(urllib.error.HTTPError):
+            post("/api/labels", {"id": "gmaps:nope:0", "label": "correct"})
+    finally:
+        srv.shutdown()
