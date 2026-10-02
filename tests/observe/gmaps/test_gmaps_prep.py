@@ -37,3 +37,23 @@ def test_batches_by_count_and_chars():
     assert [len(b) for b in batches(big, max_chars=12000)] == [2, 1]
     huge = [("r1", {"text": "x" * 20000}), ("r2", {"text": "x"})]
     assert [len(b) for b in batches(huge, max_chars=12000)] == [1, 1]
+
+
+def test_clean_text_drops_emoji_decor_and_truncation_mark():
+    from corpus.observe.gmaps.prep import clean_text
+    assert clean_text("Quán đẹp ❤️❤️ view đồi thông 😍. Thân thiện!!!!!!") == "Quán đẹp view đồi thông . Thân thiện!"
+    assert clean_text("Ngon lắm!! 🍫🍫 …") == "Ngon lắm!!"
+    assert clean_text("🤩🤟🏻🤟🏻 …") == "" and clean_text("Cà phê ngon 👨‍👩‍👧 nhưng đông") == "Cà phê ngon nhưng đông"
+    assert clean_text("Phải leo hơn 300 bậc thang … mỏi chân") == "Phải leo hơn 300 bậc thang … mỏi chân"
+
+
+def test_keep_for_llm_sends_cleaned_text_and_skips_empty_junk():
+    from corpus.observe.gmaps.prep import keep_for_llm
+    rows = [{"review_id": "a", "author_hash": "1", "text": "Phải leo hơn 300 bậc thang 😩😩😩 mỏi chân"},
+            {"review_id": "b", "author_hash": "2", "text": "👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻👍🏻 …"},
+            {"review_id": "c", "author_hash": "3", "text": "!!!!!!!!!!!!!!!!!!!!!!!!"},
+            {"review_id": "d", "author_hash": "4", "text": "Ngon lắm 🍫🍫 …"},  # cleaned: 9 chars < 15
+            {"review_id": "e", "author_hash": "1", "text": "Phải leo hơn 300 bậc thang 😍 mỏi chân"}]  # same words, same author
+    got = keep_for_llm(rows, set())
+    assert [r["review_id"] for r in got] == ["a"] and got[0]["text"] == "Phải leo hơn 300 bậc thang mỏi chân"
+    assert rows[0]["text"].endswith("mỏi chân") and "😩" in rows[0]["text"]  # the crawled review is not touched
