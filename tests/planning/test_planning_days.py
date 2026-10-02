@@ -1,6 +1,8 @@
+import pytest
 from plan_fixtures import CFG, all_days, day_ctx, line_travel, rec
 
-from planning.days import assign_days, blocked, day_cost, load_of
+from planning.days import (assign_days, blocked, day_cost, day_risk, exposed_risk, load_of, pref_risk,
+                           repeats)
 
 
 def two_days(recs, positions, weekdays=("mon", "tue")):
@@ -140,3 +142,39 @@ def test_a_place_only_some_days_can_host_is_taken_out_of_its_cluster_so_it_can_g
     assert isolate_constrained([["d1", "d2"]], ctxs) == [["d1", "d2"]]                 # nothing constrained: left alone
     shut = day_ctx([rec("s", 1, 1, hours={d: [] for d in all_days()})], weekday="mon")
     assert isolate_constrained([["s"]], [shut, shut]) == [["s"]]                       # blocked everywhere: no day helps
+
+
+def weighted(cx, **extra):
+    """The same DayCtx with objective weights merged over the defaults."""
+    from dataclasses import replace
+    return replace(cx, cfg=replace(cx.cfg, weights={**cx.cfg.weights, **extra}))
+
+
+def test_without_objective_weights_the_new_terms_cost_nothing():
+    wet = rec("w", 1, 1, features={"weather_exposed": "present"}, group="park")
+    cx = day_ctx([wet, rec("p", 1, 1, group="park")], rain=0.9, prefs={"w": 2.0})
+    dry = day_ctx([wet, rec("p", 1, 1, group="park")])
+    assert day_cost(["w", "p"], cx) == day_cost(["w", "p"], dry)
+
+
+def test_exposed_places_on_a_rainy_day_cost_more_under_the_weather_objective():
+    wet = rec("w", 1, 1, features={"weather_exposed": "present"})
+    rainy, dry, unknown = (weighted(day_ctx([wet], rain=r), exposed=400.0) for r in (0.8, 0.1, None))
+    assert exposed_risk(["w"], rainy) == 0.8 and exposed_risk(["w"], unknown) == 0.0
+    assert day_cost(["w"], rainy) - day_cost(["w"], dry) == pytest.approx(400.0 * 0.7)
+
+
+def test_two_places_of_one_kind_on_a_day_repeat_and_unknown_kinds_do_not():
+    cx = day_ctx([rec("a", 1, 1, group="cafe"), rec("b", 1, 1, group="cafe"), rec("c", 1, 1, group="park"),
+                  rec("u", 1, 1, group=None), rec("v", 1, 1, group=None)])
+    assert repeats(["a", "b", "c"], cx) == 1 and repeats(["a", "c"], cx) == 0 and repeats(["u", "v"], cx) == 0
+    assert day_cost(["a", "b"], weighted(cx, repeat=40.0)) - day_cost(["a", "b"], cx) == pytest.approx(40.0)
+
+
+def test_a_wanted_place_costs_more_on_a_short_or_rainy_day():
+    recs = [rec("a", 1, 1)]
+    full = day_ctx(recs, prefs={"a": 1.0})
+    short = day_ctx(recs, prefs={"a": 1.0}, end=870)                        # 08:00-14:30: half of 08:00-21:00
+    rainy = day_ctx(recs, prefs={"a": 1.0}, rain=0.5)
+    assert day_risk(full) == 0.0 and day_risk(short) == 0.5 and day_risk(rainy) == 0.5
+    assert pref_risk(["a"], short) == 0.5 and pref_risk(["a"], day_ctx(recs)) == 0.0
