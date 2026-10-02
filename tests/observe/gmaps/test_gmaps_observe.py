@@ -52,7 +52,7 @@ def setup(tmp_path, monkeypatch, reviews, qc=None, place=None):
 REVIEWS = [
     review(1, "Quán có view đẹp, cuối tuần đông", "a1", ["Đã đến vào\nCuối tuần", "Độ ồn\nRất yên tĩnh"], "5 sao"),
     review(2, "", "a2", ["Đồ ăn: 1"], "1 sao", "3 tháng trước"),
-    review(3, "Được rồi", "a3"),
+    review(3, "😍😍 ❤️ !!!", "a3"),
     review(4, "Liên hệ 0909 để đặt tour giá rẻ nhất", "a4"),
 ]
 QC = {"llm": {"bad_reviews": [{"review_id": "R4", "problem": "spam"}]}}
@@ -236,9 +236,9 @@ def test_attributes_and_place_facts(tmp_path, monkeypatch):
 def test_voices_count_authors_read_once(tmp_path, monkeypatch):
     calls, out = setup(tmp_path, monkeypatch, [
         review(1, "Quán có view đẹp lắm luôn nha", "a"), review(2, "Ok", "b", ["Độ ồn\nRất yên tĩnh"]),
-        review(3, "Ok", "c"), review(4, "Lần hai quay lại vẫn view đẹp", "a")])
+        review(3, "👍👍 !!", "c"), review(4, "Lần hai quay lại vẫn view đẹp", "a")])
     asyncio.run(extract.run("dalat"))
-    assert json.loads(out.read_text(encoding="utf-8"))["voices"] == 2  # a (text twice) + b (details); c says nothing
+    assert json.loads(out.read_text(encoding="utf-8"))["voices"] == 2  # a (text twice) + b (details); c sent only icons
 
 
 def test_qc_flagged_review_gives_no_details_or_rating(tmp_path, monkeypatch):

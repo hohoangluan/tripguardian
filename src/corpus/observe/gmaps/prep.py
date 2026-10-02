@@ -4,8 +4,8 @@ import re
 import unicodedata
 from datetime import datetime, timedelta
 
-MIN_CHARS = 15  # of the cleaned text: "Được rồi", "Ok" carry no observation
-MIN_LETTERS = 8  # letters (any script) left after cleaning: "!!!!!!!!!!!!!!!!" or "10/10 ..." carry none
+MIN_LETTERS = 2  # letters (any script) left after cleaning: "!!!!!!!!!!!!!!!!" or "10/10 ..." carry none; a short
+# review ("Ngon", "Hơi xa") is kept: it can state a fact
 _DECOR = {"So", "Sk", "Cf", "Cs", "Co", "Cn"}  # emoji, pictographs, hearts, stars, joiners, selectors, unassigned
 _TRUNCATED = re.compile(r"\s*…\s*$")  # Maps' own cut of a long review ("Xem thêm" not opened)
 _RUNS = re.compile(r"([^\w\s])\1{2,}")  # "!!!!", "....." -> one mark
@@ -47,15 +47,21 @@ def clean_text(text: str | None) -> str:
     return " ".join(_RUNS.sub(chr(92) + "1", t).split())
 
 
+def is_junk(text: str) -> bool:
+    """Nothing to read: fewer than MIN_LETTERS letters (empty, only icons / digits / punctuation), or one letter
+    repeated ("kkkkkkkk", "aaaa")."""
+    letters = _LETTER.findall(text.casefold())
+    return len(letters) < MIN_LETTERS or (len(letters) >= 4 and len(set(letters)) == 1)
+
+
 def keep_for_llm(reviews: list[dict], bad_ids: set[str]) -> list[dict]:
     """Reviews worth a model call, as copies whose `text` is the cleaned text: dropped when flagged, a duplicate
-    (author + cleaned text), shorter than MIN_CHARS or with fewer than MIN_LETTERS letters once cleaned."""
+    (author + cleaned text), or junk once cleaned (see is_junk). Length alone is not a reason to drop."""
     seen, out = set(), []
     for r in reviews:
         text = clean_text(r.get("text"))
         key = (r.get("author_hash"), text)
-        if (len(text) < MIN_CHARS or len(_LETTER.findall(text)) < MIN_LETTERS or r["review_id"] in bad_ids
-                or key in seen):
+        if is_junk(text) or r["review_id"] in bad_ids or key in seen:
             continue
         seen.add(key)
         out.append({**r, "text": text})
