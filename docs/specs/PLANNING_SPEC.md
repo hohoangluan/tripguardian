@@ -77,7 +77,7 @@ Mọi hàm trả `None` khi không có dữ liệu; không bịa. `src/live` kh�
 
 | Nguồn | Public API | Cách lấy | TTL | Khi lỗi |
 |---|---|---|---|---|
-| `osrm/` | `travel_matrix(points, mode, depart_at)`, `route_shape(points, mode)` | OSRM local trên OSM Việt Nam; `/table` cho ma trận, `/route` cho hình đường của lịch đã chốt | 7 ngày | rơi về ước lượng thô của `decision/geo.py`; plan gắn `travel_source = rough` + cảnh báo; độ vững trần "Khả thi" |
+| `osrm/` | `travel_matrix(points, mode)`, `route_shape(points, mode)` | OSRM local trên OSM Việt Nam; `/table` cho ma trận, `/route` cho hình đường của lịch đã chốt | 7 ngày | rơi về ước lượng thô của Planning (`travel.rough_minutes`: đường chim bay × `road_factor` ÷ `rough_speed_kmh`); plan gắn `travel_source = rough` + cảnh báo; độ vững trần "Khả thi" |
 | `weather/` | `weather(lat, lng, dates)` | Open-Meteo forecast theo giờ (trong tầm 16 ngày): mưa mm, xác suất, nhiệt. Ngoài tầm → `config/climate.yaml` theo tháng | 3 giờ / tĩnh | `None` → ngày đó không xét mưa, gắn cờ "chưa biết thời tiết" |
 | `lodging/` | `lodging_near(center, radius_km, check_in, check_out, price_max)` | crawl **mặt lodging của Maps** theo request (xem dưới) | 24 giờ | danh sách rỗng → anchor = `base` / `entry_point`, nói rõ "chưa tra được chỗ ở" |
 | `geocode/` | `geocode(text)` | Nominatim, 1 req/s, User-Agent riêng của dự án | 30 ngày | `None` → hỏi lại người dùng |
@@ -88,7 +88,7 @@ Mọi hàm trả `None` khi không có dữ liệu; không bịa. `src/live` kh�
 
 Thiết lập một lần mỗi máy, `scripts/osrm_setup.sh` + mục trong `README.md`: tải `vietnam-latest.osm.pbf` (Geofabrik) → `osrm-extract` (profile `car`) → `osrm-partition` → `osrm-customize` → `osrm-routed --max-table-size 300`.
 
-Mode: OSM không có profile xe máy chuẩn. Dùng profile `car` rồi nhân `mode_factor` (`config/planning.yaml`: `car 1.0`, `motorbike 0.95`). Chặng ngắn hơn `walk_km` tính đi bộ bằng khoảng cách × `road_factor` ÷ tốc độ đi bộ. Mọi số này hiển thị là **ước lượng**, không nói là thời gian thật của một nhà cung cấp nào.
+Mode: OSM không có profile xe máy chuẩn. Dùng profile `car` rồi nhân `mode_factor` (`config/live.yaml`: `car 1.0`, `motorbike 0.95`). Chặng ngắn hơn `walk_km` tính đi bộ bằng khoảng cách × `road_factor` ÷ tốc độ đi bộ. Mọi số này hiển thị là **ước lượng**, không nói là thời gian thật của một nhà cung cấp nào.
 
 Một ma trận mỗi lượt cho tập điểm = `confirmed` + K chỗ ở + `entry_point` + `exit_point`. Khoảng 20 điểm → 400 cặp, một request. Mọi phương án dùng chung ma trận đó.
 
@@ -128,7 +128,7 @@ Dùng mặt **"Khách sạn"** của Maps, không phải search địa điểm t
 
 - Mỗi ngày mở và kết ở chỗ ở; ngày đầu mở ở `entry_point`, ngày cuối kết ở `exit_point`.
 - n ≤ `exact_n` (7) nơi mỗi ngày → **vét cạn permutation** có cắt tỉa theo giờ mở (≤ 5040) → tối ưu thật. n lớn hơn → nearest-neighbour + 2-opt + or-opt. Cả hai tất định.
-- Buổi: `timed_features` (dùng lại của `decision`) + `sun_times` → hoàng hôn / đêm ghim cuối ngày; sương / bình minh ghim đầu ngày.
+- Buổi: `pins` (`config/planning.yaml`: `sunset_view`, `cloud_hunting`, `live_music`) + `sun_times` → hoàng hôn / đêm ghim cuối ngày; sương / bình minh ghim đầu ngày.
 - Bữa ăn: `meals_per_day`. Có quán ăn trong `confirmed` → chèn vào khung trưa / tối. Không có → chừa khoảng trống "ăn trưa (tự chọn)", không thêm địa điểm.
 
 ### ⓓ Giờ, tham quan, đệm, nghỉ — `schedule.py`
@@ -259,7 +259,7 @@ Web: `web/src/user/screens/Itinerary.tsx` đổi sang gọi `/api/planning`; `we
 
 ## Cấu hình — `config/planning.yaml`
 
-`version`; `mode_factor`; `road_factor` (dùng cho chặng đi bộ và cho đường lui khi OSRM chết); `walk_km`; `walk_kmh`; `radius_km` theo mobility; `lodging_k`; `lodging_share`; `min_reviews`; `split_min`; `cluster_max_min`; `max_days`; `max_clusters`; `exact_n`; `buffer_min` theo pace; `max_consecutive_min`; `rest_per_day` theo pace; `meals_per_day`; kịch bản nhiễu của độ vững + ngưỡng 3 mức; trọng số từng mục tiêu; trọng số phạt của `repair_day`.
+`version`; `road_factor`, `rough_speed_kmh` (đường lui khi OSRM chết), `walk_km`, `walk_kmh`; `default_days`, `day_start`, `day_end`, `leave_at`; `visit_key`, `per_day`, `buffer_min` (+ phụ phí `long_leg_min`, `buffer_extra_long`, `buffer_extra_uncertain`), `rest_min`, `max_consecutive_min`; `meals_per_day`, `meal_min`, `meal_windows`; `pins`; `cluster_max_min`, `cluster_merge_min`, `fill_ratio`, `intra_leg_min`, `max_days`, `max_clusters`, `exact_n`, `improve_passes`; `weights` (`travel`, `overflow`, `count`, `closed`). Các phase sau thêm: `radius_km` theo mobility, `lodging_k`, `lodging_share`, `min_reviews`, `split_min`, kịch bản nhiễu của độ vững + ngưỡng 3 mức, trọng số từng mục tiêu, trọng số phạt của `repair_day`.
 
 TTL từng nguồn live và endpoint OSRM nằm ở `config/live.yaml`, không nằm ở đây: `src/live` không được đọc config của `planning` (phụ thuộc một hướng).
 
