@@ -4,6 +4,7 @@ import { Auth } from '../pages/Auth'
 import { Start } from '../pages/Start'
 import { match, navigate } from '../router'
 import { Icon } from '../ui/bits'
+import { DecisionProvider, useDecision } from './pd/decision'
 import { Compare } from './screens/Compare'
 import { CurateBar } from './screens/Curate'
 import { Feasibility } from './screens/Feasibility'
@@ -14,7 +15,7 @@ import { Profile } from './screens/Profile'
 import { Shortlist } from './screens/Shortlist'
 import { Understand } from './screens/Understand'
 import { initialOf, useAccount } from './account'
-import { TripProvider, useTrip } from './trip'
+import { TripProvider } from './trip'
 import './user.css'
 
 const STEPS = [
@@ -41,15 +42,17 @@ const POSTER: Record<string, string> = {
 export function UserApp({ path, onHome }: { path: string; onHome: () => void }) {
   return (
     <TripProvider>
-      <Shell path={path} onHome={onHome} />
+      <DecisionProvider>
+        <Shell path={path} onHome={onHome} />
+      </DecisionProvider>
     </TripProvider>
   )
 }
 
 function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   const { snap, error } = useSnapshot()
-  const { trip } = useTrip()
   const account = useAccount()
+  const { view } = useDecision()
   const base = '/' + path.split('?')[0].split('/').filter(Boolean).slice(0, 2).join('/')
 
   useEffect(() => {
@@ -57,7 +60,7 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   }, [base])
 
   const stepIndex = STEPS.findIndex((s) => base === s.path || (s.path === '/app/shortlist' && ['/app/place', '/app/compare'].includes(base)))
-  const showCurate = ['/app/shortlist', '/app/place', '/app/compare'].includes(base) && trip.selected.length > 0
+  const showCurate = ['/app/shortlist', '/app/place', '/app/compare'].includes(base) && (view?.selected.length ?? 0) > 0
 
   let screen
   let m: Record<string, string> | null
@@ -123,7 +126,7 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
         </button>
       </header>
       <main className={`umain${showCurate ? ' has-curate' : ''}`}>{screen}</main>
-      {showCurate && snap && <CurateBar />}
+      {showCurate && <CurateBar />}
     </div>
   )
 }

@@ -34,6 +34,7 @@ export interface TripState {
   relaxed: string[] // rule keys the user agreed to relax
   feedback: Record<string, string>
   searchInput?: SearchInput // from Trip Understanding; Place Decision reads it later
+  decisionId: string | null // Place Decision session (src/decision); the backend holds the curation state
 }
 
 const today = () => {
@@ -64,6 +65,7 @@ export const initialTrip: TripState = {
   moved: {},
   relaxed: [],
   feedback: {},
+  decisionId: null,
 }
 
 export type Action =
