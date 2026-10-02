@@ -30,6 +30,8 @@ Agent = Callable[[dict, Callable[[str], None]], Awaitable[TurnPlan]]
 GREETING = "Chào bạn! Mình hỏi vài câu ngắn để hiểu chuyến Đà Lạt của bạn trước khi chọn chỗ."
 FALLBACK_SAY = "Mình ghi lại được một phần; câu bạn gõ mình chưa hiểu hết, bạn có thể nói lại theo cách khác."
 SAFETY_SAY = "Còn một câu để tránh xếp nhầm chỗ không hợp, bạn trả lời giúp mình nhé."
+MISSING_SAY = "Mình cần biết thêm điều này trước khi tìm chỗ."
+NUDGE_SAY = "Câu này bạn chọn một ý bên dưới giúp mình nhé (hoặc Bỏ qua)."
 DONE_SAY = "Xong rồi, mình đi tìm chỗ hợp với chuyến này."
 BAD_VALUE = "Giá trị này mình chưa đọc được, bạn thử lại nhé."
 
@@ -83,9 +85,21 @@ class Engine:
 
     def turn(self, sid: str, inp: TurnInput, emit: Emit) -> None:
         s = self.store.get(sid)
+        gone = False
+
+        def safe(event: str, data: dict) -> None:
+            # a closed browser tab must not leave the turn half applied: finish it, stop writing
+            nonlocal gone
+            if gone:
+                return
+            try:
+                emit(event, data)
+            except OSError:
+                gone = True
+
         with s.lock:
             try:
-                getattr(self, f"_{inp.kind}")(s, inp, emit)
+                getattr(self, f"_{inp.kind}")(s, inp, safe)
             finally:
                 self.store.save(s)
 
@@ -162,6 +176,8 @@ class Engine:
         except AgentError as e:
             st, say, log = settle(st), FALLBACK_SAY, [f"agent_fallback: {e}"]
             q = next_question(st, self.catalog, self.cfg)
+        if prev and prev.tier == 1 and prev.qid != "frame" and q.qid == prev.qid:
+            say = f"{say} {NUDGE_SAY}".strip()  # typed past a card only a chip can answer
         if say != "".join(streamed):
             emit("say", {"replace": say})
         if say:
@@ -200,15 +216,16 @@ class Engine:
             return
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
         req = required(s.state, self.catalog, self.cfg)
-        if req and (s.card is None or s.card.qid != req.qid):
-            s.card = req
-            emit("card", card(req))
+        stale = s.card is not None and s.card.tier == 1 and req is None
+        if stale or (req and (s.card is None or s.card.qid != req.qid)):
+            s.card = req or next_question(s.state, self.catalog, self.cfg)
+            emit("card", card(s.card))
 
     def _show(self, s: Session, inp: TurnInput, emit: Emit) -> None:
         req = required(s.state, self.catalog, self.cfg)
         if req:
             s.card = req
-            emit("say", {"replace": SAFETY_SAY})
+            emit("say", {"replace": SAFETY_SAY if req.group == "C" else MISSING_SAY})
             emit("card", card(req))
             return
         si = compile_search_input(s.state)
@@ -231,8 +248,8 @@ class Engine:
                                   evidence=Evidence(turn=turn, quote=raw)))
         for p in pre.proposals:
             try:
-                st = apply(st, Update(field=p.field, op=p.op, value=p.value,
-                                      source="inferred" if p.inferred else "user",
+                # keyword guesses: shown with ✎ until the user or the agent confirms them
+                st = apply(st, Update(field=p.field, op=p.op, value=p.value, source="inferred",
                                       confidence="low" if p.inferred else "medium",
                                       evidence=Evidence(turn=turn, quote=p.quote)))
             except (ValueError, ValidationError):

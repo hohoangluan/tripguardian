@@ -27,18 +27,21 @@ class Prepass:
     ambiguous: tuple[tuple[str, tuple[str, ...]], ...]  # (quote, soft keys it may mean)
 
 
-NUMBER = {"mot": 1, "hai": 2, "ba": 3, "bon": 4, "tu": 4, "nam": 5, "sau": 6, "bay": 7}
-NEGATION = re.compile(r"\b(khong|chang|ko|tranh|ghet|ngai|so)\s+(\w+\s+)?$")
+# "một ngày" (one day of it) and "từ ngày" (from) are not trip lengths; "bay / sau ngày 12" (fly / after) is
+# excluded by the no-digit-after rule in prepass()
+NUMBER = {"hai": 2, "ba": 3, "bon": 4, "nam": 5, "sau": 6, "bay": 7}
+# a negation up to four words before a match ("không đi với bố mẹ", "không thích chỗ có view")
+NEGATION = re.compile(r"\b(khong|chang|ko|tranh|ghet|ngai|so)\s+(\w+\s+){0,4}$")
 
 COMPANIONS = [
     (r"\b(bo me|ba me|ba ma|cha me|ong ba|phu huynh|nguoi lon tuoi)\b", "parents"),
     (r"\b(nguoi yeu|ban gai|ban trai|vo chong|hai vo chong|cap doi|honeymoon|trang mat)\b", "partner"),
     (r"\b(ban be|nhom ban|hoi ban|dong nghiep|team)\b", "friends"),
-    (r"\b(con nho|tre nho|tre em|em be|be nho|cac be|con trai|con gai)\b", "kids"),
+    (r"\b(con nho|tre nho|tre em|em be|be nho|cac be)\b", "kids"),
     (r"\b(mot minh|solo)\b", "solo"),
 ]
 SIGNALS = [
-    (r"\b(dau goi|dau chan|dau lung|moi goi|thoai hoa|kho di lai|di lai kho|chan yeu|yeu chan)\b", "knee"),
+    (r"\b(dau goi|dau lung|moi goi|moi chan|thoai hoa|kho di lai|di lai kho|chan yeu|yeu chan)\b", "knee"),
     (r"\b(nguoi gia|lon tuoi|cao tuoi)\b", "elderly"),
     (r"\bxe lan\b", "wheelchair"),
     (r"\b(co bau|mang thai|dang bau|bau bi)\b", "pregnant"),
@@ -56,7 +59,7 @@ PACE = [
     (r"\b(di nhieu|cang nhieu cang tot|kham pha het|full lich)\b", "packed"),
 ]
 NOVELTY = [
-    (r"\b(thu moi|cho moi|cai moi|muon khac|chua di bao gio)\b", "new"),
+    (r"\b(thu moi|cai moi|muon khac|chua di bao gio)\b", "new"),
     (r"\b(cho quen|nhu lan truoc)\b", "familiar"),
 ]
 HARD = [
@@ -74,9 +77,9 @@ LEXICON = [
     (r"\b(san may|bien may)\b", ("cloud_hunting=present",)),
     (r"\b(hoang hon|binh minh)\b", ("sunset_view=present",)),
     (r"\b(chup anh|chup hinh|song ao|check in|checkin)\b", ("photo_spot=present",)),
-    (r"\b(thien nhien|rung thong|thac|suoi)\b", ("nature=present",)),
+    (r"\b(thien nhien|rung thong|thac nuoc|con thac|ngam thac|suoi nuoc|con suoi)\b", ("nature=present",)),
     (r"\b(vuon hoa|doi hoa|ngam hoa|mua hoa)\b", ("flower_garden=present",)),
-    (r"\b(kien truc|di tich|lich su|co kinh)\b", ("heritage_architecture=present",)),
+    (r"\b(kien truc|di tich|co kinh)\b", ("heritage_architecture=present",)),
     (r"\bvan hoa\b", ("heritage_architecture=present", "cultural_show=present")),
     (r"\b(cafe|ca phe|coffee)\b", ("cozy_decor=present", "long_stay_chill=present", "drink_quality=good",
                                    "scenic_view=present")),
@@ -91,7 +94,7 @@ LEXICON = [
     (r"\b(workshop|tu tay lam)\b", ("hands_on_workshop=present",)),
     (r"\b(thu cung|vuon thu|so thu)\b", ("animals=present",)),
     (r"\b(gia re|binh dan|dang tien|gia hop ly)\b", ("value_for_money=good",)),
-    (r"\b(lam viec|laptop)\b", ("laptop_friendly=present",)),
+    (r"\b(laptop|ngoi lam viec)\b", ("laptop_friendly=present",)),
     (r"\b(rong rai|thoang dang)\b", ("spacious=present",)),
 ]
 
@@ -124,7 +127,7 @@ def prepass(text: str, today: date) -> Prepass:
             add("start_date", start, m)
             add("days", d2 - d1 + 1, m)
             taken.append(m.span())
-    for m in re.finditer(r"\b(\d{1,2})\s*/\s*(\d{1,2})\b", low):
+    for m in re.finditer(r"(?<![\d/])(\d{1,2})\s*/\s*(\d{1,2})\b(?!\s*(?:ngay|n)\b)", low):
         if any(a <= m.start() < b for a, b in taken):
             continue
         start = _next_date(int(m[1]), int(m[2]), today)
@@ -138,8 +141,8 @@ def prepass(text: str, today: date) -> Prepass:
         if m:
             add("days", int(m[1]), m)
         else:
-            for m in re.finditer(r"\b(\d{1,2}|mot|hai|ba|bon|nam|sau|bay)\s*(?:ngay|n)\b", low):
-                n = int(m[1]) if m[1].isdigit() else NUMBER[m[1]]
+            for m in re.finditer(r"(?<!/)\b(\d{1,2})\s*(?:ngay|n)\b|\b(hai|ba|bon|nam|sau|bay)\s+ngay\b(?!\s*\d)", low):
+                n = int(m[1]) if m[1] else NUMBER[m[2]]
                 if 1 <= n <= 7:
                     add("days", n, m)
                     break
@@ -150,8 +153,13 @@ def prepass(text: str, today: date) -> Prepass:
         n = float(m[1].replace(",", "."))
         add("budget_vnd", int(n * (1000 if m[2] in ("k", "nghin", "ngan") else 1_000_000)), m)
         break
+    def negated(m) -> bool:
+        return bool(NEGATION.search(low[max(0, m.start() - 32):m.start()]))
+
     for pattern, who in COMPANIONS:
         for m in re.finditer(pattern, low):
+            if negated(m):
+                continue
             add("companions", who, m, op="add")
             if who == "parents":
                 add("signal", "elderly", m, op="add", inferred=True)
@@ -159,10 +167,12 @@ def prepass(text: str, today: date) -> Prepass:
                 add("signal", "kids", m, op="add", inferred=True)
     for pattern, kind in SIGNALS:
         for m in re.finditer(pattern, low):
+            if negated(m):
+                continue
             add("signal", kind, m, op="add")
     for table, field in ((MOBILITY, "mobility"), (PACE, "pace"), (NOVELTY, "novelty")):
         for pattern, value in table:
-            m = re.search(pattern, low)
+            m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
             if m:
                 add(field, value, m)
                 break
@@ -172,7 +182,7 @@ def prepass(text: str, today: date) -> Prepass:
     ambiguous: list[tuple[str, tuple[str, ...]]] = []
     for pattern, keys in LEXICON:
         for m in re.finditer(pattern, low):
-            if NEGATION.search(low[max(0, m.start() - 16):m.start()]):
+            if negated(m):
                 continue
             if len(keys) == 1:
                 add("soft", (keys[0], "love"), m, op="add")

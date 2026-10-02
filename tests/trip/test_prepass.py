@@ -56,3 +56,27 @@ def test_lookalike_words_do_not_trigger():
     assert not any(f in ("signal", "companions") for f, *_ in g)
     fields = {(f, v) for f, v, _ in g}
     assert ("soft", ("scenic_view=present", "love")) not in fields
+
+
+ORDINARY = [  # everyday sentences that are not trip facts (final review, issue 1)
+    ("mình bay ngày 12/12", "days"), ("đi sau ngày 20 nhé", "days"), ("một ngày đi được mấy chỗ?", "days"),
+    ("300k cho mỗi người", "novelty"), ("không đi với bố mẹ", "companions"), ("để lại dấu chân ở Đà Lạt", "signal"),
+    ("mình không say xe", "signal"), ("đám con gái tụi mình", "companions"), ("mình có thắc mắc", "soft"),
+    ("phòng có lò sưởi", "soft"), ("nhân viên lịch sự", "soft"), ("mình làm việc ở Sài Gòn", "soft"),
+    ("không thích chỗ có view", "soft"), ("1/2 ngày thôi", "start_date"), ("1/2 ngày thôi", "days"),
+]
+
+
+def test_ordinary_sentences_are_not_trip_facts():
+    wrong = [(t, f) for t, f in ORDINARY if any(p.field == f for p in prepass(t, TODAY).proposals)]
+    assert wrong == []
+
+
+def test_negated_transport_falls_through_to_the_real_one():
+    g = got("mình không chạy xe máy được, đi grab")
+    assert ("mobility", "ride", False) in g and ("mobility", "motorbike", False) not in g
+
+
+def test_number_words_still_count_days():
+    assert ("days", 7, False) in got("đi bảy ngày")
+    assert ("days", 4, False) in got("chuyến 4 ngày")

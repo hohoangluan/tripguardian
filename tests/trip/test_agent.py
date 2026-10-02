@@ -94,3 +94,15 @@ def test_whitespace_loop_twice_gives_up():
     looping = ['{"say": "x", "updates": [', " " * 64]
     with pytest.raises(AgentError):
         asyncio.run(run_agent({}, lambda s: None, Settings(), open_stream=attempts(looping, looping)))
+
+
+def test_dropped_connection_mid_stream_becomes_agent_error():
+    import httpx
+
+    def open_stream(fields):
+        async def gen():
+            yield '{"say": "a'
+            raise httpx.ReadError("connection closed")
+        return gen()
+    with pytest.raises(AgentError):
+        asyncio.run(run_agent({}, lambda s: None, Settings(), open_stream=open_stream))

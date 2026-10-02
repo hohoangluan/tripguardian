@@ -133,3 +133,48 @@ def test_session_survives_restart(make, tmp_path):
 def test_unknown_session_raises(make):
     with pytest.raises(KeyError):
         make().load("0123456789ab")
+
+
+def test_keyword_guesses_are_marked_as_inferred(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    ev = run(e, sid, kind="text", text="đi 3 ngày bằng xe máy")
+    assert all(r["mark"] for r in ev[-2][1]["understanding"]["trip"])
+
+
+def test_client_gone_mid_turn_still_applies_and_saves_the_turn(make):
+    e = make(FakeAgent(plan(updates=[{"field": "days", "op": "set", "value": "3", "quote": "3 ngày", "how": "said"}]),
+                       chunks=("Mình ",)))
+    sid = e.create("first", "nothing")["id"]
+
+    def emit(event, data):
+        if event == "say":
+            raise BrokenPipeError("client went away")
+    e.turn(sid, TurnInput(kind="text", text="đi 3 ngày"), emit)
+    v = make().load(sid)
+    assert v["understanding"]["trip"][0]["value"] == 3 and v["card"]["qid"] == "companions"
+
+
+def test_text_reply_to_a_tier_one_card_that_changes_nothing_asks_for_a_chip(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="text", text="mẹ đau gối")
+    ev = run(e, sid, kind="text", text="không sao đâu")
+    says = [d.get("replace", "") for n, d in ev if n == "say"]
+    assert ev[-1][1]["qid"] == "c_effort" and any("chọn một ý" in s for s in says)
+
+
+def test_show_with_a_missing_trip_field_does_not_talk_about_safety(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    ev = run(e, sid, kind="show")
+    assert ev[0] == ("say", {"replace": "Mình cần biết thêm điều này trước khi tìm chỗ."}) and ev[1][1]["qid"] == "frame"
+
+
+def test_filling_the_asked_field_in_the_panel_moves_the_card_on(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    answer_frame(e, sid)
+    assert e.load(sid)["card"]["qid"] == "dates"
+    ev = run(e, sid, kind="edit", target="start_date", value="2026-12-12")
+    assert names(ev) == ["state", "card"] and ev[1][1]["qid"] != "dates"

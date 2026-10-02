@@ -7,7 +7,6 @@ import re
 from datetime import date
 from typing import AsyncIterator, Callable
 
-import openai
 from pydantic import ValidationError
 
 from corpus.llm import AGENT, TRIP_TURN
@@ -172,7 +171,9 @@ async def _attempt(fields: dict, on_say: Callable[[str], None], cfg: Settings,
                 raise _Looping("whitespace loop")
     except asyncio.TimeoutError as e:
         raise AgentError("first token too slow" if first else "answer too slow") from e
-    except openai.OpenAIError as e:
+    except AgentError:
+        raise
+    except Exception as e:  # openai errors, and httpx / OS errors a dropped stream raises unwrapped
         raise AgentError(f"{type(e).__name__}: {e}") from e
     finally:
         aclose = getattr(it, "aclose", None)
