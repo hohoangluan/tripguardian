@@ -16,7 +16,7 @@ from .compare import compare as compare_cands
 from .curation import ActionError, apply
 from .guard import TurnPlan, guard
 from .pipeline import Data, Result, run, wanted, why_not
-from .policy import policy
+from .policy import DONE, NONE, policy
 from .scope import STEPS, replan_scope
 from .session import Pending, Session, State, Store
 from .settings import Settings
@@ -165,9 +165,10 @@ class Engine:
                 actions, say, log = g.actions, g.say, g.log
             except AgentError as e:
                 (actions, say), log = policy(text, aliases), [f"agent_fallback: {e}"]
+            new, done, skipped = self._apply(s, actions, before, strict=False)
+            say = say or (DONE if done else NONE)  # a guard-dropped say never leaves an empty bubble
             if say != "".join(streamed):
                 emit("say", {"replace": say})
-            new, done, skipped = self._apply(s, actions, before, strict=False)
             logged = {"type": "turn", "text": text, "actions": done, "log": log + skipped}
             if done:
                 self._push(s, new)

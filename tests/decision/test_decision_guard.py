@@ -46,3 +46,18 @@ def test_policy_keywords_and_names():
     assert policy("muốn chỗ ít người hơn", ALIASES)[0] == [{"type": "feedback", "reason": "crowded"}]
     actions, say = policy("ừm", ALIASES)
     assert actions == [] and "chưa hiểu" in say
+
+
+def test_select_needs_the_name_in_the_quote_not_just_the_message():
+    text = "bỏ Quán Mộc Lan Viên đi, thêm Đồi Chè Cầu Đất"
+    g = guard(plan(("select", "P2", "", "thêm")), text, ALIASES, "", KEYS)
+    assert g.actions == [] and len(g.log) == 1
+
+
+def test_select_by_a_two_word_tail_shared_by_several_places_is_refused():
+    aliases = {"P1": {"id": "A", "name": "Thung Lũng Tình Yêu Đà Lạt"}}
+    keys = [("thung lung tinh yeu da lat", "A"), ("ho tuyen lam da lat", "B")]
+    g = guard(plan(("select", "P1", "", "thêm Đà Lạt")), "đi tour, thêm Đà Lạt", aliases, "", keys)
+    assert g.actions == []
+    ok = guard(plan(("select", "P1", "", "thêm Tình Yêu Đà Lạt")), "thêm Tình Yêu Đà Lạt", aliases, "", [keys[0]])
+    assert ok.actions == [{"type": "select", "place_id": "A"}]

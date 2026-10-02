@@ -51,6 +51,17 @@ def names_in(text: str, name: str) -> bool:
     return contains(text, name) or (len(words) >= 2 and contains(text, " ".join(words[-2:])))
 
 
+def _named(quote: str, name: str, name_keys) -> bool:
+    """The quote names this place: the whole name, or its last two words when no other place ends the same way."""
+    if contains(quote, name):
+        return True
+    words = squash(name).split()
+    if len(words) < 2 or not contains(quote, " ".join(words[-2:])):
+        return False
+    tail = " ".join(words[-2:])
+    return sum(1 for k, _ in name_keys if k == tail or k.endswith(" " + tail)) <= 1
+
+
 def guard(plan: TurnPlan, text: str, aliases: dict[str, dict], screen_text: str,
           name_keys: list[tuple[str, str]]) -> Guarded:
     """aliases: "P1" -> {"id", "name", ...}; screen_text: what the user sees (its numbers may be repeated);
@@ -67,7 +78,7 @@ def guard(plan: TurnPlan, text: str, aliases: dict[str, dict], screen_text: str,
         if u.op in PLACE_OPS and place is None:
             log.append(f"drop {u.op}: needs a place")
             continue
-        if u.op in ("select", "lock") and not names_in(text, place["name"]):
+        if u.op in ("select", "lock") and not _named(u.quote, place["name"], name_keys):
             log.append(f"drop {u.op}: the user did not name {place['name']!r}")
             continue
         if u.op in ("select", "lock"):

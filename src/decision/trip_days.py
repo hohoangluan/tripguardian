@@ -26,7 +26,8 @@ def trip_days(ctx, cfg) -> list[TripDay]:
     last_end = min(end, to_min(ctx.leave_at or cfg.leave_at))
     out = []
     for i in range(n):
-        d = ctx.start_date + timedelta(days=i) if ctx.start_date else None
+        # without a stated number of days the days are assumed: no dates, so no weekday-based checks
+        d = ctx.start_date + timedelta(days=i) if ctx.start_date and ctx.days else None
         wd = DAYS[d.weekday()] if d else None
         out.append(TripDay(i, d, wd, ("weekend" if wd in ("sat", "sun") else "weekday") if wd else None,
                            first if i == 0 else start, last_end if i == n - 1 else end))

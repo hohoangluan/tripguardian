@@ -199,7 +199,9 @@ def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], 
 
     budget = si.context.budget_vnd
     priced = [(c, v) for c in chosen if (v := _cost_vnd(c))]
-    if budget and priced:
+    if budget and priced and not known_days:
+        warnings.append("Chưa biết số ngày nên chưa kiểm chi phí")
+    elif budget and priced:
         per_day = sum(v for _, v in priced) / len(days)
         if per_day > budget * cfg.budget_slack:
             top = sorted(((c, v) for c, v in priced if c in removable), key=lambda x: (-x[1], x[0].id))

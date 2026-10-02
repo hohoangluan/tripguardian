@@ -88,3 +88,12 @@ def test_output_roles_backup_and_context():
     assert out["confirmed"][1]["relaxed"] == ["noise"]
     assert {b["id"] for b in out["backup_pool"]} >= {"FLAT2"} and out["trip_context"]["context"]["days"] == 2
     assert out["decision_log"][0]["action"]["place_id"] == "CAFE0"
+
+
+def test_no_days_means_no_weekday_checks_even_with_a_start_date():
+    tue_only = srec("TUE", group="nature", features=FLAT, hours={"tue": [["08:00", "17:00"]]})
+    d = Data([tue_only, srec("OK", group="nature", features=FLAT)])
+    s = session(trip(context={"start_date": "2026-12-19", "days": None}))  # a Saturday, no number of days
+    v = run(s, d, CFG).view
+    assert "TUE" in v["shortlist"] and v["known_days"] is False
+    assert all(x["weekday"] is None for x in v["days"])

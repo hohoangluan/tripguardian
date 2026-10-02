@@ -93,3 +93,10 @@ def test_far_areas_per_day_budget_and_relax():
 def test_unknown_days_skips_day_checks():
     res = run(cands(*[srec(f"P{i}") for i in range(9)]), si(context={"days": None}))
     assert res["status"] == "unknown" and res["slack"] is None and checks(res) == []
+
+
+def test_unknown_days_skips_budget_check_and_warns():
+    pricey = cands(srec("M", price={"min_vnd": 2000000, "max_vnd": 3000000}, usable=("meal",)))
+    res = run(pricey, si(context={"days": None, "budget_vnd": 200000}))
+    assert res["status"] == "unknown" and "budget" not in checks(res)
+    assert "Chưa biết số ngày nên chưa kiểm chi phí" in res["warnings"]

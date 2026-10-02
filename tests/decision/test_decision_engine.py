@@ -127,3 +127,18 @@ def test_rethink_back_sends_the_user_to_understanding():
     view = e.load(sid)["view"]
     assert view["pending"]["qid"] == "rethink"
     assert e.act(sid, {"type": "answer", "qid": "rethink", "chip": "back"})["goto"] == "understand"
+
+
+def test_dropped_say_is_replaced_by_a_sentence_never_empty():
+    plan = TurnPlan(say="Còn 45 phút trống.", updates=(PlanUpdate(op="drop", place="P1", value="far", quote="xa quá"),))
+    e = engine(FakeAgent(plan))
+    sid = e.create(trip())["id"]
+    events = []
+    e.turn(sid, "quán đầu xa quá", lambda ev, d: events.append((ev, d)))
+    replace = [d for ev, d in events if ev == "say" and "replace" in d][-1]["replace"]
+    assert replace == "Mình đã ghi nhận, danh sách đã cập nhật."
+    nothing = engine(FakeAgent(TurnPlan(say="Còn 45 phút trống.", updates=())))
+    sid = nothing.create(trip())["id"]
+    events = []
+    nothing.turn(sid, "ừm", lambda ev, d: events.append((ev, d)))
+    assert [d["replace"] for ev, d in events if ev == "say" and "replace" in d][-1].startswith("Mình chưa hiểu")
