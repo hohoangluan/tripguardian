@@ -12,6 +12,11 @@ tiktok:
   max_videos_per_query: 30
   max_comments_per_video: 200  # comments + replies, in TikTok's order; null = all (slow)
   videos_per_place: 10  # place_search: top search results per Maps place; place_filter keeps those about the place
+  crawl_videos_per_place: 5  # place_crawl: each place's own top N "yes" videos actually downloaded; the rest
+                             # (ranked 6-10) stay in place_filter's files, unfetched. 5 matches aggregate's own
+                             # TREND_MIN (place.py) — the minimum authors needed for a trend read — so it's not
+                             # starving the aggregate step, just not fetching evidence past the point it helps.
+                             # Cuts the crawl pool ~36% (6689 -> 4292 videos, measured 2026-10-02).
   place_search_tabs: 1  # max parallel place searches; working level in data/tiktok/place_search_throttle.json
                         # this account (tiktok2) got blocked repeatedly even back at tab 1 on 2026-10-02, right
                         # after a network switch (UIT) — a soft IP/account block, not a tab-count problem. Capped

@@ -155,6 +155,22 @@ def test_video_kept_for_two_places_is_listed_once(filter_env):
     assert row["places"] == [FID, "0x3:0x4"] and len(row["queries"]) == 2
 
 
+def test_cap_per_place_keeps_each_place_own_first_n_yes_videos(filter_env):
+    tmp_path, root, write_search, _, _ = filter_env
+    write_search(FID, "Thác Datanla", [_item(1), _item(2), _item(3)])
+    asyncio.run(place_filter.run("dalat"))
+    assert [r["video_id"] for r in place_filter.kept_videos("dalat", cap_per_place=2)] == ["1", "2"]
+    assert [r["video_id"] for r in place_filter.kept_videos("dalat")] == ["1", "2", "3"]  # no cap: unchanged
+
+
+def test_cap_per_place_keeps_a_video_shared_by_an_uncapped_place(filter_env):
+    tmp_path, root, write_search, _, _ = filter_env
+    write_search(FID, "Thác Datanla", [_item(1), _item(2)])  # video 2 would be cut by this place's own cap=1
+    write_search("0x3:0x4", "Máng trượt Datanla", [_item(2)])  # but this place still has room for it
+    asyncio.run(place_filter.run("dalat"))
+    assert sorted(r["video_id"] for r in place_filter.kept_videos("dalat", cap_per_place=1)) == ["1", "2"]
+
+
 def test_prompt_shows_place_and_caption():
     msg = place_filter.PLACE_VIDEO_FILTER.render(city="Đà Lạt", name="Thác Datanla", category="Thác", address="Đèo Prenn",
                                                  desc="Máng trượt siêu phê", hashtags="#datanla")
@@ -164,7 +180,7 @@ def test_prompt_shows_place_and_caption():
 def test_place_crawl_opens_only_kept_videos_not_yet_saved(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setattr(place_crawl, "load_config", lambda city: ("Đà Lạt", {"tiktok": {"tabs": 1}}))
-    monkeypatch.setattr(place_crawl, "kept_videos", lambda city: [_item(1), _item(2)])
+    monkeypatch.setattr(place_crawl, "kept_videos", lambda city, cap_per_place=None: [_item(1), _item(2)])
     done = tmp_path / "tiktok" / "videos" / "2" / "video.mp4"
     done.parent.mkdir(parents=True)
     done.write_bytes(b"mp4")

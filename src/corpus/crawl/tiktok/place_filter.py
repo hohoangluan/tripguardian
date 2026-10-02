@@ -34,20 +34,23 @@ def address(fid: str) -> str | None:
     return json.loads(f.read_text(encoding="utf-8")).get("address") if f.exists() else None
 
 
-def kept_videos(city: str) -> list[dict]:
-    """Search rows of the videos judged about their place, one per video, with every place and query they matched."""
+def kept_videos(city: str, cap_per_place: int | None = None) -> list[dict]:
+    """Search rows of the videos judged about their place, one per video, with every place and query they matched.
+    cap_per_place keeps only each place's own first N "yes" videos (place_search's TikTok-relevance order, kept as
+    the "yes" order within each place_filter file) — a video shared by several places counts toward each place's
+    own cap independently, so it survives if any one of them still has room."""
     out = data_dir() / "tiktok" / "place_filter"
     rows: dict[str, dict] = {}
     for f in sorted(out.glob("*.json")) if out.exists() else []:
         if f.name == "summary.json":
             continue
         doc = json.loads(f.read_text(encoding="utf-8"))
-        for v in doc["videos"]:
-            if v["llm"]["relevance"] in KEEP:
-                r = rows.setdefault(v["video_id"], {**{k: v[k] for k in ("video_id", "url", "desc", "hashtags")},
-                                                    "queries": [], "places": []})
-                r["queries"].append(doc["query"])
-                r["places"].append(doc["fid"])
+        kept = [v for v in doc["videos"] if v["llm"]["relevance"] in KEEP]
+        for v in kept[:cap_per_place] if cap_per_place is not None else kept:
+            r = rows.setdefault(v["video_id"], {**{k: v[k] for k in ("video_id", "url", "desc", "hashtags")},
+                                                "queries": [], "places": []})
+            r["queries"].append(doc["query"])
+            r["places"].append(doc["fid"])
     return list(rows.values())
 
 

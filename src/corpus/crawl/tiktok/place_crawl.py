@@ -16,7 +16,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, profile_nam
              shard: tuple[int, int] | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["tiktok"], data_dir() / "tiktok"
-    rows = kept_videos(city)
+    rows = kept_videos(city, cap_per_place=c.get("crawl_videos_per_place"))
     todo = [r for r in rows if not (root / "videos" / r["video_id"] / "video.mp4").exists()]
     if shard:
         i, n = shard
