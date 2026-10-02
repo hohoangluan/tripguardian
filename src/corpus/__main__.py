@@ -16,6 +16,7 @@ from .serving.evaluate import run as evaluate_run
 from .review import server as review_server
 from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, search as gmaps_search
 from .observe import gmaps as gmaps_observe
+from .observe import tiktok as tiktok_observe
 from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check,
                            comments_crawl as tiktok_comments_crawl, crawl as tiktok_crawl,
                            filter as tiktok_filter, listing as tiktok_list, place_verify as tiktok_place_verify,
@@ -29,7 +30,8 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "asr": (tiktok_asr.run, False), "asr_check": (tiktok_asr_check.run, False),
                "asr_alt": (tiktok_asr_alt.run, False),
                "place_verify": (tiktok_place_verify.run, False),
-               "comments_crawl": (tiktok_comments_crawl.run, True)},
+               "comments_crawl": (tiktok_comments_crawl.run, True),
+               "observe": (tiktok_observe.run, False)},
     "gmaps": {"search": (gmaps_search.run, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
               "list": (gmaps_list.run, False),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "qc": (gmaps_qc.run, False),
@@ -48,8 +50,10 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
             out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}))
         elif browser_phase:
             out = fn(city, headed)
-        elif p == "observe":
+        elif p == "observe" and source == "gmaps":
             out = fn(city, limit=limit, wait_relevant=wait_relevant)
+        elif p == "observe":
+            out = fn(city, limit=limit)
         else:
             out = fn(city)
         if asyncio.iscoroutine(out):

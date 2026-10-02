@@ -45,7 +45,7 @@ def time_of_day(hour: int) -> str:
             return name
     return "night"
 SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "gmaps_attribute": "provider", "tiktok_segment": "video",
-               "tiktok_comment": "comment"}
+               "tiktok_caption": "video", "tiktok_frame": "video", "tiktok_comment": "comment"}
 
 
 def _who(o: dict) -> str:

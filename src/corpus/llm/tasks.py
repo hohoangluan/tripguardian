@@ -411,3 +411,81 @@ Give a one-sentence reason.
 
 Review: {passage}""",
 )
+
+_VIDEO_OBS_KEYS = ("feature", "value", "source", "ref", "time_of_day", "day_type", "weather", "quote")
+_VIDEO_OBS = {
+    "type": "object",
+    "properties": {**{k: {"type": "string"} for k in _VIDEO_OBS_KEYS if k not in ("source", "ref")},
+                   "source": {"type": "string", "enum": ["speech", "caption", "frame"]}, "ref": {"type": "integer"}},
+    "required": list(_VIDEO_OBS_KEYS),
+    "additionalProperties": False,
+}
+
+VIDEO_OBSERVE = Task(
+    name="video_observe",
+    role=EXTRACTOR,
+    max_tokens=4000,
+    parallel=8,  # four images per call
+    schema={"type": "object", "properties": {"observations": {"type": "array", "items": _VIDEO_OBS}},
+            "required": ["observations"], "additionalProperties": False},
+    # One (video, place) pair that place_verify accepted. The same ontology and rules as REVIEW_OBSERVE; frames only
+    # for what a picture can prove, and only when the video is about this one place (the code sends no frames
+    # otherwise). The gate (corpus.observe.tiktok) checks every quote against the numbered segment or the caption.
+    prompt="""You extract evidence about one place in {city}, Vietnam from a TikTok video about it, for a travel
+product that matches places to what a traveller wants. Use only what the video says or shows, never your own
+knowledge.
+
+Place: {name} ({category})
+Other places this video is also about (their facts are NOT about this place): {others}
+
+Features (id = allowed values: meaning) and context values:
+{ontology}
+
+Return the observations the video states clearly about THIS place:
+- feature and value: from the list above, spelled exactly.
+- source and ref: "speech" with ref = the segment number [i] the words are in; "caption" with ref = 0 (caption or
+  hashtags); "frame" with ref = the frame number 1-{frames} ({frame_note}).
+- quote: for speech / caption the shortest exact words that state it, copied from that one segment or the caption,
+  not translated or fixed; for a frame, a short plain description of what the frame shows ("long stone staircase
+  up the hill").
+- A frame may only give: {frame_features}. Only what the picture itself clearly shows at this place; never a value
+  from a frame because the place "looks" calm, cheap or suitable. Stairs or a steep path visitors walk up is
+  steep_or_stairs present, not nature; a pet or stray animal in the picture is not animals.
+- The speech is machine speech recognition and may mishear words: skip a statement whose words do not make sense.
+- time_of_day, day_type, weather: only when the video says or clearly shows it for that statement; else "unknown".
+- Not mentioned means no observation. Never infer a value from silence, the category or the video's mood.
+- Going with someone is not suitability; a denied quality is never "present"; what the creator did ("mình đặt bàn
+  trước", "đi xe lên") is not a fact about the place; riding a long way is not long_walk; ads, songs and greetings
+  give nothing.
+
+Caption: {desc}
+Hashtags: {hashtags}
+Text read on screen: {screen_text}
+
+Speech segments:
+{segments}""",
+)
+
+VIDEO_VERIFY = Task(
+    name="video_verify",
+    role=EXTRACTOR,
+    max_tokens=300,
+    parallel=8,
+    schema=REVIEW_VERIFY.schema,
+    # Second read of a high-impact video observation (ontology `check: span`): one claim, the speech around the quote
+    # or the one frame it came from.
+    prompt="""You check one claim about a place against part of a TikTok video about it. Decide from the material
+below only (and the attached frame, if any).
+
+Place: {name} ({category})
+Claim, with the words or the picture it was taken from: {claim}
+
+- supports: the material clearly shows or says the claim is true of this place.
+- contradicts: it shows or says the opposite.
+- insufficient: anything else: another place, the creator's own route or vehicle ("đi xe lên" is not climbing),
+  a remark about the location, words that make no sense (speech recognition errors), a picture that could be
+  somewhere else or does not clearly show it, or a guess.
+Give a one-sentence reason.
+
+Material: {passage}""",
+)
