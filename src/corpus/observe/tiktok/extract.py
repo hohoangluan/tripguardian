@@ -16,6 +16,8 @@ import hashlib
 import json
 import re
 import unicodedata
+
+import openai
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +39,20 @@ SOURCE_TYPE = {"speech": "tiktok_segment", "caption": "tiktok_caption", "frame":
 CONTEXT_WINDOW = 1  # segments each side of the quoted one shown to VIDEO_VERIFY
 PROMPTS_KEY = "|".join((VIDEO_OBSERVE.prompt_hash, VIDEO_VERIFY.prompt_hash, str(CONTEXT_WINDOW),
                         json.dumps({k: sorted(v) for k, v in FRAME_VALUES.items()}, sort_keys=True)))
+
+
+BUSY_WAIT_S, BUSY_TRIES = 20, 45  # the Gemma key is shared with gmaps observe: on HTTP 429 wait, do not fail
+
+
+async def ask(task, *args, **kwargs) -> dict:
+    """task.ask, waiting out a busy shared key (Task.ask itself gives up after a few seconds)."""
+    for tries in range(1, BUSY_TRIES + 1):
+        try:
+            return await task.ask(*args, **kwargs)
+        except openai.RateLimitError:
+            if tries == BUSY_TRIES:
+                raise
+            await asyncio.sleep(BUSY_WAIT_S)
 
 
 class BadAnswer(Exception):
@@ -113,7 +129,7 @@ async def observe_pair(client, model: str, sem: asyncio.Semaphore, city: str, v:
     with_frames = not others and (d / "video.mp4").exists()
     images = await asyncio.to_thread(frames, d / "video.mp4", t["total_s"], d / "frames") if with_frames else []
     async with sem:
-        answer = await VIDEO_OBSERVE.ask(
+        answer = await ask(VIDEO_OBSERVE, 
             client, model, images=images, city=city, name=place["name"], category=place.get("category") or "unknown",
             others="; ".join(others) or "none", ontology=ont.prompt_text(), frames=FRAMES,
             frame_note="attached, evenly spaced" if images else "no frames attached: do not use frame",
@@ -126,7 +142,7 @@ async def observe_pair(client, model: str, sem: asyncio.Semaphore, city: str, v:
         if ont.features[o["feature"]].span_check:
             claim = f'{ont.features[o["feature"]].claims[o["value"]]} ({o["source"]}: "{o["quote"]}")'
             async with sem:
-                res = await VIDEO_VERIFY.ask(client, model, images=[images[o["ref"] - 1]] if o["source"] == "frame" else (),
+                res = await ask(VIDEO_VERIFY, client, model, images=[images[o["ref"] - 1]] if o["source"] == "frame" else (),
                                              name=place["name"], category=place.get("category") or "unknown",
                                              claim=claim, passage=passage(o, segs, caption))
             if res.get("verdict") != "supports":
