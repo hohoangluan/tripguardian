@@ -1,7 +1,8 @@
 """Phase 1, search: every category over map tiles of the city area; a tile whose list is capped is split.
 
 Writes only data/gmaps/search/<city>/<category>.jsonl, one line per tile: {at, query, tile, end, lodging, items:[{fid,
-name, url, category, rating, reviews, lat, lng}]}, only places inside the area; end = the list was scrolled to its end; lodging = Maps switched to its hotel list (URL "!6e3"),
+name, url, category, rating, reviews, lat, lng, price_vnd, amenities}]}, only places inside the area; price_vnd and
+amenities are read from the card's own text and are None / [] outside the lodging list; end = the list was scrolled to its end; lodging = Maps switched to its hotel list (URL "!6e3"),
 which ignores the viewport, so splitting it only helps down to grid.lodging_max_zoom. Maps pads a short list with
 places in other cities (Hồ Chí Minh…): those are dropped. Raw otherwise: duplicates across tiles, lodging, off-topic. Tiles already in the file (with an end flag) are not searched again.
 
@@ -32,7 +33,7 @@ FEED_JS = """() => [...document.querySelectorAll('a.hfpxzc')].map(a => {
   const card = a.closest('div.Nv2PK') || a.parentElement;
   return [a.getAttribute('aria-label'), a.href, card.querySelector('div.W4Efsd > div.W4Efsd')?.innerText ?? '',
           [...card.querySelectorAll('[role="img"][aria-label]')].map(e => e.getAttribute('aria-label'))
-            .find(l => /sao/.test(l)) ?? ''];
+            .find(l => /sao/.test(l)) ?? '', card.innerText];
 })"""
 _VISITED = re.compile(r"\s*·?\s*Đường liên kết đã truy cập\s*$")  # added to links this profile opened before
 _STARS = re.compile(r"([\d,]+) sao(?: ([\d.]+) bài đánh giá)?")
@@ -40,7 +41,23 @@ _FID = re.compile(r"!1s(0x[0-9a-f]+:0x[0-9a-f]+)")
 _LATLNG = re.compile(r"!3d(-?[\d.]+)!4d(-?[\d.]+)")
 
 
-def place_row(name: str, url: str, info: str = "", stars: str = "") -> dict | None:
+_PRICE = re.compile(r"([\d][\d.]*)\s*₫")
+# Best-effort: a candidate's card text against a fixed phrase list, not a guessed CSS class. Re-check against the
+# live hotel list before trusting this — Maps may word or lay these out differently than assumed here.
+_AMENITY = {"parking": re.compile(r"bãi đỗ xe|bãi đậu xe", re.I), "breakfast": re.compile(r"bữa sáng", re.I),
+           "pool": re.compile(r"hồ bơi", re.I), "wifi": re.compile(r"wi-?fi", re.I)}
+
+
+def price_vnd(card_text: str) -> int | None:
+    m = _PRICE.search(card_text or "")
+    return int(m.group(1).replace(".", "")) if m else None
+
+
+def amenities(card_text: str) -> list[str]:
+    return [a for a, pat in _AMENITY.items() if pat.search(card_text or "")]
+
+
+def place_row(name: str, url: str, info: str = "", stars: str = "", card_text: str = "") -> dict | None:
     fid, ll = _FID.search(url), _LATLNG.search(url)
     if not fid:
         return None
@@ -49,7 +66,8 @@ def place_row(name: str, url: str, info: str = "", stars: str = "") -> dict | No
             "category": info.split("·")[0].strip() or None,
             "rating": float(st.group(1).replace(",", ".")) if st else None,
             "reviews": int(st.group(2).replace(".", "")) if st and st.group(2) else None,
-            "lat": float(ll.group(1)) if ll else None, "lng": float(ll.group(2)) if ll else None}
+            "lat": float(ll.group(1)) if ll else None, "lng": float(ll.group(2)) if ll else None,
+            "price_vnd": price_vnd(card_text), "amenities": amenities(card_text)}
 
 
 async def parse_feed(page: Page, url: str | None = None) -> list[dict]:

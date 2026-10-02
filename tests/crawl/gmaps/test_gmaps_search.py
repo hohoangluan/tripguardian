@@ -240,3 +240,21 @@ def test_list_filled_with_far_away_places_is_not_split(grid, monkeypatch):
     monkeypatch.setattr(search, "search", padded)
     asyncio.run(search.run("dalat", sessions=fake_sessions))
     assert all(at[2] == 14 for _, at in searched)  # root tiles only
+
+
+def test_a_hotel_card_with_a_price_and_known_amenities_is_read_by_place_row():
+    url = "https://www.google.com/maps/place/A/@11.9,108.4,17z/data=!4m6!3m5!1s0x1a2b:0x3c4d!8m2!3d11.94!4d108.45"
+    row = search.place_row("Khách sạn A", url, "Khách sạn", "4,2 sao 80 bài đánh giá",
+                           "Khách sạn A\n4,2 · 80 bài đánh giá\n696.263 ₫ / đêm\nBãi đỗ xe miễn phí · Wi-Fi miễn phí")
+    assert row["price_vnd"] == 696263 and set(row["amenities"]) == {"parking", "wifi"}
+
+
+def test_a_card_with_no_price_or_known_amenity_text_says_so_without_crashing():
+    url = "https://www.google.com/maps/place/A/@11.9,108.4,17z/data=!4m6!3m5!1s0x1a2b:0x3c4d!8m2!3d11.94!4d108.45"
+    row = search.place_row("Cafe", url, "Quán cà phê", "4,5 sao 10 bài đánh giá")
+    assert row["price_vnd"] is None and row["amenities"] == []
+
+
+def test_parse_feed_fixture_still_has_price_and_amenities_keys_even_when_empty():
+    rows = parse_fixture("feed.html", search.parse_feed)
+    assert all(r["price_vnd"] is None and r["amenities"] == [] for r in rows)  # a non-lodging search finds neither
