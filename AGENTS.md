@@ -9,6 +9,7 @@ Hệ thống place intelligence + lập lịch trình cá nhân hóa.
 - Kiến trúc: luồng hệ thống và quy tắc quyết định: `docs/ARCHITECTURE.md`
 - Corpus Place Intelligence: `docs/CORPUS.md` (tổng quan), `docs/specs/CORPUS_SPEC.md` (thiết kế chi tiết: vai trò model, gate, định tuyến, data model, phase)
 - Place Decision (Search Input → shortlist → địa điểm đã xác nhận): `docs/PLACE_DECISION.md`
+- Planning & Validation + Live Context (địa điểm đã xác nhận → lịch trình đã kiểm, chỗ ở live): `docs/specs/PLANNING_SPEC.md`
 - Chức năng Web theo vai trò (quyền, từng màn làm gì): `docs/Role_Web_Functional_Design.md`
 - Brief UI/UX cho designer (nguyên tắc, cách hiển thị dữ liệu, ràng buộc): `docs/UX_Design_Brief.md`
 - Nhật ký tính năng / trạng thái code: `docs/log/DEV_LOG.md` (chỉ đọc khi người dùng yêu cầu, hoặc khi cần tìm hiểu code đã sửa gì / thay đổi gì)

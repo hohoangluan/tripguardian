@@ -16,6 +16,7 @@ Có code crawl dữ liệu thô (`src/corpus/crawl/`). Trạng thái code theo t
 | `docs/ARCHITECTURE.md` | Luồng hệ thống và quy tắc quyết định |
 | `docs/CORPUS.md` | Tổng quan corpus Place Intelligence |
 | `docs/specs/CORPUS_SPEC.md` | Thiết kế chi tiết corpus: vai trò model, gate, định tuyến, data model, phase |
+| `docs/specs/PLANNING_SPEC.md` | Thiết kế chi tiết Planning & Validation + Live Context: thuật toán, chỗ ở live, kiểm tra, độ vững |
 | `docs/Role_Web_Functional_Design.md` | Chức năng Web theo vai trò và màn hình |
 | `docs/UX_Design_Brief.md` | Brief UI/UX cho designer |
 | `docs/LLM_PROVIDER.md` | Cấu hình LLM provider: endpoint, model, key, chứng chỉ |

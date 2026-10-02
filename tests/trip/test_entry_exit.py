@@ -57,3 +57,33 @@ def test_the_user_can_skip_the_question_without_losing_the_field():
 def test_they_are_not_counted_as_unknowns_that_block_the_search():
     assert "entry_point" not in unknown_fields(settle(minimal()))
     assert "exit_point" not in unknown_fields(settle(minimal()))
+
+
+from trip.questions import bank
+
+
+def test_the_question_appears_once_the_trip_has_dates_and_a_length(catalog, cfg):
+    qs = {q.qid for q in bank(settle(minimal()), catalog, cfg)}
+    assert "entry_exit" in qs
+
+
+def test_the_question_disappears_once_both_points_are_known(catalog, cfg):
+    s = up(minimal(), "entry_point", Base(text="Bến xe Liên tỉnh Đà Lạt"))
+    s = up(s, "exit_point", Base(text="Bến xe Liên tỉnh Đà Lạt"))
+    qs = {q.qid for q in bank(settle(s), catalog, cfg)}
+    assert "entry_exit" not in qs
+
+
+def test_asking_once_does_not_ask_again(catalog, cfg):
+    from trip.state import with_meta
+    s = with_meta(settle(minimal()), asked=("entry_exit",))
+    assert "entry_exit" not in {q.qid for q in bank(s, catalog, cfg)}
+
+
+def test_every_chip_of_the_question_writes_one_of_the_two_fields(catalog, cfg):
+    q = next(q for q in bank(settle(minimal()), catalog, cfg) if q.qid == "entry_exit")
+    assert q.multi is True
+    assert set(q.single_rows) == {"Tới Đà Lạt bằng", "Rời Đà Lạt từ"}
+    for chip in q.chips:
+        fields = {dr.field for dr in chip.drafts}
+        assert fields <= {"entry_point", "exit_point"} and fields

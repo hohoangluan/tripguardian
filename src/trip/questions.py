@@ -11,8 +11,8 @@ from typing import Literal
 from .catalog import Catalog
 from .coverage import Coverage, admissible, coverage
 from .settings import Settings
-from .state import (EFFORT_SIGNALS, OTHER_SIGNALS, Anchor, Draft, Frozen, Hard, SoftKey, TripState, apply_drafts,
-                    ontology, pending_signals)
+from .state import (EFFORT_SIGNALS, OTHER_SIGNALS, Anchor, Base, Draft, Frozen, Hard, SoftKey, TripState,
+                    apply_drafts, ontology, pending_signals)
 
 
 class Chip(Frozen):
@@ -56,6 +56,13 @@ WHO = {
                 (d("companions", "parents", "add"), d("signal", "elderly", "add", True), soft("elderly=suitable"))),
 }
 VEHICLE = {"motorbike": "Xe máy", "car": "Ô tô riêng", "ride": "Grab, taxi"}
+# The common ways into Đà Lạt. The corpus holds none of them (it holds places visitors go to), so these are text
+# that Planning geocodes; the question also takes free text for anything else.
+ENTRY_POINTS = (
+    ("bus_station", "Bến xe Liên tỉnh Đà Lạt"),
+    ("airport", "Sân bay Liên Khương"),
+    ("own_vehicle", "Tự lái, vào từ đèo Prenn"),
+)
 PURPOSE = {
     "relax": ("Nghỉ ngơi, thư giãn", (d("pace", "slow", inferred=True), soft("long_stay_chill=present"),
                                       soft("noise=quiet"))),
@@ -319,6 +326,18 @@ def bank(state: TripState, catalog: Catalog, cfg: Settings) -> list[Question]:
     if want("base", not state.base.known and (len(matched) >= 2 or state.max_leg_min.known)):
         out.append(Question(qid="base", group="A", cost=1.5, input="place", input_field="base",
                             text="Bạn ở khu nào? Chọn một nơi gần chỗ ở.", reason="Để tính đường đi mỗi ngày."))
+    if want("entry_exit", state.days.known and not (state.entry_point.known and state.exit_point.known)):
+        out.append(Question(
+            qid="entry_exit", group="A", cost=1.5, multi=True, input="text", input_field="entry_point",
+            single_rows=("Tới Đà Lạt bằng", "Rời Đà Lạt từ"),
+            text="Bạn tới Đà Lạt từ đâu, và rời từ đâu?",
+            reason="Để ngày đầu và ngày cuối tính đúng đoạn từ nơi bạn xuống xe.",
+            chips=tuple(Chip(id=f"in:{key}", label=label, row="Tới Đà Lạt bằng",
+                             drafts=(d("entry_point", Base(text=label)),))
+                        for key, label in ENTRY_POINTS)
+                  + tuple(Chip(id=f"out:{key}", label=label, row="Rời Đà Lạt từ",
+                               drafts=(d("exit_point", Base(text=label)),))
+                          for key, label in ENTRY_POINTS)))
     if want("times", state.days.known and not state.arrive_at.known):
         out.append(Question(qid="times", group="A", multi=True, single_rows=("Ngày đầu tới lúc", "Ngày cuối rời lúc"),
                             text="Ngày đầu bạn tới lúc nào, ngày cuối rời Đà Lạt lúc nào?",
