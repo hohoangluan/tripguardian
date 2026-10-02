@@ -138,3 +138,30 @@ def test_store_unknown_or_malformed_id_is_a_key_error(tmp_path):
         Store(tmp_path).get("not-twelve-hex")
     with pytest.raises(KeyError):
         Store(tmp_path).get("0" * 12)
+
+
+def test_move_place_strips_it_from_every_days_order_override_not_just_the_target_day():
+    s = apply_act(State(), {"type": "reorder", "day": 0, "order": ["b", "a"]}, ctx())
+    s = apply_act(s, {"type": "move_place", "place": "a", "day": 1}, ctx())
+    assert "a" not in s.order_override.get(0, [])
+
+
+def test_lock_slot_pins_the_place_to_its_current_day_via_assignment():
+    s = apply_act(State(), {"type": "lock_slot", "place": "a"}, ctx())
+    assert s.assignment["a"] == 0   # "a" sits on day 0 in ctx()'s day_members
+
+
+def test_switching_to_a_different_variant_clears_order_override_but_keeps_place_level_edits():
+    s = apply_act(State(), {"type": "pick_variant", "id": "v1"}, ctx())
+    s = apply_act(s, {"type": "reorder", "day": 0, "order": ["b", "a"]}, ctx())
+    s = apply_act(s, {"type": "drop_place", "place": "c"}, ctx())
+    s = apply_act(s, {"type": "pick_variant", "id": "v2"}, ctx())
+    assert s.order_override == {}          # day-shape-dependent: not safe to carry across a different variant
+    assert s.dropped[-1].place_id == "c"   # place-level edits are still meaningful, kept
+
+
+def test_picking_the_same_variant_again_is_not_a_switch_and_keeps_order_override():
+    s = apply_act(State(), {"type": "pick_variant", "id": "v1"}, ctx())
+    s = apply_act(s, {"type": "reorder", "day": 0, "order": ["b", "a"]}, ctx())
+    s = apply_act(s, {"type": "pick_variant", "id": "v1"}, ctx())
+    assert s.order_override == {0: ["b", "a"]}

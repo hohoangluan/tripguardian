@@ -51,3 +51,22 @@ def test_more_than_exact_n_stops_still_seeds_from_the_previous_order():
     cx = day_ctx(recs)
     r = repair_day(["a", "b", "c", "d"], cx, ("d", "c", "b", "a"), set(), small_exact_n)
     assert set(r.order) == {"a", "b", "c", "d"} and not r.violations
+
+
+def test_key_folds_the_diff_penalty_into_a_comparable_scalar_not_a_tie_break_only():
+    # same violations and missed-meals, but r1 ends 2 minutes earlier than r2; r1 disagrees with the previous
+    # order (diff=1), r2 matches it (diff=0). A real penalty must be able to outweigh a small end-time gap --
+    # not just break an exact tie, which is all the old tuple-position design could ever do (tuple comparison
+    # short-circuits at the first unequal element, so a 4th "weight*diff" slot is never reached once end differs).
+    from planning.model import DayResult
+    from planning.repair import _key
+    r1 = DayResult((), ("b", "a"), (), 0, 0, 100)
+    r2 = DayResult((), ("a", "b"), (), 0, 0, 102)
+    prev = ("a", "b")
+    assert _key(r1, prev, 0.0) < _key(r2, prev, 0.0)      # no penalty: the strictly earlier end wins
+    assert _key(r2, prev, 5.0) < _key(r1, prev, 5.0)      # a real penalty: matching the previous order wins
+
+
+def test_repair_error_is_an_action_error_so_the_server_maps_it_to_400():
+    from planning.session import ActionError
+    assert issubclass(RepairError, ActionError)

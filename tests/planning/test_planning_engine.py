@@ -145,3 +145,106 @@ def test_confirm_refuses_an_unvalidated_plan():
     e._schedules[sid][pos] = [_r(day0, items=bad_items), *e._schedules[sid][pos][1:]]
     with pytest.raises(NotConfirmable):
         e.confirm(sid)
+
+
+def two_day_started(**kw):
+    d, recs = sample_trip(days=2, **kw)
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    sid = e.create(d, None)["id"]
+    e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
+    return e, sid
+
+
+def test_set_pace_does_not_silently_bring_back_a_dropped_place():
+    e, sid = two_day_started()
+    e.act(sid, {"type": "drop_place", "place": "c1"})
+    out = e.act(sid, {"type": "set_pace", "level": "packed"})
+    ids = {i["place_id"] for d in out["view"]["itinerary"] for i in d["items"] if i["kind"] == "visit"}
+    assert "c1" not in ids
+
+
+def test_set_pace_does_not_move_a_locked_place_off_the_day_it_was_moved_and_locked_to():
+    e, sid = two_day_started()
+    e.act(sid, {"type": "move_place", "place": "c1", "day": 1})
+    e.act(sid, {"type": "lock_slot", "place": "c1"})
+    out = e.act(sid, {"type": "set_pace", "level": "packed"})
+    day1_ids = {i["place_id"] for i in out["view"]["itinerary"][1]["items"] if i["kind"] == "visit"}
+    assert "c1" in day1_ids
+
+
+def test_set_day_window_changes_the_days_window_and_the_laid_out_day_still_confirms():
+    e, sid = two_day_started()
+    out = e.act(sid, {"type": "set_day_window", "day": 0, "start": "07:00", "end": "22:00"})
+    assert out["view"]["itinerary"][0]["window"] == ["07:00", "22:00"]
+    plan = e.confirm(sid)
+    assert plan["chosen"]
+
+
+def far_geocode(text):
+    from plan_fixtures import CENTRE
+    return {"lat": CENTRE[0] + 2.0, "lng": CENTRE[1] + 2.0, "label": text, "source": "nominatim", "fetched_at": "t"}
+
+
+def test_set_lodging_relays_out_every_day_not_just_an_already_offered_candidate():
+    d, recs = sample_trip(days=2)
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=far_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    sid = e.create(d, None)["id"]
+    e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
+    before = e.load(sid)["view"]["travel_load"]
+    out = e.act(sid, {"type": "set_lodging", "text": "Far homestay"})
+    assert out["view"]["travel_load"] != before
+
+
+def test_a_late_finishing_crawl_does_not_lose_a_manual_lodging_point_set_in_the_meantime():
+    d, recs = sample_trip(days=2)
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=far_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    sid = e.create(d, None)["id"]
+    e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
+    e.act(sid, {"type": "set_lodging", "text": "Far homestay"})
+    e._crawl_lodging(sid)   # a late-finishing background crawl, writing back after the manual point was set
+    out = e.act(sid, {"type": "lock_slot", "place": "c1"})   # any further act must still be able to lay out a day
+    assert out["view"]["itinerary"]
+    # confirm() must not crash with a KeyError on the manual node (the old bug) -- a far-away manual point may
+    # legitimately fail validation on travel time, which is unrelated to the race this test is about
+    from planning.engine import NotConfirmable
+    try:
+        e.confirm(sid)
+    except NotConfirmable:
+        pass
+
+
+def test_undo_restores_the_offered_lodging_list_not_just_the_budget_field():
+    e, sid = two_day_started(budget=5_000_000)
+    e.act(sid, {"type": "pick_lodging", "id": "h2"})
+    e.act(sid, {"type": "set_lodging_budget", "max_per_night": 400000})
+    assert {c["id"] for c in e.lodging(sid)["candidates"]} == {"h1"}
+    e.act(sid, {"type": "undo"})
+    assert {c["id"] for c in e.lodging(sid)["candidates"]} == {"h1", "h2"}
+
+
+def test_a_session_reloaded_after_the_process_restarts_replays_to_the_same_schedule(tmp_path):
+    d, recs = sample_trip(days=2)
+
+    def new_engine():
+        return Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(tmp_path), geocode_fn=no_geocode,
+                      matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging,
+                      route_fn=fake_route, background=False)
+
+    e1 = new_engine()
+    sid = e1.create(d, None)["id"]
+    e1.act(sid, {"type": "pick_variant", "id": e1.variants(sid)[0]["id"]})
+    e1.act(sid, {"type": "pick_lodging", "id": "h1"})
+    e1.act(sid, {"type": "drop_place", "place": "c1"})
+    before = e1.load(sid)["view"]["itinerary"]
+
+    # a brand-new Engine over the same disk Store, with nothing in its own RAM caches: simulates a process restart
+    e2 = new_engine()
+    after = e2.load(sid)["view"]["itinerary"]
+    assert after == before
+
+    plan = e2.confirm(sid)
+    assert plan["lodging"]["chosen"]["id"] == "h1"
+    assert not any(i["place_id"] == "c1" for d_ in plan["itinerary"] for i in d_["items"] if i["kind"] == "visit")

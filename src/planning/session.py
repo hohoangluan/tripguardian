@@ -86,6 +86,10 @@ def _drop(s: State, pid: str, reason: str | None = None) -> None:
 def _place(s: State, pid: str, day: int) -> None:
     s.dropped = [d for d in s.dropped if d.place_id != pid]
     s.assignment[pid] = day
+    # pid may have had an explicit order on some OTHER day before this move (or still has one on its old day) --
+    # an order_override that no longer matches its day's real membership would desync from reorder's own "order
+    # must be a permutation of the day's current members" contract and from _relayout's simulate() of it.
+    s.order_override = {d: [i for i in o if i != pid] for d, o in s.order_override.items()}
     s.order_override.pop(day, None)
 
 
@@ -96,6 +100,11 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
         vid = action.get("id")
         if vid not in ctx.variant_ids:
             raise ActionError(f"unknown variant {vid!r}")
+        if s.chosen_variant is not None and s.chosen_variant != vid:
+            # a day's explicit order is tied to that variant's own day shape (different objectives can split days
+            # differently) -- not safe to replay onto a different variant's days. Place-level edits (assignment /
+            # dropped / locked) are keyed by place id, not day shape, and stay meaningful across the switch.
+            s.order_override = {}
         s.chosen_variant = vid
     elif t == "pick_lodging":
         s.lodging_touched, s.lodging_id, s.lodging_point = True, action.get("id"), None
@@ -157,10 +166,12 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
         _place(s, b, day)
     elif t == "lock_slot":
         pid = action.get("place")
-        if not _known(ctx, pid) or _day_of(ctx, pid) is None:
+        day = _day_of(ctx, pid)
+        if not _known(ctx, pid) or day is None:
             raise ActionError(f"{pid!r} is not currently in the plan")
         if pid not in s.locked:
             s.locked.append(pid)
+        s.assignment[pid] = day   # "ghim ngày": locking pins the place's current day, not just refuses to drop it
     elif t == "unlock":
         s.locked = [x for x in s.locked if x != action.get("place")]
     elif t == "set_pace":
@@ -219,7 +230,7 @@ class Store:
     def __init__(self, root: Path | None):
         self.root = root
         self._mem: dict[str, Session] = {}
-        self._locks: dict[str, threading.Lock] = {}
+        self._locks: dict[str, threading.RLock] = {}
         self._guard = threading.Lock()
 
     def new(self, decision: dict, decision_session_id: str | None) -> Session:
@@ -249,6 +260,9 @@ class Store:
         tmp.write_text(json.dumps(s.model_dump(mode="json"), ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(self.root / f"{s.id}.json")
 
-    def lock(self, sid: str) -> threading.Lock:
+    def lock(self, sid: str) -> threading.RLock:
+        """Reentrant: Engine.load() holds this while calling _view(), which may call _ensure_base() ->
+        _crawl_lodging(), which also takes this same per-session lock for its own write-back -- a plain Lock would
+        deadlock a thread against itself the first time a session needed a lazy rebuild while already held."""
         with self._guard:
-            return self._locks.setdefault(sid, threading.Lock())
+            return self._locks.setdefault(sid, threading.RLock())

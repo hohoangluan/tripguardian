@@ -9,10 +9,11 @@ from itertools import permutations
 
 from .model import DayResult
 from .schedule import DayCtx, simulate
+from .session import ActionError
 from .settings import Settings
 
 
-class RepairError(Exception):
+class RepairError(ActionError):
     """A locked place would have to leave its day; refuse so the caller can ask the user first."""
 
 
@@ -25,7 +26,11 @@ def _diff(order: tuple[str, ...], prev: tuple[str, ...]) -> int:
 
 
 def _key(r: DayResult, prev: tuple[str, ...], weight: float) -> tuple:
-    return (len(r.violations), *r.key[1:], weight * _diff(r.order, prev))
+    """Fewer violations first, then fewer missed meals, then end time -- with the diff penalty folded into the end
+    time itself so it is a real, comparable cost, not a 4th tuple slot that Python's tuple comparison would only
+    ever reach on an exact end-time tie (it short-circuits at the first unequal element)."""
+    violations, meals, end = r.key
+    return (violations, meals, end + weight * _diff(r.order, prev))
 
 
 def _seed_order(ids: list[str], ctx: DayCtx, prev: tuple[str, ...]) -> list[str]:

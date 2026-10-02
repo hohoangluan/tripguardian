@@ -4,12 +4,21 @@ python -m planning lodging <decision_output.json> [--weather forecast.json] [--o
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from corpus.serving import load as load_records
 
-from . import build_lodging_variants, build_plan, build_variants, render_lodging_variants, render_text, render_variants
+from . import (Engine, build_lodging_variants, build_plan, build_variants, render_lodging_variants, render_text,
+              render_variants, run_server)
+from .session import Store
+from .settings import ROOT
+
+
+def data_root() -> Path:
+    d = Path(os.environ.get("DATA_DIR", "data"))
+    return d if d.is_absolute() else ROOT / d
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,8 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     sv.add_argument("--port", type=int, default=8768)
     args = ap.parse_args(argv)
     if args.cmd == "serve":
-        from . import Engine, run_server
-        run_server(Engine(load_records()), port=args.port)
+        store = Store(data_root() / "planning" / "sessions")
+        run_server(Engine(load_records(), store=store), port=args.port)
         return 0
     sys.stdout.reconfigure(encoding="utf-8")
     decision = json.loads(args.decision_output.read_text(encoding="utf-8"))

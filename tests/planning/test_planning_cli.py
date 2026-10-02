@@ -95,3 +95,13 @@ def test_serve_is_a_known_subcommand(capsys):
     with pytest.raises(SystemExit):
         main(["serve", "--help"])
     assert "serve" in capsys.readouterr().out or True   # argparse prints to stdout on --help; smoke check only
+
+
+def test_serve_wires_a_disk_backed_store_so_sessions_survive_a_restart(monkeypatch):
+    from planning.__main__ import data_root, main
+    seen = {}
+    monkeypatch.setattr(cli, "run_server", lambda engine, port: seen.update(engine=engine, port=port))
+    monkeypatch.setattr(cli, "load_records", lambda: [])
+    main(["serve", "--port", "9999"])
+    assert seen["port"] == 9999
+    assert seen["engine"].store.root == data_root() / "planning" / "sessions"
