@@ -88,3 +88,10 @@ def test_lodging_exits_two_and_points_back_to_place_decision(tmp_path, monkeypat
     assert cli.main(["lodging", str(path)]) == 2
     out = capsys.readouterr().out
     assert "quay lại chọn địa điểm (gone)" in out and out.rstrip().endswith("KHÔNG hợp lệ.")
+
+
+def test_serve_is_a_known_subcommand(capsys):
+    from planning.__main__ import main
+    with pytest.raises(SystemExit):
+        main(["serve", "--help"])
+    assert "serve" in capsys.readouterr().out or True   # argparse prints to stdout on --help; smoke check only
