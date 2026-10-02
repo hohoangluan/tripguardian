@@ -1,4 +1,4 @@
-"""One conversation turn (docs/plans/TRIP_UNDERSTANDING_SPEC.md §5).
+"""One conversation turn (docs/TRIP_UNDERSTANDING.md §17).
 
 answer / edit / show are deterministic. text runs prepass -> agent (streamed) -> guard; any agent failure is answered
 by the policy with the same state.

@@ -1,4 +1,4 @@
-"""Checks an agent TurnPlan before it touches the Trip State (docs/plans/TRIP_UNDERSTANDING_SPEC.md §5)."""
+"""Checks an agent TurnPlan before it touches the Trip State (docs/TRIP_UNDERSTANDING.md §17)."""
 
 import re
 from dataclasses import dataclass, field
