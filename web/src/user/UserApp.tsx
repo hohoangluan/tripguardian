@@ -6,21 +6,19 @@ import { match, navigate } from '../router'
 import { Icon } from '../ui/bits'
 import { Compare } from './screens/Compare'
 import { CurateBar } from './screens/Curate'
-import { Discover } from './screens/Discover'
 import { Feasibility } from './screens/Feasibility'
 import { Feedback } from './screens/Feedback'
 import { Itinerary } from './screens/Itinerary'
 import { PlaceDetail } from './screens/PlaceDetail'
 import { Profile } from './screens/Profile'
-import { Setup } from './screens/Setup'
 import { Shortlist } from './screens/Shortlist'
+import { Understand } from './screens/Understand'
 import { initialOf, useAccount } from './account'
 import { TripProvider, useTrip } from './trip'
 import './user.css'
 
 const STEPS = [
-  { path: '/app/setup', label: 'Chuyến đi' },
-  { path: '/app/discover', label: 'Sở thích' },
+  { path: '/app/understand', label: 'Hiểu chuyến đi' },
   { path: '/app/shortlist', label: 'Chọn nơi' },
   { path: '/app/feasibility', label: 'Khả thi' },
   { path: '/app/plan', label: 'Lịch trình' },
@@ -30,8 +28,7 @@ const STEPS = [
 const POSTER: Record<string, string> = {
   '/app': 'start',
   '/app/login': 'start',
-  '/app/setup': 'setup',
-  '/app/discover': 'discover',
+  '/app/understand': 'discover',
   '/app/shortlist': 'shortlist',
   '/app/place': 'shortlist',
   '/app/compare': 'shortlist',
@@ -65,7 +62,7 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   let screen
   let m: Record<string, string> | null
   // First visit: sign in, sign up or go on as a guest; then the two start questions.
-  if (path.split('?')[0] === '/app') screen = account ? <Start onHome={onHome} onDone={() => navigate('/app/setup')} /> : <Auth onHome={onHome} onDone={() => {}} />
+  if (path.split('?')[0] === '/app') screen = account ? <Start onHome={onHome} onDone={() => navigate('/app/understand')} /> : <Auth onHome={onHome} onDone={() => {}} />
   else if (base === '/app/login') screen = <Auth onHome={onHome} onDone={() => navigate('/app/profile', { replace: true })} />
   else if (!snap)
     screen = (
@@ -73,8 +70,7 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
         {error ? `Không tải được dữ liệu địa điểm (${error}). Chạy scripts/export_snapshot.py rồi tải lại.` : 'Đang tải dữ liệu Đà Lạt'}
       </div>
     )
-  else if (base === '/app/setup') screen = <Setup />
-  else if (base === '/app/discover') screen = <Discover />
+  else if (base === '/app/understand') screen = <Understand />
   else if (base === '/app/shortlist') screen = <Shortlist />
   else if ((m = match(path, '/app/place/:id'))) screen = <PlaceDetail id={m.id} key={m.id} />
   else if ((m = match(path, '/app/compare/:ids'))) screen = <Compare ids={m.ids.split(',')} key={m.ids} />

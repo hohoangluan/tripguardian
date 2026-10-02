@@ -3240,3 +3240,369 @@
     animation: none !important;
   }
 }
+
+/* ---------- Trip Understanding: conversation + understanding panel ---------- */
+
+.tu {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  padding-bottom: 150px; /* room for the sticky composer + fixed summary bar on phones */
+}
+
+.tu__panel {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  .tu {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    align-items: start;
+    padding-bottom: 0;
+  }
+  .tu__panel {
+    display: block;
+    position: sticky;
+    top: calc(var(--bar-h) + 16px);
+    max-height: calc(100svh - var(--bar-h) - 32px);
+    overflow: auto;
+  }
+  .tu__bar {
+    display: none !important;
+  }
+  .tu__composer {
+    bottom: 12px;
+  }
+}
+
+.tu__chat {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.tu__log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg--agent {
+  align-self: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 6px;
+}
+
+.msg--user {
+  align-self: flex-end;
+  background: var(--pine);
+  color: var(--paper);
+  border-bottom-right-radius: 6px;
+}
+
+.msg.is-live::after {
+  content: '▍';
+  margin-left: 2px;
+  color: var(--ink-3);
+  animation: tu-blink 1s steps(2) infinite;
+}
+
+.msg--typing {
+  color: var(--ink-3);
+  letter-spacing: 0.2em;
+  animation: tu-pulse 1.2s ease-in-out infinite;
+}
+
+.qcard {
+  background: var(--card);
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: tu-rise 0.35s ease-out;
+}
+
+.qcard--must {
+  border-color: var(--daquy);
+}
+
+.qcard__text {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.qcard__why {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.qcard__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qcard__rowlabel {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.qcard .chip kbd {
+  font: 600 0.7rem var(--mono);
+  color: var(--ink-3);
+  margin-right: 6px;
+}
+
+.qcard__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qcard__exits {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.tu__composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  position: sticky;
+  bottom: 72px; /* above the summary bar on phones; 12px on desktop */
+  z-index: 31;
+  background: var(--paper);
+  padding: 6px 0;
+}
+
+.uapp .tu__composer textarea {
+  margin: 0;
+  min-height: 48px;
+  max-height: 160px;
+  resize: none;
+}
+
+.tu__composer .btn {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.tu__notice {
+  margin: 0;
+  color: var(--brick);
+  font-size: 0.9rem;
+}
+
+.tu__offline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 16px;
+  border-radius: var(--r);
+  background: var(--brick-soft);
+  color: var(--brick);
+}
+
+.tu__bar {
+  position: fixed;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: 12px;
+  z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--card);
+  box-shadow: var(--sh-lift);
+  font: 500 0.9rem var(--sans);
+  color: var(--ink);
+  text-align: left;
+}
+
+.tu__bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 16px;
+}
+
+.upanel.is-busy {
+  opacity: 0.85;
+}
+
+.upanel__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.usec h3 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.usec--rule h3 {
+  color: var(--daquy-ink);
+}
+
+.usec__empty,
+.usec--open p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.urow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+
+.urow__k {
+  min-width: 110px;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+.urow__v {
+  flex: 1;
+  min-width: 0;
+}
+
+.urow small {
+  color: var(--ink-3);
+}
+
+.urow--times {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.uapp .urow input[type='time'],
+.uapp .urow input[type='date'] {
+  width: auto;
+  min-height: 40px;
+}
+
+.urow--mark .seg button[aria-checked='true'] {
+  font-style: italic;
+}
+
+.is-preview {
+  background: var(--daquy-soft);
+  animation: tu-pulse 1.2s ease-in-out infinite;
+}
+
+.ulist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.umark {
+  color: var(--violet);
+  font-size: 0.85rem;
+  margin-left: 4px;
+}
+
+.chip .chip__body {
+  all: unset;
+  cursor: pointer;
+}
+
+.iconbtn--sm {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+}
+
+.upanel__go {
+  width: 100%;
+  justify-content: center;
+}
+
+@keyframes tu-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes tu-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes tu-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* number shortcuts only help with a keyboard */
+@media (hover: none) {
+  .qcard .chip kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qcard,
+  .is-preview,
+  .msg--typing,
+  .msg.is-live::after {
+    animation: none;
+  }
+}

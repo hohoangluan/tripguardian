@@ -78,6 +78,9 @@ def guard(plan: TurnPlan, state: TripState, text: str, turn: int, catalog: Catal
     state = settle(state)
     question = _question(plan.next, state, turn, catalog, cfg, log)
     say = plan.say.strip()
+    if question.custom is False and plan.next.qid != question.qid:
+        # the card asks something else: keep the acknowledgement, drop the agent's own question
+        say = " ".join(x for x in re.split(r"(?<=[.!?…])\s+", say) if not x.rstrip().endswith("?")).strip()
     why = _bad_say(say, heard, state, catalog)
     if why:
         log.append(f"say replaced: {why}")

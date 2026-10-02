@@ -73,3 +73,10 @@ def test_say_with_new_number_or_place_name_is_replaced(catalog, cfg):
 def test_inference_cannot_overwrite_user_choice(catalog, cfg):
     g = run(plan(u("mobility", "motorbike", "đi 3 ngày", how="inferred")), framed(), catalog, cfg)
     assert g.state.mobility.value == "car"
+
+
+def test_forced_question_drops_the_agents_own_question_from_say(catalog, cfg):
+    say = "Mình ghi nhận đi cùng bố mẹ. Bạn hiểu “chill” là gì?"
+    g = run(plan(u("signal", "elderly", "bố mẹ", op="add", how="inferred"), say=say, qid="clarify:chill"),
+            framed(), catalog, cfg)
+    assert g.question.qid == "c_effort" and g.say == "Mình ghi nhận đi cùng bố mẹ."
