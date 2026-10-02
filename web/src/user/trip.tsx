@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import type { Vehicle } from '../data/store'
+import type { SearchInput } from './tu/types'
 
 export type Who = 'partner' | 'friends' | 'kids' | 'parents' | 'solo'
 export type Weight = 'love' | 'avoid'
@@ -32,6 +33,7 @@ export interface TripState {
   moved: Record<string, number> // place id -> day index chosen by a fix
   relaxed: string[] // rule keys the user agreed to relax
   feedback: Record<string, string>
+  searchInput?: SearchInput // from Trip Understanding; Place Decision reads it later
 }
 
 const today = () => {
