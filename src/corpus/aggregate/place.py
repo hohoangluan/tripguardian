@@ -1,12 +1,18 @@
 """Aggregate (docs/specs/CORPUS_SPEC.md §5), code only: every source's observations of a place -> one intel file.
 
 Reads data/*/observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
-every other file there (older ontology, or a place that has no observation file now): the folder is one build. Per feature:
+every other file there (a place that has no observation file now): the folder is one build. Observation files of an
+older ontology version still count until observe re-runs them (values the ontology dropped are left out);
+`observation_versions` and the summary's `stale_files` say how many. Per feature:
 votes (one per author; an author who gave k different values gives each 1/k), context breakdown, confidence parts,
 trend of the newer half of the dated evidence against the older half. A value declared by an authoritative source
 (Maps attributes) is served without a person when no other source contradicts it; a contradiction makes it uncertain.
 `mention_rate` = people who named the feature / the place's `voices` (authors whose words were read): a value
 named by 1 of 200 reviewers is weak evidence even at agreement 1.0.
+Measured quality (docs/specs/CORPUS_SPEC.md §6): `quality` = the gold-label precision of the top value (review.label_stats);
+`servable` = the value may be served by itself: declared by an authoritative source, or its precision passed the label
+gate, or a person accepted it; a person's `disable` (decisions.jsonl kind feature_review, id "<fid>#<feature>") makes
+the feature `disabled` and never servable, `accept` clears needs_review, `report` / `refresh` set it.
 Place facts (popular times, price, hours, closure) pass through as `operation`, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
 """
 
@@ -17,6 +23,7 @@ from datetime import date
 from ..crawl.common.files import data_dir, now, safe_name, write_json
 from ..observe import CONTEXT_KEYS
 from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
+from ..review import decisions, label_stats
 
 AGREEMENT_MIN = 0.6
 TREND_MIN = 5  # authors on each side
@@ -174,7 +181,24 @@ def coverage(features: dict, ont: Ontology) -> dict:
     return out
 
 
-def aggregate_place(files: list[dict], ont: Ontology) -> dict:
+def judge(sig: dict, quality: dict | None, decision: str | None) -> dict:
+    """Adds quality / servable / review_decision to one feature signal (see the module docstring)."""
+    sig["quality"] = quality
+    sig["review_decision"] = decision
+    if decision == "accept":
+        sig["needs_review"] = False
+    elif decision in ("report", "refresh"):
+        sig["needs_review"] = True
+    if decision == "disable":
+        sig["status"], sig["servable"] = "disabled", False
+    else:
+        sig["servable"] = bool(sig["authority"] or decision == "accept" or (quality and quality["gate"]))
+    return sig
+
+
+def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = None,
+                    reviewed: dict[str, str] | None = None) -> dict:
+    """quality: (feature, value) -> label stats row; reviewed: feature -> a person's latest feature_review decision."""
     as_of = max(date.fromisoformat(f["as_of"]) for f in files)
     by_feature = collections.defaultdict(list)
     for f in files:
@@ -182,8 +206,12 @@ def aggregate_place(files: list[dict], ont: Ontology) -> dict:
             if ont.valid(o["feature"], o["value"]):
                 by_feature[o["feature"]].append(o)
     voices = sum(f.get("voices") or 0 for f in files)
-    features = {fid: feature_signal(ont.features[fid], by_feature[fid], as_of, voices)
-                for fid in ont.features if fid in by_feature}
+    quality, reviewed = quality or {}, reviewed or {}
+    features = {}
+    for fid in ont.features:
+        if fid in by_feature:
+            sig = feature_signal(ont.features[fid], by_feature[fid], as_of, voices)
+            features[fid] = judge(sig, quality.get((fid, sig["top_value"])), reviewed.get(fid))
     ratings = [r for f in files for r in f.get("ratings", [])]
     proposed = collections.defaultdict(list)
     for f in files:
@@ -220,21 +248,27 @@ def run(city: str) -> dict:
     files, inputs, stale = collections.defaultdict(list), collections.defaultdict(list), 0
     for p in sorted(root.glob("*/observations/*.json")):
         f = json.loads(p.read_text(encoding="utf-8"))
-        if f.get("ontology_version") != ont.version:
-            stale += 1
-            continue
+        stale += f.get("ontology_version") != ont.version
         files[f["place_fid"]].append(f)
         inputs[f["place_fid"]].append(p.relative_to(root).as_posix())
     status = collections.Counter()
     out = root / "intel" / "places"
+    quality = {(r["feature"], r["value"]): {k: r[k] for k in ("precision", "lower", "correct", "wrong", "gate")}
+               for r in label_stats()["rows"] if r["correct"] + r["wrong"]}
+    reviewed = collections.defaultdict(dict)
+    for item, d in decisions("feature_review").items():
+        place_fid, _, feature = item.partition("#")
+        if d != "undo":
+            reviewed[place_fid][feature] = d
     for fid, fs in files.items():
-        intel = aggregate_place(fs, ont)
+        intel = aggregate_place(fs, ont, quality, reviewed.get(fid))
         status.update(f"{k}={v}" for k, v in intel["coverage"].items())
-        write_json(out / f"{safe_name(fid)}.json", {**intel, "inputs": inputs[fid], "built_at": now()})
+        write_json(out / f"{safe_name(fid)}.json", {**intel, "inputs": inputs[fid], "built_at": now(),
+                                                    "observation_versions": sorted({f.get("ontology_version") for f in fs})})
     built = {f"{safe_name(fid)}.json" for fid in files}
     removed = 0
     for p in out.glob("*.json") if out.exists() else []:
-        if p.name not in built:  # older ontology or a place without observations now: derived, rebuilt from evidence
+        if p.name not in built:  # a place without observations now: derived, rebuilt from evidence
             p.unlink()
             removed += 1
     summary = {"at": now(), "places": len(files), "stale_files": stale, "removed": removed,

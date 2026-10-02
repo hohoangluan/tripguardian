@@ -132,7 +132,7 @@ def test_deterministic():
     assert aggregate_place(files, ONT) == aggregate_place(files, ONT)
 
 
-def test_run_reads_every_source_and_skips_old_ontology(tmp_path, monkeypatch):
+def test_run_reads_every_source_and_keeps_older_ontology_files(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     for source, data in (("gmaps", f([o(1, "crowd", "high", "a")])),
                          ("tiktok", f([o(2, "crowd", "high", "t", source_type="tiktok_comment")]))):
@@ -144,8 +144,9 @@ def test_run_reads_every_source_and_skips_old_ontology(tmp_path, monkeypatch):
     intel = json.loads((tmp_path / "intel" / "places" / "F.json").read_text(encoding="utf-8"))
     assert intel["features"]["crowd"]["n"] == 2
     assert intel["inputs"] == ["gmaps/observations/F.json", "tiktok/observations/F.json"]
-    assert not (tmp_path / "intel" / "places" / "G.json").exists()
-    assert summary["places"] == 1 and summary["stale_files"] == 1
+    older = json.loads((tmp_path / "intel" / "places" / "G.json").read_text(encoding="utf-8"))
+    assert older["observation_versions"] == [0] and intel["observation_versions"] == [ONT.version]
+    assert summary["places"] == 2 and summary["stale_files"] == 1
 
 
 def test_run_removes_intel_not_built_this_time(tmp_path, monkeypatch):
@@ -251,3 +252,32 @@ def test_attribute_does_not_set_freshness_or_trend():
     k = aggregate_place([f(older + recent + [attr(99, "kids", "suitable")])], ONT)["features"]["kids"]
     assert k["confidence"]["freshness_days"] == 121  # newest review, not the crawl date of the attribute
     assert k["trend"]["recent"] == {"suitable": 5} and k["trend"]["older"] == {"suitable": 5}
+
+
+def test_quality_gate_and_person_decisions_decide_servable():
+    obs = [o(1, "crowd", "high", "a"), o(2, "kids", "suitable", "b"), o(3, "noise", "quiet", "c"),
+           o(4, "parking", "easy", "d"), o(5, "spacious", "present", "e", source_type="gmaps_attribute")]
+    passed = {"precision": 0.95, "lower": 0.85, "correct": 40, "wrong": 2, "gate": True}
+    res = aggregate_place([f(obs)], ONT, quality={("crowd", "high"): passed},
+                          reviewed={"kids": "accept", "noise": "disable", "parking": "report"})["features"]
+    assert res["crowd"]["servable"] and res["crowd"]["quality"] == passed
+    assert res["kids"]["servable"] and not res["kids"]["needs_review"] and res["kids"]["review_decision"] == "accept"
+    assert res["noise"]["status"] == "disabled" and not res["noise"]["servable"]
+    assert res["parking"]["needs_review"] and not res["parking"]["servable"]  # unmeasured, reported
+    assert res["spacious"]["servable"] and res["spacious"]["quality"] is None  # authoritative source
+
+
+def test_run_reads_feature_review_decisions(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    from corpus.review import decide
+    p = tmp_path / "gmaps" / "observations" / "F.json"
+    p.parent.mkdir(parents=True)
+    p.write_text(json.dumps({**f([o(1, "kids", "suitable", "a")]), "voices": 1}), encoding="utf-8")
+    decide("feature_review", "F#kids", "disable")
+    run("dalat")
+    intel = json.loads((tmp_path / "intel" / "places" / "F.json").read_text(encoding="utf-8"))
+    assert intel["features"]["kids"]["status"] == "disabled"
+    decide("feature_review", "F#kids", "undo")
+    run("dalat")
+    intel = json.loads((tmp_path / "intel" / "places" / "F.json").read_text(encoding="utf-8"))
+    assert intel["features"]["kids"]["status"] == "signal" and intel["features"]["kids"]["review_decision"] is None

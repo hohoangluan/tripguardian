@@ -347,8 +347,11 @@ For each review ref return the observations it states clearly:
 - A denied or missing quality is never "present": "khó chụp hình", "view chẳng có gì" give no photo_spot /
   scenic_view; "có mái che, không sợ mưa" is weather_exposed sheltered. Use the opposite value only when the feature
   has one.
-- The reviewer's own story is not a fact about the place: "mình đặt bàn trước" is NOT booking_needed yes; "đường đi
-  hơi xa" (riding there) is NOT long_walk; "quán nằm trên dốc" is NOT steep_or_stairs unless visitors must climb.
+- The reviewer's own story is not a fact about the place: "mình đặt bàn trước", "đặt bàn được xác nhận có bàn" are
+  NOT booking_needed yes; "đường đi hơi xa", "đường vào quán hơi xa" (riding there) are NOT long_walk, which needs
+  walking on foot; "quán nằm trên dốc" is NOT steep_or_stairs unless visitors must climb; "xe mới", "mới mở" are NOT
+  condition_change; staff holding an umbrella to the car or a rented bike "không sợ mưa gió" are NOT weather_exposed
+  sheltered, which needs the place's own roof or indoor space; a spa session "massage 90 phút" is NOT visit_duration.
 - Praise without a concrete point ("tuyệt vời", "10 điểm", "sẽ quay lại") gives no observation.
 - Something useful for choosing the place that is not in the list: add it to proposed with a short English label
   and its quote.
@@ -366,6 +369,9 @@ drink_quality poor "cà phê hơi dở"; crowd high "cuối tuần đông nghẹ
 trước"; long_walk absent "Đậu xe ngay cửa".
 "Đi 1 vòng tầm 40 phút là hết, đường bằng nên ông bà đi được" -> visit_duration under_1h "Đi 1 vòng tầm 40 phút";
 steep_or_stairs absent "đường bằng"; elderly suitable "ông bà đi được".
+"Gửi xe xong đi bộ gần 2km mới tới thác, vé 50k" -> long_walk present "đi bộ gần 2km"; entry_fee paid "vé 50k".
+"Đi thẳng xe lên tận đỉnh, nhà vệ sinh hơi bẩn" -> steep_or_stairs absent "Đi thẳng xe lên tận đỉnh"; toilet dirty
+"nhà vệ sinh hơi bẩn".
 {note}
 Reviews:
 {reviews}""",
@@ -396,9 +402,11 @@ The claim can itself be negative ("người đi xe lăn không vào được nơ
   "hợp với người lớn tuổi").
 - insufficient: anything else, e.g. a remark about the location ("quán nằm ngay dốc" does not mean visitors must
   climb), an exception for some people ("miễn phí bé dưới 80cm" does not mean free entry), the reviewer's own route
-  ("đi bộ từ khách sạn qua"), riding a long way ("đường đi hơi xa" is not walking far), what the reviewer did
-  ("mình đặt bàn trước" does not mean booking is needed), heat or cold ("trên tầng 2 nóng" is not weather), a seat
-  they were given, or a guess.
+  ("đi bộ từ khách sạn qua"), riding a long way ("đường đi hơi xa", "đường vào quán hơi xa" are not walking far:
+  walking far needs words about going on foot, a walking distance or time), what the reviewer did ("mình đặt bàn
+  trước", "đặt bàn được xác nhận" do not mean booking is needed), heat or cold ("trên tầng 2 nóng" is not weather),
+  a service or a vehicle instead of the place ("nhân viên che dù ra tận xe", a rented bike "đi không sợ mưa gió" do
+  not mean the place has a roof; "xe mới" does not mean the place changed), a seat they were given, or a guess.
 Give a one-sentence reason.
 
 Review: {passage}""",
