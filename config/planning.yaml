@@ -79,3 +79,10 @@ near_close_min: 30          # a visit that ends this close to closing time
 far_leg_min: 40             # a place this far from where its day starts
 backup_radius_min: 25       # rough minutes from the sensitive place to a replacement
 backups_per_place: 2
+
+# Lodging (ⓐ, P5): a candidate competes as the anchor of each day; it never becomes Place Intelligence.
+radius_km: {motorbike: 3.0, car: 5.0, ride: 4.0}
+lodging_k: 6
+lodging_share: 0.3  # share of budget_vnd spent on lodging, over the whole stay
+min_reviews: 5
+split_min: 20       # minutes of real travel diameter beyond which the search area splits into two centres

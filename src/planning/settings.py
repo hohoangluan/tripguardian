@@ -61,6 +61,11 @@ class Settings:
     far_leg_min: int
     backup_radius_min: int
     backups_per_place: int
+    radius_km: dict
+    lodging_k: int
+    lodging_share: float
+    min_reviews: int
+    split_min: int
 
 
 @cache
