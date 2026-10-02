@@ -16,6 +16,7 @@ from .serving.evaluate import run as evaluate_run
 from .review import server as review_server
 from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, search as gmaps_search
 from .observe import gmaps as gmaps_observe
+from .observe.gmaps import photos as gmaps_photo_observe
 from .observe import tiktok as tiktok_observe
 from .crawl.gmaps import photos as gmaps_photos
 from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check,
@@ -37,7 +38,7 @@ PHASES = {  # source -> phase -> (run, needs a browser)
               "list": (gmaps_list.run, False),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True),
               "photos": (gmaps_photos.run, True), "qc": (gmaps_qc.run, False),
-              "observe": (gmaps_observe.run, False)},
+              "observe": (gmaps_observe.run, False), "photo_observe": (gmaps_photo_observe.run, False)},
 }
 
 
@@ -56,7 +57,7 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
             out = fn(city, headed)
         elif p == "observe" and source == "gmaps":
             out = fn(city, limit=limit, wait_relevant=wait_relevant)
-        elif p == "observe":
+        elif p in ("observe", "photo_observe"):
             out = fn(city, limit=limit)
         else:
             out = fn(city)

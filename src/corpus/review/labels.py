@@ -27,7 +27,10 @@ LABELS = ("correct", "wrong", "unsure")
 GATE_MIN_N = 30  # labelled (correct + wrong) before a value can pass
 GATE_LOWER = 0.8  # Wilson lower bound of the precision must reach this
 # model-made observations per source folder; rule-made ones (Maps details, attributes) are not labelled
-SOURCES = {"gmaps": {"gmaps_review"}, "tiktok": {"tiktok_segment", "tiktok_caption", "tiktok_frame"}}
+SOURCES = {"gmaps": {"gmaps_review"}, "tiktok": {"tiktok_segment", "tiktok_caption", "tiktok_frame"},
+           "gmaps_photo": {"gmaps_photo"}}
+FOLDERS = {"gmaps": ("gmaps", "observations"), "tiktok": ("tiktok", "observations"),
+           "gmaps_photo": ("gmaps", "photo_observations")}
 
 _files: dict = {}  # observation file -> (mtime, its rows): a re-run rewrites files one by one
 
@@ -66,7 +69,7 @@ def _rows() -> list[tuple]:
     the ontology still has; each file is read again only when it changed."""
     ont, rows, seen = load_ontology(), [], set()
     for source, types in SOURCES.items():
-        root = data_dir() / source / "observations"
+        root = data_dir().joinpath(*FOLDERS[source])
         for f in sorted(root.glob("*.json")) if root.exists() else []:
             seen.add(f)
             mtime = os.stat(f).st_mtime_ns
@@ -156,19 +159,29 @@ def _video_card(v: dict, o: dict) -> tuple[str, dict]:
                   "list": None}
 
 
+def photo_path(stem: str, file: str) -> Path | None:
+    f = data_dir() / "gmaps" / "places" / Path(stem).name / "photos" / Path(file).name
+    return f if f.exists() else None
+
+
 def frame_path(video_id: str, n: int) -> Path | None:
     f = data_dir() / "tiktok" / "videos" / Path(video_id).name / "frames" / f"f{int(n)}.jpg"
     return f if f.exists() else None
 
 
 def _item(stem: str, obs_id: str, source: str = "gmaps") -> dict | None:
-    doc = json.loads((data_dir() / source / "observations" / f"{stem}.json").read_text(encoding="utf-8"))
+    doc = json.loads((data_dir().joinpath(*FOLDERS[source]) / f"{stem}.json").read_text(encoding="utf-8"))
     o = next((o for o in doc["observations"] if o["id"] == obs_id), None)
     if o is None:
         return None
     reviews = _reviews(stem)
     review = reviews.get(o["source_id"]) or {}
     text, card = review.get("text") or "", _review_card(review) if review else None
+    if source == "gmaps_photo":
+        text = f"Ảnh Maps: {o['span']['quote']}"
+        card = {"kind": "video", "url": None, "caption": "", "author": o.get("author"), "published": o.get("observed_at"),
+                "source": "gmaps_photo", "frame": f"/api/labels/photo?place={stem}&file={o['span']['field']}",
+                "details": [], "rating": None, "likes": None, "photos": None, "list": None}
     if source == "tiktok":
         vf = data_dir() / "tiktok" / "videos" / o["source_id"] / "video.json"
         if vf.exists():

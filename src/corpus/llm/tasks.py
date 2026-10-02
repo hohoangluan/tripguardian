@@ -597,3 +597,60 @@ BUDGET: {budget}
 USER MESSAGE:
 {text}""",
 )
+
+_PHOTO_OBS_KEYS = ("feature", "value", "photo", "quote")
+PHOTO_OBSERVE = Task(
+    name="photo_observe",
+    role=EXTRACTOR,
+    max_tokens=2000,
+    parallel=8,  # four images per call
+    schema={"type": "object", "properties": {"observations": {"type": "array", "items": {
+        "type": "object",
+        "properties": {"feature": {"type": "string"}, "value": {"type": "string"}, "photo": {"type": "integer"},
+                       "quote": {"type": "string"}},
+        "required": list(_PHOTO_OBS_KEYS), "additionalProperties": False}}},
+        "required": ["observations"], "additionalProperties": False},
+    # Visitors' and the owner's Google Maps photos of one place (crawl gmaps photos). A photo proves what is visible,
+    # never an absence, a quality, a price or who the place suits; the gate (corpus.observe.gmaps.photos) keeps only
+    # PHOTO_VALUES. Each photo is numbered in the order attached.
+    prompt="""You read {count} Google Maps photos of one place in {city}, Vietnam, attached in order and numbered 1-{count}
+(photo i = the i-th image), for a travel product that matches places to what a traveller needs. Report only what a
+photo itself clearly shows AT this place. Photos marked "owner" were posted by the business (marketing).
+
+Place: {name} ({category})
+Photos: {photo_list}
+
+You may only report these features and values:
+{allowed}
+
+Rules:
+- One observation per (feature, value, photo). quote = a short plain description of what that photo shows that
+  proves it ("long concrete staircase up a hillside", "dirt track with mud puddles", "crowd packed on a viewing deck").
+- steep_or_stairs present: a long flight of stairs or a steep slope visitors climb to reach or see the place. A few
+  steps at a door or a porch, or stairs visitors need not use, are not.
+- rough_road_access present: the access road or path itself is dirt, rocks or mud.
+- crowd high: many people filling the space. Never "quiet" because a photo happens to be empty.
+- setting: only from a photo that shows where visitors sit or walk (a room, a terrace, a garden); indoor = inside a
+  building, outdoor = open air, both = that one photo shows both. Never from food, drinks, a menu, a person close-up,
+  a treatment, a car park or the street. One value per photo.
+- A pet or stray animal is not animals; a dish photo, a selfie close-up, a menu or a receipt gives nothing.
+- Unsure, blurry, or could be anywhere -> nothing. Return an empty list when nothing is clearly shown.""",
+)
+
+PHOTO_VERIFY = Task(
+    name="photo_verify",
+    role=EXTRACTOR,
+    max_tokens=300,
+    parallel=8,
+    schema=REVIEW_VERIFY.schema,
+    prompt="""You check one claim about a place against one Google Maps photo of it (attached). Decide from the photo
+only.
+
+Place: {name} ({category})
+Claim, with what the photo was said to show: {claim}
+
+- supports: the photo clearly shows the claim is true of this place.
+- contradicts: the photo clearly shows the opposite.
+- insufficient: anything else: it could be somewhere else, it does not clearly show it, or it needs a guess.
+Give a one-sentence reason.""",
+)

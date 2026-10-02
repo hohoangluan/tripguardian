@@ -7,6 +7,7 @@ POST /api/decision    {kind, id, decision, note} -> the stored record
 GET  /api/labels/next ?n=1&feature=<id> -> {items:[...]}   unlabelled review observations, least-labelled value first
 POST /api/labels      {id, label, note} -> the stored record   label: correct | wrong | unsure
 GET  /api/labels/stats                    precision per (feature, value) and the gate
+GET  /api/labels/photo ?place=<fid_dir>&file=<photos/x.jpg>  a Maps photo a photo observation was read from
 GET  /api/labels/frame ?video=<id>&n=<1-4>  a TikTok keyframe (image/jpeg) a frame observation was read from
 """
 
@@ -52,6 +53,12 @@ def handler(city: str):
                 self._json(200, {"items": labels.sample(n, q.get("feature", [None])[0] or None)})
             elif url.path == "/api/labels/stats":
                 self._json(200, labels.stats())
+            elif url.path == "/api/labels/photo":
+                q = parse_qs(url.query)
+                f = labels.photo_path(q.get("place", [""])[0], q.get("file", [""])[0])
+                if f is None:
+                    return self._json(404, {"error": "no such photo"})
+                self._send(200, f.read_bytes(), "image/jpeg")
             elif url.path == "/api/labels/frame":
                 q = parse_qs(url.query)
                 try:

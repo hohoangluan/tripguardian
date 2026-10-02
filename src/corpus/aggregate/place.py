@@ -1,6 +1,6 @@
 """Aggregate (docs/specs/CORPUS_SPEC.md §5), code only: every source's observations of a place -> one intel file.
 
-Reads data/*/observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
+Reads data/*/observations/*.json and data/*/photo_observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
 every other file there (a place that has no observation file now): the folder is one build. Observation files of an
 older ontology version still count until observe re-runs them (values the ontology dropped are left out);
 `observation_versions` and the summary's `stale_files` say how many. Per feature:
@@ -45,7 +45,8 @@ def time_of_day(hour: int) -> str:
             return name
     return "night"
 SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "gmaps_attribute": "provider", "tiktok_segment": "video",
-               "tiktok_caption": "video", "tiktok_frame": "video", "tiktok_comment": "comment"}
+               "tiktok_caption": "video", "tiktok_frame": "video", "tiktok_comment": "comment",
+               "gmaps_photo": "photo"}
 
 
 def _who(o: dict) -> str:
@@ -250,7 +251,7 @@ def run(city: str) -> dict:
     ont = load_ontology()
     root = data_dir()
     files, inputs, stale = collections.defaultdict(list), collections.defaultdict(list), 0
-    for p in sorted(root.glob("*/observations/*.json")):
+    for p in sorted([*root.glob("*/observations/*.json"), *root.glob("*/photo_observations/*.json")]):
         f = json.loads(p.read_text(encoding="utf-8"))
         stale += f.get("ontology_version") != ont.version
         files[f["place_fid"]].append(f)

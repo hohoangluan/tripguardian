@@ -152,7 +152,11 @@ export function Labels() {
               {cur.review?.kind === 'video' && (
                 <div className="lb__video">
                   <p className="lb__meta">
-                    <span>TikTok · {cur.review.source === 'tiktok_frame' ? 'khung hình' : cur.review.source === 'tiktok_caption' ? 'caption' : 'lời nói (máy nghe, có thể sai chữ)'}</span>
+                    <span>
+                      {cur.review.source === 'gmaps_photo'
+                        ? 'Ảnh Google Maps'
+                        : `TikTok · ${cur.review.source === 'tiktok_frame' ? 'khung hình' : cur.review.source === 'tiktok_caption' ? 'caption' : 'lời nói (máy nghe, có thể sai chữ)'}`}
+                    </span>
                     {cur.review.published && <span>đăng {cur.review.published}</span>}
                     {cur.review.url && (
                       <a href={cur.review.url} target="_blank" rel="noreferrer">
