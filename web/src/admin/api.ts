@@ -10,6 +10,29 @@ export interface LabelItem {
   context: Record<string, string>
   observedAt: string | null
   text: string
+  definition: { hint: string; claim: string | null; values: string[] }
+  review: {
+    rating: string | null
+    published: string | null
+    author: string | null
+    details: string[]
+    likes: number | string | null
+    photos: number | string | null
+    list: 'newest' | 'relevant' | null
+  } | null
+  placeInfo: {
+    category: string | null
+    address: string | null
+    url: string | null
+    rating: string | null
+    review_count: string | null
+    price: string | null
+    status: string | null
+    description: string | null
+    attributes: string[]
+  }
+  others: { value: string; quote: string; source: string; rating: string | null; published: string | null }[]
+  othersCount: Record<string, number>
 }
 
 export type Label = 'correct' | 'wrong' | 'unsure'

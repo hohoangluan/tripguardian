@@ -10,6 +10,7 @@ observation with the same review, feature, value and quote is already labelled; 
 drops out of the statistics. Observations of any ontology version count while their value is still in the ontology.
 """
 
+import ast
 import collections
 import json
 import math
@@ -93,17 +94,42 @@ def migrate() -> int:
     return changed
 
 
-def _review_text(stem: str, review_id: str) -> str:
-    place = data_dir() / "gmaps" / "places" / stem
-    for name in ("reviews.json", "reviews_relevant.json"):
+OTHERS_MAX = 6  # other reviews of the same place on the same feature, shown next to the claim
+
+
+def _reviews(stem: str) -> dict[str, dict]:
+    """review_id -> review (with `list`: newest / relevant) of one place."""
+    place, out = data_dir() / "gmaps" / "places" / stem, {}
+    for name, kind in (("reviews.json", "newest"), ("reviews_relevant.json", "relevant")):
         f = place / name
         if not f.exists():
             continue
         doc = json.loads(f.read_text(encoding="utf-8"))
         for r in doc["reviews"] if isinstance(doc, dict) else doc:
-            if r["review_id"] == review_id:
-                return r["text"]
-    return ""
+            out.setdefault(r["review_id"], {**r, "list": kind})
+    return out
+
+
+def _review_text(stem: str, review_id: str) -> str:
+    return (_reviews(stem).get(review_id) or {}).get("text") or ""
+
+
+def _as_list(v) -> list:
+    """place.json keeps some lists as their Python repr ("['a', 'b']")."""
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str) and v.startswith("["):
+        try:
+            return list(ast.literal_eval(v))
+        except (ValueError, SyntaxError):
+            return [v]
+    return [] if v in (None, "", "None") else [v]
+
+
+def _review_card(r: dict) -> dict:
+    return {"rating": r.get("rating"), "published": r.get("published_text"), "author": r.get("author_meta"),
+            "details": [" ".join(str(d).split()) for d in _as_list(r.get("details"))], "likes": r.get("likes"),
+            "photos": r.get("photos"), "list": r.get("list")}
 
 
 def _item(stem: str, obs_id: str) -> dict | None:
@@ -111,9 +137,30 @@ def _item(stem: str, obs_id: str) -> dict | None:
     o = next((o for o in doc["observations"] if o["id"] == obs_id), None)
     if o is None:
         return None
+    reviews = _reviews(stem)
+    review = reviews.get(o["source_id"]) or {}
+    f = load_ontology().features.get(o["feature"])
+    others = []  # what the rest of this place's evidence says on the same feature: agree, other value, rule-made
+    for x in doc["observations"]:
+        if x["feature"] != o["feature"] or x["id"] == obs_id or len(others) >= OTHERS_MAX:
+            continue
+        r = reviews.get(x["source_id"]) or {}
+        others.append({"value": x["value"], "quote": x["span"]["quote"], "source": x["source_type"],
+                       "rating": r.get("rating"), "published": r.get("published_text")})
+    place_file = data_dir() / "gmaps" / "places" / stem / "place.json"
+    place = json.loads(place_file.read_text(encoding="utf-8")) if place_file.exists() else {}
     return {"id": obs_id, "place": doc["place_fid"], "placeName": doc.get("place_name"), "feature": o["feature"],
             "value": o["value"], "quote": o["span"]["quote"], "context": o["context"],
-            "observedAt": o["observed_at"], "text": _review_text(stem, o["source_id"])}
+            "observedAt": o["observed_at"], "text": review.get("text") or "",
+            "definition": {"hint": f.hint if f else "", "claim": (f.claims.get(o["value"]) if f else None),
+                           "values": list(f.values) if f else []},
+            "review": _review_card(review) if review else None,
+            "placeInfo": {k: place.get(k) for k in ("category", "address", "url", "rating", "review_count", "price",
+                                                     "status", "description")}
+                         | {"attributes": [str(a) for a in _as_list(place.get("attributes"))]},
+            "others": others,
+            "othersCount": {v: sum(1 for x in doc["observations"] if x["feature"] == o["feature"] and x["value"] == v)
+                            for v in (f.values if f else ())}}
 
 
 def sample(n: int = 1, feature: str | None = None, seed: int | None = None) -> list[dict]:

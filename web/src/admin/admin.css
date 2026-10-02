@@ -1707,6 +1707,65 @@
   color: inherit;
 }
 
+.lb__def {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+}
+
+.lb__def small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-3);
+}
+
+.lb__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 8px;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+.lb__others {
+  margin: 10px 0;
+  font-size: 0.86rem;
+}
+
+.lb__others ul {
+  margin: 6px 0 0;
+  padding-left: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.lb__others li {
+  margin: 4px 0;
+}
+
+.lb__others li.is-diff {
+  color: var(--bad);
+}
+
+.lb__others small,
+.lb__place p {
+  color: var(--ink-3);
+}
+
+.lb__place {
+  margin: 8px 0;
+  font-size: 0.86rem;
+}
+
+.lb__place summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
 .lb__quote,
 .lb__session {
   color: var(--ink-2);

@@ -145,10 +145,72 @@ export function Labels() {
                   {cur.observedAt ? `, ${cur.observedAt}` : ''}
                 </small>
               </p>
+              <div className="lb__def">
+                <b>Nghĩa của nhãn:</b> {cur.definition.claim ?? cur.definition.hint}
+                {cur.definition.claim && <small>{cur.definition.hint}</small>}
+              </div>
+              {cur.review && (
+                <p className="lb__meta">
+                  {cur.review.rating && <span>★ {cur.review.rating}</span>}
+                  {cur.review.published && <span>{cur.review.published}</span>}
+                  {cur.review.author && <span>{cur.review.author}</span>}
+                  {Number(cur.review.photos) > 0 && <span>{cur.review.photos} ảnh</span>}
+                  {Number(cur.review.likes) > 0 && <span>{cur.review.likes} thích</span>}
+                  <span>{cur.review.list === 'relevant' ? 'Maps: liên quan nhất' : 'Maps: mới nhất'}</span>
+                </p>
+              )}
               <blockquote className="lb__text">{cur.text ? marked(cur.text, cur.quote) : <span className="a-muted">Không tìm thấy review gốc.</span>}</blockquote>
               <p className="lb__quote">
                 <Icon name="quote" size={14} /> Trích dẫn: <b>{cur.quote}</b>
               </p>
+              {cur.review && cur.review.details.length > 0 && (
+                <p className="lb__meta">
+                  {cur.review.details.map((d) => (
+                    <span key={d}>{d}</span>
+                  ))}
+                </p>
+              )}
+              <div className="lb__others">
+                <b>
+                  Bằng chứng khác cùng nơi về {featureLabel(cur.feature)}:{' '}
+                  {Object.entries(cur.othersCount)
+                    .map(([v, n]) => `${valueLabel(v)} ${v === cur.value ? n - 1 : n}`)
+                    .join(' · ')}
+                </b>
+                {cur.others.length > 0 ? (
+                  <ul>
+                    {cur.others.map((o, i) => (
+                      <li key={i} className={o.value === cur.value ? '' : 'is-diff'}>
+                        <span className="rq__kindtag">{valueLabel(o.value)}</span> “{o.quote}”
+                        <small>
+                          {o.source === 'gmaps_attribute' ? ' thuộc tính Maps' : o.source === 'gmaps_details' ? ' mục chấm điểm Maps' : ''}
+                          {o.rating ? ` · ${o.rating}` : ''}
+                          {o.published ? ` · ${o.published}` : ''}
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="a-muted">Không có review nào khác nói về feature này.</p>
+                )}
+              </div>
+              <details className="lb__place">
+                <summary>
+                  Địa điểm: {cur.placeInfo.category ?? 'không rõ loại'}
+                  {cur.placeInfo.rating ? ` · ${cur.placeInfo.rating}` : ''}
+                  {cur.placeInfo.review_count ? ` (${cur.placeInfo.review_count})` : ''}
+                  {cur.placeInfo.url && (
+                    <a href={cur.placeInfo.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                      {' '}
+                      Mở Google Maps ↗
+                    </a>
+                  )}
+                </summary>
+                {cur.placeInfo.address && <p>{cur.placeInfo.address}</p>}
+                {cur.placeInfo.price && <p>{cur.placeInfo.price}</p>}
+                {cur.placeInfo.description && <p>{cur.placeInfo.description}</p>}
+                {cur.placeInfo.attributes.length > 0 && <p className="lb__meta">{cur.placeInfo.attributes.map((a) => <span key={a}>{a}</span>)}</p>}
+              </details>
               {Object.entries(cur.context).some(([, v]) => v !== 'unknown') && (
                 <p className="a-muted">
                   Bối cảnh Extractor đọc ra:{' '}
