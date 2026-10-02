@@ -1,66 +1,42 @@
-import { useMemo, useState } from 'react'
-import { featureLabel, isNegative, valueLabel } from '../../data/labels'
-import { confidenceOf, placeById, priceText, signal, visible, visitRange } from '../../data/store'
-import type { Place } from '../../data/types'
+import { useEffect, useState } from 'react'
 import { navigate } from '../../router'
-import { Chip, Icon, Page } from '../../ui/bits'
-import { evaluate } from '../planner'
+import { Icon, Page } from '../../ui/bits'
+import { compare, DecisionError } from '../pd/api'
+import { useDecision } from '../pd/decision'
+import type { CompareResult } from '../pd/types'
 import { useTrip } from '../trip'
 
-const TOD: Record<string, string> = { morning: 'sáng', noon: 'trưa', afternoon: 'chiều', evening: 'tối' }
-
-function quietest(p: Place) {
-  const c = p.crowdByTime
-  if (!c) return null
-  const cells = (['weekday', 'weekend'] as const).flatMap((d) => Object.entries(c[d] ?? {}).map(([t, v]) => ({ d, t, v })))
-  const best = cells.filter((x) => TOD[x.t]).sort((a, b) => a.v - b.v)[0]
-  return best ? `${TOD[best.t]} ${best.d === 'weekday' ? 'ngày thường' : 'cuối tuần'}` : null
-}
-
 export function Compare({ ids }: { ids: string[] }) {
-  const { trip, dispatch } = useTrip()
-  const places = ids.map((id) => placeById(id)).filter((p): p is Place => !!p).slice(0, 3)
-  const cands = places.map((p) => evaluate(p, trip)!)
-  const [priority, setPriority] = useState<string | null>(null)
+  const { trip } = useTrip()
+  const { view, act, busy } = useDecision()
+  const [res, setRes] = useState<CompareResult | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [a, b] = ids
 
-  const rows = useMemo(() => {
-    const out: { label: string; cells: string[]; best?: number }[] = []
-    const feats = new Set(places.flatMap((p) => visible(p).filter((s) => s.n >= 2).map((s) => s.id)))
-    for (const id of feats) {
-      const cells = places.map((p) => {
-        const s = signal(p, id)
-        if (!s || s.n < 2) return '—'
-        return `${s.value === 'present' ? 'có' : valueLabel(s.value)} (${s.n})`
-      })
-      if (new Set(cells).size > 1) out.push({ label: featureLabel(id), cells })
+  useEffect(() => {
+    if (!trip.decisionId || !a || !b) return
+    let live = true
+    compare(trip.decisionId, a, b).then(
+      (r) => live && setRes(r),
+      (e) =>
+        live &&
+        setErr(
+          e instanceof DecisionError && e.status === 400
+            ? 'Hai nơi này khác loại (một chỗ ăn, một nơi tham quan) nên không đặt cạnh nhau.'
+            : 'Chưa so sánh được, thử lại sau.',
+        ),
+    )
+    return () => {
+      live = false
     }
-    const strong = out.sort((a, b) => b.cells.filter((c) => c !== '—').length - a.cells.filter((c) => c !== '—').length).slice(0, 7)
-    const base = [
-      { label: 'Đi từ điểm xuất phát', cells: cands.map((c) => `≈${c.fromAnchor} phút`), best: argmin(cands.map((c) => c.fromAnchor)) },
-      { label: 'Tham quan', cells: places.map((p) => visitRange(p).join('–') + ' phút') },
-      { label: 'Vắng nhất vào', cells: places.map((p) => quietest(p) ?? 'chưa có thông tin') },
-      { label: 'Chi phí', cells: places.map((p) => (p.priceRange ? priceText(p.priceRange) : 'chưa có thông tin')) },
-      { label: 'Độ tin cậy', cells: places.map((p) => confidenceOf(p).level) },
-    ]
-    return [...base.filter((r) => new Set(r.cells).size > 1), ...strong]
-  }, [places, cands])
+  }, [trip.decisionId, a, b])
 
-  // The follow-up question only reorders emphasis; the user still picks.
-  const lean = useMemo(() => {
-    if (priority === 'near') return argmin(cands.map((c) => c.fromAnchor))
-    if (priority === 'quiet') {
-      const score = places.map((p) => {
-        const s = signal(p, 'crowd')
-        const n = signal(p, 'noise')
-        return (s && isNegative('crowd', s.value) ? 1 : 0) + (n && n.value === 'loud' ? 1 : 0) - (n && n.value === 'quiet' ? 1 : 0)
-      })
-      return argmin(score)
-    }
-    return -1
-  }, [priority, cands, places])
+  if (ids.length < 2) return <div className="loading">Cần 2 nơi để so sánh.</div>
+  if (err) return <div className="loading">{err}</div>
+  if (!res) return <div className="loading">Đang so sánh</div>
 
-  if (places.length < 2) return <div className="loading">Cần ít nhất 2 nơi để so sánh.</div>
-
+  const cols = [res.a, res.b]
+  const rows = [...res.sacrifice, ...res.rows]
   return (
     <Page className="page--wide">
       <button className="back" onClick={() => history.back()}>
@@ -68,38 +44,38 @@ export function Compare({ ids }: { ids: string[] }) {
       </button>
       <header className="phead">
         <h1>So sánh nhanh</h1>
-        <p>Chỉ hiện những điểm khác nhau. Số trong ngoặc là số người nhắc tới.</p>
+        <p>Chỉ hiện điểm khác nhau có bằng chứng. Số trong ngoặc là số người nhắc tới; “chưa biết” không có nghĩa là kém hơn.</p>
       </header>
 
-      <div className="cmp" style={{ ['--cols' as string]: places.length }}>
+      <div className="cmp" style={{ ['--cols' as string]: 2 }}>
         <div className="cmp__row cmp__row--head">
           <span />
-          {places.map((p, i) => (
-            <div key={p.id} className={`cmp__col${lean === i ? ' is-lean' : ''}`}>
+          {cols.map((p) => (
+            <div key={p.id} className="cmp__col">
               <button className="link cmp__name" onClick={() => navigate(`/app/place/${encodeURIComponent(p.id)}`)}>
                 {p.name}
               </button>
-              <small>{p.category}</small>
             </div>
           ))}
         </div>
+        {rows.length === 0 && <p className="block__hint">Hai nơi này không khác nhau ở điểm nào có bằng chứng.</p>}
         {rows.map((r) => (
-          <div className="cmp__row" key={r.label}>
+          <div className="cmp__row" key={r.aspect}>
             <span className="cmp__label">{r.label}</span>
-            {r.cells.map((c, i) => (
-              <span key={i} className={`cmp__cell${r.best === i ? ' is-best' : ''}${lean === i ? ' is-lean' : ''}`}>
-                {c}
+            {(['a', 'b'] as const).map((k) => (
+              <span key={k} className={`cmp__cell${r.better === k ? ' is-best' : ''}`}>
+                {r[k]}
               </span>
             ))}
           </div>
         ))}
         <div className="cmp__row cmp__row--act">
           <span />
-          {places.map((p) => {
-            const on = trip.selected.includes(p.id)
+          {cols.map((p) => {
+            const on = view?.selected.includes(p.id) ?? false
             return (
               <div key={p.id}>
-                <button className={`btn btn--small${on ? ' btn--chosen' : ''}`} onClick={() => dispatch(on ? { type: 'unselect', id: p.id } : { type: 'select', id: p.id })}>
+                <button className={`btn btn--small${on ? ' btn--chosen' : ''}`} disabled={busy} onClick={() => act(on ? { type: 'drop', place_id: p.id } : { type: 'select', place_id: p.id })}>
                   {on ? 'Đã chọn' : 'Chọn nơi này'}
                 </button>
               </div>
@@ -107,34 +83,6 @@ export function Compare({ ids }: { ids: string[] }) {
           })}
         </div>
       </div>
-
-      <section className="followup">
-        <p className="bubble bubble--q">Bạn ưu tiên ít di chuyển hay chỗ yên tĩnh hơn?</p>
-        <div className="chips">
-          <Chip on={priority === 'near'} onClick={() => setPriority('near')}>
-            Ít di chuyển
-          </Chip>
-          <Chip
-            on={priority === 'quiet'}
-            onClick={() => {
-              setPriority('quiet')
-              dispatch({ type: 'pref', id: 'noise', pref: { weight: 'love', from: 'answer' } })
-            }}
-          >
-            Yên tĩnh hơn
-          </Chip>
-          <Chip on={priority === null} onClick={() => setPriority(null)}>
-            Chưa chắc
-          </Chip>
-        </div>
-        {lean >= 0 && <p className="hint-line">Theo ưu tiên đó, {places[lean].name} hợp hơn. Bạn vẫn là người chọn.</p>}
-      </section>
     </Page>
   )
-}
-
-function argmin(xs: number[]) {
-  let b = 0
-  xs.forEach((x, i) => x < xs[b] && (b = i))
-  return b
 }
