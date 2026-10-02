@@ -1,0 +1,27 @@
+# Hidden Trip States for the offline Place Decision check (src/corpus/serving/evaluate.py, docs/PLACE_DECISION.md §17).
+# Each trip: hard filters "feature != value" (fail-closed), soft weights by feature id (value present / good / …),
+# the role the shortlist fills, its size. `filters` and `prefs` lists below are crossed to make more trips.
+shortlist: 8
+trips:
+  - {id: elderly_views, role: experience, hard: {steep_or_stairs: present, long_walk: present}, soft: {scenic_view: 1.0, photo_spot: 0.5}}
+  - {id: kids_animals, role: experience, hard: {kids: unsuitable}, soft: {animals: 1.0, pick_your_own: 0.8, adventure_activity: 0.4}}
+  - {id: wheelchair_cafe, role: experience, hard: {wheelchair: unsuitable, steep_or_stairs: present}, soft: {cozy_decor: 1.0, long_stay_chill: 0.6}}
+  - {id: couple_sunset, role: experience, hard: {}, soft: {sunset_view: 1.0, couples: 0.8, scenic_view: 0.5}}
+  - {id: group_food, role: meal, hard: {groups: unsuitable}, soft: {local_specialty_food: 1.0, food_quality: 0.8, value_for_money: 0.6}}
+  - {id: rainy_day, role: experience, hard: {weather_exposed: present}, soft: {cozy_decor: 0.8, heritage_architecture: 0.6}}
+  - {id: no_trap_budget, role: experience, hard: {tourist_trap: present}, soft: {value_for_money: 1.0, nature: 0.5}}
+  - {id: hikers, role: experience, hard: {}, soft: {hiking: 1.0, nature: 0.8, cloud_hunting: 0.6}}
+  - {id: worker, role: experience, hard: {noise: loud}, soft: {laptop_friendly: 1.0, long_stay_chill: 0.8}}
+  - {id: rough_road_scooter, role: experience, hard: {rough_road_access: present}, soft: {flower_garden: 1.0, photo_spot: 0.6}}
+cross:
+  filters:
+    - {}
+    - {steep_or_stairs: present}
+    - {long_walk: present}
+    - {kids: unsuitable}
+    - {elderly: unsuitable, steep_or_stairs: present}
+  prefs:
+    - {scenic_view: 1.0}
+    - {cozy_decor: 1.0, drink_quality: 0.5}
+    - {local_specialty_food: 1.0}
+    - {nature: 1.0, flower_garden: 0.5}
