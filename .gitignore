@@ -12,3 +12,5 @@ __pycache__/
 data/
 .browser/
 .superpowers/
+
+osrm-data/
