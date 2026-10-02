@@ -25,6 +25,7 @@ def compile_search_input(state: TripState) -> SearchInput:
     return SearchInput(
         ontology_version=ontology().version,
         context=Context(start_date=v("start_date"), month=v("month"), days=v("days"), base=v("base"),
+                        entry_point=v("entry_point"), exit_point=v("exit_point"),
                         mobility=v("mobility"), companions=tuple(sorted(v("companions") or ())), people=v("people"),
                         arrive_at=v("arrive_at"), leave_at=v("leave_at"), day_end=v("day_end"),
                         budget_vnd=v("budget_vnd"), experience=state.meta.experience),

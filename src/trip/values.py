@@ -46,7 +46,7 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
         return money(raw)
     if field in ("arrive_at", "leave_at", "day_end"):
         return clock(raw)
-    if field == "base":
+    if field in ("base", "entry_point", "exit_point"):
         if raw in catalog.by_id:
             return Base(place_id=raw, text=catalog.by_id[raw].name)
         a = anchor_for(raw, catalog)

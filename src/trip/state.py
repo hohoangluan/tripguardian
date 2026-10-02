@@ -31,8 +31,8 @@ SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "pregnant", "motio
 EFFORT_SIGNALS = frozenset({"knee", "elderly", "kids", "wheelchair", "pregnant"})  # answered by question c_effort
 OTHER_SIGNALS = frozenset({"motion_sick", "height", "vegetarian"})  # answered by question c_other
 EFFORT_FEATURES = frozenset({"steep_or_stairs", "long_walk"})
-SCALARS = ("start_date", "month", "days", "people", "base", "mobility", "arrive_at", "leave_at", "day_end", "purpose",
-           "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd")
+SCALARS = ("start_date", "month", "days", "people", "base", "entry_point", "exit_point", "mobility", "arrive_at",
+           "leave_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd")
 RANGES = {"month": (1, 12), "days": (1, 7), "people": (1, 20), "max_leg_min": (5, 180),
           "budget_vnd": (10_000, 50_000_000)}
 CLOCKS = ("arrive_at", "leave_at", "day_end")
@@ -183,6 +183,8 @@ class TripState(Frozen):
     companions: Field[frozenset[Who]] = Field[frozenset[Who]]()
     people: Field[int] = Field[int]()
     base: Field[Base] = Field[Base]()
+    entry_point: Field[Base] = Field[Base]()  # where the trip enters the city: station, airport, own vehicle
+    exit_point: Field[Base] = Field[Base]()   # where it leaves; the last day has to get back here in time
     mobility: Field[Vehicle] = Field[Vehicle]()
     arrive_at: Field[str] = Field[str]()
     leave_at: Field[str] = Field[str]()
@@ -381,6 +383,8 @@ class Context(Frozen):
     month: int | None
     days: int | None
     base: Base | None
+    entry_point: Base | None = None
+    exit_point: Base | None = None
     mobility: Vehicle | None
     companions: tuple[Who, ...]
     people: int | None
