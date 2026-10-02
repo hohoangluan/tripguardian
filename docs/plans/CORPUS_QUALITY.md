@@ -4,13 +4,21 @@ Plan làm việc tạm (`RULE.md` §0.1): khi xong từng việc, gộp phần c
 
 Hiện trạng (2026-10-02, trưa): code của V1–V6 đã xong và đã ghi vào `CORPUS_SPEC.md` §4–§5 + `DEV_LOG.md` (corpus-observe, corpus-aggregate, corpus-review, corpus-observe-tiktok, corpus-serving). Còn lại là việc máy chạy, việc người, và hai quyết định.
 
-## Đang chạy (máy)
+## Trạng thái chạy máy (2026-10-02 14:40) — session khác tiếp tục từ đây
 
-- `scripts/rerun_observe.sh` (chạy lại từ 10:24 với ontology v7, eval 37/37): observe Maps 1.437 nơi (~6 giờ) → aggregate → serving → evaluate, in `RERUN_DONE`. Bản observation cũ: `data/gmaps/observations_before_v6/`.
-- `scripts/after_rerun.sh`: sau `RERUN_DONE` → TikTok observe → aggregate → serving → evaluate, in `AFTER_RERUN_DONE`.
-- `python -m corpus gmaps photos` (log `logs/gmaps_photos.log`): ảnh Maps 1.438 nơi, tối đa 6 tab.
-- `scripts/after_photos.sh`: khi có `AFTER_RERUN_DONE` và crawl ảnh xong → `gmaps photo_observe` → aggregate → serving → evaluate, in `AFTER_PHOTOS_DONE`.
-- Tất cả chạy tách (`Start-Process`), sống qua khi đóng phiên Claude; bước Gemma cần mạng UIT. Chết giữa chừng thì chạy lại script / lệnh: mọi bước tiếp tục từ file trên đĩa.
+Mọi thứ tiếp tục từ file trên đĩa; chạy lại lệnh là đi tiếp. Gemma (UIT) chỉ vào được trên mạng campus và đã đứt 3 lần trong ngày; script tự chờ mạng.
+
+| Việc | Lệnh | Tiến độ | Ghi chú |
+|---|---|---|---|
+| Observe Maps ontology v7 | `sh scripts/rerun_observe.sh` (log `logs/rerun_observe.log`, đích `RERUN_DONE`) | ~450 / 1.437 nơi, ~1,4 nơi/phút | eval prompt 37/37; chạy xong tự aggregate → serving → evaluate. Bản cũ ở `data/gmaps/observations_before_v6/` |
+| TikTok: ASR + kiểm + xác minh + observe | `sh scripts/tiktok_now.sh` (log `logs/tiktok_now.log`, đích `TIKTOK_NOW_DONE`) | observe 294 nơi xong; `asr_check` / `place_verify` đang chạy | 475 video chưa có transcript; ~850 video đã tìm thấy chưa tải (`tiktok place_crawl` dùng chung profile TikTok với `place_search`: chạy khi không có `place_search`) |
+| Crawl ảnh Maps | `python -m corpus gmaps photos` | **TẠM DỪNG** 178 / 1.438 nơi | dừng vì RAM chỉ còn ~1 GB (44 tiến trình Chrome) và 0,2 nơi/phút; nên chạy lại khi máy rảnh hoặc giảm `photo_tabs` (config/queries.yaml, hiện 6) xuống 3 |
+| Đọc ảnh → aggregate → serving → evaluate | `sh scripts/after_photos.sh` (đích `AFTER_PHOTOS_DONE`) | đang chờ | chờ `AFTER_RERUN_DONE` trong log và dòng "done, the rest in errors" của `logs/gmaps_photos.log` (xuất hiện khi `gmaps photos` chạy hết) |
+| Sau `after_rerun.sh` | `sh scripts/after_rerun.sh` (đích `AFTER_RERUN_DONE`) | đang chờ `RERUN_DONE` | TikTok observe + aggregate + serving + evaluate |
+
+Chạy tách (Windows): `Start-Process -WindowStyle Hidden -FilePath D:\AppDownload\Gitinash.exe -ArgumentList "-c","'/d/Study/mlai/tripguardian/scripts/<tên>.sh 2> logs/<tên>.err'"` từ thư mục tripguardian. Đừng chạy hai bản cùng một script. Nút thắt hiện tại: key Gemma 40 call dùng chung (observe Maps, TikTok `asr_check` / `place_verify` / `observe`, `PHOTO_OBSERVE`) + RAM.
+
+Việc nên làm khi máy rảnh: (1) `python -m corpus gmaps photos` cho hết 1.438 nơi (khoảng 8–10 giờ ở 6 tab nếu RAM đủ); (2) `python -m corpus gmaps photo_observe --limit 20` xem chất lượng trước khi chạy hết (ảnh cận cảnh món ăn đôi khi vẫn ra `setting = indoor`); (3) sau `AFTER_PHOTOS_DONE`: đo lại độ phủ `steep_or_stairs` / `rough_road_access` và số chuyến đủ shortlist ở `data/serving/eval.json`.
 
 ## Việc người
 
