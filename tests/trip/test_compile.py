@@ -58,3 +58,17 @@ def test_view_marks_inferred_and_counts_coverage(catalog, cfg):
     assert v["hard"][0]["coverage"]["passed"] == 1
     assert {r["key"] for r in v["soft"]} >= {"noise=quiet"} and v["unmapped"][0]["phrase"] == "nhạc nhẹ"
     assert v["safety_pending"] is False
+
+
+def test_context_carries_budget_and_experience():
+    from trip.state import Meta
+    s = TripState(meta=Meta(experience="returning"))
+    s = up(s, "budget_vnd", 500000)
+    si = compile_search_input(s)
+    assert si.context.budget_vnd == 500000 and si.context.experience == "returning"
+    assert "budget_vnd" not in si.unknowns
+
+
+def test_trip_exports_text_helpers():
+    from trip import contains, squash
+    assert squash("Đồi Chè Cầu Đất!") == "doi che cau dat" and contains("tới đồi chè cầu đất", "Cầu Đất")

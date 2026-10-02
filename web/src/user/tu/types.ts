@@ -98,6 +98,8 @@ export interface SearchInput {
     arrive_at: string | null
     leave_at: string | null
     day_end: string | null
+    budget_vnd: number | null
+    experience: 'first' | 'returning' | null
   }
   hard_filters: { feature: string; op: 'ne' | 'eq'; value: string; unknown_policy: 'exclude' | 'flag' }[]
   anchors: { place_id: string; priority: 'must' | 'want' }[]
