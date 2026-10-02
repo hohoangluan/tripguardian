@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import openai
 
-from .roles import EXTRACTOR, JUDGE, Role
+from .roles import AGENT, EXTRACTOR, JUDGE, Role
 
 ATTEMPTS = 4  # per call: a broken JSON answer or a busy / unreachable server is tried again
 RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each time
@@ -59,6 +59,17 @@ class Task:
                 if attempt == ATTEMPTS:
                     raise
                 await asyncio.sleep(RETRY_S * 2 ** (attempt - 1))
+
+    async def stream(self, client, model: str, **fields):
+        """Text deltas of one streamed call. No retry: a live turn falls back instead of waiting."""
+        s = await client.chat.completions.create(
+            model=model, messages=[{"role": "user", "content": self.render(**fields)}],
+            temperature=self.temperature, max_tokens=self.max_tokens, stream=True,
+            response_format={"type": "json_schema", "json_schema": {"name": self.name, "schema": self.schema,
+                                                                    "strict": True}})
+        async for chunk in s:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
 
 VIDEO_FILTER = Task(
@@ -490,4 +501,99 @@ Claim, with the words or the picture it was taken from: {claim}
 Give a one-sentence reason.
 
 Material: {passage}""",
+)
+
+
+TRIP_FIELDS = ["start_date", "month", "days", "companions", "people", "base", "mobility", "arrive_at", "leave_at",
+               "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
+               "novelty", "budget_vnd", "unmapped"]
+
+TRIP_TURN = Task(
+    name="trip_turn",
+    role=AGENT,
+    max_tokens=900,
+    temperature=0.2,
+    parallel=4,
+    # `say` first: the server streams it to the user before the structured part arrives (src/trip/agent.py).
+    schema={
+        "type": "object",
+        "properties": {
+            "say": {"type": "string"},
+            "updates": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "field": {"type": "string", "enum": TRIP_FIELDS},
+                    "op": {"type": "string", "enum": ["set", "add", "remove"]},
+                    "value": {"type": "string"},
+                    "quote": {"type": "string"},
+                    "how": {"type": "string", "enum": ["said", "inferred"]},
+                },
+                "required": ["field", "op", "value", "quote", "how"],
+                "additionalProperties": False,
+            }},
+            "next": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["ask", "stop"]},
+                    "qid": {"type": "string"},
+                    "custom_text": {"type": "string"},
+                    "custom_chips": {"type": "array", "items": {"type": "string"}},
+                    "reason": {"type": "string"},
+                },
+                "required": ["kind", "qid", "custom_text", "custom_chips", "reason"],
+                "additionalProperties": False,
+            },
+        },
+        "required": ["say", "updates", "next"],
+        "additionalProperties": False,
+    },
+    prompt="""You help a traveller prepare a trip to Đà Lạt, Vietnam. In this turn: understand the user's latest
+message, record what it says about the trip, and choose the next question. Never suggest places in this step.
+
+`say` (Vietnamese): 1-2 short sentences, warm but not chummy, "mình" for yourself and "bạn" for the user, no slang,
+no emoji. Acknowledge what you understood, then lead into the next question. Never name a place. Never state a number
+or fact the user did not say. The question and its options appear on a card under your text, so do not list options.
+
+`updates`: one entry per fact in the user's message.
+- field: one of the allowed fields. op: set for one value; add / remove for lists (companions, anchor, signal, soft,
+  hard, unmapped).
+- value formats:
+  start_date YYYY-MM-DD (today is {today}; a date already past means next year) | month 1-12 | days 1-7 | people
+  companions solo|partner|friends|kids|parents | mobility motorbike|car|ride | arrive_at, leave_at, day_end HH:MM
+  purpose relax|bond|photo|food_culture|nature|explore|adventure | pace slow|normal|packed | max_leg_min minutes
+  crowd_tolerance avoid|ok_if_worth|fine | novelty familiar|new|mix | budget_vnd VND per person per day
+  base: the area or place the user stays at, in their words | anchor: one place name or link they must visit
+  signal: knee|elderly|kids|wheelchair|pregnant|motion_sick|height|vegetarian (health, body or diet hints)
+  soft: feature=value[@context_key.context_value]:love|avoid, ids from FEATURES only
+  hard: feature!=value or feature=value, only for what must not / must happen
+  unmapped: a wish FEATURES cannot express, in the user's words
+- quote: the exact words from the user's message that support the update, copied, not paraphrased.
+- how: said when the user stated it; inferred when you concluded it (e.g. "đi với bố mẹ" -> signal elderly, inferred).
+- A subjective word with several meanings ("chill", "đẹp", "vui"): do not guess a feature; ask what it means.
+- When unsure, leave it out. A missing value is fine; a wrong one is not.
+
+`next`:
+- If REQUIRED is not "none": kind ask, qid = its id.
+- Otherwise follow the user's thread: clarify a subjective word, or ask why they want a place they named (at most
+  twice), using custom_text + 2-6 short custom_chips naming concrete things; or pick a qid from CANDIDATES; or kind
+  stop when nothing left would change the result (BUDGET 0 means stop).
+- reason: why the question matters, Vietnamese, one short clause, shown to the user.
+- Unused fields: "" or [].
+
+FEATURES (id: values - meaning)
+{features}
+
+TRIP STATE
+{state}
+
+LAST QUESTION SHOWN: {last_question}
+EXPERIENCE WITH ĐÀ LẠT: {experience}
+KEYWORD MATCHES (deterministic, may be wrong): {prepass}
+REQUIRED: {required}
+CANDIDATES:
+{candidates}
+BUDGET: {budget}
+
+USER MESSAGE:
+{text}""",
 )

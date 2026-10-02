@@ -36,3 +36,9 @@ JUDGE = Role(
     purpose="low-volume checks that gate what gets published",
     key_env="JUDGE_API_KEY", base_url_env="JUDGE_BASE_URL", model_env="JUDGE_MODEL",
 )
+
+AGENT = Role(
+    name="agent",
+    purpose="live conversation turns: one streamed structured call per user message (src/trip)",
+    key_env="AGENT_API_KEY", base_url_env="AGENT_BASE_URL", model_env="AGENT_MODEL",
+)
