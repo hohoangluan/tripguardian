@@ -1,0 +1,8 @@
+# Trip Understanding thresholds (docs/TRIP_UNDERSTANDING.md §5.4, §8-9; docs/plans/TRIP_UNDERSTANDING_SPEC.md).
+n_min: 1            # reviews behind a place's feature value before it counts as evidence
+top_k: 20           # shortlist size used to measure whether a question changes the result
+enough_factor: 1.5  # a hard filter's coverage is "enough" when verified passes >= top_k * enough_factor
+turn_budget: 5      # adaptive questions after the opening card; tier-1 questions are asked anyway
+stop_score: 0.15    # stop asking when the best remaining question scores below this
+first_token_s: 8    # agent: wait this long for the first streamed token, then answer from the policy
+total_s: 30         # agent: whole-call limit
