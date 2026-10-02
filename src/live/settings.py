@@ -24,6 +24,7 @@ class Settings:
     nominatim_min_interval_s: float
     ttl_s: dict
     open_meteo_url: str
+    lodging_query_limit: int
     tz_offset_h: float
 
 

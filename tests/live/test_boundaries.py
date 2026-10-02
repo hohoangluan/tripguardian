@@ -11,6 +11,7 @@ SRC = Path(__file__).resolve().parents[2] / "src" / "live"
 CORPUS_DIRS = ("data/intel", "data/serving", "data/gmaps", "data/tiktok", "data/review",
                "data\intel", "data\serving", "data\gmaps")
 OTHER_PACKAGES = {"corpus", "decision", "trip", "planning"}
+CORPUS_EXCEPTION = {"corpus"}  # live/lodging reuses corpus.crawl's public API (PLANNING_SPEC.md §Chỗ ở, P5)
 
 
 def modules():
@@ -37,12 +38,22 @@ def test_no_module_imports_another_project_package(path):
             imported |= {a.name.split(".")[0] for a in node.names}
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             imported.add(node.module.split(".")[0])
-    assert not (imported & OTHER_PACKAGES), f"{path.name} imports {imported & OTHER_PACKAGES}"
+    allowed = CORPUS_EXCEPTION if "lodging" in path.parts else set()
+    bad = (imported & OTHER_PACKAGES) - allowed
+    assert not bad, f"{path.name} imports {bad}"
+
+
+def test_lodging_reaches_corpus_only_through_its_crawl_public_api():
+    tree = ast.parse((SRC / "lodging" / "maps.py").read_text(encoding="utf-8"))
+    modules_imported = {n.module for n in ast.walk(tree)
+                        if isinstance(n, ast.ImportFrom) and n.level == 0 and n.module}
+    assert "corpus.crawl" in modules_imported
+    assert not any(m.startswith("corpus.crawl.") for m in modules_imported)
 
 
 def test_the_public_api_is_exactly_what_planning_may_use():
-    assert set(live.__all__) == {"Settings", "Unavailable", "geocode", "holidays", "load_settings", "route_shape",
-                                 "sun_times", "travel_matrix", "weather"}
+    assert set(live.__all__) == {"Settings", "Unavailable", "geocode", "holidays", "load_settings", "lodging_near",
+                                 "route_shape", "sun_times", "travel_matrix", "weather"}
     for name in live.__all__:
         assert hasattr(live, name), name
 

@@ -12,8 +12,9 @@ from .http import Unavailable
 from .osrm import route_shape, travel_matrix
 from .settings import Settings
 from .settings import load as load_settings
+from .lodging import lodging_near
 from .sun import sun_times
 from .weather import weather
 
-__all__ = ["Settings", "Unavailable", "geocode", "holidays", "load_settings", "route_shape", "sun_times",
-           "travel_matrix", "weather"]
+__all__ = ["Settings", "Unavailable", "geocode", "holidays", "load_settings", "lodging_near", "route_shape",
+           "sun_times", "travel_matrix", "weather"]
