@@ -1227,6 +1227,70 @@ button {
   }
 }
 
+/* ---------- landing: brand film ---------- */
+
+.story {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 7vw 40px;
+}
+
+.story h2 {
+  margin: 12px 0 34px;
+  font-size: clamp(2rem, 4.4vw, 3.6rem);
+  max-width: 18ch;
+}
+
+.story__film {
+  position: relative;
+  margin: 0;
+}
+
+.story__film video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 28px;
+  background: #e9e3d6;
+  box-shadow: 0 50px 90px -55px rgba(19, 35, 31, 0.7);
+}
+
+.story__toggle {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(244, 240, 230, 0.9);
+  color: var(--pine);
+  font: 700 0.95rem var(--sans);
+  cursor: pointer;
+  box-shadow: 0 8px 20px -10px rgba(19, 35, 31, 0.5);
+}
+
+.story__toggle:focus-visible {
+  outline: 3px solid var(--daquy);
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .story {
+    padding: 24px var(--gutter) 16px;
+  }
+  .story__film video {
+    border-radius: 18px;
+  }
+  .story__toggle {
+    right: 10px;
+    bottom: 10px;
+    width: 40px;
+    height: 40px;
+  }
+}
+
 .demo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

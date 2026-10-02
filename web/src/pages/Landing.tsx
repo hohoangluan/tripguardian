@@ -4,6 +4,7 @@ import Lenis from 'lenis'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { story } from '../scene/story'
 import { Choose } from './Choose'
+import { Story } from './Story'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -393,6 +394,7 @@ function Outro({ onStart }: { onStart: () => void }) {
   return (
     <div className="outro">
       <Choose />
+      <Story />
 
       <section className="demo">
         <div className="demo__copy">
