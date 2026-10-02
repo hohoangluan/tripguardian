@@ -16,14 +16,24 @@ until curl -s -m 15 -o /dev/null -w '%{http_code}' https://llm.uit.edu.vn/gemma/
   sleep 300
 done
 say "UIT reachable, prompt eval"
-if ! python scripts/observe_prompt_eval.py >> "$LOG" 2>&1; then
-  say "GATE FAILED: prompts not re-run, see the eval output above"
-  exit 1
-fi
+# the eval needs the network for ~2 min: a failure with the endpoint down is not a prompt failure; only a run that
+# reached the model and returned FAIL stops the re-run
+while true; do
+  python scripts/observe_prompt_eval.py > logs/prompt_eval.out 2>&1
+  cat logs/prompt_eval.out >> "$LOG"
+  grep -q "^GATE PASS" logs/prompt_eval.out && break
+  if grep -q "^GATE FAIL" logs/prompt_eval.out; then
+    say "GATE FAILED: prompts not re-run, see the eval output above"
+    exit 1
+  fi
+  say "eval could not reach the model, waiting for the network"
+  until curl -s -m 15 -o /dev/null -w '%{http_code}' https://llm.uit.edu.vn/gemma/v1/models | grep -q '^[24]'; do sleep 120; done
+done
 python -c "import sys; sys.path.insert(0, 'src'); from corpus.review import labels; print('labels migrated', labels.migrate())" >> "$LOG" 2>&1
 [ -d data/gmaps/observations_before_v6 ] || cp -r data/gmaps/observations data/gmaps/observations_before_v6
-for i in 1 2 3; do
+for i in 1 2 3 4 5 6 7 8; do  # a lost network fails places with APIConnectionError: each run retries them
   say "observe run $i"
+  until curl -s -m 15 -o /dev/null -w '%{http_code}' https://llm.uit.edu.vn/gemma/v1/models | grep -q '^[24]'; do sleep 120; done
   python -u -m corpus gmaps observe --city dalat >> "$LOG" 2>&1
   tail -1 "$LOG" | grep -q '"failed"' || break
 done

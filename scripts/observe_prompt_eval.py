@@ -50,17 +50,20 @@ async def main():
     for ref, o in kept:
         v = await extract.check_span(slots, place, refs[ref]["text"], ont, o) if ont.features[o["feature"]].span_check else "supports"
         final.append((ref, o["feature"], o["value"], o["quote"], v))
-    ok = 0; total = 0
+    ok = 0; total = 0; bad_hits = 0; good_ok = 0; good_n = 0
     for i, (t, exp) in enumerate(CASES, 1):
         got = {(f, v) for r, f, v, q, verdict in final if r == f"r{i}" and verdict == "supports"}
         for pair in exp.get("bad", []):
-            total += 1; ok += pair not in got
+            total += 1; ok += pair not in got; bad_hits += pair in got
             print(("OK  " if pair not in got else "FAIL"), "no", pair, "|", t[:50])
         for pair in exp.get("good", []):
-            total += 1; ok += pair in got
+            total += 1; ok += pair in got; good_n += 1; good_ok += pair in got
             print(("OK  " if pair in got else "FAIL"), "has", pair, "|", t[:50])
     print(f"\n{ok}/{total}")
     for row in final: print(row)
     print(dict(dropped))
+    passed = bad_hits == 0 and good_ok >= 0.8 * good_n
+    print("GATE", "PASS" if passed else "FAIL")
+    sys.exit(0 if passed else 1)
 
 asyncio.run(main())

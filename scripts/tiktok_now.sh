@@ -7,7 +7,7 @@ export PYTHONIOENCODING=utf-8
 LOG=logs/tiktok_now.log
 say() { echo "$(date '+%F %T') $*" >> "$LOG"; }
 observe() {
-  for i in 1 2 3; do
+  for i in 1 2 3 4 5 6; do  # a lost network fails items: each run retries them
     python -u -m corpus tiktok observe --city dalat >> "$LOG" 2>&1
     tail -1 "$LOG" | grep -q '"failed"' || break
   done

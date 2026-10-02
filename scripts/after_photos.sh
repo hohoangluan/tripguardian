@@ -9,7 +9,7 @@ until grep -q AFTER_RERUN_DONE "$LOG" 2>/dev/null && grep -q "done, the rest in 
   sleep 300
 done
 echo "$(date '+%F %T') photo observe" >> "$LOG"
-for i in 1 2 3; do
+for i in 1 2 3 4 5 6; do  # a lost network fails items: each run retries them
   python -u -m corpus gmaps photo_observe --city dalat >> "$LOG" 2>&1
   tail -1 "$LOG" | grep -q '"failed"' || break
 done
