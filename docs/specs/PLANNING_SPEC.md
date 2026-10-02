@@ -259,7 +259,9 @@ Web: `web/src/user/screens/Itinerary.tsx` đổi sang gọi `/api/planning`; `we
 
 ## Cấu hình — `config/planning.yaml`
 
-`version`; `mode_factor`; `road_factor` (dùng cho chặng đi bộ và cho đường lui khi OSRM chết); `walk_km`; `walk_kmh`; `radius_km` theo mobility; `lodging_k`; `lodging_share`; `min_reviews`; `split_min`; `cluster_max_min`; `max_days`; `max_clusters`; `exact_n`; `buffer_min` theo pace; `max_consecutive_min`; `rest_per_day` theo pace; `meals_per_day`; kịch bản nhiễu của độ vững + ngưỡng 3 mức; trọng số từng mục tiêu; trọng số phạt của `repair_day`; TTL từng nguồn live; endpoint OSRM.
+`version`; `mode_factor`; `road_factor` (dùng cho chặng đi bộ và cho đường lui khi OSRM chết); `walk_km`; `walk_kmh`; `radius_km` theo mobility; `lodging_k`; `lodging_share`; `min_reviews`; `split_min`; `cluster_max_min`; `max_days`; `max_clusters`; `exact_n`; `buffer_min` theo pace; `max_consecutive_min`; `rest_per_day` theo pace; `meals_per_day`; kịch bản nhiễu của độ vững + ngưỡng 3 mức; trọng số từng mục tiêu; trọng số phạt của `repair_day`.
+
+TTL từng nguồn live và endpoint OSRM nằm ở `config/live.yaml`, không nằm ở đây: `src/live` không được đọc config của `planning` (phụ thuộc một hướng).
 
 Thêm `config/climate.yaml` (khí hậu Đà Lạt theo tháng) và `config/holidays.yaml` (lễ Việt Nam).
 

@@ -1,0 +1,30 @@
+# Live Context settings (docs/specs/PLANNING_SPEC.md §Live Context).
+# Planning reads config/planning.yaml; this file belongs to src/live alone, so src/live needs no other package.
+version: 1
+
+# OSRM runs on this machine; see scripts/osrm_setup.sh.
+osrm_url: http://127.0.0.1:5000
+osrm_profile: driving
+
+# OSM has no motorbike profile, so the car profile is scaled. Every number built on this is labelled an estimate.
+mode_factor:
+  car: 1.0
+  motorbike: 0.95
+  ride: 1.0
+  walk: 1.0
+
+timeout_s: 10
+
+nominatim_url: https://nominatim.openstreetmap.org/search
+# Nominatim requires an identifying User-Agent with a contact; LIVE_CONTACT fills {contact} from .env.
+user_agent: "TripGuardian/0.1 (contact: {contact})"
+nominatim_min_interval_s: 1.0
+
+# Seconds. Roads change slowly, forecasts quickly, OTA prices daily.
+ttl_s:
+  osrm: 604800      # 7 days
+  weather: 10800    # 3 hours
+  lodging: 86400    # 1 day
+  geocode: 2592000  # 30 days
+
+tz_offset_h: 7
