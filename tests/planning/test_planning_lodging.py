@@ -84,3 +84,14 @@ def test_a_dead_lodging_source_at_one_centre_still_returns_what_the_other_found(
 
 def test_no_places_means_no_candidates():
     assert candidates({}, decision([]), CFG, lambda *a: pytest.fail("no call"), None) == []
+
+
+from planning.lodging import progress_event
+
+
+def test_progress_event_names_every_candidate_with_its_price():
+    ev = progress_event([cand(0, price=300000), cand(1)], baseline_travel_min=120)
+    assert ev == {"event": "progress", "stage": "lodging_scored",
+                 "candidates": [{"id": "h0", "name": "Homestay 0", "price_vnd": 300000},
+                                {"id": "h1", "name": "Homestay 1", "price_vnd": None}],
+                 "baseline_travel_min": 120}

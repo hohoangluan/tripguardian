@@ -95,3 +95,13 @@ def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, lodgin
                 seen.add(c["id"])
                 raw.append(c)
     return shortlist(sieve(raw, hard_filters, cfg.min_reviews), centres, cfg.lodging_k)
+
+
+def progress_event(cands: list[dict], baseline_travel_min: int | None) -> dict:
+    """The one event P6's SSE server relays while lodging crawls in the background
+    (docs/specs/PLANNING_SPEC.md §Chỗ ở không làm người dùng chờ). baseline_travel_min comes from the caller (the
+    trip already scheduled once without lodging): this module never recomputes it.
+    """
+    return {"event": "progress", "stage": "lodging_scored",
+            "candidates": [{"id": c["id"], "name": c["name"], "price_vnd": c["price_vnd"]} for c in cands],
+            "baseline_travel_min": baseline_travel_min}
