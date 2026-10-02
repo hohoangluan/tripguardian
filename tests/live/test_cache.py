@@ -60,3 +60,37 @@ def test_a_cache_file_without_a_timestamp_is_a_miss(data_dir):
     p = next((data_dir / "live" / "osrm").glob("*.json"))
     p.write_text('{"source": "osrm", "value": "v"}', encoding="utf-8")
     assert cache.get("osrm", {"a": 1}, 60) is None
+
+
+def test_a_failed_replace_still_returns_the_entry_and_leaves_no_temp_file(data_dir, monkeypatch):
+    def locked(src, dst):
+        raise PermissionError("[WinError 5] a reader holds the target open")
+
+    monkeypatch.setattr(cache.os, "replace", locked)
+    entry = cache.put("osrm", {"a": 1}, "v", "osrm")  # the cache is best effort: a fetched value is not thrown away
+    assert entry["value"] == "v"
+    assert not list((data_dir / "live" / "osrm").glob("*.tmp"))
+
+
+def test_many_writers_and_readers_of_one_key_never_raise():
+    import threading
+
+    errors = []
+
+    def writer():
+        try:
+            for _ in range(30):
+                cache.put("osrm", {"a": 1}, "v", "osrm")
+        except Exception as e:  # noqa: BLE001 - any escape is the failure under test
+            errors.append(e)
+
+    def reader():
+        for _ in range(60):
+            cache.get("osrm", {"a": 1}, 60)
+
+    threads = [threading.Thread(target=writer) for _ in range(4)] + [threading.Thread(target=reader)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []

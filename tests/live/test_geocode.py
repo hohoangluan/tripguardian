@@ -87,10 +87,37 @@ def test_no_match_is_none_and_is_remembered(cfg, monkeypatch):
     monkeypatch.setattr(nominatim, "get_json", empty)
     assert nominatim.geocode("Homestay Không Tồn Tại XYZ", cfg, sleep=lambda s: None) is None
     assert nominatim.geocode("Homestay Không Tồn Tại XYZ", cfg, sleep=lambda s: None) is None
-    assert len(calls) == 1  # the miss is cached, so the service is asked once
+    assert len(calls) == 2  # the city query and the boxed retry the first time; the cached miss asks nothing
 
 
 def test_a_body_that_is_not_a_list_is_unavailable(cfg, monkeypatch):
     monkeypatch.setattr(nominatim, "get_json", lambda url, ua, timeout: {"error": "blocked"})
     with pytest.raises(Unavailable):
         nominatim.geocode("Bến xe Liên tỉnh", cfg, sleep=lambda s: None)
+
+
+def test_a_place_outside_the_city_proper_is_found_by_the_province_wide_retry(cfg, monkeypatch):
+    """The airport sits in Hiệp Thạnh, so '..., Đà Lạt' finds nothing; the retry has no city but is boxed to Lâm Đồng."""
+    rows = json.loads((FIXTURES / "nominatim_hit.json").read_text(encoding="utf-8"))
+    calls = []
+
+    def fake(url, ua, timeout):
+        calls.append(url)
+        return [] if "%C4%90%C3%A0+L%E1%BA%A1t" in url else rows  # empty for the city-suffixed query only
+
+    monkeypatch.setattr(nominatim, "get_json", fake)
+    p = nominatim.geocode("Sân bay Liên Khương", cfg, sleep=lambda s: None)
+    assert p is not None and p["lat"] == 11.9404
+    assert len(calls) == 2
+    assert "viewbox=" in calls[1] and "bounded=1" in calls[1]
+    assert "%C4%90%C3%A0+L%E1%BA%A1t" not in calls[1]
+    nominatim.geocode("Sân bay Liên Khương", cfg, sleep=lambda s: None)
+    assert len(calls) == 2  # the answer of the retry is cached under the same text
+
+
+def test_when_both_queries_find_nothing_it_is_none_and_remembered(cfg, monkeypatch):
+    calls = []
+    monkeypatch.setattr(nominatim, "get_json", lambda url, ua, timeout: calls.append(url) or [])
+    assert nominatim.geocode("Nơi Không Có XYZ", cfg, sleep=lambda s: None) is None
+    assert nominatim.geocode("Nơi Không Có XYZ", cfg, sleep=lambda s: None) is None
+    assert len(calls) == 2  # two queries the first time, none the second

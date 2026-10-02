@@ -54,3 +54,14 @@ def test_a_timeout_becomes_unavailable(monkeypatch):
     monkeypatch.setattr(http.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(http.Unavailable):
         http.get_json("http://x/y", "TG/0.1", 1)
+
+
+def test_a_truncated_body_becomes_unavailable(monkeypatch):
+    import http.client as httpclient
+
+    def fake_urlopen(req, timeout):
+        raise httpclient.IncompleteRead(b"[1,2", 100)
+
+    monkeypatch.setattr(http.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(http.Unavailable):
+        http.get_json("http://x/y", "TG/0.1", 1)

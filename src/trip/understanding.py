@@ -9,7 +9,8 @@ from .state import SoftKey, TripState, pending_signals, unknown_fields
 from .values import jsonable
 
 MARKED = ("inferred", "anchor", "profile")
-TRIP_ROWS = ("start_date", "month", "days", "companions", "people", "base", "mobility", "arrive_at", "leave_at", "day_end")
+TRIP_ROWS = ("start_date", "month", "days", "companions", "people", "base", "entry_point", "exit_point", "mobility",
+             "arrive_at", "leave_at", "day_end")
 
 
 def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:

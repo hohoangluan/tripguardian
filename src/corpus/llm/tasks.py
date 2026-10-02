@@ -504,8 +504,8 @@ Material: {passage}""",
 )
 
 
-TRIP_FIELDS = ["start_date", "month", "days", "companions", "people", "base", "mobility", "arrive_at", "leave_at",
-               "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
+TRIP_FIELDS = ["start_date", "month", "days", "companions", "people", "base", "entry_point", "exit_point", "mobility",
+               "arrive_at", "leave_at", "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
                "novelty", "budget_vnd", "unmapped"]
 
 TRIP_TURN = Task(
@@ -563,6 +563,7 @@ or fact the user did not say. The question and its options appear on a card unde
   purpose relax|bond|photo|food_culture|nature|explore|adventure | pace slow|normal|packed | max_leg_min minutes
   crowd_tolerance avoid|ok_if_worth|fine | novelty familiar|new|mix | budget_vnd VND per person per day
   base: the area or place the user stays at, in their words | anchor: one place name or link they must visit
+  entry_point, exit_point: where the trip enters and leaves the city (bus station, airport, a pass if driving), in their words
   signal: knee|elderly|kids|wheelchair|pregnant|motion_sick|height|vegetarian (health, body or diet hints)
   soft: feature=value[@context_key.context_value]:love|avoid, ids from FEATURES only
   hard: feature!=value or feature=value, only for what must not / must happen

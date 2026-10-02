@@ -6,6 +6,7 @@ Nothing here reads or writes corpus data. The cache is the only thing src/live e
 import hashlib
 import json
 import os
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -46,11 +47,21 @@ def get(source: str, payload: dict, ttl_s: int) -> dict | None:
 
 
 def put(source: str, payload: dict, value, label: str) -> dict:
-    """Write one entry atomically and return it, so callers use the same shape on a hit and on a miss."""
+    """Write one entry atomically and return it, so callers use the same shape on a hit and on a miss.
+
+    The cache is best effort: when the disk write fails (on Windows os.replace fails while a reader holds the target),
+    the value that was just fetched is still returned and only the caching is lost.
+    """
     entry = {"source": label, "fetched_at": now(), "value": value}
     p = _path(source, payload)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, p)
+    tmp = None
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=p.stem + ".", suffix=".tmp")  # one temp file per writer
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False))
+        os.replace(tmp, p)
+    except OSError:
+        if tmp is not None:
+            Path(tmp).unlink(missing_ok=True)
     return entry

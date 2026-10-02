@@ -58,10 +58,10 @@ WHO = {
 VEHICLE = {"motorbike": "Xe máy", "car": "Ô tô riêng", "ride": "Grab, taxi"}
 # The common ways into Đà Lạt. The corpus holds none of them (it holds places visitors go to), so these are text
 # that Planning geocodes; the question also takes free text for anything else.
-ENTRY_POINTS = (
-    ("bus_station", "Bến xe Liên tỉnh Đà Lạt"),
-    ("airport", "Sân bay Liên Khương"),
-    ("own_vehicle", "Tự lái, vào từ đèo Prenn"),
+ENTRY_POINTS = (  # (key, label going in, label going out, text Planning geocodes)
+    ("bus_station", "Bến xe Liên tỉnh Đà Lạt", "Bến xe Liên tỉnh Đà Lạt", "Bến xe Liên tỉnh Đà Lạt"),
+    ("airport", "Sân bay Liên Khương", "Sân bay Liên Khương", "Sân bay Liên Khương"),
+    ("own_vehicle", "Tự lái, vào từ đèo Prenn", "Tự lái, ra qua đèo Prenn", "Đèo Prenn"),
 )
 PURPOSE = {
     "relax": ("Nghỉ ngơi, thư giãn", (d("pace", "slow", inferred=True), soft("long_stay_chill=present"),
@@ -332,12 +332,12 @@ def bank(state: TripState, catalog: Catalog, cfg: Settings) -> list[Question]:
             single_rows=("Tới Đà Lạt bằng", "Rời Đà Lạt từ"),
             text="Bạn tới Đà Lạt từ đâu, và rời từ đâu?",
             reason="Để ngày đầu và ngày cuối tính đúng đoạn từ nơi bạn xuống xe.",
-            chips=tuple(Chip(id=f"in:{key}", label=label, row="Tới Đà Lạt bằng",
-                             drafts=(d("entry_point", Base(text=label)),))
-                        for key, label in ENTRY_POINTS)
-                  + tuple(Chip(id=f"out:{key}", label=label, row="Rời Đà Lạt từ",
-                               drafts=(d("exit_point", Base(text=label)),))
-                          for key, label in ENTRY_POINTS)))
+            chips=tuple(Chip(id=f"in:{key}", label=label_in, row="Tới Đà Lạt bằng",
+                             drafts=(d("entry_point", Base(text=text)),))
+                        for key, label_in, _, text in ENTRY_POINTS)
+                  + tuple(Chip(id=f"out:{key}", label=label_out, row="Rời Đà Lạt từ",
+                               drafts=(d("exit_point", Base(text=text)),))
+                          for key, _, label_out, text in ENTRY_POINTS)))
     if want("times", state.days.known and not state.arrive_at.known):
         out.append(Question(qid="times", group="A", multi=True, single_rows=("Ngày đầu tới lúc", "Ngày cuối rời lúc"),
                             text="Ngày đầu bạn tới lúc nào, ngày cuối rời Đà Lạt lúc nào?",

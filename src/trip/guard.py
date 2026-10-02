@@ -14,8 +14,8 @@ from .settings import Settings
 from .state import SCALARS, Evidence, Frozen, TripState, Update, apply, settle
 from .text import contains, squash
 
-FieldName = Literal["start_date", "month", "days", "companions", "people", "base", "mobility", "arrive_at", "leave_at",
-                    "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
+FieldName = Literal["start_date", "month", "days", "companions", "people", "base", "entry_point", "exit_point", "mobility",
+                    "arrive_at", "leave_at", "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
                     "novelty", "budget_vnd", "unmapped"]
 LIST_FIELDS = {"companions", "anchor", "signal", "soft", "hard", "unmapped"}
 

@@ -3,6 +3,7 @@
 A failure is handed to the caller as Unavailable; deciding what a missing source means belongs to Planning.
 """
 
+import http.client
 import json
 import urllib.error
 import urllib.request
@@ -17,5 +18,5 @@ def get_json(url: str, user_agent: str, timeout_s: float):
     try:
         with urllib.request.urlopen(req, timeout=timeout_s) as r:
             return json.loads(r.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError, ValueError) as e:
         raise Unavailable(f"{url.split('?', 1)[0]}: {e}") from e
