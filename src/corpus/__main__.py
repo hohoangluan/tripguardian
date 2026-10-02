@@ -17,6 +17,7 @@ from .review import server as review_server
 from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, search as gmaps_search
 from .observe import gmaps as gmaps_observe
 from .observe import tiktok as tiktok_observe
+from .crawl.gmaps import photos as gmaps_photos
 from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check,
                            comments_crawl as tiktok_comments_crawl, crawl as tiktok_crawl,
                            filter as tiktok_filter, listing as tiktok_list, place_verify as tiktok_place_verify,
@@ -34,7 +35,8 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "observe": (tiktok_observe.run, False)},
     "gmaps": {"search": (gmaps_search.run, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
               "list": (gmaps_list.run, False),
-              "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "qc": (gmaps_qc.run, False),
+              "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True),
+              "photos": (gmaps_photos.run, True), "qc": (gmaps_qc.run, False),
               "observe": (gmaps_observe.run, False)},
 }
 
@@ -48,6 +50,8 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
         fn, browser_phase = PHASES[source][p]
         if browser_phase and source == "tiktok":
             out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}))
+        elif browser_phase and p == "photos":
+            out = fn(city, headed, limit=limit)
         elif browser_phase:
             out = fn(city, headed)
         elif p == "observe" and source == "gmaps":
@@ -77,7 +81,7 @@ def main() -> None:
         sp.add_argument("phase", choices=[*phases, "all"])
         sp.add_argument("--city", default="dalat")
         sp.add_argument("--headed", action="store_true")
-        sp.add_argument("--limit", type=int, help="observe: only the first N places")
+        sp.add_argument("--limit", type=int, help="observe / photos: only the first N places")
         sp.add_argument("--wait-relevant", action="store_true",
                         help="gmaps observe: skip places whose relevant reviews are not crawled yet")
         if source == "tiktok":
