@@ -1,7 +1,7 @@
-from plan_fixtures import prepared, sample_trip
+from plan_fixtures import CENTRE, SOUTH, prepared, sample_trip
 
 import planning.build as build_module
-from planning.build import schedule_trip
+from planning.build import schedule_trip, with_home
 
 
 def test_each_day_gets_the_rain_of_its_date_and_a_date_the_forecast_lacks_stays_unknown():
@@ -42,3 +42,27 @@ def test_objective_weights_reach_the_day_split_but_not_the_shared_days():
     trip = prepared(d, recs)
     s = schedule_trip(trip, {"repeat": 40.0})
     assert s.ctxs[0].cfg.weights["repeat"] == 40.0 and "repeat" not in trip.ctxs[0].cfg.weights
+
+
+def test_extra_nodes_join_the_one_travel_matrix_and_are_not_otherwise_placed():
+    d, recs = sample_trip()
+    trip = prepared(d, recs, extra_nodes={"h1": (CENTRE[0] + 0.001, CENTRE[1])})
+    assert "h1" in trip.travel.ids and "h1" not in trip.by_place
+    assert trip.lodging_ids == ("h1",)
+
+
+def test_with_home_changes_only_where_the_day_starts_and_ends():
+    d, recs = sample_trip()
+    trip = prepared(d, recs, extra_nodes={"h1": (SOUTH[0], SOUTH[1])})
+    swapped = with_home(trip, "h1")
+    assert swapped.days[0].start_node == "h1" and trip.days[0].start_node != "h1"
+    assert swapped.ctxs[0].rain == trip.ctxs[0].rain and swapped.travel is trip.travel
+
+
+def test_order_is_cached_separately_per_home():
+    d, recs = sample_trip()
+    trip = prepared(d, recs, extra_nodes={"h1": (SOUTH[0], SOUTH[1])})
+    schedule_trip(trip)
+    n = len(trip.routes)
+    schedule_trip(with_home(trip, "h1"))
+    assert len(trip.routes) > n  # a different start node is a different cache key, not reused

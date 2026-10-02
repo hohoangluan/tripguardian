@@ -133,8 +133,8 @@ def sample_trip(**kw):
     return decision([r["id"] for r in recs], **kw), recs
 
 
-def prepared(d, recs, weather=None, matrix=fake_matrix):
+def prepared(d, recs, weather=None, matrix=fake_matrix, extra_nodes=None):
     """build.prepare with every outside source replaced."""
     from planning.build import prepare
     return prepare(d, recs, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=matrix, sun_fn=fixed_sun,
-                   weather=weather)
+                   weather=weather, extra_nodes=extra_nodes)

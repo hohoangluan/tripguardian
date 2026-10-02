@@ -67,6 +67,7 @@ class Trip:
     ctxs: list                      # one DayCtx a day, with the default weights
     warnings: list
     weather: dict | None
+    lodging_ids: tuple = ()         # ids of the extra nodes added to the matrix as lodging candidates (P5)
     routes: dict = field(default_factory=dict)      # (day index, sorted ids) -> DayResult, shared by every variant
 
 
@@ -81,7 +82,7 @@ class Schedule:
 
 
 def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, live_cfg=None, geocode_fn=None,
-            matrix_fn=None, sun_fn=None, weather: dict | None = None) -> Trip:
+            matrix_fn=None, sun_fn=None, weather: dict | None = None, extra_nodes: dict | None = None) -> Trip:
     """weather: {"YYYY-MM-DD": {"rain_prob": 0..1, "source", "fetched_at"}} or None. P5 fills it from live.weather."""
     cfg = cfg or load_settings()
     live_cfg = live_cfg or live.load_settings()
@@ -116,6 +117,7 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
 
     nodes = {p.id: (p.lat, p.lng) for p in placed}
     nodes.update({n: (pt.lat, pt.lng) for n, pt in points.items() if pt})
+    nodes.update(extra_nodes or {})
     travel = build_travel(nodes, mobility, cfg, live_cfg, matrix_fn)
     if travel.source == "rough":
         warnings.append(_warn("travel_rough"))
@@ -138,7 +140,8 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     ctxs = [DayCtx(d, by_place, travel, cfg, pace,
                    sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None, rain_on(d), prefs)
             for d in days]
-    return Trip(decision, cfg, pace, by_place, unplaced, by_id, points, travel, days, ctxs, warnings, weather)
+    return Trip(decision, cfg, pace, by_place, unplaced, by_id, points, travel, days, ctxs, warnings, weather,
+               lodging_ids=tuple(extra_nodes or {}))
 
 
 def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
@@ -169,7 +172,7 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
                                   name=trip.by_place[pid].name))
     results = []
     for day_ids, cx in zip(per_day, ctxs):
-        key = (cx.day.index, tuple(sorted(day_ids)))
+        key = (cx.day.index, cx.day.start_node, cx.day.end_node, tuple(sorted(day_ids)))
         if key not in trip.routes:      # the order inside a day does not depend on the day-split weights
             trip.routes[key] = order_day(day_ids, cx)
         results.append(trip.routes[key])
@@ -182,6 +185,18 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
     violations = validate(ctxs, results, tc.get("hard_filters") or [], anchors, tc["context"].get("budget_vnd"),
                           (tc.get("pace") or {}).get("max_leg_min"))
     return Schedule(per_day, results, ctxs, violations, warnings)
+
+
+def with_home(trip: Trip, home_id: str | None) -> Trip:
+    """The same trip anchored at a different place to sleep (a lodging candidate, or None for the original base):
+    same places, same travel matrix, same per-day sun / rain / preference — only where each day starts and ends
+    changes, so the day-order cache (now keyed on the start and end node too) still pays off across candidates."""
+    ctx = trip.decision["trip_context"]["context"]
+    entry = ENTRY if trip.points.get(ENTRY) else None
+    exit_ = EXIT if trip.points.get(EXIT) else None
+    days = trip_days(ctx, trip.cfg, home_id, entry, exit_)
+    ctxs = [replace(cx, day=d) for cx, d in zip(trip.ctxs, days)]
+    return replace(trip, days=days, ctxs=ctxs)
 
 
 def itinerary(days: list, results: list) -> list[dict]:
