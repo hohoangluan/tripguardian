@@ -32,6 +32,11 @@ CASES = [
  ("Gói massage 90 phút rất thư giãn, tay nghề tốt", {"bad": [("visit_duration", "1_to_2h")]}),
  ("Đi thẳng xe lên chỗ cao nhất, không phải leo gì", {"good": [("steep_or_stairs", "absent")]}),
  ("Mấy năm trước đẹp lắm, giờ xuống cấp, cây chết gần hết", {"good": [("condition_change", "declined")]}),
+ # v7 negative values
+ ("Quán bán đúng giá niêm yết, không hề chặt chém, quẹt thẻ được", {"good": [("tourist_trap", "absent"), ("cash_only", "absent")], "bad": [("tourist_trap", "present")]}),
+ ("Đường vào toàn đường nhựa, ô tô chạy vào tận cổng", {"good": [("rough_road_access", "absent")], "bad": [("rough_road_access", "present")]}),
+ ("Giá rẻ, hợp lý cho sinh viên", {"bad": [("tourist_trap", "absent")]}),
+ ("Đường vào hơi xa nhưng dễ tìm", {"bad": [("rough_road_access", "absent"), ("rough_road_access", "present")]}),
  ("Nhà vệ sinh bẩn, nhiều muỗi, cho thuê áo dài chụp hình 50k", {"good": [("toilet", "dirty"), ("mosquitoes", "present"), ("costume_rental", "present")]}),
 ]
 

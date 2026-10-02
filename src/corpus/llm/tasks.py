@@ -345,8 +345,8 @@ For each review ref return the observations it states clearly:
 - Going with someone is not suitability: "đi cùng gia đình" is NOT kids suitable; "hợp cho trẻ em", "bé nhà mình
   chơi rất thích" is. The same for elderly, couples, groups, wheelchair.
 - A denied or missing quality is never "present": "khó chụp hình", "view chẳng có gì" give no photo_spot /
-  scenic_view; "có mái che, không sợ mưa" is weather_exposed sheltered. Use the opposite value only when the feature
-  has one.
+  scenic_view; "có mái che, không sợ mưa" is weather_exposed sheltered; "không chặt chém" is tourist_trap absent;
+  "đường vào toàn đường nhựa" is rough_road_access absent. Use the opposite value only when the feature has one.
 - The reviewer's own story is not a fact about the place: "mình đặt bàn trước", "đặt bàn được xác nhận có bàn" are
   NOT booking_needed yes; "đường đi hơi xa", "đường vào quán hơi xa" (riding there) are NOT long_walk, which needs
   walking on foot; "quán nằm trên dốc" is NOT steep_or_stairs unless visitors must climb; "xe mới", "mới mở" are NOT
@@ -372,6 +372,8 @@ steep_or_stairs absent "đường bằng"; elderly suitable "ông bà đi đư�
 "Gửi xe xong đi bộ gần 2km mới tới thác, vé 50k" -> long_walk present "đi bộ gần 2km"; entry_fee paid "vé 50k".
 "Đi thẳng xe lên tận đỉnh, nhà vệ sinh hơi bẩn" -> steep_or_stairs absent "Đi thẳng xe lên tận đỉnh"; toilet dirty
 "nhà vệ sinh hơi bẩn".
+"Giá đúng như menu, không chặt chém khách du lịch, có chuyển khoản" -> tourist_trap absent "không chặt chém khách du
+lịch"; cash_only absent "có chuyển khoản".
 {note}
 Reviews:
 {reviews}""",

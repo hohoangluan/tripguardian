@@ -5,7 +5,7 @@ from corpus.ontology import load, parse
 
 def test_shipped_ontology_loads():
     ont = load()
-    assert ont.version == 6
+    assert ont.version == 7
     for fid in ("steep_or_stairs", "long_walk"):
         assert ont.features[fid].values == ("present", "absent") and ont.features[fid].span_check
     assert ont.valid("weather_exposed", "sheltered") and ont.features["weather_exposed"].span_check
@@ -15,8 +15,10 @@ def test_shipped_ontology_loads():
     assert ont.valid("vegetarian_options", "no")
     assert ont.features["steep_or_stairs"].span_check and ont.features["kids"].span_check
     assert ont.features["tourist_trap"].span_check and not ont.features["food_quality"].span_check
-    for fid in ("hands_on_workshop", "pick_your_own", "cultural_show", "camping", "spacious", "cash_only"):
+    for fid in ("hands_on_workshop", "pick_your_own", "cultural_show", "camping", "spacious"):
         assert ont.features[fid].values == ("present",)
+    for fid in ("tourist_trap", "rough_road_access", "cash_only"):  # v7: hard filters need a value that can pass
+        assert ont.features[fid].values == ("present", "absent")
     assert ont.valid("entry_fee", "free") and ont.valid("portion_size", "generous")
     assert ont.features["service_quality"].values == ("good", "mixed", "poor")
     assert ont.valid("crowd", "high") and not ont.valid("crowd", "packed") and not ont.valid("wifi", "present")
