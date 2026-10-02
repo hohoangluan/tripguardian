@@ -138,3 +138,17 @@ def prepared(d, recs, weather=None, matrix=fake_matrix, extra_nodes=None):
     from planning.build import prepare
     return prepare(d, recs, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=matrix, sun_fn=fixed_sun,
                    weather=weather, extra_nodes=extra_nodes)
+
+
+def small_trip(**kw):
+    """Three places on a line, one day enough for all of them: small enough for move/reorder/lock tests to read."""
+    recs = [spot("a", CENTRE, 0), spot("b", CENTRE, 1), spot("c", CENTRE, 2)]
+    return decision([r["id"] for r in recs], days=1, **kw), recs
+
+
+def fake_lodging(center, radius_km, check_in, check_out, price_max, live_cfg):
+    cands = [{"id": "h1", "name": "Homestay 1", "lat": CENTRE[0] + 0.001, "lng": CENTRE[1], "rating": 4.5,
+             "reviews": 20, "price_vnd": 300000, "amenities": ["wifi"]},
+            {"id": "h2", "name": "Homestay 2", "lat": CENTRE[0] - 0.001, "lng": CENTRE[1], "rating": 4.2,
+             "reviews": 15, "price_vnd": 900000, "amenities": []}]
+    return [c for c in cands if price_max is None or c["price_vnd"] <= price_max]
