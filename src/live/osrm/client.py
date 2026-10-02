@@ -39,3 +39,22 @@ def travel_matrix(points: list[Point], mode: str | None, cfg: Settings) -> dict:
     minutes = [[0 if i == j else (None if secs[i][j] is None else max(1, round(secs[i][j] * f / 60)))
                 for j in range(len(points))] for i in range(len(points))]
     return {"minutes": minutes, "source": hit["source"], "fetched_at": hit["fetched_at"]}
+
+
+def route_shape(points: list[Point], mode: str | None, cfg: Settings) -> dict:
+    """{"coords": [[lat, lng]], "minutes": int, "source", "fetched_at"} — the line one day's route draws."""
+    if len(points) < 2:
+        raise ValueError("route_shape needs at least two points")
+    payload = {"kind": "route", "profile": cfg.osrm_profile, "points": _rounded(points)}
+    hit = cache_get("osrm", payload, cfg.ttl_s["osrm"])
+    if hit is None:
+        url = (f"{cfg.osrm_url}/route/v1/{cfg.osrm_profile}/{_coords(points)}"
+               "?overview=full&geometries=geojson&steps=false")
+        doc = get_json(url, cfg.user_agent, cfg.timeout_s)
+        if doc.get("code") != "Ok" or not doc.get("routes"):
+            raise Unavailable(f"osrm route: code={doc.get('code')!r}")
+        r = doc["routes"][0]
+        hit = cache_put("osrm", payload, {"coords": r["geometry"]["coordinates"], "duration": r["duration"]}, "osrm")
+    v, f = hit["value"], _factor(mode, cfg)
+    return {"coords": [[lat, lng] for lng, lat in v["coords"]], "minutes": max(1, round(v["duration"] * f / 60)),
+            "source": hit["source"], "fetched_at": hit["fetched_at"]}
