@@ -213,3 +213,18 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
           "warnings": warnings + flag_warnings(decision), "back_to_decision": None, **shared_output(trip)}
     out["provenance"]["weather"] = [{"source": s_, "fetched_at": f} for s_, f in weather_src]
     return out
+
+
+def render_lodging_variants(out: dict) -> str:
+    """render_variants with a "Chỗ ở:" block comparing every candidate on least_travel's own measure."""
+    lines = render_variants(out).splitlines()
+    verdict = lines.pop()
+    if out["lodging"]:
+        lines.append("Chỗ ở:")
+        for r in out["lodging"]["candidates"]:
+            cost = f'{r["price_vnd"]:,} VND/đêm' if r["price_vnd"] is not None else "chưa có giá"
+            delta = r.get("minutes_vs_no_lodging")
+            tail = f' ({delta:+d} phút cả chuyến so với không chỗ ở)' if delta is not None and r["id"] else ""
+            lines.append(f'  {r["name"]}: {cost}, tổng {r["total_travel_min"]} phút di chuyển cả chuyến{tail}')
+    lines.append(verdict)
+    return "\n".join(lines)

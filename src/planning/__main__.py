@@ -1,5 +1,6 @@
 """python -m planning build <decision_output.json> [--out plan.json]
-python -m planning variants <decision_output.json> [--weather forecast.json] [--out plan.json]"""
+python -m planning variants <decision_output.json> [--weather forecast.json] [--out plan.json]
+python -m planning lodging <decision_output.json> [--weather forecast.json] [--out plan.json]"""
 
 import argparse
 import json
@@ -8,7 +9,7 @@ from pathlib import Path
 
 from corpus.serving import load as load_records
 
-from . import build_plan, build_variants, render_text, render_variants
+from . import build_lodging_variants, build_plan, build_variants, render_lodging_variants, render_text, render_variants
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,16 +22,24 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("decision_output", type=Path)
     v.add_argument("--weather", type=Path, help='{"YYYY-MM-DD": {"rain_prob": 0..1, "source", "fetched_at"}}')
     v.add_argument("--out", type=Path, help="also write the full Plan Output as json")
+    l = sub.add_parser("lodging", help="print 2-3 checked variants with lodging competing as each day's anchor")
+    l.add_argument("decision_output", type=Path)
+    l.add_argument("--weather", type=Path, help='{"YYYY-MM-DD": {"rain_prob": 0..1, "source", "fetched_at"}}')
+    l.add_argument("--out", type=Path, help="also write the full Plan Output as json")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
     decision = json.loads(args.decision_output.read_text(encoding="utf-8"))
     if args.cmd == "build":
         plan = build_plan(decision, load_records())
         text = render_text(plan)
-    else:
+    elif args.cmd == "variants":
         weather = json.loads(args.weather.read_text(encoding="utf-8")) if args.weather else None
         plan = build_variants(decision, load_records(), weather=weather)
         text = render_variants(plan)
+    else:
+        weather = json.loads(args.weather.read_text(encoding="utf-8")) if args.weather else None
+        plan = build_lodging_variants(decision, load_records(), weather=weather)
+        text = render_lodging_variants(plan)
     if args.out:
         args.out.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
     print(text)

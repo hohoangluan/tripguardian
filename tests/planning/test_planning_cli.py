@@ -4,15 +4,17 @@ import pytest
 from plan_fixtures import decision, fake_matrix, fixed_sun, no_geocode, rec
 
 import planning.build as build_module
+import planning.variants as variants_module
 import planning.__main__ as cli
 
 
 @pytest.fixture
 def offline(monkeypatch):
-    """No OSRM, no Nominatim, no records file: the command line runs on what the test hands it."""
+    """No OSRM, no Nominatim, no records file, no lodging crawl: the command line runs on what the test hands it."""
     monkeypatch.setattr(build_module.live, "travel_matrix", fake_matrix)
     monkeypatch.setattr(build_module.live, "geocode", lambda text, cfg: no_geocode(text))
     monkeypatch.setattr(build_module.live, "sun_times", fixed_sun)
+    monkeypatch.setattr(variants_module.live, "lodging_near", lambda *a: [])
 
 
 def write_decision(tmp_path, ids, **kw):
@@ -69,5 +71,20 @@ def test_variants_exits_two_and_points_back_to_place_decision(tmp_path, monkeypa
     monkeypatch.setattr(cli, "load_records", lambda: [rec("a", 11.94, 108.45)])
     path = write_decision(tmp_path, ["a", "gone"], roles={"gone": "anchor"})
     assert cli.main(["variants", str(path)]) == 2
+    out = capsys.readouterr().out
+    assert "quay lại chọn địa điểm (gone)" in out and out.rstrip().endswith("KHÔNG hợp lệ.")
+
+
+def test_lodging_prints_a_cho_o_block_and_exits_zero_when_the_plan_is_valid(tmp_path, monkeypatch, capsys, offline):
+    monkeypatch.setattr(cli, "load_records", lambda: [rec("a", 11.94, 108.45), rec("b", 11.941, 108.451)])
+    assert cli.main(["lodging", str(write_decision(tmp_path, ["a", "b"]))]) == 0
+    out = capsys.readouterr().out
+    assert "Chỗ ở:" in out and "Không chỗ ở" in out and out.rstrip().endswith("Hợp lệ.")
+
+
+def test_lodging_exits_two_and_points_back_to_place_decision(tmp_path, monkeypatch, capsys, offline):
+    monkeypatch.setattr(cli, "load_records", lambda: [rec("a", 11.94, 108.45)])
+    path = write_decision(tmp_path, ["a", "gone"], roles={"gone": "anchor"})
+    assert cli.main(["lodging", str(path)]) == 2
     out = capsys.readouterr().out
     assert "quay lại chọn địa điểm (gone)" in out and out.rstrip().endswith("KHÔNG hợp lệ.")

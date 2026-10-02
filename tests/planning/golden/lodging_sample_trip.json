@@ -1,0 +1,391 @@
+{
+ "back_to_decision": null,
+ "chosen": null,
+ "comparison": [
+  {
+   "cost_unknown": 9,
+   "cost_vnd": 0,
+   "label": "Ít di chuyển",
+   "objective": "least_travel",
+   "rain_exposed": 0.0,
+   "repeats": 5,
+   "robustness": "solid",
+   "travel_min": 15,
+   "travel_vs_best": 0,
+   "variant": "v1"
+  }
+ ],
+ "lodging": {
+  "candidates": [
+   {
+    "amenities": [],
+    "id": null,
+    "name": "Không chỗ ở",
+    "price_vnd": null,
+    "total_travel_min": 15
+   },
+   {
+    "amenities": [
+     "wifi"
+    ],
+    "id": "h0",
+    "minutes_vs_no_lodging": 40,
+    "name": "Homestay Nam",
+    "price_vnd": 350000,
+    "total_travel_min": 55
+   }
+  ],
+  "chosen": null
+ },
+ "ok": true,
+ "provenance": {
+  "points": {},
+  "travel": {
+   "fetched_at": "2026-10-02T00:00:00+00:00",
+   "source": "osrm"
+  },
+  "weather": []
+ },
+ "reasons": [],
+ "tradeoffs": [],
+ "trip_context": {
+  "anchors": [],
+  "context": {
+   "arrive_at": null,
+   "base": null,
+   "budget_vnd": 2000000,
+   "companions": [],
+   "day_end": null,
+   "days": 3,
+   "entry_point": null,
+   "exit_point": null,
+   "leave_at": null,
+   "mobility": "motorbike",
+   "month": null,
+   "people": 2,
+   "start_date": "2026-12-12"
+  },
+  "hard_filters": [],
+  "novelty": {
+   "level": null,
+   "visited": []
+  },
+  "pace": {
+   "crowd_tolerance": null,
+   "level": "normal",
+   "max_leg_min": null
+  },
+  "soft_weights": [],
+  "unknowns": [],
+  "unmapped": []
+ },
+ "uncertainty": {
+  "estimated": [
+   "travel_minutes",
+   "visit_minutes",
+   "cost"
+  ],
+  "rough_pairs": 0,
+  "travel_source": "osrm"
+ },
+ "unplaced": [],
+ "variants": [
+  {
+   "backups": {
+    "on_delay": [
+     {
+      "day": 1,
+      "name": "c1",
+      "place_id": "c1"
+     },
+     {
+      "day": 2,
+      "name": "s1",
+      "place_id": "s1"
+     },
+     {
+      "day": 3,
+      "name": "c3",
+      "place_id": "c3"
+     }
+    ],
+    "places": []
+   },
+   "id": "v1",
+   "itinerary": [
+    {
+     "date": "2026-12-12",
+     "day": 1,
+     "items": [
+      {
+       "end": "09:00",
+       "kind": "visit",
+       "name": "c1",
+       "place_id": "c1",
+       "start": "08:00"
+      },
+      {
+       "end": "09:20",
+       "kind": "buffer",
+       "start": "09:00"
+      },
+      {
+       "end": "09:23",
+       "from": "c1",
+       "kind": "travel",
+       "mode": "motorbike",
+       "start": "09:20",
+       "to": "c4"
+      },
+      {
+       "end": "10:23",
+       "kind": "visit",
+       "name": "c4",
+       "place_id": "c4",
+       "start": "09:23"
+      },
+      {
+       "end": "10:43",
+       "kind": "buffer",
+       "start": "10:23"
+      },
+      {
+       "end": "10:58",
+       "kind": "rest",
+       "start": "10:43"
+      },
+      {
+       "end": "11:00",
+       "from": "c4",
+       "kind": "travel",
+       "mode": "motorbike",
+       "start": "10:58",
+       "to": "c2"
+      },
+      {
+       "end": "12:00",
+       "kind": "visit",
+       "name": "c2",
+       "place_id": "c2",
+       "start": "11:00"
+      }
+     ],
+     "method": "exact",
+     "weekday": "sat",
+     "window": [
+      "08:00",
+      "21:00"
+     ]
+    },
+    {
+     "date": "2026-12-13",
+     "day": 2,
+     "items": [
+      {
+       "end": "09:00",
+       "kind": "visit",
+       "name": "s1",
+       "place_id": "s1",
+       "start": "08:00"
+      },
+      {
+       "end": "09:20",
+       "kind": "buffer",
+       "start": "09:00"
+      },
+      {
+       "end": "09:22",
+       "from": "s1",
+       "kind": "travel",
+       "mode": "motorbike",
+       "start": "09:20",
+       "to": "s3"
+      },
+      {
+       "end": "10:22",
+       "kind": "visit",
+       "name": "s3",
+       "place_id": "s3",
+       "start": "09:22"
+      },
+      {
+       "end": "10:42",
+       "kind": "buffer",
+       "start": "10:22"
+      },
+      {
+       "end": "10:57",
+       "kind": "rest",
+       "start": "10:42"
+      },
+      {
+       "end": "11:03",
+       "from": "s3",
+       "kind": "travel",
+       "mode": "walk",
+       "start": "10:57",
+       "to": "s2"
+      },
+      {
+       "end": "12:03",
+       "kind": "visit",
+       "name": "s2",
+       "place_id": "s2",
+       "start": "11:03"
+      }
+     ],
+     "method": "exact",
+     "weekday": "sun",
+     "window": [
+      "08:00",
+      "21:00"
+     ]
+    },
+    {
+     "date": "2026-12-14",
+     "day": 3,
+     "items": [
+      {
+       "end": "09:00",
+       "kind": "visit",
+       "name": "c3",
+       "place_id": "c3",
+       "start": "08:00"
+      },
+      {
+       "end": "09:20",
+       "kind": "buffer",
+       "start": "09:00"
+      },
+      {
+       "end": "09:22",
+       "from": "c3",
+       "kind": "travel",
+       "mode": "motorbike",
+       "start": "09:20",
+       "to": "r1"
+      },
+      {
+       "end": "11:30",
+       "kind": "wait",
+       "note": "meal",
+       "place_id": "r1",
+       "start": "09:22"
+      },
+      {
+       "end": "12:30",
+       "kind": "visit",
+       "name": "r1",
+       "place_id": "r1",
+       "start": "11:30"
+      }
+     ],
+     "method": "exact",
+     "weekday": "mon",
+     "window": [
+      "08:00",
+      "15:00"
+     ]
+    }
+   ],
+   "label": "Ít di chuyển",
+   "lodging": {
+    "id": null,
+    "name": null,
+    "price_vnd": null
+   },
+   "metrics": {
+    "cost_unknown": 9,
+    "cost_vnd": 0,
+    "exposure_unknown": 8,
+    "pref_risk": 0.0,
+    "rain_exposed": 0.0,
+    "repeats": 5,
+    "travel_min": 15
+   },
+   "objective": "least_travel",
+   "robustness": {
+    "breaking": [],
+    "label": "Vững",
+    "level": "solid",
+    "reasons": [
+     "Chịu được mọi kịch bản nhiễu đã thử.",
+     "Chưa biết thời tiết: chưa thử kịch bản mưa."
+    ],
+    "scenarios": [
+     {
+      "id": "late_15",
+      "lost": [],
+      "text": "xuất phát trễ 15 phút",
+      "tier": "small"
+     },
+     {
+      "id": "visit_20",
+      "lost": [],
+      "text": "mỗi nơi ở lâu hơn 20%",
+      "tier": "small"
+     },
+     {
+      "id": "travel_25",
+      "lost": [],
+      "text": "di chuyển chậm hơn 25%",
+      "tier": "small"
+     },
+     {
+      "id": "late_30",
+      "lost": [],
+      "text": "xuất phát trễ 30 phút",
+      "tier": "large"
+     }
+    ],
+    "skipped": [
+     "rain"
+    ]
+   },
+   "score": [
+    15,
+    15
+   ],
+   "travel_load": [
+    {
+     "day": 1,
+     "longest_leg_min": 3,
+     "travel_min": 5,
+     "wait_min": 0
+    },
+    {
+     "day": 2,
+     "longest_leg_min": 6,
+     "travel_min": 8,
+     "wait_min": 0
+    },
+    {
+     "day": 3,
+     "longest_leg_min": 2,
+     "travel_min": 2,
+     "wait_min": 128
+    }
+   ],
+   "warnings": []
+  }
+ ],
+ "violations": [],
+ "warnings": [
+  {
+   "code": "base_unknown",
+   "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+  },
+  {
+   "code": "entry_exit_unknown",
+   "text": "Chưa biết điểm vào / ra thành phố: ngày đầu và ngày cuối chỉ cắt theo giờ đến / giờ rời, kém chắc hơn."
+  },
+  {
+   "code": "weather_unknown",
+   "text": "Chưa biết thời tiết: chưa xét mưa khi xếp lịch và khi đo độ vững."
+  },
+  {
+   "code": "variants_same",
+   "text": "Các mục tiêu cho cùng một lịch: chỉ có 1 phương án."
+  }
+ ]
+}
