@@ -210,13 +210,16 @@ Thao tác (`POST /act`, tất định):
 | `relax` | `place_id`, `feature` | Thêm vào `relaxed` |
 | `wishlist` | `place_id` | Chuyển nơi vi phạm physical sang wishlist |
 | `answer` | `qid`, `chip` | Trả lời câu hỏi pattern / lấp chỗ trống |
+| `feedback` | `reason` ∈ `far, crowded, pricey` | Chỉ cập nhật Session Profile, không bỏ nơi nào (câu gõ "muốn gần hơn") |
+| `prefer` | `feature`, `value`, `weight` ∈ `1, -1` | Thêm soft của phiên (user nói thẳng, có trích dẫn) |
+| `note` | `phrase` | Nhu cầu chưa kiểm được → `unmapped` của phiên |
 | `undo` | — | Về phiên bản trước |
 
 Session Profile (`Session.profile`): `travel_mult` (far → × `far_step`, sàn `travel_mult_min`), `crowd_tolerance` (crowded → `avoid`), `price_sensitivity` (pricey → + `price_step`), `soft` bổ sung (chỉ khi user xác nhận pattern), `visited` (visited → thêm id). `dislike` hay bỏ không lý do → chỉ giảm nơi đó (không quay lại trong phiên), không suy ra feature.
 
 Pattern: ≥ `pattern_min` nơi bị bỏ (trong phiên) cùng có một cặp (feature, value) chắc chắn, không trùng với `soft_weights` đang `love` → `pending_question` (qid `pattern:<feature>=<value>`, chip `Đúng, tránh` / `Không phải`). `Đúng` → thêm soft `avoid`; `Không phải` → không hỏi lại cặp đó.
 
-Lấp chỗ trống: sau `drop`, nếu khả thi báo thời gian dư ≥ `gap_min` → `pending_question` (qid `gap`, chip `Gợi ý nơi tương tự` / `Để thời gian tự do` / `Dồn sang ngày khác`). Không tự lấp. `Gợi ý nơi tương tự` → nơi kế tiếp chưa chọn cùng nhóm hiển thị có `score` cao nhất được đánh dấu `suggested`.
+Lấp chỗ trống: sau `drop`, nếu khả thi báo thời gian dư ≥ `gap_min` → `pending_question` (qid `gap:<số nơi đã bỏ>`, chip `Gợi ý nơi tương tự` / `Để thời gian tự do`; dồn ngày là việc của Planning). Không tự lấp. `Gợi ý nơi tương tự` → nơi kế tiếp chưa chọn cùng nhóm hiển thị có `score` cao nhất được đánh dấu `suggested`.
 
 Quay lại Trip Understanding: số nơi bị bỏ ≥ `rethink_drops` và ≥ một nửa shortlist đầu → `pending_question` (qid `rethink`).
 
@@ -239,15 +242,16 @@ Output:
 say       tiếng Việt, 1–2 câu
 updates   [{op, place, value, quote}]
           op ∈ select | drop | lock | travel | crowd | price | soft | visited | unmapped
+          → thao tác §12: select, drop, lock, feedback (travel / crowd / price), prefer (soft), drop visited, note
           place = alias hoặc ""; value: lý do drop / soft "feature=value:love|avoid" / ...
-next      {kind: none | ask_pattern | ask_gap | rethink, reason}
 ```
+
+Câu hỏi (`pending_question`) luôn do rule §12 mở; agent không tự mở câu hỏi, chỉ dẫn vào nó bằng `say`.
 
 Guard (code):
 - `quote` phải nằm trong tin nhắn; `place` phải là alias có trong view; `value` đúng tập cho phép, `soft` theo ontology → sai thì bỏ update (ghi log).
 - `select`/`lock` chỉ nhận khi quote chứa tên (hoặc một phần tên ≥ 2 từ) của nơi đó.
 - Update đi qua đúng các thao tác §12 → cùng bất biến.
-- `next` chỉ được chọn khi rule tương ứng (§12) đang mở; nếu không → `none`.
 - `say`: bỏ khi có số user không nói và không có trong view, hoặc tên địa điểm ngoài view.
 - Lỗi / quá thời gian (`first_token_s`, `total_s` trong config) / JSON hỏng → `policy`: từ khóa (`xa` → far, `đông` → crowded, `đắt|mắc` → pricey, `đi rồi` → visited, `không thích` → dislike) + tên nơi trong view; `say` mặc định.
 
@@ -272,7 +276,7 @@ Event SSE: `say` (`delta` / `replace`), `view` (view mới + diff), `done`, `err
 | GET | `/api/decision/sessions/:id/why-not/:place` | lý do loại (`explain_exclusion`) |
 | POST | `/api/decision/sessions/:id/confirm` | §15 |
 
-Lỗi: thiếu `data/serving/places.json` → 503 + "chạy `python -m corpus serving`"; lệch ontology → 409; id lạ → 400; không có phiên → 404. Chỉ bind `127.0.0.1`.
+Lỗi: thiếu `data/serving/places.json` → server không khởi động, in "chạy `python -m corpus serving`"; lệch ontology → 409; id lạ → 400; không có phiên → 404. Chỉ bind `127.0.0.1`.
 
 `View`: `groups[{id, label, cards[]}]`, `selected[]`, `unverified{count, open, cards[]}`, `excluded{by_rule[{rule, count}]}`, `wishlist[]`, `feasibility`, `pending_question`, `profile`, `unknowns`, `unmapped`, `version`.
 
