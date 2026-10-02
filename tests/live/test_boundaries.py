@@ -42,7 +42,7 @@ def test_no_module_imports_another_project_package(path):
 
 def test_the_public_api_is_exactly_what_planning_may_use():
     assert set(live.__all__) == {"Settings", "Unavailable", "geocode", "holidays", "load_settings", "route_shape",
-                                 "sun_times", "travel_matrix"}
+                                 "sun_times", "travel_matrix", "weather"}
     for name in live.__all__:
         assert hasattr(live, name), name
 

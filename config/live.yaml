@@ -20,6 +20,9 @@ nominatim_url: https://nominatim.openstreetmap.org/search
 user_agent: "TripGuardian/0.1 (contact: {contact})"
 nominatim_min_interval_s: 1.0
 
+# Open-Meteo: free, no key, daily forecast up to 16 days ahead; config/climate.yaml covers dates beyond that.
+open_meteo_url: https://api.open-meteo.com/v1/forecast
+
 # Seconds. Roads change slowly, forecasts quickly, OTA prices daily.
 ttl_s:
   osrm: 604800      # 7 days

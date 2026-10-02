@@ -23,6 +23,7 @@ class Settings:
     user_agent: str
     nominatim_min_interval_s: float
     ttl_s: dict
+    open_meteo_url: str
     tz_offset_h: float
 
 
