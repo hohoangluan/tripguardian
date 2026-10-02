@@ -71,6 +71,20 @@ def test_without_a_forecast_the_output_says_weather_was_not_considered():
     assert "weather_unknown" in {w["code"] for w in out["warnings"]} and out["provenance"]["weather"] == []
 
 
+def test_a_forecast_covering_only_some_days_still_says_weather_was_not_fully_considered():
+    d, recs = sample_trip(days=2)
+    out = run(d, recs, weather={"2026-12-12": {"rain_prob": 0.9}})       # day 2 has no entry
+    assert "weather_unknown" in {w["code"] for w in out["warnings"]}
+
+
+def test_forecast_entries_with_a_missing_or_null_fetched_at_or_a_null_day_do_not_crash_the_provenance_list():
+    d, recs = sample_trip(days=2)
+    weather = {"2026-12-12": {"rain_prob": 0.9, "source": "open-meteo", "fetched_at": None},
+               "2026-12-13": None}
+    out = run(d, recs, weather)
+    assert out["provenance"]["weather"] == [{"source": "open-meteo", "fetched_at": None}]
+
+
 def test_no_valid_variant_goes_back_to_place_decision_with_the_places_that_broke_it():
     d, recs = sample_trip()
     d["confirmed"].append({"id": "gone", "name": "Gone", "role": "anchor", "flags": [], "relaxed": []})
@@ -78,6 +92,13 @@ def test_no_valid_variant_goes_back_to_place_decision_with_the_places_that_broke
     assert not out["ok"] and out["variants"] == [] and out["comparison"] == []
     assert out["back_to_decision"] == {"reason": "no_valid_variant", "places": ["gone"]}
     assert [v["kind"] for v in out["violations"]] == ["anchor"]
+
+
+def test_a_day_window_violation_names_the_places_crowded_onto_that_day():
+    d, recs = sample_trip(days=1, leave_at="12:00")        # one short day, too little room for eight places
+    out = run(d, recs)
+    assert not out["ok"] and [v["kind"] for v in out["violations"]] == ["day_window"]
+    assert out["back_to_decision"]["places"]                     # not empty: day_window carries no place_id itself
 
 
 def test_a_trip_with_no_places_is_one_empty_solid_variant():

@@ -40,12 +40,15 @@ def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None,
     objectives = choose(decision["trip_context"], [cx.rain for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
     tried = [(obj, schedule_trip(trip, cfg.objective_weights[obj])) for obj in objectives]
     warnings = list(trip.warnings)
-    if not any(cx.rain is not None for cx in trip.ctxs):
+    if any(cx.rain is None for cx in trip.ctxs):
         warnings.append(_warn("weather_unknown"))
     valid = [(obj, s) for obj, s in tried if not s.violations]
     if not valid:
         first = tried[0][1]
         places = sorted({v.place_id for _, s in tried for v in s.violations if v.place_id})
+        if not places:
+            places = sorted({i for _, s in tried for v in s.violations if v.day is not None
+                             for i in s.per_day[v.day]})
         return {"ok": False, "variants": [], "chosen": None, "comparison": [],
                 "violations": [asdict(v) for v in first.violations],
                 "warnings": warnings + first.warnings + flag_warnings(decision),
@@ -68,7 +71,7 @@ def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None,
     if len(variants) < len(valid):
         warnings.append(_warn("variants_same", n=len(variants)))
     weather_src = sorted({(w.get("source"), w.get("fetched_at")) for w in (weather or {}).values()
-                          if w.get("source")})
+                          if w and w.get("source")}, key=lambda t: (t[0], t[1] or ""))
     out = {"ok": True, "variants": variants, "chosen": None, "comparison": _comparison(variants), "violations": [],
            "warnings": warnings + flag_warnings(decision), "back_to_decision": None, **shared_output(trip)}
     out["provenance"]["weather"] = [{"source": s, "fetched_at": f} for s, f in weather_src]
