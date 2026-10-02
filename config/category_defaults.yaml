@@ -1,0 +1,30 @@
+# Estimates by Maps category (docs/specs/CORPUS_SPEC.md §5). Shown as an estimate ("chưa xác minh"), never as a fact,
+# and never used by a hard filter. Evidence from reviews / videos wins when there is enough of it.
+# A category goes to the first group whose `match` words it contains (lower case); no match -> `other`.
+# visit_minutes: [short, typical, long] for one visit.
+# usable_as: roles a place of this group can play in a plan (docs/PLACE_DECISION.md, usable_as).
+# effort_hint: what the group usually asks of a visitor. Measured on 1437 places (2026-10-02): steep_or_stairs present
+#   for 16% of restaurants, 37% of cafes, 4% of spas, so `low` is only a ranking hint, never "absent".
+usd_vnd: 26300  # rate for Maps ticket prices shown in US$ (2026-10)
+groups:
+  - {id: spa, match: [spa, mát xa, massage, thẩm mỹ, làm đẹp, xông hơi], visit_minutes: [60, 90, 150], usable_as: [experience, backup], effort_hint: low}
+  - {id: camping, match: [cắm trại, glamping, xe dã ngoại], visit_minutes: [180, 360, 1080], usable_as: [experience, anchor], effort_hint: unknown}
+  - {id: amusement, match: [công viên giải trí, khu vui chơi, vườn bách thú, sở thú, khu trẻ em, sân chơi, trại thiếu nhi], visit_minutes: [90, 180, 300], usable_as: [experience, anchor], effort_hint: unknown}
+  - {id: museum, match: [bảo tàng, di tích, triển lãm, phòng trưng bày], visit_minutes: [45, 75, 120], usable_as: [experience, backup], effort_hint: unknown}
+  - {id: religious, match: [chùa, nhà thờ, nơi thờ, tu viện, thiền viện, đền, miếu], visit_minutes: [30, 45, 90], usable_as: [experience, backup], effort_hint: unknown}
+  - {id: nature, match: [thác, hồ, đỉnh núi, núi, đồi, rừng, thắng cảnh, điểm ngắm cảnh, khu bảo tồn, công viên quốc gia], visit_minutes: [60, 120, 240], usable_as: [experience, anchor], effort_hint: unknown}
+  - {id: garden_farm, match: [vườn, trang trại, nông trại, đồi chè, tự hái, công viên], visit_minutes: [45, 90, 150], usable_as: [experience], effort_hint: unknown}
+  - {id: golf, match: [gôn, golf], visit_minutes: [180, 240, 300], usable_as: [experience, anchor], effort_hint: unknown}
+  - {id: bar, match: [bar, quán bia, karaoke, pub, câu lạc bộ đêm], visit_minutes: [60, 90, 180], usable_as: [experience, backup], effort_hint: unknown}
+  - {id: dessert, match: [tiệm bánh, trà trân châu, trà sữa, kem, tráng miệng, sữa chua, chè], visit_minutes: [20, 30, 60], usable_as: [meal, backup], effort_hint: low}
+  - {id: cafe, match: [cà phê, cafe, coffee, quán trà, phòng trà], visit_minutes: [45, 75, 150], usable_as: [experience, meal, backup], effort_hint: unknown}
+  - {id: restaurant, match: [nhà hàng, quán ăn, khu ăn uống, món, quán mì, phở, lẩu, nướng, bún, cơm, ăn vặt, bistro], visit_minutes: [45, 75, 120], usable_as: [meal, anchor, backup], effort_hint: unknown}
+  - {id: market, match: [chợ, trung tâm mua sắm, phố đi bộ], visit_minutes: [30, 60, 120], usable_as: [experience, backup], effort_hint: low}
+  - {id: shop, match: [cửa hàng, đặc sản, tạp phẩm, siêu thị], visit_minutes: [15, 30, 60], usable_as: [backup], effort_hint: low}
+  - {id: rental, match: [cho thuê xe, thuê xe, xe tay ga, xe máy], visit_minutes: [10, 20, 30], usable_as: [], effort_hint: low}
+  - {id: attraction, match: [điểm thu hút, điểm tham quan, khu du lịch], visit_minutes: [60, 120, 240], usable_as: [experience, anchor], effort_hint: unknown}
+  - {id: tour, match: [du lịch, tour], visit_minutes: [60, 180, 480], usable_as: [experience], effort_hint: unknown}
+  - {id: other, match: [], visit_minutes: [60, 120, 240], usable_as: [experience, backup], effort_hint: unknown}
+# visit_duration values from reviews -> minutes [short, long]
+visit_duration_minutes: {under_1h: [15, 60], 1_to_2h: [60, 120], half_day: [180, 300], full_day: [360, 600]}
+visit_duration_min_n: 3  # authors before review evidence replaces the category estimate

@@ -9,7 +9,7 @@ closure      Maps marks the place closed for good / for now; "Đang mở" and th
 
 import re
 
-RULES_VERSION = "place_rules@v3"
+RULES_VERSION = "place_rules@v4"
 AUTHOR = "gmaps:attributes"  # one source, whatever the number of attributes
 
 ATTRIBUTES = {
@@ -46,6 +46,15 @@ def parse_popular_times(raw: list[list[str]] | None) -> dict | None:
         if any(hours.values()):  # all zero: closed that day
             out[name] = hours
     return out or None
+
+
+_USD = re.compile(r"(\d+(?:,\d{1,2})?)\s*US\$")
+
+
+def parse_tickets(raw: str | None) -> dict | None:
+    """Maps' ticket box ("Vé vào cửa … 5,78 US$ …"): the first price, in US$ as Maps shows it."""
+    m = _USD.search(raw or "")
+    return {"usd": float(m.group(1).replace(",", "."))} if m else None
 
 
 def parse_price(raw: str | None) -> dict | None:

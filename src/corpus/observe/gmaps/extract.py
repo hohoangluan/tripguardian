@@ -27,7 +27,8 @@ from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import observation
 from .details import day_type, details_pairs
 from .gate import BadAnswer, gate, norm
-from .place_rules import AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times, parse_price
+from .place_rules import (AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times,
+                          parse_price, parse_tickets)
 from .prep import batches, keep_for_llm, observed_at, stars
 
 DETAILS_EXTRACTOR = "details_rule@v2"
@@ -205,8 +206,18 @@ async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tupl
             sum((h[2] for h in halves), collections.Counter()))
 
 
-async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str]) -> dict:
+def listed_category(item: dict) -> str | None:
+    """The search list's category; Maps sometimes puts the street address there ("263 Đ. Bùi Thị Xuân")."""
+    c = (item.get("category") or "").strip()
+    return c if c and not c[0].isdigit() else None
+
+
+async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str],
+                        category: str | None = None) -> dict:
+    """category: used when the place page has none (the search list's category)."""
     place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
+    if not place.get("category") and category:
+        place["category"] = category
     reviews = load_reviews(place_dir)
     fid, fetched = place["fid"], place["fetched_at"]
     obs, proposed, ratings = [], [], []
@@ -279,7 +290,8 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
             "voices": len(voices),
             "place_facts": {"popular_times": parse_popular_times(place.get("popular_times")),
                             "price": parse_price(place.get("price")), "hours": parse_hours(place.get("hours")),
-                            "closure": parse_closure(place.get("status"))},
+                            "closure": parse_closure(place.get("status")),
+                            "tickets": parse_tickets(place.get("tickets"))},
             "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}}
 
 
@@ -299,8 +311,11 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
     ont = load_ontology()
     dirs = sorted(p.parent for p in (root / "places").glob("*/place.json"))
     listed = root / "list" / f"{city}.json"
+    categories = {}
     if listed.exists():  # the list is the place inventory: places it dropped are not evidence for anything
-        keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]}
+        items = json.loads(listed.read_text(encoding="utf-8"))["items"]
+        keep = {safe_name(r["fid"]) for r in items}
+        categories = {safe_name(r["fid"]): listed_category(r) for r in items}
         dirs = [d for d in dirs if d.name in keep]
         for stale in out.glob("*.json") if out.exists() else []:
             if stale.stem not in keep:
@@ -328,7 +343,7 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
                 return "cached"
         try:
             async with in_flight:
-                res = await observe_place(slots, d, ont, name, bad_ids)
+                res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name))
         except Exception as e:
             if isinstance(e, ExceptionGroup):  # from the TaskGroup: report the first real cause
                 e = e.exceptions[0]

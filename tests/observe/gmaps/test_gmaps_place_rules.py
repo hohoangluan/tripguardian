@@ -1,5 +1,5 @@
 from corpus.observe.gmaps.place_rules import (attribute_pairs, parse_closure, parse_hours, parse_popular_times,
-                                               parse_price)
+                                               parse_price, parse_tickets)
 from corpus.ontology import load
 
 
@@ -73,3 +73,9 @@ def test_hours_ranges_all_day_closed_and_unknown_shapes():
 def test_closure_only_for_lasting_states():
     assert parse_closure("Bị đóng vĩnh viễn") == "permanent" and parse_closure("Tạm thời đóng cửa") == "temporary"
     assert parse_closure("Đang đóng cửa") is None and parse_closure("Đóng cửa hôm nay") is None and parse_closure(None) is None
+
+
+def test_tickets_first_usd_price():
+    raw = "Vé vào cửa\nThông tin về những kết quả này\nVườn Thú ZooDoo \nTrang web chính thức\n5,78 US$\nCó thể phát sinh"
+    assert parse_tickets(raw) == {"usd": 5.78}
+    assert parse_tickets(None) is None and parse_tickets("None") is None

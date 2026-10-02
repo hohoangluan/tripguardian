@@ -13,7 +13,8 @@ Measured quality (docs/specs/CORPUS_SPEC.md §6): `quality` = the gold-label pre
 `servable` = the value may be served by itself: declared by an authoritative source, or its precision passed the label
 gate, or a person accepted it; a person's `disable` (decisions.jsonl kind feature_review, id "<fid>#<feature>") makes
 the feature `disabled` and never servable, `accept` clears needs_review, `report` / `refresh` set it.
-Place facts (popular times, price, hours, closure) pass through as `operation`, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
+`estimates` (estimates.py): category group, visit time range and entry fee in VND, each with its source.
+Place facts (popular times, price, hours, closure, tickets) pass through as `operation`, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
 """
 
 import collections
@@ -24,6 +25,7 @@ from ..crawl.common.files import data_dir, now, safe_name, write_json
 from ..observe import CONTEXT_KEYS
 from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
 from ..review import decisions, label_stats
+from .estimates import estimates
 
 AGREEMENT_MIN = 0.6
 TREND_MIN = 5  # authors on each side
@@ -235,6 +237,8 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
         "operation": {"price_range": facts.get("price"), "hours": facts.get("hours"), "closure": facts.get("closure"),
                       "crowd_by_time": crowd_by_time(facts.get("popular_times")),
                       "popular_times": facts.get("popular_times")},
+        "estimates": estimates(identity.get("category"), features, [o for os in by_feature.values() for o in os],
+                               (facts.get("tickets") or {}).get("usd")),
         "rating_trend": rating_trend(ratings) if ratings else None,
         "proposed_features": sorted(({"label": k, "count": len(v), "authors": len(set(v))} for k, v in proposed.items()),
                                     key=lambda x: (-x["count"], x["label"])),
