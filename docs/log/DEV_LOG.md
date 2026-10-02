@@ -148,3 +148,25 @@ _không có_
 
 ### Trước đó
 _không có_
+
+## corpus-photos — Ảnh Google Maps làm bằng chứng
+
+- file: `src/corpus/crawl/gmaps/photos.py`, `src/corpus/observe/gmaps/photos.py`, `PHOTO_OBSERVE` + `PHOTO_VERIFY` trong `src/corpus/llm/tasks.py`, `src/corpus/crawl/common/browser.py` (user agent), `scripts/after_photos.sh`, `tests/crawl/gmaps/test_gmaps_photos.py`, `tests/observe/gmaps/test_gmaps_photo_observe.py`
+- cách kiểm chứng: `python -m pytest -q tests/crawl/gmaps tests/observe/gmaps`; `python -m corpus gmaps photos --limit 5` rồi `python -m corpus gmaps photo_observe --limit 5` (mạng UIT)
+
+### Hiện tại (2026-10-02)
+- hành vi: quy tắc ở `docs/specs/CORPUS_SPEC.md` §4 (Ảnh Google Maps). Phát hiện khi dò: Chrome headless bị Google cho Maps "chế độ bị hạn chế" (không tab review / ảnh) dù đăng nhập → `open_profile` / `open_sessions` dùng user agent Chrome thường, `check_signed_in` dừng khi gặp thông báo. Thử 4 nơi: lần đầu `setting` suy từ ảnh món ăn, một ảnh vừa `indoor` vừa `outdoor`, "vài bậc ở cửa" thành `steep_or_stairs` → prompt chỉ cho `setting` từ khu khách ngồi / đi, bậc thang phải là leo dài, gate bỏ ảnh có hai giá trị. Ảnh cận cảnh vẫn đôi khi thành `indoor` (yếu; aggregate đếm theo người đăng). Thư viện "Tất cả" của nhiều nơi phần lớn là ảnh cũ (một nơi 30 ảnh cũ / 0 giữ). Tốc độ crawl ~2,6 nơi/phút ở 3 tab.
+
+### Trước đó
+_không có_
+
+## corpus-ontology-v7 — Giá trị phủ định cho ràng buộc cứng
+
+- file: `config/ontology.yaml`, `REVIEW_OBSERVE` trong `src/corpus/llm/tasks.py`, `scripts/observe_prompt_eval.py`
+- cách kiểm chứng: `python scripts/observe_prompt_eval.py` (37/37, 2026-10-02)
+
+### Hiện tại (2026-10-02)
+- hành vi: `tourist_trap`, `rough_road_access`, `cash_only` có thêm `absent` ("không chặt chém, đúng giá niêm yết", "đường nhựa, xe vào tận cổng", "có chuyển khoản"); "giá rẻ, hợp lý" vẫn chỉ là `value_for_money`. Lý do: `evaluate` cho 0 ứng viên chính ở chuyến "không chặt chém" / "không đường xấu" vì im lặng không phải bằng chứng (người dùng chọn phương án thêm giá trị phủ định). Chạy lại observe toàn bộ từ 10:24.
+
+### Trước đó
+_không có_

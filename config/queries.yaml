@@ -41,7 +41,7 @@ gmaps:
   relevant_reviews_per_place: 50  # phase relevant: Maps' "most relevant" first (long, detailed), any age; merged by observe
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
-  photo_tabs: 3  # max parallel place tabs for photos (own throttle file)
+  photo_tabs: 6  # max parallel place tabs for photos (own throttle file)
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
     start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
     max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time
