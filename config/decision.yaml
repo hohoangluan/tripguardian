@@ -1,0 +1,134 @@
+# Place Decision thresholds (docs/plans/PLACE_DECISION_SPEC.md §18). Starting values; tune after the pilot.
+version: 1
+center: {name: "trung tâm Đà Lạt", lat: 11.9404, lng: 108.4583}
+speed_kmh: {motorbike: 25, car: 25, ride: 22}
+road_factor: 1.4            # straight line -> road distance
+radius_km: {motorbike: 12, car: 15, ride: 10}
+area_bonus: 0.2             # same area as an anchor
+crowd_busy_pct: 70          # Google popular times at or above this = busy
+crowd_penalty: 0.2
+rainy_months: [5, 6, 7, 8, 9, 10]
+min_context_fit: 0.1        # below: stays in the pool, never in the shortlist
+weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.5}
+price_ref_vnd: 300000       # price per person that counts as "expensive" (1.0) for price sensitivity
+near_min: 12                # minutes: "Gần <tâm>" on a card
+per_day: {slow: 3, normal: 4, packed: 6}
+per_day_max: {slow: 4, normal: 5, packed: 7}
+meals_per_day: 2
+spare_factor: 1.6
+pool_factor: 5
+default_days: 2
+day_start: "08:00"
+day_end: "21:00"
+leave_at: "15:00"
+buffer_min: {slow: 30, normal: 20, packed: 10}
+intra_leg_min: 10
+far_km: 8
+buckets: {early_morning: ["05:00", "07:00"], morning: ["07:00", "11:00"], noon: ["11:00", "13:00"],
+          afternoon: ["13:00", "17:00"], evening: ["17:00", "19:00"], night: ["19:00", "22:00"]}
+narrow_buckets: [early_morning, evening, night]
+timed_features: [cloud_hunting, sunset_view, live_music]
+timed_share: 0.6
+night_open: "16:00"
+infeasible_ratio: 1.35
+budget_slack: 1.0
+far_step: 0.8
+travel_mult_min: 0.4
+price_step: 0.5
+pattern_min: 3
+gap_min: 90
+rethink_drops: 6
+history_max: 50
+unverified_show: 12
+first_token_s: 8
+total_s: 30
+display_groups:
+  nature: [nature, garden_farm, camping]
+  sights: [attraction, museum, religious, amusement, market, tour, golf, other]
+  chill: [cafe, spa, bar, dessert]
+polarity:                   # good first, bad last
+  crowd: [low, medium, high]
+  noise: [quiet, moderate, loud]
+  cleanliness: [clean, dirty]
+  toilet: [clean, dirty]
+  parking: [easy, hard]
+  food_quality: [good, mixed, poor]
+  drink_quality: [good, mixed, poor]
+  service_attitude: [good, poor]
+  service_quality: [good, mixed, poor]
+  value_for_money: [good, poor]
+  wait_time: [none, short, long]
+  portion_size: [generous, small]
+  tourist_trap: [absent, present]
+  weather_exposed: [sheltered, present]
+  entry_fee: [free, paid]
+  rough_road_access: [absent, present]
+  steep_or_stairs: [absent, present]
+  long_walk: [absent, present]
+labels:                     # same words as web/src/data/labels.ts
+  group: {anchors: "Nơi bạn muốn đến", nature: "Thiên nhiên và view", sights: "Điểm tham quan",
+          chill: "Cà phê và thư giãn", meal: "Ăn uống"}
+  reason: {far: "Quá xa", crowded: "Quá đông", pricey: "Quá đắt", dislike: "Không thích", visited: "Đã đi rồi"}
+  pace: {slow: "thong thả", normal: "cân bằng", packed: "đi nhiều"}
+  time: {early_morning: "sáng sớm", morning: "buổi sáng", noon: "buổi trưa", afternoon: "buổi chiều",
+         evening: "buổi tối", night: "đêm", weekday: "ngày thường", weekend: "cuối tuần"}
+  feature:
+    scenic_view: "View đẹp"
+    cloud_hunting: "Săn mây"
+    sunset_view: "Ngắm hoàng hôn"
+    photo_spot: "Nhiều góc chụp"
+    nature: "Thiên nhiên"
+    flower_garden: "Vườn hoa"
+    heritage_architecture: "Kiến trúc, di tích"
+    cozy_decor: "Không gian xinh"
+    laptop_friendly: "Ngồi làm việc được"
+    long_stay_chill: "Ngồi lâu, chill"
+    live_music: "Nhạc sống"
+    adventure_activity: "Trò mạo hiểm"
+    hiking: "Leo núi, trekking"
+    animals: "Có thú để chơi"
+    local_specialty_food: "Món đặc sản"
+    food_quality: "Đồ ăn"
+    drink_quality: "Đồ uống"
+    hands_on_workshop: "Workshop tự làm"
+    pick_your_own: "Tự hái tại vườn"
+    cultural_show: "Biểu diễn văn hóa"
+    camping: "Cắm trại"
+    tasting_available: "Được nếm thử"
+    costume_rental: "Thuê trang phục chụp ảnh"
+    crowd: "Độ đông"
+    noise: "Độ ồn"
+    setting: "Trong nhà hay ngoài trời"
+    cleanliness: "Sạch sẽ"
+    weather_exposed: "Phụ thuộc thời tiết"
+    parking: "Gửi xe"
+    outdoor_seating: "Chỗ ngồi ngoài trời"
+    spacious: "Rộng, thoáng"
+    small_space: "Không gian nhỏ"
+    toilet: "Nhà vệ sinh"
+    mosquitoes: "Nhiều muỗi"
+    service_attitude: "Thái độ phục vụ"
+    service_quality: "Chất lượng dịch vụ"
+    value_for_money: "Đáng tiền"
+    tourist_trap: "Chặt chém"
+    wait_time: "Thời gian chờ"
+    booking_needed: "Cần đặt trước"
+    portion_size: "Khẩu phần"
+    entry_fee: "Vé vào cửa"
+    vegetarian_options: "Món chay"
+    cash_only: "Chỉ nhận tiền mặt"
+    condition_change: "So với trước đây"
+    rough_road_access: "Đường vào xấu"
+    steep_or_stairs: "Dốc, nhiều bậc"
+    long_walk: "Phải đi bộ xa"
+    kids: "Trẻ em"
+    elderly: "Người lớn tuổi"
+    wheelchair: "Xe lăn"
+    couples: "Cặp đôi"
+    groups: "Nhóm đông"
+  value: {present: "có", absent: "không", good: "tốt", mixed: "lẫn lộn", poor: "kém", low: "vắng", medium: "vừa",
+          high: "đông", quiet: "yên tĩnh", moderate: "hơi ồn", loud: "ồn", indoor: "trong nhà", outdoor: "ngoài trời",
+          both: "cả hai", clean: "sạch", dirty: "chưa sạch", sheltered: "có mái che", easy: "dễ", hard: "khó",
+          none: "không phải chờ", short: "chờ chút", long: "chờ lâu", "yes": "có", "no": "không", generous: "nhiều",
+          small: "ít", free: "miễn phí", paid: "có thu phí", declined: "xuống cấp", suitable: "hợp",
+          unsuitable: "không hợp"}

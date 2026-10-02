@@ -26,7 +26,8 @@ def compile_search_input(state: TripState) -> SearchInput:
         ontology_version=ontology().version,
         context=Context(start_date=v("start_date"), month=v("month"), days=v("days"), base=v("base"),
                         mobility=v("mobility"), companions=tuple(sorted(v("companions") or ())), people=v("people"),
-                        arrive_at=v("arrive_at"), leave_at=v("leave_at"), day_end=v("day_end")),
+                        arrive_at=v("arrive_at"), leave_at=v("leave_at"), day_end=v("day_end"),
+                        budget_vnd=v("budget_vnd"), experience=state.meta.experience),
         hard_filters=tuple(HardFilter(feature=h.feature, op=h.op, value=h.value,
                                       unknown_policy=h.unknown_policy or "exclude") for h in state.hard),
         anchors=tuple(AnchorRef(place_id=a.place_id, priority=a.priority)

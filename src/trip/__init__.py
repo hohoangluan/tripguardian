@@ -6,6 +6,7 @@ from .engine import Engine, TurnInput
 from .sessions import SessionStore
 from .settings import Settings
 from .state import SearchInput, TripState
+from .text import contains, squash
 
 __all__ = ["Catalog", "Engine", "SearchInput", "SessionStore", "Settings", "TripState", "TurnInput", "UnhandledSignal",
-           "compile_search_input"]
+           "compile_search_input", "contains", "squash"]

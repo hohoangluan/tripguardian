@@ -1,23 +1,7 @@
 // Client-side estimates for the prototype: ranking, feasibility, schedule.
 // Every number here is an estimate and is labelled as one in the UI.
-import { featureLabel, isNegative, signalPhrase, TIME_VI } from '../data/labels'
-import {
-  CENTER,
-  confidenceOf,
-  DAYS,
-  fmtDuration,
-  fmtTime,
-  has,
-  openWindows,
-  placeById,
-  sectionOf,
-  signal,
-  travelMin,
-  visible,
-  visitRange,
-  type Confidence,
-  type Section,
-} from '../data/store'
+import { featureLabel } from '../data/labels'
+import { CENTER, DAYS, fmtDuration, fmtTime, has, openWindows, placeById, travelMin, visible, visitRange } from '../data/store'
 import type { Place } from '../data/types'
 import type { Action, TripState } from './trip'
 
@@ -29,164 +13,6 @@ export const anchorOf = (t: TripState) => {
 const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
   return h * 60 + (m || 0)
-}
-
-// ---------- shortlist ----------
-
-// One line on a card; `sid` points at the signal that backs it, so it opens its evidence.
-export interface Claim {
-  text: string
-  sid?: string
-}
-
-export interface Candidate {
-  place: Place
-  section: Section
-  score: number
-  why: Claim[]
-  tradeoffs: Claim[]
-  visit: [number, number]
-  confidence: { level: Confidence; reason: string }
-  fromAnchor: number
-}
-
-export interface Shortlist {
-  bySection: Record<Section, Candidate[]>
-  extra: Record<Section, Candidate[]> // inventory only: no experience evidence yet
-  excludedByRule: { rule: string; count: number }[]
-}
-
-const SECTIONS: Section[] = ['sight', 'nature', 'food', 'shop']
-
-export function evaluate(p: Place, t: TripState): Candidate | null {
-  const section = sectionOf(p)
-  if (!section) return null
-  const anchor = anchorOf(t)
-  const fromAnchor = travelMin(anchor, p, t.vehicle ?? 'motorbike')
-  const why: Claim[] = []
-  const tradeoffs: Claim[] = []
-  let score = Math.log10((p.voices ?? 5) + 10)
-
-  if (t.mustVisit.includes(p.id)) {
-    score += 100
-    why.push({ text: 'Nơi bạn nhất định phải đến' })
-  }
-  for (const [id, pref] of Object.entries(t.prefs)) {
-    const s = signal(p, id)
-    if (!s) continue
-    const positive = !isNegative(id, s.value) && s.value !== 'absent'
-    const weight = s.agreement * Math.min(1, s.n / 5) * (s.status === 'VERIFIED' ? 1 : 0.6)
-    if (pref.weight === 'love' && positive) {
-      score += 3 * weight
-      why.push({ text: signalPhrase(id, s.value) + (s.status === 'UNCERTAIN' ? ' (chưa chắc)' : ''), sid: id })
-    }
-    if (pref.weight === 'avoid' && s.value !== 'absent' && s.value !== 'no') {
-      score -= 2.5 * weight
-      tradeoffs.push({ text: `Có ${featureLabel(id).toLowerCase()}, điều bạn muốn tránh`, sid: id })
-    }
-  }
-  if (fromAnchor <= 12) why.push({ text: `Gần ${anchor.name}, ≈${fromAnchor} phút đi` })
-  if (fromAnchor >= 25) {
-    score -= 0.8
-    tradeoffs.push({ text: `Thêm khoảng ${fromAnchor} phút đi từ ${anchor.name}, ước tính` })
-  }
-  for (const s of visible(p)) {
-    if (!isNegative(s.id, s.value) || s.n < 2) continue
-    if (s.id === 'crowd') {
-      const ctx = Object.entries(s.byContext).find(([, d]) => (d.high ?? 0) > 0)
-      const when = ctx ? ' ' + (TIME_VI[ctx[0].split('=')[1]] ?? '') : ''
-      tradeoffs.push({ text: `Đông${when}, theo ${s.n} người`, sid: s.id })
-    } else if (s.id !== 'kids' && s.id !== 'elderly') {
-      tradeoffs.push({ text: `${signalPhrase(s.id, s.value)}, theo ${s.n} người`, sid: s.id })
-    }
-    score -= 0.4
-  }
-  if (t.who.includes('kids') && has(p, 'kids', 'unsuitable')) {
-    score -= 3
-    tradeoffs.push({ text: 'Có người nói không hợp trẻ em', sid: 'kids' })
-  }
-  if (t.who.includes('parents') && (has(p, 'steep_or_stairs') || has(p, 'long_walk'))) {
-    score -= 1.5
-    tradeoffs.push({ text: 'Phải leo dốc hoặc đi bộ xa, cân nhắc với bố mẹ', sid: has(p, 'steep_or_stairs') ? 'steep_or_stairs' : 'long_walk' })
-  }
-  if (!openWindows(p, 'sat') && !openWindows(p, 'mon')) tradeoffs.push({ text: 'Giờ mở cửa chưa có thông tin' })
-  if (p.kind === 'experience' && why.length === 0) {
-    const best = visible(p)
-      .filter((s) => s.status === 'VERIFIED' && !isNegative(s.id, s.value) && s.value !== 'absent' && s.n >= 3)
-      .sort((a, b) => b.n - a.n)[0]
-    if (best) why.push({ text: `${signalPhrase(best.id, best.value)}, ${best.n} người nhắc`, sid: best.id })
-  }
-  return { place: p, section, score, why: why.slice(0, 3), tradeoffs: tradeoffs.slice(0, 2), visit: visitRange(p), confidence: confidenceOf(p), fromAnchor }
-}
-
-export function buildShortlist(places: Place[], t: TripState): Shortlist {
-  const bySection = { sight: [], nature: [], food: [], shop: [] } as Record<Section, Candidate[]>
-  const extra = { sight: [], nature: [], food: [], shop: [] } as Record<Section, Candidate[]>
-  let steep = 0
-  const dropped = new Set(t.dropped.map((d) => d.id))
-  for (const p of places) {
-    if (dropped.has(p.id)) continue
-    if (p.googleStatus && /đóng cửa vĩnh viễn|tạm thời đóng cửa/i.test(p.googleStatus)) continue
-    if (t.rules.avoidSteep && !t.relaxed.includes('avoidSteep') && has(p, 'steep_or_stairs')) {
-      steep++
-      continue
-    }
-    const c = evaluate(p, t)
-    if (!c) continue
-    ;(p.kind === 'experience' || t.mustVisit.includes(p.id) ? bySection : extra)[c.section].push(c)
-  }
-  for (const s of SECTIONS) {
-    bySection[s].sort((a, b) => b.score - a.score)
-    bySection[s] = bySection[s].slice(0, 8)
-    extra[s].sort((a, b) => (b.place.reviewCount ?? 0) - (a.place.reviewCount ?? 0))
-    extra[s] = extra[s].slice(0, 6)
-  }
-  return { bySection, extra, excludedByRule: steep ? [{ rule: 'Tránh đường dốc', count: steep }] : [] }
-}
-
-// Near-duplicates: same kind of place sharing two or more strong experiences.
-export function similarGroups(cands: Candidate[]): Candidate[][] {
-  const key = (c: Candidate) =>
-    new Set(
-      visible(c.place)
-        .filter((s) => s.n >= 3 && s.status === 'VERIFIED' && !isNegative(s.id, s.value))
-        .map((s) => s.id)
-        .filter((id) => !['food_quality', 'drink_quality', 'service_attitude', 'service_quality', 'value_for_money', 'cleanliness'].includes(id)),
-    )
-  const groups: Candidate[][] = []
-  const used = new Set<string>()
-  for (let i = 0; i < cands.length; i++) {
-    if (used.has(cands[i].place.id)) continue
-    const ki = key(cands[i])
-    const g = [cands[i]]
-    for (let j = i + 1; j < cands.length; j++) {
-      if (used.has(cands[j].place.id)) continue
-      if ((cands[i].place.category ?? '') !== (cands[j].place.category ?? '')) continue
-      const shared = [...key(cands[j])].filter((x) => ki.has(x))
-      if (shared.length >= 2) g.push(cands[j])
-    }
-    if (g.length > 1) {
-      g.forEach((c) => used.add(c.place.id))
-      groups.push(g.slice(0, 3))
-    }
-  }
-  return groups
-}
-
-// Which one to keep inside a near-duplicate group, and the one-line reason (UX brief §3.1).
-export function keepPick(group: Candidate[]): { keep: Candidate; reason: string } {
-  const [keep, other] = [...group].sort((a, b) => b.score - a.score)
-  const reasons: string[] = []
-  if (keep.why.length > other.why.length) reasons.push('hợp với sở thích của bạn hơn')
-  if (keep.fromAnchor + 10 < other.fromAnchor) reasons.push(`gần hơn khoảng ${other.fromAnchor - keep.fromAnchor} phút`)
-  if (keep.tradeoffs.length < other.tradeoffs.length) reasons.push('ít điểm phải đánh đổi hơn')
-  if ((keep.place.voices ?? 0) > (other.place.voices ?? 0) * 1.5) reasons.push('nhiều người nhắc tới hơn')
-  return { keep, reason: reasons.length ? reasons.slice(0, 2).join(', ') : 'điểm phù hợp nhỉnh hơn một chút' }
-}
-
-export function sharedTraits(group: Candidate[]) {
-  const sets = group.map((c) => new Set(visible(c.place).filter((s) => s.n >= 2 && !isNegative(s.id, s.value)).map((s) => s.id)))
-  return [...sets[0]].filter((id) => sets.every((s) => s.has(id))).slice(0, 2)
 }
 
 // ---------- feasibility + schedule ----------
@@ -444,18 +270,6 @@ function closedConflict(p: Place, day: number, windows: ReturnType<typeof dayWin
         : 'Theo Google, nơi này nghỉ ngày đó.',
     fixes,
   }
-}
-
-// One-line difference after a curation change (§2.8).
-export function deltaLine(before: Plan, after: Plan) {
-  const dp = after.totals.places - before.totals.places
-  const dv = after.totals.visit - before.totals.visit
-  const dt = after.totals.travel - before.totals.travel
-  const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`)
-  const parts = [`${sign(dp)} nơi`, `${sign(dv)} phút tham quan`, `${sign(dt)} phút di chuyển`]
-  const tight = after.days.find((d) => d.slack < 0)
-  const note = tight ? `Ngày ${tight.index + 1} có thể quá tải.` : after.days.some((d) => d.robustness === 'Mong manh') ? 'Có ngày hơi sát giờ.' : 'Vẫn trong khả năng.'
-  return { text: parts.join(', '), note, warn: !!tight }
 }
 
 // Rain plan for exposed stops: a sheltered or indoor pick nearby from the shortlist.

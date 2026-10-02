@@ -387,6 +387,8 @@ class Context(Frozen):
     arrive_at: str | None
     leave_at: str | None
     day_end: str | None
+    budget_vnd: int | None = None
+    experience: Literal["first", "returning"] | None = None
 
 
 class HardFilter(Frozen):

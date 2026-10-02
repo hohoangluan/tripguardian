@@ -3606,3 +3606,39 @@
     animation: none;
   }
 }
+
+/* Place Decision: typed message box, alternatives line, why-not lookup */
+.pdchat {
+  margin: 24px 0;
+}
+.pdchat__label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.pdchat__row {
+  display: flex;
+  gap: 8px;
+}
+.pdchat__row input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  background: var(--glass);
+  color: var(--ink);
+  font: inherit;
+}
+.pcard__alts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.whynot ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}

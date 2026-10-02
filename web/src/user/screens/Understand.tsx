@@ -3,6 +3,7 @@ import { navigate } from '../../router'
 import { Icon, Page, Segmented, Sheet } from '../../ui/bits'
 import { WHO_LABEL, useTrip, type Who } from '../trip'
 import { fromSearchInput } from '../tu/adapter'
+import { createDecision } from '../pd/api'
 import { ApiError, createSession, getSession, searchPlaces, sendTurn } from '../tu/api'
 import { CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softText, valueText } from '../tu/labels'
 import type { Card, Chip, Row, TurnInput, Understanding } from '../tu/types'
@@ -100,7 +101,13 @@ export function Understand() {
           done: (d) => {
             dispatch({ type: 'set', patch: fromSearchInput(d.search_input) })
             write(null)
-            navigate('/app/shortlist')
+            createDecision(d.search_input, null).then(
+              (r) => {
+                dispatch({ type: 'set', patch: { decisionId: r.id } })
+                navigate('/app/shortlist')
+              },
+              () => setNotice('Chưa tạo được gợi ý. Kiểm tra máy chủ chọn nơi (python -m decision serve) rồi thử lại.'),
+            )
           },
           error: (e) => setNotice(e.message),
         })
