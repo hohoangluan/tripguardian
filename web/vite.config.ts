@@ -45,6 +45,7 @@ function clips(): Plugin {
 
 export default defineConfig({
   plugins: [react(), clips()],
-  // `python -m corpus review` (src/corpus/review/server.py): decisions and gold labels
-  server: { proxy: { '/api': 'http://127.0.0.1:8765' } },
+  // /api/trip: `python -m trip serve` (src/trip/server.py, Trip Understanding).
+  // /api: `python -m corpus review` (src/corpus/review/server.py): decisions and gold labels.
+  server: { proxy: { '/api/trip': 'http://127.0.0.1:8766', '/api': 'http://127.0.0.1:8765' } },
 })

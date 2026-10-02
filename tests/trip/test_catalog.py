@@ -68,3 +68,11 @@ def test_unknown_is_excluded_unless_flagged(catalog):
     assert verdict(flat, hard()) == "pass" and verdict(steep, hard()) == "fail" and verdict(quiet, hard()) == "unknown"
     assert admissible(flat, [hard()]) and not admissible(steep, [hard(unknown_policy="flag")])
     assert not admissible(quiet, [hard()]) and admissible(quiet, [hard(unknown_policy="flag")])
+
+
+def test_load_skips_place_filter_files_without_a_video_list(tmp_path, records):
+    (tmp_path / "intel" / "places").mkdir(parents=True)
+    (tmp_path / "intel" / "places" / "a.json").write_text(json.dumps(records[0]), "utf-8")
+    (tmp_path / "tiktok" / "place_filter").mkdir(parents=True)
+    (tmp_path / "tiktok" / "place_filter" / "x.json").write_text(json.dumps({"fid": "0x1:0x1", "videos": 3}), "utf-8")
+    assert Catalog.load(tmp_path, n_min=1).video_place == {}

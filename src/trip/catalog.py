@@ -87,7 +87,8 @@ class Catalog:
         videos: dict[str, str] = {}
         for p in sorted((data / "tiktok" / "place_filter").glob("*.json")):
             d = json.loads(p.read_text(encoding="utf-8"))
-            for v in d.get("videos") or []:
+            vids = d.get("videos")
+            for v in vids if isinstance(vids, list) else []:  # some files store a count
                 if (v.get("llm") or {}).get("relevance") == "yes":
                     videos[str(v["video_id"])] = d["fid"]
         return cls.from_records(records, n_min, videos)
