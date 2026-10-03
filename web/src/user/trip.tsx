@@ -35,6 +35,7 @@ export interface TripState {
   feedback: Record<string, string>
   searchInput?: SearchInput // from Trip Understanding; Place Decision reads it later
   decisionId: string | null // Place Decision session (src/decision); the backend holds the curation state
+  planningId: string | null // Planning session (src/planning); the backend holds the schedule and its edits
 }
 
 const today = () => {
@@ -66,6 +67,7 @@ export const initialTrip: TripState = {
   relaxed: [],
   feedback: {},
   decisionId: null,
+  planningId: null,
 }
 
 export type Action =
