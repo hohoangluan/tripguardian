@@ -33,7 +33,7 @@ export interface TravelLoadDay {
 }
 
 export interface Robustness {
-  level: 'Vững' | 'Khả thi' | 'Mong manh'
+  level: 'solid' | 'feasible' | 'fragile' // src/planning/robustness.py; label carries the Vietnamese text
   label: string
   reasons: string[]
   scenarios: Record<string, unknown>[]

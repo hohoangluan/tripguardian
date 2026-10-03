@@ -29,8 +29,8 @@ function VariantTabs({ variants, chosen, onPick }: { variants: Variant[]; chosen
         <button key={v.id} role="tab" aria-selected={chosen === v.id} className={chosen === v.id ? 'is-on' : ''} onClick={() => onPick(v.id)}>
           <b>{v.label}</b>
           <small>≈{fmtDuration(v.metrics.travel_min)} di chuyển cả chuyến</small>
-          <span className={`robust robust--${v.robustness.level === 'Vững' ? 'ok' : v.robustness.level === 'Khả thi' ? 'mid' : 'thin'}`}>
-            {v.robustness.level}
+          <span className={`robust robust--${v.robustness.level === 'solid' ? 'ok' : v.robustness.level === 'feasible' ? 'mid' : 'thin'}`}>
+            {v.robustness.label}
           </span>
         </button>
       ))}
@@ -56,7 +56,7 @@ function Trade({ variants }: { variants: Variant[] }) {
             <td>{v.label}</td>
             <td>≈{fmtDuration(v.metrics.travel_min)}</td>
             <td>{v.metrics.cost_unknown ? 'Một phần chưa có giá' : `${v.metrics.cost_vnd.toLocaleString('vi-VN')} đ`}</td>
-            <td>{v.robustness.level}</td>
+            <td>{v.robustness.label}</td>
           </tr>
         ))}
       </tbody>
@@ -216,6 +216,31 @@ export function Itinerary() {
     )
 
   if (!view) return <div className="loading">{error ?? 'Đang tải'}</div>
+
+  // No schedule could be laid out from the confirmed places (view.ok false, back_to_decision set): say so, do not show empty tabs.
+  if (!view.variants.length)
+    return (
+      <Page className="page--narrow">
+        <header className="phead">
+          <h1>Chưa xếp được lịch</h1>
+          <p>Các nơi đã chọn chưa đủ để xếp thành lịch trình. Quay lại chọn lại địa điểm nhé.</p>
+        </header>
+        {view.warnings.length > 0 && (
+          <ul className="warn-list">
+            {view.warnings.map((w, i) => (
+              <li key={i}>
+                <Icon name="alert" size={13} /> {w}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="pfoot">
+          <button className="btn" onClick={() => navigate('/app/shortlist')}>
+            Chọn lại địa điểm
+          </button>
+        </div>
+      </Page>
+    )
 
   if (!view.state.chosen_variant)
     return (
