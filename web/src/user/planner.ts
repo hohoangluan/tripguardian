@@ -1,5 +1,7 @@
-// Client-side estimates for the prototype: ranking, feasibility, schedule.
-// Every number here is an estimate and is labelled as one in the UI.
+// Client-side trip estimate, now used only by the admin debug view (web/src/admin/screens/Sessions.tsx), which
+// previews a user's trip from a local snapshot with no live Planning session to query. The real user-facing
+// schedule is web/src/user/screens/Itinerary.tsx, backed by python -m planning serve (docs/specs/PLANNING_SPEC.md).
+// Every number here is still an estimate and is labelled as one in the admin UI.
 import { featureLabel } from '../data/labels'
 import { CENTER, DAYS, fmtDuration, fmtTime, has, openWindows, placeById, travelMin, visible, visitRange } from '../data/store'
 import type { Place } from '../data/types'
