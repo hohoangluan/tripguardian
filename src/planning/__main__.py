@@ -8,10 +8,13 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from corpus.serving import load as load_records
 
 from . import (Engine, build_lodging_variants, build_plan, build_variants, render_lodging_variants, render_text,
               render_variants, run_server)
+from .agent import run_agent
 from .session import Store
 from .settings import ROOT
 
@@ -39,8 +42,19 @@ def main(argv: list[str] | None = None) -> int:
     sv.add_argument("--port", type=int, default=8768)
     args = ap.parse_args(argv)
     if args.cmd == "serve":
+        load_dotenv(ROOT / ".env")
         store = Store(data_root() / "planning" / "sessions")
-        run_server(Engine(load_records(), store=store), port=args.port)
+        missing = [k for k in ("AGENT_API_KEY", "AGENT_BASE_URL", "AGENT_MODEL") if not os.environ.get(k)]
+        agent = None
+        if missing:
+            print(f"warning: {', '.join(missing)} missing in .env: typed turns use the keyword fallback",
+                  file=sys.stderr)
+        else:
+            from .settings import load as load_settings
+            agent = lambda fields, on_say: run_agent(fields, on_say, load_settings())  # noqa: E731
+        engine = Engine(load_records(), store=store, agent=agent)
+        print(f"Planning: http://127.0.0.1:{args.port} (agent {os.environ.get('AGENT_MODEL') if agent else 'off'})")
+        run_server(engine, port=args.port)
         return 0
     sys.stdout.reconfigure(encoding="utf-8")
     decision = json.loads(args.decision_output.read_text(encoding="utf-8"))
