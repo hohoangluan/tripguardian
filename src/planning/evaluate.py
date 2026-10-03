@@ -7,6 +7,7 @@ run through Place Decision in process -- decision.Engine's own public create/act
 server -- into a Decision Output, then through Planning: create, pick the first ok variant, confirm.
 """
 
+import time
 from functools import cache
 
 import yaml
@@ -16,6 +17,8 @@ from decision import Data as DecisionData, Engine as DecisionEngine, Store as De
 from decision import load_settings as decision_default
 from trip import SearchInput
 
+from .engine import Engine
+from .session import Store
 from .settings import ROOT
 
 TRIPS = ROOT / "config" / "eval_trips.yaml"
@@ -71,3 +74,50 @@ def decision_outputs(records: list[dict], cfg=None) -> list[tuple[str, dict]]:
             continue
         out.append((trip["id"], confirmed))
     return out
+
+
+def plan_results(decision_output: dict, records: list[dict], planning_cfg=None, live_cfg=None, geocode_fn=None,
+                 matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None) -> dict:
+    """One hidden trip's Decision Output, laid out and measured. background=False: the lodging crawl (itself
+    offline/fixture-driven in tests, real in run()) finishes before create() returns, so ms_total below already
+    includes it -- matching docs/specs/PLANNING_SPEC.md §Đo's "Độ trễ: dựng 21 phương án · crawl chỗ ở"."""
+    if not decision_output["confirmed"]:  # Planning would call an empty trip ok with 0 minutes: not a feasible itinerary
+        return {"ok": False, "ms_variants": 0, "reason": "no_confirmed_places"}
+    eng = Engine(records, cfg=planning_cfg, live_cfg=live_cfg, store=Store(None), geocode_fn=geocode_fn,
+                 matrix_fn=matrix_fn, sun_fn=sun_fn, lodging_fn=lodging_fn, route_fn=route_fn, background=False)
+    t0 = time.perf_counter()
+    created = eng.create(decision_output)
+    ms_variants = round((time.perf_counter() - t0) * 1000)
+    view = created["view"]
+    if not view["ok"]:
+        return {"ok": False, "ms_variants": ms_variants, "reason": (view["back_to_decision"] or {}).get("reason")}
+    sid = created["id"]
+    variant = view["variants"][0]
+    if not any(i["kind"] == "visit" for d in variant["itinerary"] for i in d["items"]):  # ok with nothing scheduled
+        return {"ok": False, "ms_variants": ms_variants, "reason": "no_visits"}
+    travel_no_lodging = variant["metrics"]["travel_min"]
+    eng.act(sid, {"type": "pick_variant", "id": variant["id"]})
+    # Try every candidate, remember the best one's id -- `pick_lodging` on the next candidate overwrites the
+    # previous pick, so the loop itself never leaves the session on the best choice; that happens explicitly after.
+    best_travel, best_id = travel_no_lodging, None
+    for c in eng.lodging(sid)["candidates"]:
+        eng.act(sid, {"type": "pick_lodging", "id": c["id"]})
+        total = sum(d["travel_min"] for d in eng.load(sid)["view"]["travel_load"])
+        if total < best_travel:
+            best_travel, best_id = total, c["id"]
+    if best_id is not None:
+        eng.act(sid, {"type": "pick_lodging", "id": best_id})
+    else:
+        eng.act(sid, {"type": "clear_lodging"})
+    ms_total = round((time.perf_counter() - t0) * 1000)
+    baseline = eng.baseline_travel_min(sid)
+    try:
+        out = eng.confirm(sid)
+    except Exception as e:
+        return {"ok": False, "ms_variants": ms_variants, "ms_total": ms_total, "reason": str(e)}
+    nights = max((decision_output["trip_context"]["context"].get("days") or 1) - 1, 0)
+    saved_per_day = (travel_no_lodging - best_travel) / max(nights, 1)
+    return {"ok": True, "ms_variants": ms_variants, "ms_total": ms_total, "travel_min": travel_no_lodging,
+            "travel_with_lodging_min": best_travel, "baseline_travel_min": baseline,
+            "lodging_saved_min_per_day": round(saved_per_day, 1),
+            "robustness": out["robustness"]["level"]}
