@@ -77,3 +77,30 @@ def test_lodging_events_streams_progress_then_done(client):
     # default, no keep-alive, since this response is framed by neither Content-Length nor chunked encoding).
     body = resp.read().decode("utf-8")
     assert "event: progress" in body and "event: done" in body
+
+
+def test_turn_streams_say_view_and_done(client):
+    conn, d = client
+    conn.request("POST", "/api/planning/sessions", json.dumps({"decision_output": d}), {"Content-Type": "application/json"})
+    sid = json.loads(conn.getresponse().read())["id"]
+    conn.request("GET", f"/api/planning/sessions/{sid}/variants")
+    vid = json.loads(conn.getresponse().read())[0]["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_variant", "id": vid}),
+                {"Content-Type": "application/json"})
+    conn.getresponse().read()
+    conn.request("POST", f"/api/planning/sessions/{sid}/turn", json.dumps({"text": "đi chậm lại thôi"}),
+                {"Content-Type": "application/json"})
+    resp = conn.getresponse()
+    assert resp.status == 200 and resp.getheader("Content-Type").startswith("text/event-stream")
+    body = resp.read().decode("utf-8")
+    kinds = [line[len("event: "):] for line in body.splitlines() if line.startswith("event: ")]
+    assert kinds == ["say", "view", "done"]  # the server's Engine has no agent: the keyword policy answers
+
+
+def test_turn_rejects_an_empty_text(client):
+    conn, d = client
+    conn.request("POST", "/api/planning/sessions", json.dumps({"decision_output": d}), {"Content-Type": "application/json"})
+    sid = json.loads(conn.getresponse().read())["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/turn", json.dumps({"text": "   "}),
+                {"Content-Type": "application/json"})
+    assert conn.getresponse().status == 400

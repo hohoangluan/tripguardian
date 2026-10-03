@@ -13,7 +13,8 @@ from .session import ActionError
 
 BASE = "/api/planning/sessions"
 SESSION = re.compile(BASE + r"/([0-9a-f]{12})")
-SUB = re.compile(BASE + r"/([0-9a-f]{12})/(act|confirm|variants|lodging)")
+SUB = re.compile(BASE + r"/([0-9a-f]{12})/(act|confirm|variants|lodging|turn)")
+MAX_TEXT = 1000
 EVENTS = re.compile(BASE + r"/([0-9a-f]{12})/lodging/events")
 
 
@@ -102,6 +103,30 @@ def handler(engine: Engine):
                 return self._call(lambda: engine.act(m[1], body))
             if m and m[2] == "confirm":
                 return self._call(lambda: engine.confirm(m[1]))
+            if m and m[2] == "turn":
+                text = body.get("text")
+                if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
+                    return self._json(400, {"error": f"text must be 1-{MAX_TEXT} characters"})
+                try:
+                    engine.store.get(m[1])
+                except KeyError:
+                    return self._json(404, {"error": "no such session"})
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+
+                def emit(event: str, data: dict) -> None:
+                    self.wfile.write(f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode())
+                    self.wfile.flush()
+
+                try:
+                    engine.turn(m[1], text.strip(), emit)
+                except Exception:
+                    traceback.print_exc(file=sys.stderr)
+                    emit("error", {"message": "Máy chủ gặp lỗi, bạn thử lại nhé."})
+                return
             self._json(404, {"error": "not found"})
 
         def log_message(self, *args):
