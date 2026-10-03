@@ -5,6 +5,7 @@ import { Start } from '../pages/Start'
 import { match, navigate } from '../router'
 import { Icon } from '../ui/bits'
 import { DecisionProvider, useDecision } from './pd/decision'
+import { PlanningProvider } from './planning/planning'
 import { Compare } from './screens/Compare'
 import { CurateBar } from './screens/Curate'
 import { Feasibility } from './screens/Feasibility'
@@ -78,7 +79,12 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   else if ((m = match(path, '/app/place/:id'))) screen = <PlaceDetail id={m.id} key={m.id} />
   else if ((m = match(path, '/app/compare/:ids'))) screen = <Compare ids={m.ids.split(',')} key={m.ids} />
   else if (base === '/app/feasibility') screen = <Feasibility />
-  else if (base === '/app/plan') screen = <Itinerary />
+  else if (base === '/app/plan')
+    screen = (
+      <PlanningProvider>
+        <Itinerary />
+      </PlanningProvider>
+    )
   else if (base === '/app/profile') screen = <Profile />
   else if (base === '/app/feedback') screen = <Feedback />
   else screen = <div className="loading">Không có trang này.</div>
