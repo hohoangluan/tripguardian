@@ -14,10 +14,15 @@ def fake_agent(plan: TurnPlan):
     return run
 
 
+def fake_route(points, mode, live_cfg):
+    return {"points": [list(p) for p in points], "source": "osrm", "fetched_at": "t"}
+
+
 def engine(agent=None):
     d, recs = small_trip()
     e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False, agent=agent)
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route,
+              background=False, agent=agent)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     return e, sid
@@ -92,3 +97,18 @@ def test_turn_falls_back_to_policy_when_the_agent_raises():
     ev = events(e, sid, "b xa quá")
     assert [k for k, _ in ev] == ["say", "view", "done"]
     assert e.load(sid)["view"]["state"]["dropped"][0]["place_id"] == "b"
+
+
+def test_a_full_turn_session_create_pick_turn_confirm():
+    """One pass through everything P7 built: create, pick a variant, two turns (one agent op, one policy fallback),
+    confirm -- the same path the web Itinerary screen (P8) will drive."""
+    e, sid = engine()
+    a = alias(e, sid, "a")
+    plan = TurnPlan(say="Mình đã đưa nơi đó lên đầu buổi sáng.",
+                    updates=(PlanUpdate(op="reorder_edge", ref=a, value="first", quote="a đi trước nhé"),))
+    e.agent = fake_agent(plan)
+    events(e, sid, "a đi trước nhé")
+    e.agent = None  # second turn: agent "goes down", policy takes over
+    events(e, sid, "b xa quá")
+    out = e.confirm(sid)
+    assert out["itinerary"] and "b" not in {i.get("place_id") for day in out["itinerary"] for i in day["items"]}

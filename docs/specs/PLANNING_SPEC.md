@@ -359,3 +359,8 @@ tiêu → diff" ở §Chỗ ở không làm người dùng chờ chưa làm ở 
 `diff` hiện chỉ có `scope`, chưa phải diff đầy đủ theo nghĩa spec mô tả. Plan Output's `lodging.candidates` luôn
 `[]` (chỉ `lodging.chosen` có dữ liệu). Để lại cho một task riêng, không phải lỗi — không có đường nào trả kết quả
 sai, chỉ thiếu tính năng so sánh.
+- `lodging_near` (câu nói tới một địa danh) đặt chỗ ở thủ công đúng địa danh đó (`set_lodging`), chưa tìm lại K ứng
+viên chỗ ở quanh một tâm mới -- cần sửa `lodging.py`/`build.py`, để lại cho một phase sau.
+- "Bỏ nhiều nơi qua nhiều lượt -> đề nghị quay về Place Decision" chỉ hoạt động trong kênh gõ chữ (`turn`); các act
+`drop_place` gửi qua chip không bị chặn bởi `rethink_drops` -- Planning chưa có cơ chế `Pending`/câu hỏi mở như
+`decision.Session` có.
