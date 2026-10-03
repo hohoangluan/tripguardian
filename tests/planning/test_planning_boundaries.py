@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "planning"
-ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology"}
+ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm"}  # corpus.llm: the agent call sits at the module edge (RULE §2)
 WRITTEN_BY_CORPUS = ("data/intel", "data/serving", "data/gmaps", "data/tiktok", "data/review")
 
 
@@ -31,7 +31,9 @@ def test_there_is_something_to_check():
 def test_no_deep_import_into_live_or_corpus_and_none_into_decision_or_trip(path):
     for name in imports(path):
         top = name.split(".")[0]
-        assert top not in {"decision", "trip"}, f"{path.name} imports {name}"
+        assert top != "decision", f"{path.name} imports {name}"
+        # trip: only its public text helpers (trip/__init__.py), the same import decision/guard.py makes (P7 ruling)
+        assert top != "trip" or name == "trip", f"{path.name} deep-imports {name}"
         assert top != "live" or name == "live", f"{path.name} deep-imports {name}"
         assert top != "corpus" or name in ALLOWED_CORPUS, f"{path.name} imports {name}"
 

@@ -3,11 +3,14 @@ no model), variants, lodging (crawled in the background), confirm. One lock per 
 version that undo / redo moves between.
 """
 
+import asyncio
 import threading
+import traceback
 import urllib.error
 import urllib.request
 from dataclasses import replace
 from json import loads
+from typing import Awaitable, Callable
 
 import live
 
@@ -17,7 +20,10 @@ from .objectives import LABEL, add_lodging_cost, choose, metrics, score
 from .repair import repair_day
 from .robustness import robustness as robustness_of
 from .backup import backups as backups_of
-from .scope import LODGING_FETCH, LODGING_HOME, NONE, RELAYOUT, VARIANT, act_scope
+from .agent import AgentError
+from .guard import TurnPlan, guard
+from .policy import DONE, NONE as NO_PLAN_SAY, policy
+from .scope import LODGING_FETCH, LODGING_HOME, NONE, RELAYOUT, VARIANT, act_scope, widest
 from .session import ActCtx, ActionError, Session, State, Store
 from .session import apply_act as _apply
 from .settings import Settings
@@ -28,6 +34,9 @@ def _http_post(url: str) -> str:
     req = urllib.request.Request(url, method="POST", data=b"{}", headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=10) as resp:
         return resp.read().decode("utf-8")
+
+
+Agent = Callable[[dict, Callable[[str], None]], Awaitable[TurnPlan]]
 
 
 class NoSession(Exception):
@@ -61,7 +70,8 @@ class _Base:
 class Engine:
     def __init__(self, records: list[dict], cfg: Settings | None = None, live_cfg=None, store: Store | None = None,
                 geocode_fn=None, matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None,
-                decision_url: str | None = None, http_post=None, background: bool = True):
+                decision_url: str | None = None, http_post=None, background: bool = True,
+                agent: "Agent | None" = None):
         self.by_id = {r["id"]: r for r in records}
         self.records = records
         self.cfg = cfg or load_settings()
@@ -75,6 +85,7 @@ class Engine:
         self.decision_url = decision_url or self.cfg.decision_url
         self.http_post = http_post or _http_post
         self.background = background
+        self.agent = agent
         self._base: dict[str, _Base] = {}
         self._schedules: dict[str, list] = {}
 
@@ -553,3 +564,101 @@ class Engine:
             s.output = out
             self.store.save(s)
             return out
+
+    # ---------- turn (docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp ý) ----------
+
+    def _turn_current(self, s: Session, base: _Base) -> list | None:
+        """The laid-out days a turn talks about: the active Schedule, or the first variant's before a pick."""
+        results = self._schedules.get(s.id, [None] * len(s.states))[s.position] if s.state.chosen_variant else None
+        if results is None and base.variants:
+            results = base.variants[0]["_results"]
+        return results
+
+    def _turn_aliases(self, s: Session, base: _Base) -> dict[str, dict]:
+        """P# for every place currently in the plan, L# for every lodging candidate on screen, V# for every variant on
+        screen -- built from the same state the screen shows, so the agent can only name what the user can see."""
+        out: dict[str, dict] = {}
+        by_place = self._places_for(s, base)
+        for day, r in enumerate(self._turn_current(s, base) or []):
+            for pid in r.order:
+                p = by_place.get(pid)
+                if p is not None:
+                    out[f"P{sum(1 for v in out.values() if v['kind'] == 'place') + 1}"] = {
+                        "kind": "place", "id": pid, "name": p.rec["identity"]["name"], "day": day}
+        for c in self._offered_lodging(base, s.state):
+            out[f"L{sum(1 for v in out.values() if v['kind'] == 'lodging') + 1}"] = {
+                "kind": "lodging", "id": c["id"], "name": c["name"]}
+        for v in base.variants:
+            out[f"V{sum(1 for x in out.values() if x['kind'] == 'variant') + 1}"] = {
+                "kind": "variant", "id": v["id"], "label": v["label"]}
+        return out
+
+    def _turn_day_order(self, s: Session, base: _Base) -> dict[int, list[str]]:
+        return {i: list(r.order) for i, r in enumerate(self._turn_current(s, base) or [])}
+
+    def _turn_fields(self, aliases: dict, text: str) -> dict:
+        from corpus.ontology import load as load_ontology
+        features = "\n".join(f"{f.id}: {'|'.join(f.values)}" for f in load_ontology().features.values())
+        by_day: dict[int, list[str]] = {}
+        for k, v in aliases.items():
+            if v["kind"] == "place":
+                by_day.setdefault(v["day"], []).append(f"{k} {v['name']}")
+        days = "\n".join(f"Ngày {d + 1}: " + ", ".join(items) for d, items in sorted(by_day.items())) or "none"
+        variants = "\n".join(f"{k} | {v['label']}" for k, v in aliases.items() if v["kind"] == "variant") or "none"
+        lodging = "\n".join(f"{k} | {v['name']}" for k, v in aliases.items() if v["kind"] == "lodging") or "none"
+        return {"features": features, "days": days, "variants": variants, "lodging": lodging, "text": text}
+
+    def _turn_screen_text(self, fields: dict) -> str:
+        """Everything the screen shows that a number in `say` may legitimately come from."""
+        return f"{fields['days']} {fields['variants']} {fields['lodging']}"
+
+    def turn(self, sid: str, text: str, emit: Callable[[str, dict], None]) -> None:
+        """One typed message: one agent call (or the keyword policy when it fails), then each produced action goes
+        through the same act() a chip click uses -- so scope, locked-place protection and undo are the chip's own."""
+        base = self._ensure_base(sid)
+        with self.store.lock(sid):
+            s = self._get(sid)
+            aliases = self._turn_aliases(s, base)
+            day_order = self._turn_day_order(s, base)
+            fields = self._turn_fields(aliases, text)
+            streamed: list[str] = []
+
+            def on_say(d: str) -> None:
+                streamed.append(d)
+                emit("say", {"delta": d})
+
+            try:
+                if self.agent is None:
+                    raise AgentError("no agent configured")
+                plan = asyncio.run(self.agent(fields, on_say))
+                g = guard(plan, text, aliases, day_order, self._turn_screen_text(fields))
+                actions, say = g.actions, g.say
+            except Exception as e:  # any agent failure degrades to the keyword policy, never to a 500
+                if not isinstance(e, AgentError):
+                    traceback.print_exc()   # a bug, not an unavailable model: keep it visible in the server log
+                (actions, say), log = policy(text, aliases), [f"agent_fallback: {type(e).__name__}: {e}"]
+            else:
+                log = g.log
+
+            done, scopes = [], []
+            drops_before = len(s.state.dropped)
+            for action in actions:
+                if action.get("type") == "drop_place" and drops_before + len(
+                        [a for a in done if a.get("type") == "drop_place"]) >= self.cfg.rethink_drops:
+                    log.append(f"skip {action}: rethink_drops reached")
+                    say = ("Bạn đã bỏ khá nhiều nơi trong lượt này. Có thể lịch đang không hợp với bạn ngay từ đầu "
+                           "-- quay lại Place Decision để chọn lại nơi sẽ hợp hơn là bỏ từng chỗ một.")
+                    continue
+                try:
+                    out = self.act(sid, action)
+                except ActionError as e:
+                    log.append(f"skip {action}: {e}")
+                    continue
+                done.append(action)
+                scopes.append(out["diff"]["scope"])
+
+            say = say or (DONE if done else NO_PLAN_SAY)
+            if say != "".join(streamed):
+                emit("say", {"replace": say})
+            emit("view", {"view": self._view(self._get(sid)), "diff": {"scope": widest(scopes)}})
+            emit("done", {})
