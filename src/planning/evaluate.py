@@ -54,10 +54,10 @@ def search_input(trip: dict, version: int, days: int = 3) -> SearchInput:
         "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []})
 
 
-def decision_outputs(records: list[dict], cfg=None) -> list[tuple[str, dict]]:
-    """(trip id, Decision Output) for every hidden trip Place Decision can actually confirm -- a trip whose
-    pipeline shortlist cannot fill its role, or whose feasibility is "partial"/"infeasible", is skipped (not an
-    error: it means Place Decision itself found nothing fit, which Planning has nothing to schedule)."""
+def decision_outputs(records: list[dict], cfg=None) -> list[tuple[str, dict | None]]:
+    """(trip id, Decision Output) for every hidden trip, in config order. A trip Place Decision does not confirm (its
+    feasibility is "partial"/"infeasible", so confirm() raises) gets None: it stays in the denominator of the
+    feasible rate instead of disappearing from the report."""
     cfg = cfg or decision_default()
     data = DecisionData(records)
     version = load_ontology().version
@@ -74,7 +74,7 @@ def decision_outputs(records: list[dict], cfg=None) -> list[tuple[str, dict]]:
         try:
             confirmed = eng.confirm(sid)
         except Exception:  # decision.NotConfirmable is not part of decision's public API; catch broadly on purpose
-            continue
+            confirmed = None
         out.append((trip["id"], confirmed))
     return out
 
@@ -135,6 +135,9 @@ def evaluate(records: list[dict] | None = None, decision_cfg=None, planning_cfg=
     records = records if records is not None else load_serving()
     rows = []
     for trip_id, decision_output in decision_outputs(records, decision_cfg):
+        if decision_output is None:
+            rows.append({"trip": trip_id, "ok": False, "reason": "decision_not_confirmed"})
+            continue
         row = plan_results(decision_output, records, planning_cfg, live_cfg, geocode_fn, matrix_fn, sun_fn,
                            lodging_fn, route_fn)
         rows.append({"trip": trip_id, **row})

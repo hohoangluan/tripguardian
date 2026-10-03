@@ -82,3 +82,23 @@ def test_cli_evaluate_dispatches_to_run_without_reading_a_decision_output(monkey
     called = []
     monkeypatch.setattr(ev, "run", lambda: called.append(True) or {})
     assert cli.main(["evaluate"]) == 0 and called == [True]
+
+
+def test_decision_outputs_marks_a_trip_decision_cannot_confirm_as_none(monkeypatch):
+    monkeypatch.setattr(ev, "trips", lambda: [
+        {"id": "refused", "role": "experience", "hard": {}, "soft": {}}])
+
+    def refuse(self, sid):
+        raise RuntimeError("partial")  # decision.NotConfirmable in practice
+    monkeypatch.setattr(ev.DecisionEngine, "confirm", refuse)
+    a = rec("A", 10.0, 106.0, usable=("experience",))
+    a["provenance"] = {"as_of": "2026-09-30", "coverage": {}, "voices": 30, "rating_trend": None, "inputs": []}
+    assert ev.decision_outputs([a]) == [("refused", None)]
+
+
+def test_evaluate_counts_a_decision_refusal_as_not_ok(monkeypatch):
+    monkeypatch.setattr(ev, "decision_outputs", lambda records, cfg=None: [("refused", None)])
+    res = ev.evaluate([], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    assert res["summary"]["trips"] == 1 and res["summary"]["feasible_itinerary_rate"] == 0.0
+    assert res["summary"]["not_ok_trips"] == [{"trip": "refused", "reason": "decision_not_confirmed"}]
