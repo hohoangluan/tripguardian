@@ -6,6 +6,7 @@ import { story } from '../../scene/story'
 import { Icon, Page } from '../../ui/bits'
 import { confirm } from '../pd/api'
 import { useDecision } from '../pd/decision'
+import { createPlanning } from '../planning/api'
 import type { Feasibility as F } from '../pd/types'
 import { useTrip } from '../trip'
 
@@ -63,8 +64,16 @@ export function Feasibility() {
     setMsg(null)
     try {
       const out = await confirm(trip.decisionId)
-      // The schedule screen is still the client prototype (Planning comes next); it reads the confirmed places.
-      dispatch({ type: 'set', patch: { selected: out.confirmed.map((c) => c.id), locked: out.confirmed.filter((c) => c.role !== 'selected').map((c) => c.id) } })
+      // Hand Planning the Decision Output just returned: no second round-trip to the Decision server.
+      const created = await createPlanning(out)
+      dispatch({
+        type: 'set',
+        patch: {
+          selected: out.confirmed.map((c) => c.id),
+          locked: out.confirmed.filter((c) => c.role !== 'selected').map((c) => c.id),
+          planningId: created.id,
+        },
+      })
       navigate('/app/plan')
     } catch {
       setMsg('Chưa xác nhận được, thử lại.')
