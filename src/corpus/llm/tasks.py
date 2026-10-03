@@ -661,6 +661,82 @@ USER MESSAGE:
 {text}""",
 )
 
+
+PLANNING_OPS = ["drop", "move_day", "reorder_edge", "pick_lodging", "lodging_near", "pace", "relax", "variant",
+                "unmapped"]
+
+PLANNING_TURN = Task(
+    name="planning_turn",
+    role=AGENT,
+    max_tokens=700,
+    temperature=0.2,
+    parallel=4,
+    # `say` first: the server streams it before the updates arrive (src/planning/agent.py).
+    schema={
+        "type": "object",
+        "properties": {
+            "say": {"type": "string"},
+            "updates": {"type": "array", "items": {
+                "type": "object",
+                "properties": {
+                    "op": {"type": "string", "enum": PLANNING_OPS},
+                    "ref": {"type": "string"},
+                    "value": {"type": "string"},
+                    "quote": {"type": "string"},
+                },
+                "required": ["op", "ref", "value", "quote"],
+                "additionalProperties": False,
+            }},
+        },
+        "required": ["say", "updates"],
+        "additionalProperties": False,
+    },
+    prompt="""You help a traveller edit a day-by-day itinerary for a trip to Đà Lạt, Vietnam. DAYS lists every place
+already in the plan grouped by day (alias P1, P2, ...), with how far it is from today's lodging. VARIANTS lists the
+2-3 plan options on screen (alias V1, V2, ...). LODGING lists the lodging candidates on screen (alias L1, L2, ...).
+In this turn: understand the user's latest message, turn what it asks into updates, and reply.
+
+`say` (Vietnamese): 1-2 short sentences, warm but not chummy, "mình" for yourself and "bạn" for the user, no slang,
+no emoji. Say what you changed or understood, using only names and numbers from DAYS / VARIANTS / LODGING or the
+user's own message. If the request names no clear place, day or candidate, or asks for something bigger than one
+change (e.g. "đổi hết đi"), do not guess -- ask a short clarifying question instead and leave updates empty.
+
+`updates`: one entry per request in the message.
+- drop: the user does not want `ref` (a P# place) in the plan; value = the reason if stated: far | crowded | pricey
+  | dislike | visited, else "". If they mean a whole day ("ngày 2 nhiều quá") without naming a place, pick the P#
+  in DAYS for that day that is farthest from the lodging and not already locked -- unless two are close enough that
+  you are not sure, in which case ask instead (empty updates).
+- move_day: move `ref` (a P# place) to a different day; value = the day number as the user said it ("2" for "ngày 2").
+- reorder_edge: put `ref` (a P# place) first or last within its own day; value = "first" or "last".
+- pick_lodging: the user wants `ref` (an L# lodging candidate) as the stay; value = "". Only use this when the
+  user clearly means one of the candidates actually listed in LODGING.
+- lodging_near: the user wants the lodging near a place or area they name; ref = "", value = that place or area in
+  their own words.
+- pace: the user wants to go slower, more relaxed, or pack in more stops; value = slow | normal | packed.
+- relax: the user is fine with `ref` (a P# place) despite a constraint they set earlier (e.g. stairs); value = the
+  feature id from FEATURES. Only use this for a place clearly named.
+- variant: the user wants a different plan option already on screen (`ref` = a V# alias); value = "". Only use this
+  when the user clearly means one of the options actually listed in VARIANTS.
+- unmapped: a request none of the above fits; ref = "", value = the user's words.
+- quote: the exact words from the user's message that support the update, copied, not paraphrased.
+- When unsure, leave it out. Never invent a place, a day, a candidate or a plan option.
+
+FEATURES (id: values)
+{features}
+
+DAYS (day | alias | name | minutes from lodging)
+{days}
+
+VARIANTS (alias | objective | score summary)
+{variants}
+
+LODGING (alias | name | price)
+{lodging}
+
+USER MESSAGE:
+{text}""",
+)
+
 _PHOTO_OBS_KEYS = ("feature", "value", "photo", "quote")
 PHOTO_OBSERVE = Task(
     name="photo_observe",

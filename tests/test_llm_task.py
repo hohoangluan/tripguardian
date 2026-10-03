@@ -32,3 +32,10 @@ def test_server_error_is_retried(monkeypatch):
     client = FakeClient([err])
     out = asyncio.run(tasks.REVIEW_VERIFY.ask(client, "m", name="A", category="c", claim="x", passage="y"))
     assert out["verdict"] == "supports" and client.calls == 2
+
+
+def test_planning_turn_renders_with_every_field():
+    from corpus.llm import PLANNING_TURN
+    text = PLANNING_TURN.render(features="noise: quiet|loud", days="Ngày 1: ...", variants="V1 | ...",
+                                lodging="L1 | ...", text="bỏ chỗ này đi")
+    assert "bỏ chỗ này đi" in text and "V1" in text
