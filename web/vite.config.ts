@@ -46,9 +46,15 @@ function clips(): Plugin {
 export default defineConfig({
   plugins: [react(), clips()],
   // /api/decision: `python -m decision serve` (src/decision/server.py, Place Decision).
+  // /api/planning: `python -m planning serve` (src/planning/server.py, Planning & Validation).
   // /api/trip: `python -m trip serve` (src/trip/server.py, Trip Understanding).
   // /api: `python -m corpus review` (src/corpus/review/server.py): decisions and gold labels.
   server: {
-    proxy: { '/api/decision': 'http://127.0.0.1:8767', '/api/trip': 'http://127.0.0.1:8766', '/api': 'http://127.0.0.1:8765' },
+    proxy: {
+      '/api/decision': 'http://127.0.0.1:8767',
+      '/api/planning': 'http://127.0.0.1:8768',
+      '/api/trip': 'http://127.0.0.1:8766',
+      '/api': 'http://127.0.0.1:8765',
+    },
   },
 })
