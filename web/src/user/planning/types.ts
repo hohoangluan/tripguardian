@@ -1,5 +1,11 @@
 // Shapes of the Planning API (src/planning/engine.py, session.py, output.py, robustness.py, objectives.py).
 
+// A warning is {code, text} (src/planning/build.py _warn); text is the Vietnamese sentence to show.
+export interface Warning {
+  code: string
+  text: string
+}
+
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
 export type Pace = 'slow' | 'normal' | 'packed'
 
@@ -56,7 +62,7 @@ export interface Variant {
   travel_load: TravelLoadDay[]
   robustness: Robustness
   backups: Record<string, unknown>[]
-  warnings: string[]
+  warnings: Warning[]
   lodging: VariantLodging
 }
 
@@ -92,7 +98,7 @@ export interface View {
   ok: boolean
   variants: Variant[]
   comparison: Record<string, unknown>[]
-  warnings: string[]
+  warnings: Warning[]
   back_to_decision: { reason: string; places: string[] } | null
   lodging: Lodging
   itinerary: ItineraryDay[] | null
@@ -152,7 +158,7 @@ export interface PlanOutput {
   travel_load: TravelLoadDay[]
   reasons: string[]
   tradeoffs: Record<string, unknown>[]
-  warnings: string[]
+  warnings: Warning[]
   uncertainty: Record<string, unknown>
   robustness: Robustness
   backups: Record<string, unknown>[]

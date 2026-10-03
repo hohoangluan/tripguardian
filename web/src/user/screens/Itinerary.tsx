@@ -229,7 +229,7 @@ export function Itinerary() {
           <ul className="warn-list">
             {view.warnings.map((w, i) => (
               <li key={i}>
-                <Icon name="alert" size={13} /> {w}
+                <Icon name="alert" size={13} /> {w.text}
               </li>
             ))}
           </ul>
@@ -305,7 +305,7 @@ export function Itinerary() {
         <ul className="warn-list">
           {view.warnings.map((w, i) => (
             <li key={i}>
-              <Icon name="alert" size={13} /> {w}
+              <Icon name="alert" size={13} /> {w.text}
             </li>
           ))}
         </ul>
