@@ -214,7 +214,9 @@ async def run(city: str, headed: bool = False, profile=open_profile, profile_nam
     fetched = {f.parent.name: json.loads(f.read_text(encoding="utf-8")).get("fetched_at", "")
                for f in (root / "videos").glob("*/video.json")}
     again = retry_ids("video_comments", fetched)  # a person asked to crawl these again (review)
-    todo = [r for r in rows if not r.get("photo") and r["video_id"] in kept
+    removed = {f.parent.name for f in (root / "videos").glob("*/video.json")
+               if json.loads(f.read_text(encoding="utf-8")).get("clip_removed")}  # finished; clip deleted on purpose
+    todo = [r for r in rows if not r.get("photo") and r["video_id"] in kept and r["video_id"] not in removed
             and (r["video_id"] in again or not (root / "videos" / r["video_id"] / "video.mp4").exists())]
     print(f"crawl {city}: {len(todo)} videos left ({sum(bool(r.get('photo')) for r in rows)} photo posts, "
           f"{sum(1 for r in rows if not r.get('photo') and r['video_id'] not in kept)} not kept by filter)")

@@ -17,6 +17,10 @@ ATTEMPTS = 4  # per call: a broken JSON answer or a busy / unreachable server is
 RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each time
 
 
+class BadBody(Exception):
+    """The server answered with text that is not a chat completion; retried like a busy server."""
+
+
 @dataclass(frozen=True)
 class Task:
     name: str
@@ -48,7 +52,13 @@ class Task:
                     temperature=self.temperature, max_tokens=self.max_tokens,
                     response_format={"type": "json_schema", "json_schema": {"name": self.name, "schema": self.schema,
                                                                             "strict": True}})
+                if isinstance(r, str):  # a busy or down server can answer with a plain body, not a completion
+                    raise BadBody(r[:200])
                 return json.loads(r.choices[0].message.content)
+            except BadBody:
+                if attempt == ATTEMPTS:
+                    raise
+                await asyncio.sleep(RETRY_S * 2 ** (attempt - 1))
             except json.JSONDecodeError:
                 # guided decoding now and then loops on whitespace until max_tokens cuts the JSON; a new call is fine
                 if attempt == ATTEMPTS:
