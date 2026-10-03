@@ -248,3 +248,19 @@ def test_a_session_reloaded_after_the_process_restarts_replays_to_the_same_sched
     plan = e2.confirm(sid)
     assert plan["lodging"]["chosen"]["id"] == "h1"
     assert not any(i["place_id"] == "c1" for d_ in plan["itinerary"] for i in d_["items"] if i["kind"] == "visit")
+
+
+def test_baseline_travel_min_uses_the_same_day_membership_with_a_naive_order():
+    e, sid = started()
+    base_min = e.baseline_travel_min(sid)
+    optimized_min = e.load(sid)["view"]["variants"][0]["metrics"]["travel_min"]
+    assert base_min >= optimized_min >= 0
+
+
+def test_baseline_travel_min_without_a_chosen_variant_is_an_error():
+    d, recs = small_trip()
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    sid = e.create(d, None)["id"]
+    with pytest.raises(ActionError):
+        e.baseline_travel_min(sid)

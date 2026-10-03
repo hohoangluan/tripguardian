@@ -565,6 +565,21 @@ class Engine:
             self.store.save(s)
             return out
 
+    def baseline_travel_min(self, sid: str) -> int:
+        """Total travel minutes of the chosen variant's own day membership, laid out by plain nearest-neighbour
+        from base/entry (docs/specs/PLANNING_SPEC.md §Đo: "baseline = nearest-neighbour + anchor base, không chọn
+        chỗ ở"). base.variants is always built before the lodging crawl (_build_base), so its own `_results` are
+        already anchored at base/entry, never at a lodging candidate -- exactly the baseline the spec means."""
+        s = self._get(sid)
+        base = self._ensure_base(sid)
+        if s.state.chosen_variant is None:
+            raise ActionError("pick a variant before measuring a baseline")
+        from .route import _nearest_neighbour
+        from .schedule import simulate
+        results = next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant)
+        return sum(simulate(_nearest_neighbour(list(r.order), cx), cx).travel_min
+                   for cx, r in zip(base.trip.ctxs, results))
+
     # ---------- turn (docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp ý) ----------
 
     def _turn_current(self, s: Session, base: _Base) -> list | None:
