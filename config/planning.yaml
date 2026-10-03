@@ -91,3 +91,9 @@ split_min: 20       # minutes of real travel diameter beyond which the search ar
 history_max: 20              # versions kept for undo / redo
 repair_diff_weight: 5.0      # repair_day's penalty per stop whose relative order changes from the version before it
 decision_url: http://127.0.0.1:8767   # Place Decision's HTTP API, to resolve a decision_session_id at session create
+
+# Agent turn (P7, docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp ý). Same shape as config/decision.yaml.
+first_token_s: 6.0            # the first streamed token must arrive by this long, or the turn falls back to policy
+total_s: 20.0                 # the whole answer must arrive by this long
+rethink_drops: 4              # dropping this many places in one planning session: a turn's next drop is refused,
+                              # the user is told to go back to Place Decision instead (not a chip-level limit)

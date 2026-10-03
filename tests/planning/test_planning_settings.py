@@ -28,3 +28,9 @@ def test_the_p6_keys_load():
     assert cfg.history_max == 20
     assert cfg.repair_diff_weight == 5.0
     assert cfg.decision_url == "http://127.0.0.1:8767"
+
+
+def test_turn_settings_are_loaded():
+    from planning.settings import load
+    cfg = load()
+    assert cfg.first_token_s > 0 and cfg.total_s > cfg.first_token_s and cfg.rethink_drops > 0

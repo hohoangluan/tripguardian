@@ -69,6 +69,9 @@ class Settings:
     history_max: int
     repair_diff_weight: float
     decision_url: str
+    first_token_s: float
+    total_s: float
+    rethink_drops: int
 
 
 @cache
