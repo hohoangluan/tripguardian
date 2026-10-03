@@ -18,3 +18,11 @@ def test_every_act_type_maps_to_its_scope(type_, expected):
 def test_an_unknown_act_type_is_a_key_error():
     with pytest.raises(KeyError):
         act_scope({"type": "teleport"})
+
+
+def test_widest_picks_the_scope_that_implies_the_most_rebuilding():
+    from planning.scope import LODGING_FETCH, NONE, RELAYOUT, VARIANT, widest
+    assert widest([]) == NONE
+    assert widest([NONE, RELAYOUT]) == RELAYOUT
+    assert widest([RELAYOUT, VARIANT, NONE]) == VARIANT
+    assert widest([VARIANT, LODGING_FETCH]) == LODGING_FETCH
