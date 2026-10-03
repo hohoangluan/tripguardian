@@ -170,3 +170,18 @@ _không có_
 
 ### Trước đó
 _không có_
+
+## planning — Lịch trình từ Decision Output tới Plan Output
+
+- file: `src/live/` (`osrm/`, `weather/`, `lodging/`, `geocode/`, `sun.py`, `holidays.py`, `cache.py`), `src/planning/` (toàn bộ), `config/planning.yaml`, `config/live.yaml`, `config/climate.yaml`, `config/holidays.yaml`, `tests/live/`, `tests/planning/`, `web/src/user/planning/`, `web/src/user/screens/Itinerary.tsx`
+- cách kiểm chứng: `python -m pytest -q tests/live tests/planning`; `python -m planning build|variants|lodging <decision_output.json>`; `python -m planning serve` (web qua `/api/planning`); `python -m planning evaluate` (cần OSRM, không chạy trong CI)
+
+### Hiện tại (2026-10-03)
+- hành vi: từ `confirmed` của Place Decision, dựng 2-3 phương án theo mục tiêu (`least_travel`, `low_cost`, `weather_robust`, `diverse`, `preference_fit`): gom cụm (`cluster.py`), chia ngày bằng DP (`days.py`), thứ tự trong ngày (vét cạn ≤ `exact_n`, nearest-neighbour + 2-opt/or-opt khi đông hơn, `route.py`), khớp giờ mở / đệm / nghỉ (`schedule.py`), kiểm fail-closed (`validate.py`). Chỗ ở tra live qua Maps (`src/live/lodging`, dùng lại `corpus.crawl`) và cạnh tranh làm neo đầu/cuối ngày cho K ứng viên; không bao giờ vào Place Intelligence. Thời gian di chuyển qua OSRM local (`src/live/osrm`), rơi về ước lượng thô khi OSRM lỗi, khi đó độ vững bị trần ở "Khả thi". Độ vững 3 mức `solid` / `feasible` / `fragile` (nhãn hiển thị Vững / Khả thi / Mong manh) từ nhiễu cố định (trễ, visit dài hơn, mưa theo xác suất dự báo).
+- phiên có undo/redo; `act` tất định (chip) và `turn` (gõ chữ: một call agent mỗi lượt, `guard.py` chặn số/alias bịa, rơi về `policy.py` từ khoá khi agent lỗi/timeout) đi qua cùng đường `repair_day` / `relayout`.
+- web: `Itinerary.tsx` gọi phiên Planning thật (chọn phương án, timeline, chỗ ở, gõ chữ, chốt → `/app/feedback`); `planner.ts` (ước lượng client cũ) chỉ còn cho màn debug của admin.
+- `python -m planning evaluate`: 30 chuyến ẩn ở `config/eval_trips.yaml` chạy qua Decision (trong tiến trình) rồi Planning, ghi `data/planning/eval.json`. Chạy 2026-10-03 trên serving hiện tại: 0/10 chuyến có lịch khả thi. Nguyên nhân: 6 chuyến Decision không confirm (partial/infeasible), 3 chuyến Decision confirm nhưng không có nơi nào, 1 chuyến Planning không dựng được phương án hợp lệ (giờ mở cửa chưa biết). Chưa có số tiết kiệm phút di chuyển hay chỗ ở vì không có phương án nào để đo.
+- giới hạn: `evaluate` không mô phỏng hội thoại nhiều lượt với agent; `lodging_near` chưa tìm lại K ứng viên quanh tâm mới; "bỏ nhiều nơi qua nhiều lượt" chỉ nhắc ở kênh gõ chữ. Đầy đủ ở `docs/specs/PLANNING_SPEC.md` §Giới hạn đã biết.
+
+### Trước đó
+_không có_
