@@ -7,8 +7,11 @@ run through Place Decision in process -- decision.Engine's own public create/act
 server -- into a Decision Output, then through Planning: create, pick the first ok variant, confirm.
 """
 
+import json
+import os
 import time
 from functools import cache
+from pathlib import Path
 
 import yaml
 
@@ -121,3 +124,45 @@ def plan_results(decision_output: dict, records: list[dict], planning_cfg=None, 
             "travel_with_lodging_min": best_travel, "baseline_travel_min": baseline,
             "lodging_saved_min_per_day": round(saved_per_day, 1),
             "robustness": out["robustness"]["level"]}
+
+
+ROBUSTNESS_LEVELS = ("solid", "feasible", "fragile")  # src/planning/robustness.py
+
+
+def evaluate(records: list[dict] | None = None, decision_cfg=None, planning_cfg=None, live_cfg=None,
+             geocode_fn=None, matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None) -> dict:
+    from corpus.serving import load as load_serving
+    records = records if records is not None else load_serving()
+    rows = []
+    for trip_id, decision_output in decision_outputs(records, decision_cfg):
+        row = plan_results(decision_output, records, planning_cfg, live_cfg, geocode_fn, matrix_fn, sun_fn,
+                           lodging_fn, route_fn)
+        rows.append({"trip": trip_id, **row})
+    ok_rows = [r for r in rows if r["ok"]]
+    n = len(rows)
+
+    def pct_saved(r):
+        return 0.0 if r["baseline_travel_min"] == 0 else 100 * (1 - r["travel_min"] / r["baseline_travel_min"])
+
+    summary = {
+        "trips": n, "ok": len(ok_rows),
+        "feasible_itinerary_rate": round(len(ok_rows) / n, 3) if n else 0.0,
+        "avg_saved_vs_baseline_pct": round(sum(pct_saved(r) for r in ok_rows) / len(ok_rows), 1) if ok_rows else 0.0,
+        "avg_lodging_saved_min_per_day": round(sum(r["lodging_saved_min_per_day"] for r in ok_rows) / len(ok_rows), 1)
+                                        if ok_rows else 0.0,
+        "robustness": {lv: sum(1 for r in ok_rows if r["robustness"] == lv) for lv in ROBUSTNESS_LEVELS},
+        "ms_total_max": max((r.get("ms_total", 0) for r in rows), default=0),
+        "not_ok_trips": [{"trip": r["trip"], "reason": r["reason"]} for r in rows if not r["ok"]],
+    }
+    return {"summary": summary, "trips": rows}
+
+
+def run() -> dict:
+    import live
+    res = evaluate(live_cfg=live.load_settings())
+    d = Path(os.environ.get("DATA_DIR", "data"))
+    out = (d if d.is_absolute() else ROOT / d) / "planning" / "eval.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"evaluate: {json.dumps(res['summary'], ensure_ascii=False)}")
+    return res

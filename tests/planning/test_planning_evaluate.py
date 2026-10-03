@@ -56,3 +56,29 @@ def test_plan_results_reports_not_ok_when_nothing_is_scheduled():
     row = ev.plan_results(d, [], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
                           sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
     assert row["ok"] is False and row["reason"] == "no_visits"
+
+
+def test_evaluate_summarizes_every_confirmable_trip(monkeypatch):
+    d, recs = sample_trip(budget=5_000_000)
+    monkeypatch.setattr(ev, "decision_outputs", lambda records, cfg=None: [("t1", d), ("t2", d)])
+    res = ev.evaluate(recs, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    assert res["summary"]["trips"] == 2 and res["summary"]["ok"] == 2
+    assert res["summary"]["avg_saved_vs_baseline_pct"] <= 100
+    assert set(res["summary"]["robustness"]) == {"solid", "feasible", "fragile"}
+    assert len(res["trips"]) == 2 and res["trips"][0]["trip"] == "t1"
+
+
+def test_evaluate_lists_not_ok_trips_with_their_reason(monkeypatch):
+    monkeypatch.setattr(ev, "decision_outputs", lambda records, cfg=None: [("empty", decision([]))])
+    res = ev.evaluate([], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    assert res["summary"]["feasible_itinerary_rate"] == 0.0
+    assert res["summary"]["not_ok_trips"] == [{"trip": "empty", "reason": "no_confirmed_places"}]
+
+
+def test_cli_evaluate_dispatches_to_run_without_reading_a_decision_output(monkeypatch):
+    from planning import __main__ as cli
+    called = []
+    monkeypatch.setattr(ev, "run", lambda: called.append(True) or {})
+    assert cli.main(["evaluate"]) == 0 and called == [True]

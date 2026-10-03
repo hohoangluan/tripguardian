@@ -40,7 +40,12 @@ def main(argv: list[str] | None = None) -> int:
     l.add_argument("--out", type=Path, help="also write the full Plan Output as json")
     sv = sub.add_parser("serve", help="run the HTTP + SSE server")
     sv.add_argument("--port", type=int, default=8768)
+    ev = sub.add_parser("evaluate", help="offline Planning check: 30 hidden trips through Decision and Planning")
     args = ap.parse_args(argv)
+    if args.cmd == "evaluate":
+        from .evaluate import run as run_evaluate
+        run_evaluate()
+        return 0
     if args.cmd == "serve":
         load_dotenv(ROOT / ".env")
         store = Store(data_root() / "planning" / "sessions")
