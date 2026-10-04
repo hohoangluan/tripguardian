@@ -33,6 +33,7 @@ from .prep import batches, keep_for_llm, observed_at, stars
 
 DETAILS_EXTRACTOR = "details_rule@v2"
 RELEVANT_FILE = "reviews_relevant.json"  # written by corpus.crawl.gmaps.relevant
+EXTREMES_FILE = "reviews_extremes.json"  # written by corpus.crawl.gmaps.extremes
 PASSAGE_CHARS = 1200  # review text shown to REVIEW_VERIFY around the quote
 VERDICTS = ("supports", "contradicts", "insufficient")
 SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
@@ -157,13 +158,24 @@ def cache_key(ont: Ontology) -> str:
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
+def extremes_reviews(doc: dict) -> list[dict]:
+    """Every review of a reviews_extremes.json, lowest first, de-duplicated by review_id."""
+    rows = [r for name in ("lowest", "highest") for r in doc.get(name, {}).get("reviews", [])]
+    return list({r["review_id"]: r for r in rows}.values())
+
+
 def load_reviews(place_dir: Path) -> list[dict]:
-    """reviews.json (newest) + reviews_relevant.json (Maps' most relevant, any age) not already in it."""
+    """reviews.json (newest) + reviews_relevant.json (Maps' most relevant, any age) + reviews_extremes.json (lowest /
+    highest rated, any age) not already in it."""
     reviews = json.loads((place_dir / "reviews.json").read_text(encoding="utf-8"))
     extra = place_dir / RELEVANT_FILE
     if extra.exists():
         seen = {r["review_id"] for r in reviews}
         reviews += [r for r in json.loads(extra.read_text(encoding="utf-8"))["reviews"] if r["review_id"] not in seen]
+    low_high = place_dir / EXTREMES_FILE
+    if low_high.exists():
+        seen = {r["review_id"] for r in reviews}
+        reviews += [r for r in extremes_reviews(json.loads(low_high.read_text(encoding="utf-8"))) if r["review_id"] not in seen]
     return reviews
 
 
@@ -171,6 +183,8 @@ def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
     h = hashlib.sha256((place_dir / "reviews.json").read_bytes())
     if (place_dir / RELEVANT_FILE).exists():
         h.update((place_dir / RELEVANT_FILE).read_bytes())
+    if (place_dir / EXTREMES_FILE).exists():
+        h.update((place_dir / EXTREMES_FILE).read_bytes())
     h.update(json.loads((place_dir / "place.json").read_text(encoding="utf-8"))["fetched_at"].encode())
     h.update(json.dumps(sorted(bad_ids)).encode())  # qc run after observe changes what goes to the model
     return h.hexdigest()[:16]

@@ -1,7 +1,7 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
-  pause_s: [5, 10]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
-  tabs: 4  # ceiling for parallel video tabs; the throttle starts at tabs_start and finds the working level itself
+  pause_s: [0.3, 1]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
+  tabs: 5  # ceiling for parallel video tabs; the throttle starts at tabs_start and finds the working level itself
            # (data/tiktok/throttle.json). Unattended, 2 held clean while 3 got blocked at once (2026-10-02); 4 assumes
            # someone is at the browser to clear the captcha. 8 hit a MemoryError on a 16 GB machine with low free RAM.
   tabs_start: 2  # first run only
@@ -43,6 +43,7 @@ gmaps:
   max_review_age_months: 11  # only reviews under a year old (Maps says "một năm trước" for 12-23 months); older are stale
   min_reviews_per_place: 40  # the newest 40 are kept even past the age limit: quiet places need evidence too
   relevant_reviews_per_place: 50  # phase relevant: Maps' "most relevant" first (long, detailed), any age; merged by observe
+  extreme_reviews_per_place: 30  # phase extremes: Maps' lowest- and highest-rated reviews, any age; merged by observe
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
   photo_tabs: 6  # max parallel place tabs for photos (own throttle file)

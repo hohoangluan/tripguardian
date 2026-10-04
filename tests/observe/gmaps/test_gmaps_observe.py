@@ -516,3 +516,17 @@ def test_wait_relevant_skips_places_still_waiting(tmp_path, monkeypatch):
         json.dumps({"fetched_at": FETCHED, "complete": True, "reviews": []}), encoding="utf-8")
     asyncio.run(extract.run("dalat", wait_relevant=True))
     assert out.exists()
+
+
+def test_extremes_reviews_merge_by_id_and_change_the_input(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a")])
+    d = tmp_path / "gmaps" / "places" / DIR
+    before = extract.input_hash(d, set())
+    (d / "reviews_extremes.json").write_text(json.dumps({"fetched_at": FETCHED, "lowest": {"complete": True, "reviews": [
+        review(1, "Quán có view đẹp lắm luôn nha", "a"),
+        review(8, "Đường lên rất dốc, phải leo 100 bậc mới tới", "y", rating="1 sao")]},
+        "highest": {"complete": True, "reviews": [review(8, "Đường lên rất dốc, phải leo 100 bậc mới tới", "y"),
+                                                  review(9, "Cảnh đẹp, đáng đi, vé rẻ lắm", "z", rating="5 sao")]}},
+        ensure_ascii=False), encoding="utf-8")
+    assert extract.input_hash(d, set()) != before
+    assert [r["review_id"] for r in extract.load_reviews(d)] == ["R1", "R8", "R9"]

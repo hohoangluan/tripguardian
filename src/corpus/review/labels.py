@@ -115,6 +115,12 @@ def _reviews(stem: str) -> dict[str, dict]:
         doc = json.loads(f.read_text(encoding="utf-8"))
         for r in doc["reviews"] if isinstance(doc, dict) else doc:
             out.setdefault(r["review_id"], {**r, "list": kind})
+    f = place / "reviews_extremes.json"
+    if f.exists():
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        for kind in ("lowest", "highest"):
+            for r in doc.get(kind, {}).get("reviews", []):
+                out.setdefault(r["review_id"], {**r, "list": kind})
     return out
 
 
