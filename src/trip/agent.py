@@ -1,4 +1,4 @@
-"""One agent call per free-text turn: prompt from prefetched facts, streamed say, typed plan (spec §5)."""
+"""One agent call per free-text turn: prompt from prefetched facts, streamed say, typed plan (docs/TRIP_UNDERSTANDING.md §4, §14)."""
 
 import asyncio
 import functools

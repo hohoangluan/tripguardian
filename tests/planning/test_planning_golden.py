@@ -1,4 +1,4 @@
-"""Golden variants of a sample trip (docs/specs/PLANNING_SPEC.md §Test). A change to the algorithm that moves them must
+"""Golden variants of a sample trip (docs/PLANNING.md §Test). A change to the algorithm that moves them must
 update the file on purpose: UPDATE_GOLDEN=1 python -m pytest tests/planning/test_planning_golden.py"""
 
 import json

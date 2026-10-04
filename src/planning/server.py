@@ -1,4 +1,4 @@
-"""HTTP API for the web (docs/specs/PLANNING_SPEC.md §API và web). Local only: binds 127.0.0.1."""
+"""HTTP API for the web (docs/PLANNING.md §API và web). Local only: binds 127.0.0.1."""
 
 import json
 import re

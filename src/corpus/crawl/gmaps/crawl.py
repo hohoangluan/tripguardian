@@ -48,7 +48,7 @@ PLACE_JS = r"""() => {
   };
 }"""
 
-# "Xem thêm" of the review only: the owner's reply (.CDe7pd) is not evidence (docs/specs/CORPUS_SPEC.md, source roles)
+# "Xem thêm" of the review only: the owner's reply (.CDe7pd) is not evidence (docs/CORPUS.md, source roles)
 EXPAND_JS = """() => { const b = [...document.querySelectorAll('div.jftiEf button.w8nwRe')].filter(e => !e.closest('.CDe7pd'));
   b.forEach(e => e.click()); return b.length; }"""
 

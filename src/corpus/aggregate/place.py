@@ -1,4 +1,4 @@
-"""Aggregate (docs/specs/CORPUS_SPEC.md §5), code only: every source's observations of a place -> one intel file.
+"""Aggregate (docs/CORPUS.md §5), code only: every source's observations of a place -> one intel file.
 
 Reads data/*/observations/*.json and data/*/photo_observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
 every other file there (a place that has no observation file now): the folder is one build. Observation files of an
@@ -9,7 +9,7 @@ trend of the newer half of the dated evidence against the older half. A value de
 (Maps attributes) is served without a person when no other source contradicts it; a contradiction makes it uncertain.
 `mention_rate` = people who named the feature / the place's `voices` (authors whose words were read): a value
 named by 1 of 200 reviewers is weak evidence even at agreement 1.0.
-Measured quality (docs/specs/CORPUS_SPEC.md §6): `quality` = the gold-label precision of the top value (review.label_stats);
+Measured quality (docs/CORPUS.md §6): `quality` = the gold-label precision of the top value (review.label_stats);
 `servable` = the value may be served by itself: declared by an authoritative source, or its precision passed the label
 gate, or a person accepted it; a person's `disable` (decisions.jsonl kind feature_review, id "<fid>#<feature>") makes
 the feature `disabled` and never servable, `accept` clears needs_review, `report` / `refresh` set it.

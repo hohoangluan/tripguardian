@@ -35,7 +35,7 @@ Bốn điểm bắt đầu: chưa có ý tưởng · đã lưu địa điểm ·
 4. **Giải thích cả hai phía.** Mọi gợi ý có "vì sao phù hợp" *và* điểm đánh đổi. Mọi xung đột nêu tên địa điểm, quy tắc bị vi phạm, và cách khắc phục.
 5. **Người dùng giữ quyền kiểm soát.** Không bao giờ lặng lẽ bỏ một nơi người dùng đã chọn. Giới hạn do người dùng đặt chỉ được nới khi họ xác nhận.
 6. **Điều bất khả thi về vật lý là cứng.** Không nút nào biến kế hoạch không đi kịp thành "khả thi"; chỉ đưa ra cách dời có thật.
-7. **Chỉ hỏi điều làm thay đổi kết quả.** Mỗi câu hỏi bỏ qua được và có "Chưa chắc". Không hỏi lại điều đã biết. Cách hỏi theo người dùng và giọng điệu: `docs/Project_Context.md` §12.4–12.5.
+7. **Chỉ hỏi điều làm thay đổi kết quả.** Mỗi câu hỏi bỏ qua được và có "Chưa chắc". Không hỏi lại điều đã biết. Cách hỏi theo người dùng và giọng điệu: `docs/TRIP_UNDERSTANDING.md` §10, §13.
 8. **Suy đoán từ hồ sơ phải có nhãn.** Mọi thứ điền sẵn từ lịch sử người dùng được đánh dấu "từ hồ sơ của bạn" và sửa được bằng một chạm.
 
 ## 4. Cách hiển thị chất lượng dữ liệu (áp dụng mọi màn)
@@ -62,6 +62,8 @@ Bốn điểm bắt đầu: chưa có ý tưởng · đã lưu địa điểm ·
 ## 5. Các màn cần thiết kế và điểm nhấn
 
 Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 (User Web), §3 (Admin Web). Ưu tiên MVP: §4 của tài liệu đó.
+
+Đặc tả trang, mục bắt buộc và trạng thái phải vẽ cho User Web (bản giao cho Figma): `docs/UI_SPEC_USER_WEB.md`.
 
 | Màn | Điểm nhấn thiết kế |
 |---|---|

@@ -1,4 +1,4 @@
-"""entry_point / exit_point: where the user enters and leaves the city (docs/specs/PLANNING_SPEC.md §Đầu vào)."""
+"""entry_point / exit_point: where the user enters and leaves the city (docs/PLANNING.md §Đầu vào)."""
 
 from datetime import date
 

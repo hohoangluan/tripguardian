@@ -1,4 +1,4 @@
-"""HTTP API for the web (docs/TRIP_UNDERSTANDING.md §17). Local only: binds 127.0.0.1."""
+"""HTTP API for the web (docs/TRIP_UNDERSTANDING.md §14). Local only: binds 127.0.0.1."""
 
 import json
 import re

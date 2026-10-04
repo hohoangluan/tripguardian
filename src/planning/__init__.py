@@ -1,4 +1,4 @@
-"""Planning & Validation: confirmed places -> checked itineraries (docs/specs/PLANNING_SPEC.md).
+"""Planning & Validation: confirmed places -> checked itineraries (docs/PLANNING.md).
 
 python -m planning build <decision_output.json>
 python -m planning variants <decision_output.json> [--weather forecast.json]

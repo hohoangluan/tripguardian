@@ -1,4 +1,4 @@
-"""Place Decision sessions for the web (spec §13-16): create, act (chips / buttons, no model), turn (typed text, one
+"""Place Decision sessions for the web (docs/PLACE_DECISION.md §12-15, §18): create, act (chips / buttons, no model), turn (typed text, one
 agent call), compare, why-not, confirm. One lock per session; each change is one version that undo restores."""
 
 import asyncio

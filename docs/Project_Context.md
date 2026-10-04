@@ -950,7 +950,7 @@ Người dùng có thể sửa trực tiếp, kể cả các suy luận lấy t�
 | - | ---------- | ------ |
 | 1 | **Chỉ hỏi câu có giá trị thông tin cao nhất.** Mỗi lượt chọn câu mà câu trả lời làm thay đổi tập ứng viên nhiều nhất; câu nào không đổi kết quả thì bỏ. | Chọn câu hỏi để học nhanh preference của user mới trong cold start [11]; hỏi làm rõ khi yêu cầu mơ hồ, nhiều mặt hoặc thiếu [12]. |
 | 2 | **Hỏi làm rõ trước khi lập kế hoạch.** Agent phải tự nhận ra thông tin còn thiếu và hỏi trước khi gọi tool / xếp lịch, không tự đoán. | Ask-before-Plan: lập kế hoạch du lịch thất bại khi agent không phát hiện nhu cầu cần làm rõ [13]. |
-| 3 | **Constraint phải rõ trước khi lập kế hoạch.** Ràng buộc cứng (ngân sách, thời gian, thể chất) phải được biết hoặc đánh dấu `unknown` trước khi tìm địa điểm, đúng thứ tự xử lý ở mục 7; không có nghĩa là luôn hỏi chúng đầu tiên (12.3). | TravelPlanner tách hard constraint lấy từ yêu cầu user với commonsense constraint; agent LLM thường bỏ sót ràng buộc [14]. |
+| 3 | **Constraint phải rõ trước khi lập kế hoạch.** Ràng buộc cứng (ngân sách, thời gian, thể chất) phải được biết hoặc đánh dấu `unknown` trước khi tìm địa điểm, đúng thứ tự xử lý ở mục 7; không có nghĩa là luôn hỏi chúng đầu tiên (`docs/TRIP_UNDERSTANDING.md` §5). | TravelPlanner tách hard constraint lấy từ yêu cầu user với commonsense constraint; agent LLM thường bỏ sót ràng buộc [14]. |
 | 4 | **Hỏi về cách dùng, không hỏi thuộc tính.** Người lần đầu đi không biết thuộc tính nào quan trọng; hỏi "chuyến này để làm gì / đi với ai" dễ trả lời hơn "thích loại POI nào". | Usage-related questions dễ trả lời kể cả với người thiếu kiến thức domain [8]. |
 | 5 | **Có gợi ý + cho nhập tự do.** Mỗi câu có lựa chọn sẵn (guidance cao) nhưng không khóa input. | Phương thức elicitation có guidance cao cho kết quả khớp hơn guidance thấp [9]. |
 | 6 | **`Không chắc` là câu trả lời hợp lệ nhưng không phải điểm dừng.** Ghi `unknown`, không suy thành không thích; sau đó khai thác gián tiếp qua đề xuất + phản hồi (compare, critique) thay vì hỏi dồn. | Lựa chọn "không ý kiến" dễ thành lối tắt giảm công sức trả lời [16]; critiquing học preference từ phản hồi trên đề xuất cụ thể [17]; CRS kết hợp hỏi và đề xuất [24]. |
@@ -959,116 +959,11 @@ Người dùng có thể sửa trực tiếp, kể cả các suy luận lấy t�
 | 9 | **Để LLM sinh câu hỏi mở / ví dụ biên** khi user mô tả mơ hồ, giúp lộ điều user chưa nghĩ tới. Câu trả lời vẫn được chuẩn hóa về field của Trip Context. | Generative active task elicitation: câu hỏi do LM sinh ra thu được nhiều thông tin hơn và user thấy tốn ít công sức hơn [15]. |
 | 10 | **Cho phép trả lời bằng hình** khi user khó diễn đạt kiểu trải nghiệm. | Chọn ảnh du lịch để suy ra travel profile, giải quyết cold start [21]. |
 
-## 12.2. Bộ câu hỏi
+## 12.2. Cài đặt
 
-Bộ câu hỏi là **ngân hàng**, không phải form; nhóm A–I là nhóm chủ đề, **không phải thứ tự hỏi** (thứ tự do 12.3 quyết định). Hệ thống chỉ lấy câu còn thiếu và có khả năng đổi kết quả (12.1 #1); câu đã biết từ input, anchors hoặc User Profile thì hiển thị để xác nhận thay vì hỏi lại (mục 7.1). Mọi câu đều có `Không chắc` và `Bỏ qua`.
+Ngân hàng câu hỏi nhóm A–I, cách chọn câu tiếp theo, điều kiện dừng và giọng điệu: `docs/TRIP_UNDERSTANDING.md` §5, §7, §12, §13. Mục này chỉ giữ **vì sao** hỏi như vậy (§12.1) và cách điều chỉnh theo người dùng (§12.3).
 
-**A. Khung chuyến đi** — gần như luôn cần; thiếu thì không lập được lịch.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Bạn đi ngày nào, trong mấy ngày? | chọn ngày / "chưa chốt, khoảng … ngày" | `dates`, `duration` |
-| Bạn ở khu nào? | chọn trên bản đồ / "chưa đặt" | `accommodation / base` |
-| Bạn di chuyển trong Đà Lạt bằng gì? | tự lái xe máy · ô tô riêng · Grab/taxi · chưa biết | `mobility` |
-| Có mốc giờ cố định nào không? | giờ nhận/trả phòng · giờ xe/máy bay · lịch hẹn | `user hard constraints` |
-
-**B. Người đồng hành** — thay đổi mạnh tập địa điểm phù hợp.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Bạn đi cùng ai? | một mình · cặp đôi · bạn bè · gia đình có trẻ nhỏ · có người lớn tuổi | `companions` | [19] (quan hệ, tương tác xã hội là động cơ du lịch) |
-| (nếu đi nhóm) Trong nhóm có ai sở thích khác hẳn hoặc là người chốt quyết định? | có · không · không chắc | `companions` | [22] (quyết định nhóm trong du lịch) |
-
-**C. Ràng buộc thể chất và tiếp cận** — hard constraint, fail-closed.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Có ai ngại đi bộ xa, leo dốc/bậc thang, hoặc cần lối đi bằng phẳng? | đi bộ ≤ ~15 phút · tránh dốc/bậc · không giới hạn | `physical constraints` | [23] (nhu cầu tiếp cận: vận động, thị giác, thính giác, nhận thức; gồm cả trẻ nhỏ, người lớn tuổi) |
-| Có ai say xe đường đèo, sợ độ cao, dị ứng hoặc ăn kiêng? | chọn nhiều | `physical constraints` | [23] |
-
-**D. Hard constraint của người dùng**
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Mức chi cho ăn uống và vé tham quan, mỗi người mỗi ngày? | các khoảng tiền · không quan trọng | `user hard constraints` |
-| Có kiểu địa điểm nào chắc chắn không muốn đi? | chọn nhiều + nhập tự do | `user hard constraints` |
-
-**E. Anchors**
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Có nơi nào bạn nhất định muốn đi hoặc đã lưu sẵn? | dán link TikTok / Maps · gõ tên | `anchors` |
-| Nếu không đủ thời gian, nơi nào có thể bỏ trước? | xếp thứ tự các anchor | `anchors` (độ ưu tiên) |
-
-**F. Nhịp độ và mức chịu đựng** — soft; lấy mặc định từ Behavioral Defaults nếu có (mục 6.2).
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Chuyến này thiên về nghỉ ngơi hay khám phá nhiều nơi? | thong thả · cân bằng · đi nhiều | `pace` |
-| Một chặng di chuyển tối đa bao lâu thì bạn vẫn thấy ổn? | ≤ 15 · ≤ 30 · ≤ 60 phút | `travel tolerance` |
-| Chỗ đông người thì sao? | tránh · chấp nhận nếu đáng · không ngại | `crowd tolerance` |
-| Bạn hay bắt đầu ngày lúc mấy giờ? | sớm (săn mây) · bình thường · muộn | Behavioral Defaults |
-| Nếu trời mưa, bạn muốn? | đổi sang trong nhà · giữ nguyên nếu được · để hệ thống đề xuất | `trip-specific override` |
-
-**G. Mục đích và kiểu trải nghiệm** — soft; hỏi theo cách dùng (12.1 #4).
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Chuyến này chủ yếu để làm gì? | thoát khỏi nhịp thường ngày · thư giãn · gắn kết người đi cùng · thiên nhiên · văn hóa/ẩm thực địa phương · chụp ảnh · thử điều mới | preference của chuyến (`trip-specific override`) | [19], [20] |
-| Bạn hình dung khoảnh khắc đáng nhớ nhất của chuyến này là gì? | nhập tự do | preference của chuyến | [8], [15] |
-| Chọn vài ảnh bạn thấy "đúng chất" chuyến này. | lưới ảnh | preference của chuyến | [21] |
-
-**H. Kinh nghiệm và mức mới lạ** — chủ yếu cho Nhóm B (mục 3.2).
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Bạn đã đến Đà Lạt chưa? Lần trước đã đi đâu? | chưa · rồi + chọn nơi đã đi | Experience History | [20] (động cơ đổi theo kinh nghiệm: người có kinh nghiệm thiên về trải nghiệm văn hóa địa phương, thiên nhiên) |
-| Lần này muốn quay lại chỗ quen hay thử cái mới? | theo gu thường ngày · muốn thử điều mới · trộn | `trip-specific override` (novelty) | mục 6.3, 7.1 |
-
-**I. Câu hỏi nối tiếp** — chỉ xuất hiện khi được kích hoạt.
-
-| Khi nào | Câu hỏi mẫu | Căn cứ |
-| ------- | ----------- | ------ |
-| User dùng từ chủ quan ("chill", "yên tĩnh") | Với bạn "chill" nghĩa là: ít người · có view · ngồi lâu được · nhạc nhẹ? | [10] |
-| User nêu một địa điểm/hoạt động cụ thể | Điều gì ở nơi đó làm bạn muốn đến? | [18] |
-| User chọn `Không chắc` nhiều câu liền | Bạn muốn xem vài gợi ý trước rồi chỉnh không? | [16], [17] |
-| User bỏ một đề xuất | Vì sao bạn bỏ địa điểm này? (mục 8.3) | [17] |
-
-## 12.3. Hỏi thích ứng (adaptive questioning)
-
-Không có kịch bản hỏi cố định. Sau mỗi câu trả lời, hệ thống cập nhật bản hiểu nhu cầu rồi quyết định bước tiếp theo: hỏi câu nào trong ngân hàng 12.2, xác nhận một suy luận, hay dừng hỏi để đề xuất.
-
-Căn cứ chọn câu tiếp theo, theo thứ tự ưu tiên:
-
-1. **Thông tin chặn việc lập kế hoạch.** Field còn thiếu mà thiếu thì không kiểm tra được khả thi (ngày, base, `physical constraints` khi có dấu hiệu) được hỏi trước [13], [14].
-2. **Tín hiệu từ chính câu trả lời vừa rồi.** Đi theo mạch user mở ra: user nói "đi với bố mẹ" thì câu kế tiếp là nhóm C, không phải nhóm G; user dán link địa điểm thì xác nhận anchor (nhóm E). User có thể đổi chủ đề hoặc yêu cầu đề xuất bất cứ lúc nào (mixed initiative) [24].
-3. **Mức thay đổi kết quả.** Giữa các câu còn lại, chọn câu mà các câu trả lời khả dĩ chia tập ứng viên khác nhau nhiều nhất [11], [12].
-4. **Đã biết hoặc suy được thì không hỏi.** Giá trị có từ input, anchors hoặc User Profile chuyển thành câu xác nhận, không hỏi lại (mục 7.1).
-
-Dừng hỏi khi:
-
-* các câu còn lại không còn làm thay đổi tập ứng viên đáng kể;
-* user chọn `Không chắc` / `Bỏ qua` liên tiếp, hoặc yêu cầu xem đề xuất; khi đó chuyển sang đề xuất rồi học từ phản hồi (compare, critique, lý do bỏ ở mục 8.3–8.4) [16], [17].
-
-Sau khi dừng, hệ thống hiển thị bản hiểu nhu cầu (mục 12); field còn thiếu được đánh dấu `unknown`, không tự điền.
-
-Ví dụ hai user cùng bắt đầu bằng "Muốn đi Đà Lạt 3 ngày":
-
-```text
-User 1: "đi với bố mẹ, mẹ đau gối"
-  → C: tránh dốc/bậc?          (tín hiệu vừa nêu, hard constraint)
-  → A: di chuyển bằng gì?       (chặn khả thi)
-  → F: nhịp độ?                 (thường đổi mạnh khi có người lớn tuổi)
-  → dừng, hiển thị bản hiểu nhu cầu
-
-User 2: dán 6 link TikTok
-  → E: xác nhận 6 anchor, nơi nào bỏ được?
-  → A: ở khu nào?               (chặn khả thi)
-  → F: một chặng tối đa bao lâu? (6 anchor rải rác → travel tolerance quyết định)
-  → dừng, hiển thị bản hiểu nhu cầu
-```
-
-## 12.4. Điều chỉnh cách hỏi theo người dùng
+## 12.3. Điều chỉnh cách hỏi theo người dùng
 
 Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi theo người dùng là **mức hướng dẫn, dạng câu hỏi và độ sâu**. Các nghiên cứu cho thấy nhóm người dùng khác nhau hợp với cách elicitation khác nhau: người mới hưởng lợi từ danh sách phổ biến/gợi ý sẵn, người am hiểu hài lòng hơn khi được nêu tiêu chí trực tiếp [25]; người dùng CRS tách thành nhiều nhóm có sở thích kiểu hội thoại khác nhau, chịu ảnh hưởng của mức muốn tự kiểm soát [26]; động cơ du lịch đổi theo kinh nghiệm [20].
 
@@ -1085,28 +980,6 @@ Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùn
 
 Không suy đoán tuổi, giới tính hay đặc điểm cá nhân để đổi cách hỏi; chỉ dùng thông tin user đã cung cấp hoặc thể hiện trong hội thoại.
 
-## 12.5. Giọng điệu câu hỏi
-
-Mặc định: **gần gũi nhưng không suồng sã** — như một người hướng dẫn du lịch am hiểu, không như bạn thân.
-
-Căn cứ:
-
-* Chatbot hỏi theo phong cách hội thoại, thân mật (casual) làm người trả lời ít "trả lời cho xong" hơn so với phong cách trang trọng [27]; chatbot biết hỏi nối tiếp thu được câu trả lời cụ thể, rõ và nhiều thông tin hơn khảo sát dạng form [28].
-* Nhưng văn phong thân mật làm giảm tin tưởng khi người dùng chưa quen thương hiệu [29] — TripGuardian là sản phẩm mới với phần lớn user.
-* Với chatbot hỗ trợ du lịch, văn phong đúng với vai trò (register) quyết định cảm nhận phù hợp và độ tin cậy nhiều hơn sở thích cá nhân của user [30]; đặc điểm xã hội của chatbot phải khớp kỳ vọng của user, làm quá sẽ gây khó chịu [31].
-* Khi hỏi thông tin nhạy cảm về sức khỏe, user đánh giá văn phong trang trọng là có năng lực và phù hợp hơn [32].
-* Tiếng Việt không có đại từ trung tính; cách xưng hô luôn định vị quan hệ, tuổi và mức tôn trọng giữa hai bên [33].
-
-Quy tắc:
-
-| Tình huống | Giọng điệu | Ví dụ |
-| ---------- | ---------- | ----- |
-| Mặc định | Câu ngắn, tự nhiên, xưng "mình" – gọi "bạn"; không tiếng lóng, emoji tiết chế. | "Chuyến này bạn muốn thong thả hay đi được nhiều nơi?" |
-| User dùng văn phong thân mật | Được nới theo user một mức, không bắt chước tiếng lóng hay đổi sang cách xưng hô quá thân mật ("tui", "bà", "ní"). | — |
-| Câu hỏi nhạy cảm (nhóm C, ngân sách, ăn kiêng) | Trung tính, tôn trọng, nói rõ vì sao hỏi, nhấn mạnh có thể bỏ qua. | "Để tránh chỗ phải leo dốc, cho mình hỏi: có ai trong nhóm ngại đi bộ xa hoặc lên bậc thang không? Bạn có thể bỏ qua." |
-| Cảnh báo, không khả thi, thiếu dữ liệu | Rõ ràng, không đùa, không giảm nhẹ. | "Hai nơi này cách nhau khoảng 50 phút, không kịp trước giờ đóng cửa." |
-
-Giọng điệu chỉ đổi cách diễn đạt, không đổi nội dung câu hỏi, lựa chọn gợi ý hay field được ghi.
 
 ---
 
@@ -1168,11 +1041,11 @@ Người dùng cần hiểu sự đánh đổi.
 
 Thiếu dữ liệu phải được thể hiện là thiếu dữ liệu.
 
-### 6. AI không tự xác nhận tính khả thi
+### 7. AI không tự xác nhận tính khả thi
 
 Giờ mở cửa, thời gian, tuyến đường, ngân sách và constraint phải được kiểm tra bằng logic xác định.
 
-### 7. Cá nhân hóa không vượt qua chuyến đi
+### 8. Cá nhân hóa không vượt qua chuyến đi
 
 User Profile là prior, chỉ được dùng sau khi đã kiểm tra constraint. Context của chuyến hiện tại luôn được ưu tiên hơn hành vi lịch sử.
 

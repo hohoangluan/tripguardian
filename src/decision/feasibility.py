@@ -1,4 +1,4 @@
-"""⑨ Combination feasibility (docs/PLACE_DECISION.md §13, spec §11): the chosen places as one group, rough and
+"""⑨ Combination feasibility (docs/PLACE_DECISION.md §13): the chosen places as one group, rough and
 deterministic. Every conflict carries fixes whose `action` is a POST /act payload (None: shown, not clickable)."""
 
 from collections import defaultdict

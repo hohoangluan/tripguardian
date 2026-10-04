@@ -1,4 +1,4 @@
-"""repair_day (docs/specs/PLANNING_SPEC.md §Guardrail "Không xáo lịch âm thầm"): the order of one day right after a
+"""repair_day (docs/PLANNING.md §Guardrail "Không xáo lịch âm thầm"): the order of one day right after a
 user act touched its membership, penalized for reshuffling a stop that was already there. Reuses simulate()'s own
 notion of a valid day (DayResult.key: fewer violations first) -- the diff penalty only breaks ties among orders that
 are already equally good, it never trades validity away to stay close to the old order.

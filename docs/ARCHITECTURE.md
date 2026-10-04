@@ -1,929 +1,155 @@
 # Kiến trúc — TripGuardian
 
-Tài liệu này định nghĩa **luồng hệ thống và cấu trúc quyết định** của TripGuardian: điều gì xảy ra, theo thứ tự nào, dưới quy tắc nào.
+Bản đồ hệ thống: có những phần nào, chúng nối với nhau ra sao, quy tắc nào áp cho mọi phần. Chi tiết từng phần nằm ở tài liệu của chính phần đó; trang này không chép lại.
 
-Tài liệu không định nghĩa code, framework, API, schema database, hay chi tiết cài đặt.
+Phạm vi kiểm chứng ban đầu: **Đà Lạt**. Nguyên tắc sản phẩm (vì sao, cho ai): `docs/Project_Context.md` §14.
 
-TripGuardian gồm bốn phần nối với nhau:
+---
+
+## 1. Nguyên tắc ở mức hệ thống
+
+* Thiếu bằng chứng thì giữ `unknown`; hệ thống không bao giờ bịa fact.
+* Input của người dùng mô tả **chuyến đi**, không mô tả bản thân địa điểm.
+* Live context chỉ dành cho từng request và không trở thành tri thức lâu dài về địa điểm.
+* Điều bất khả thi về vật lý không thể bị ghi đè.
+* Offline **ghi** Place Intelligence. Online chỉ **đọc** nó; online chỉ ghi lịch trình và user / session profile.
+
+---
+
+## 2. Mô hình constraint
+
+Ba loại quy tắc quyết định, dùng xuyên suốt cả bốn giai đoạn:
+
+| Loại | Ý nghĩa | Nới được không? | Xử lý khi vi phạm |
+|---|---|---|---|
+| Physical constraint | Điều bất khả thi trong thực tế | **Không** | Loại, hoặc giữ ở wishlist kèm lý do; không có đường code nào nới |
+| User hard constraint | Yêu cầu rõ ràng của người dùng | Chỉ khi người dùng xác nhận | Hỏi có nới không, **luôn kèm cái giá đã tính** |
+| Soft preference | Sở thích dùng để xếp hạng | Có | Chỉ đổi thứ tự, không loại |
+
+```text
+Địa điểm đóng cửa 17:00, sớm nhất đến được 18:10   → physical  → không tạo lịch hợp lệ
+Người dùng đặt trần 30 phút mỗi chặng, cần 42 phút → user hard → "nới lên 42 phút?" kèm hệ quả
+```
+
+Mỗi kiểm tra trả **ba** giá trị, không phải đúng / sai: `pass | fail | unknown`. Thiếu bằng chứng cho một hard constraint thì không được nói địa điểm là an toàn — fail-closed (`docs/PLACE_DECISION.md` §6.2).
+
+---
+
+## 3. Bốn giai đoạn
 
 ```text
         ┌──────────────────────┐
-        │  PLACE INTELLIGENCE  │
+        │  PLACE INTELLIGENCE  │  offline, không biết chuyến đi nào
+        │  docs/CORPUS.md      │  địa điểm → fact / signal / estimate có bằng chứng
         └──────────┬───────────┘
-                   │
+                   │  serving index (chỉ đọc)
                    ▼
         ┌──────────────────────┐
-        │  TRIP UNDERSTANDING  │
+        │  TRIP UNDERSTANDING  │  người dùng cần gì cho CHUYẾN NÀY
+        │  docs/TRIP_...md     │  → Trip State → Search Input
         └──────────┬───────────┘
-                   │
+                   │  Search Input
                    ▼
         ┌──────────────────────┐
-        │    PLACE DECISION    │
+        │    PLACE DECISION    │  chọn đúng địa điểm TRƯỚC khi xếp lịch
+        │  docs/PLACE_...md    │  → shortlist → người dùng tuyển chọn → Decision Output
         └──────────┬───────────┘
-                   │
-             Live Context
-                   │
+                   │  Decision Output  +  Live Context
                    ▼
         ┌──────────────────────┐
-        │ PLANNING & VALIDATION│
+        │ PLANNING & VALIDATION│  tổ hợp đã chọn có đi được cùng nhau không
+        │  docs/PLANNING.md    │  → phương án, chỗ ở, độ vững → Plan Output
         └──────────────────────┘
 ```
 
-Phạm vi ban đầu là **Đà Lạt**.
+| Giai đoạn | Code | Tài liệu | Contract ra |
+|---|---|---|---|
+| Place Intelligence | `src/corpus/` | `docs/CORPUS.md` | serving record (`CORPUS.md` §Bản ghi địa điểm) |
+| Trip Understanding | `src/trip/` | `docs/TRIP_UNDERSTANDING.md` | Search Input (§9 của nó) |
+| Place Decision | `src/decision/` | `docs/PLACE_DECISION.md` | Decision Output (§15 của nó) |
+| Planning & Validation | `src/planning/`, `src/live/` | `docs/PLANNING.md` | Plan Output (§Plan Output của nó) |
+
+Mỗi giai đoạn là một package độc lập, giao tiếp **chỉ** qua public API (`__init__.py`) của package khác (`RULE.md` §2). Phụ thuộc một hướng:
+
+```text
+corpus   ──►  (không phụ thuộc gì)
+trip     ──►  corpus.serving, corpus.ontology
+decision ──►  corpus.serving, corpus.ontology
+live     ──►  corpus.crawl            (chỉ 3 tên: open_sessions, maps_search, LoginRequired)
+planning ──►  live, decision, trip, corpus.serving, corpus.ontology
+```
+
+`live` không biết `planning`. `corpus` không biết giai đoạn nào ở sau nó. Test khẳng định các ranh giới này (`tests/planning/test_planning_boundaries.py`, `tests/live/test_boundaries.py`).
 
 ---
 
-# 1. Nguyên tắc cốt lõi
+## 4. Vai trò model
 
-Nguyên tắc sản phẩm: `docs/Project_Context.md` §14. Ở mức hệ thống, thêm:
+Code gọi model theo **vai trò**, không gọi thẳng một model cố định: **ASR** (âm thanh → transcript), **Extractor** (mọi việc khối lượng lớn), **Judge** (chốt chặn trước người), **Agent** (hiểu câu tự do của người dùng trong một phiên). Định nghĩa và yêu cầu từng vai trò: `docs/CORPUS.md` §Vai trò model. Model nào đang đảm nhận vai trò nào: `docs/LLM_PROVIDER.md`.
 
-* Thiếu bằng chứng thì giữ `unknown`; hệ thống không bao giờ bịa fact.
-* Input của người dùng mô tả chuyến đi, không mô tả bản thân địa điểm.
-* Live context chỉ dành cho từng request và không trở thành tri thức lâu dài về địa điểm.
-* Điều bất khả thi về vật lý không thể bị ghi đè.
+Mọi nơi gọi model đều theo cùng một hình dạng: **một call mỗi lượt, output validate theo schema, guard chặn mọi số / tên không có trong kết quả tool, và một `policy.py` từ khóa tất định chạy thay khi model lỗi hoặc chậm.** Model không bao giờ ghi fact, không bao giờ kết luận khả thi, không bao giờ tạo địa điểm.
 
 ---
 
-# 2. Place Intelligence
+## 5. Cấu hình và dữ liệu
 
-Place Intelligence được xây offline, độc lập với mọi chuyến đi. Agent xây; gate tất định kiểm soát mọi lần ghi; người chỉ duyệt một hàng đợi xếp theo rủi ro ở cuối. Chi tiết: `docs/CORPUS.md` và `docs/specs/CORPUS_SPEC.md`.
+Mọi ngưỡng nằm trong `config/`, không trong code:
 
-```text
-Discover → Extract → Resolve → Observe → Aggregate → Check & route → Publish → Hàng đợi review
-                                                                        ↑
-                                         Refresh (chỉ input đã đổi mới chạy lại)
-```
+| File | Của ai | Nội dung |
+|---|---|---|
+| `cities.yaml`, `queries.yaml` | corpus | thành phố, vùng quét, category, trần crawl |
+| `ontology.yaml` | corpus + profile | feature ontology có version (dùng chung id) |
+| `category_defaults.yaml` | corpus | mặc định theo nhóm category cho estimate |
+| `serving.yaml` | corpus | ngưỡng của serving record |
+| `trip.yaml` | trip | ngân hàng câu hỏi, ngưỡng dừng hỏi |
+| `decision.yaml` | decision | trọng số xếp hạng, cỡ shortlist, ngưỡng sàng |
+| `planning.yaml` | planning | nhịp độ, cụm, ngày, mục tiêu, độ vững, dự phòng, chỗ ở |
+| `live.yaml` | live | endpoint và TTL từng nguồn live |
+| `climate.yaml`, `holidays.yaml` | live | khí hậu Đà Lạt theo tháng, lễ Việt Nam (nhập tay) |
+| `eval_trips.yaml` | decision + planning | 30 Trip State ẩn, dùng chung để đo cả hai bước |
 
-## 2.1 Khám phá
+Dữ liệu: `data/<nguồn>/` thô và observation, `data/intel/` + `data/serving/` Place Intelligence (`docs/CORPUS.md` §Data model); `data/live/` cache live có TTL (`docs/PLANNING.md` §Ranh giới module). Không nguồn nào gộp với nguồn khác, cả trong code lẫn trong thư mục dữ liệu (`RULE.md` §2).
 
-```text
-Category × lưới ô trên Google Maps
-          ↓
-xếp theo rating có trọng số số review → top mỗi category (không có chỗ ở)
-          ↓
-tập địa điểm (phase 1)  →  phase 2: tìm chuyên sâu từng địa điểm (chi tiết, review, sau này TikTok)
-```
-
-Google Maps quyết định tập địa điểm; nguồn khác chỉ thêm bằng chứng cho địa điểm đã có. TikTok tạm ngoài phạm vi.
-
-## 2.2 Resolve
-
-```text
-ứng viên
-    ↓
-chuẩn hóa tên → match với Google (tên, category, quan hệ được nói rõ)
-    ├─ match rõ                        → POI
-    ├─ khu vực / con đường / cảnh quan → ZONE (nối với các POI của nó)
-    ├─ chưa rõ                         → Judge chọn một phương án có sẵn hoặc bỏ phiếu trắng
-    └─ không match                     → UNRESOLVED (giữ lại, không phục vụ)
-```
-
-Nhiều mention → một địa điểm chuẩn với nhiều alias. Định danh không bao giờ được đoán. Xuất hiện trong cùng video không bao giờ là bằng chứng hai nơi gần nhau.
-
-## 2.3 Bằng chứng
-
-Mọi nguồn trở thành **observation**: một nhận định kèm span nguồn và bối cảnh (thời điểm trong ngày, loại ngày, thời tiết được nhắc tới). Không gì ghi thẳng vào địa điểm.
-
-```text
-trang chính thức → giờ, giá, đặt chỗ, quy định
-Google Places    → định danh, vị trí, giờ, trạng thái
-review Google    → trải nghiệm, tín hiệu lặp lại (độ đông, yên tĩnh, đường vào)
-video / comment TikTok (tạm ngoài phạm vi) → trải nghiệm, môi trường, mức vận động
-```
-
-Giá hay giờ chỉ thấy trong video vẫn chỉ là observation; không bao giờ thành fact nếu không có nguồn chính thức hoặc Google xác nhận.
-
-## 2.4 Tổng hợp
-
-Rule, không phải model, biến observation thành ba loại output:
-
-```text
-Fact       giờ, giá, đặt chỗ               đồng ý → giá trị · bất đồng → uncertain + giữ xung đột
-Signal     độ đông theo bối cảnh, yên tĩnh  phân phối trên các observation liên quan
-Estimate   thời gian tham quan              luôn là khoảng (min / typical / long)
-```
-
-Mỗi output mang các thành phần confidence (số nguồn độc lập, mức đồng thuận, độ mới, loại nguồn) và coverage theo khía cạnh. Thiếu bằng chứng thì giữ `unknown`.
-
-## 2.5 Kiểm tra, publish, review
-
-```text
-gate (schema, span tồn tại, ontology id, ngưỡng match)
-    ↓
-định tuyến rủi ro
-    ├─ rủi ro thấp → publish
-    └─ rủi ro cao  → Judge audit → pass → publish
-                                 → flag → NEEDS_REVIEW (không phục vụ) → hàng đợi review
-```
-
-Hàng đợi review còn nhận các giá trị cho phép về an toàn / tiếp cận và một mẫu ngẫu nhiên ẩn dùng để đo chất lượng. Người duyệt Accept, Disable, hoặc Report error; giá trị không bao giờ được sửa tay.
-
-Trạng thái: `VERIFIED`, `UNCERTAIN`, `OUTDATED`, `NEEDS_REVIEW`, `DISABLED`, giữ theo từng khía cạnh.
-
-## 2.6 Bản ghi Place Intelligence
-
-```text
-Place
-├── Identity      tên, alias, POI | ZONE, category, vị trí
-├── Operation     giờ, chi phí, đặt chỗ, thời gian tham quan (min / typical / long)
-├── Experience    tính chất, hoạt động
-├── Environment   trong nhà / ngoài trời, độ đông theo bối cảnh, nhạy thời tiết
-├── Effort        đi bộ, dốc, khó tiếp cận
-├── Suitability   hợp / không hợp (cặp đôi, gia đình, người lớn tuổi, …)
-└── Provenance    bằng chứng, confidence, độ mới, xung đột, coverage, trạng thái
-```
-
-Effort ở đây là thuộc tính của địa điểm. Khoảng cách và thời gian di chuyển phụ thuộc chuyến đi và được tính online.
-
-Place Intelligence là dữ liệu dẫn xuất và có thể build lại từ observation bất cứ lúc nào.
+Phiên của cả ba giai đoạn online cùng một hình dạng: `State` có phiên bản, sống trong RAM của tiến trình server và mirror ra `data/{trip,decision,planning}/sessions/<id>.json` nên reload trang hay restart server vẫn tiếp được. Một act là một hàm **thuần** sinh `State` mới; `scope.py` quyết định phần nào phải tính lại.
 
 ---
 
-# 3. Hiểu chuyến đi
+## 6. Các vòng phản hồi
 
-Luồng online bắt đầu bằng việc hiểu **người dùng đang xuất phát từ đâu**, không ép mọi người đi qua cùng một luồng lập kế hoạch.
+Hệ thống không phải pipeline một chiều. Bốn vòng, mỗi vòng thuộc về một tài liệu:
 
 ```text
-Người dùng
- ↓
-Kinh nghiệm
- ↓
-Trạng thái bắt đầu
- ↓
-User Profile (prior, khi người dùng đồng ý)
- ↓
-Thông tin cơ bản của chuyến đi
- ↓
-Anchor
- ↓
-Constraint
- ↓
-Ghi đè riêng cho chuyến đi
- ↓
-Sở thích + Nhịp độ
- ↓
-Trip State đã chuẩn hóa
+Vòng lựa chọn       Shortlist → tuyển chọn → khả thi → xung đột → tuyển chọn
+                    (PLACE_DECISION.md §13, §14)
+
+Vòng xếp lịch       Planning không xếp được một nơi → quay về tuyển chọn → thay / bỏ / nới → Planning
+                    (PLACE_DECISION.md §14 dòng cuối, PLANNING.md ⓔ)
+
+Vòng kiểm tra       Lịch → validate + độ vững → vấn đề → sửa / phương án thay → kiểm lại
+                    (PLANNING.md ⓔ ⓕ, §Vòng người dùng sửa và góp ý)
+
+Vòng cá nhân hóa    Profile → gợi ý → quyết định của người dùng → Session Profile → gợi ý thích nghi
+                    → kết quả chuyến đi → bằng chứng lặp lại / mạnh? → chỉ session | Long-term Profile
+                    (Project_Context.md §8, §10)
 ```
+
+Hai vòng đầu là lý do Place Decision và Planning tách nhau mà vẫn nối được: Decision ước lượng **thô** để chọn nhanh, Planning tính **thật** rồi trả ngược nơi gây lỗi.
 
 ---
 
-## 3.1 Kinh nghiệm
+## 7. Giao diện và cổng
 
 ```text
-Kinh nghiệm
-├── Lần đầu đến
-└── Đã từng đến / có kinh nghiệm
+web (Vite, :5173)  /landing  giải thích vấn đề, một CTA
+                   /app      User Web   → trip :8766 · decision :8767 · planning :8768
+                   /admin    Admin Web  → review :8765
 ```
 
-Kinh nghiệm quyết định mức độ dẫn dắt.
-
-Nó không trực tiếp quyết định địa điểm nào được chọn.
+Chức năng từng màn theo vai trò: `docs/Role_Web_Functional_Design.md`. Nguyên tắc hiển thị và hệ thị giác: `docs/UX_Design_Brief.md`. Đặc tả trang cho designer: `docs/UI_SPEC_USER_WEB.md`. Cách chạy cả stack: `README.md`.
 
 ---
 
-## 3.2 Trạng thái bắt đầu
-
-```text
-Trạng thái bắt đầu
-├── Khám phá từ đầu
-├── Địa điểm đã lưu
-├── Nơi bắt buộc đến / anchor
-└── Lịch trình có sẵn
-```
-
-Trạng thái bắt đầu quyết định luồng quyết định bắt đầu từ đâu.
-
-Ví dụ:
-
-```text
-Khám phá
-→ khám phá và shortlist
-
-Địa điểm đã lưu
-→ resolve → so sánh → shortlist
-
-Nơi bắt buộc đến
-→ coi là anchor → đánh giá xung quanh chúng
-
-Lịch trình có sẵn
-→ kiểm tra → phát hiện xung đột → sửa
-```
-
----
-
-## 3.3 Trip State
-
-Trip State đã chuẩn hóa gồm:
-
-```text
-Trip State
-├── Thông tin cơ bản
-│   ├── ngày đi
-│   ├── số ngày
-│   ├── nhóm đi
-│   ├── chỗ ở / điểm xuất phát (tùy chọn; chỉ quyết định điểm bắt đầu / kết thúc lộ trình)
-│   └── phương tiện
-│
-├── Anchor
-│   ├── nơi bắt buộc đến
-│   ├── booking cố định (khách sạn, vé, hoạt động)
-│   ├── sự kiện giờ cố định
-│   └── giờ check-in/check-out, giờ phải rời Đà Lạt
-│
-├── Constraint
-│   ├── physical constraint
-│   └── user hard constraint
-│
-├── Sở thích
-│   ├── ghi đè riêng cho chuyến đi
-│   ├── session profile
-│   └── mặc định từ long-term profile (khi người dùng đồng ý)
-│
-└── Nhịp độ
-    ├── thư thả
-    ├── cân bằng
-    └── đi được nhiều nơi
-```
-
-Chỉ cần thu thập thông tin có khả năng làm thay đổi kết quả.
-
----
-
-## 3.4 User Profile
-
-Khi người dùng cho phép, User Profile cung cấp giá trị mặc định (sở thích đã thể hiện, mối quan tâm gần đây, lịch sử trải nghiệm, thói quen mặc định). Cấu trúc, cách cập nhật, và nguyên tắc: `docs/Project_Context.md` §6–11.
-
-Trong luồng, profile chỉ là prior và đứng sau mọi constraint:
-
-```text
-Physical Constraint → User Hard Constraint → Ghi đè của chuyến đi → Mối quan tâm gần đây → Sở thích đã thể hiện
-```
-
-Session Profile (một chuyến, thích nghi ngay) và Long-term Profile (chỉ đổi khi có tín hiệu lặp lại, độc lập, hoặc phản hồi trực tiếp) tách riêng.
-
----
-
-# 4. Mô hình constraint
-
-TripGuardian tách ba loại quy tắc quyết định.
-
-| Loại                 | Ý nghĩa                         | Có thể nới không?               |
-| -------------------- | ------------------------------- | ------------------------------- |
-| Physical constraint  | Điều bất khả thi trong thực tế  | Không                           |
-| User hard constraint | Yêu cầu rõ ràng của người dùng  | Chỉ khi người dùng xác nhận     |
-| Soft preference      | Sở thích dùng để xếp hạng       | Có                              |
-
-Ví dụ:
-
-```text
-Địa điểm đóng cửa lúc 17:00
-Sớm nhất đến được = 18:10
-→ xung đột physical
-→ không thể tạo lịch hợp lệ
-```
-
-Nhưng:
-
-```text
-Người dùng đặt giới hạn 30 phút di chuyển mỗi chặng
-Cần di chuyển = 42 phút
-→ xung đột user hard constraint
-→ người dùng có thể chủ động nới
-```
-
----
-
-# 5. Resolve địa điểm của người dùng
-
-Địa điểm đã lưu, nơi bắt buộc đến, và địa điểm nhập tay phải được resolve trước.
-
-```text
-Địa điểm người dùng
-    ↓
-match với Place Intelligence
-    ↓
-┌──────────────────────┐
-│ match chính xác      │ → Địa điểm đã xác minh
-│ match mơ hồ          │ → Hỏi / so sánh các định danh
-│ không match          │ → Địa điểm chưa xác minh
-└──────────────────────┘
-```
-
-Khi địa điểm chưa có trong Place Intelligence, bộ resolve chạy theo yêu cầu với nhà cung cấp bản đồ. Match chắc chắn thì trả về và xếp hàng làm giàu dữ liệu; nếu không, người dùng chọn từ các phương án.
-
-Input của người dùng không bao giờ trở thành bằng chứng về địa điểm.
-
-Địa điểm chưa xác minh vẫn có thể ở lại trong chuyến đi, nhưng hệ thống không được coi thông tin chưa biết là đã xác nhận.
-
----
-
-# 6. Quyết định địa điểm
-
-Place Intelligence và Trip State gặp nhau ở tầng quyết định. Chi tiết: `docs/PLACE_DECISION.md`.
-
-```text
-Trip State
-    +
-Place Intelligence
-    ↓
-Resolve địa điểm của người dùng
-    ↓
-Truy xuất ứng viên
-    ↓
-Sàng lọc constraint
-    ↓
-Độ hợp bối cảnh
-    ↓
-Xếp hạng theo sở thích
-    ↓
-Kiểm soát đa dạng
-    ↓
-Shortlist
-    ↓
-So sánh
-    ↓
-Người dùng tuyển chọn
-    ↓
-Khả thi của tổ hợp
-    ↓
-Địa điểm người dùng đã xác nhận
-```
-
----
-
-## 6.1 Truy xuất ứng viên
-
-Ứng viên có thể đến từ:
-
-```text
-khám phá của PI
-địa điểm đã lưu
-nơi bắt buộc đến
-lịch trình có sẵn
-tìm kiếm của người dùng
-```
-
-Hệ thống không cần trả về nhiều địa điểm.
-
-Mục tiêu là tìm một tập quyết định hữu ích.
-
----
-
-## 6.2 Sàng lọc constraint
-
-```text
-ứng viên
-    ↓
-physical constraint?
-    ├─ vi phạm → loại
-    │
-    └─ hợp lệ
-         ↓
-user hard constraint?
-    ├─ vi phạm → loại / thương lượng
-    └─ hợp lệ → tiếp tục
-```
-
-Nếu thiếu bằng chứng cần cho một hard constraint, địa điểm không được coi là đã xác minh an toàn.
-
----
-
-## 6.3 Độ hợp bối cảnh
-
-Trước khi tính lộ trình chi tiết, TripGuardian đánh giá độ hợp thô với chuyến đi:
-
-```text
-vị trí
-khoảng cách tương đối
-khu vực / cụm
-đặc điểm đường vào
-độ đông dự kiến
-anchor của chuyến đi
-```
-
-Bước này ngăn các ứng viên rõ ràng không hợp lọt vào shortlist.
-
-Thời gian di chuyển thực tế chính xác được xử lý sau.
-
----
-
-## 6.4 Xếp hạng sở thích và đa dạng
-
-Các ứng viên còn lại được so sánh bằng:
-
-```text
-độ hợp bối cảnh
-+ độ hợp sở thích
-+ mối quan tâm gần đây
-+ tính mới (lịch sử trải nghiệm / khoảng trống khám phá)
-+ độ hợp kinh nghiệm
-+ phạt độ không chắc chắn
-```
-
-Tín hiệu từ profile chỉ xếp hạng các ứng viên đã qua sàng lọc constraint.
-
-Độ phổ biến chỉ là một tín hiệu.
-
-Các trải nghiệm gần trùng nhau được giảm bớt để shortlist thể hiện các lựa chọn thực sự khác nhau.
-
----
-
-## 6.5 So sánh
-
-Với các ứng viên giống nhau, TripGuardian giữ các phương án thay thế thay vì chỉ giữ người thắng.
-
-```text
-Địa điểm A
-vs
-Địa điểm B
-
-→ A tốt hơn ở đâu
-→ B tốt hơn ở đâu
-→ phải hy sinh gì
-```
-
-Ví dụ:
-
-```text
-A: di chuyển ngắn hơn, đông hơn
-B: yên tĩnh hơn, di chuyển xa hơn
-```
-
-Nhờ đó hệ thống giải thích được:
-
-> Vì sao chọn nơi này thay vì nơi kia?
-
----
-
-# 7. Người dùng tuyển chọn
-
-Shortlist được trình bày theo các nhóm hữu ích.
-
-```text
-Shortlist
-   ↓
-Xem theo nhóm
-   ↓
-Người dùng thêm / bỏ / khóa địa điểm
-   ↓
-Tóm tắt khả thi trực tiếp
-   ↓
-Người dùng xác nhận lựa chọn
-```
-
-Với mỗi ứng viên, chỉ hiển thị thông tin liên quan đến quyết định:
-
-```text
-Vì sao phù hợp
-Đánh đổi
-Thời gian ước tính
-Ảnh hưởng vị trí ước lượng
-Độ tin cậy
-```
-
-Người dùng luôn có thể thêm địa điểm của riêng mình.
-
-Thao tác tuyển chọn là tín hiệu cho Session Profile; trọng số theo độ mạnh, lý do khi bỏ, và cách học từ so sánh: `docs/Project_Context.md` §8.2–8.4.
-
----
-
-# 8. Khả thi của tổ hợp
-
-Tính khả thi đánh giá các địa điểm đã chọn **như một nhóm**, không đánh giá riêng lẻ.
-
-```text
-Địa điểm đã chọn
-       ↓
-kiểm tra:
-- tổng thời gian có
-- anchor
-- khung giờ mở cửa
-- thời gian tham quan ước tính
-- tải di chuyển thô
-- ngân sách
-- số nơi mỗi ngày
-       ↓
-┌──────────────┬──────────────┬──────────────┐
-│ Khả thi      │ Khả thi      │ Không        │
-│              │ một phần     │ khả thi      │
-└──────────────┴──────────────┴──────────────┘
-```
-
-### Khả thi
-
-Chuyển sang lập kế hoạch.
-
-### Khả thi một phần
-
-```text
-xác định địa điểm gây xung đột
-        ↓
-giải thích constraint
-        ↓
-cho thấy bỏ / thay chúng thì được gì
-        ↓
-người dùng chọn
-```
-
-### Không khả thi
-
-Giải thích sự không khớp tổng thể:
-
-```text
-thời gian cần > thời gian có
-thiếu ngân sách
-anchor xung đột
-quá nhiều cụm cách xa nhau
-```
-
-Rồi quay lại bước tuyển chọn.
-
-### Địa điểm người dùng khóa
-
-```text
-địa điểm bị khóa gây xung đột
-    ├─ chỉ vi phạm user constraint → hỏi có nới không, kèm cái giá cụ thể
-    │                                ("di chuyển mỗi chặng từ 25 lên 42 phút")
-    ├─ vi phạm physical constraint → không tạo lịch giả vờ khả thi;
-    │                                giữ trong wishlist · đề xuất ngày khác · đổi các điểm trước
-    └─ giờ mở cửa chưa chắc chắn   → cho giữ, kèm cảnh báo kiểm tra lại trước chuyến đi
-```
-
----
-
-# 9. Lập kế hoạch
-
-Chỉ địa điểm người dùng đã xác nhận mới vào bước xếp lịch chi tiết.
-
-```text
-Địa điểm đã xác nhận
-        +
-Trip State
-        +
-Live Context
-        ↓
-Chia theo ngày
-        ↓
-Gom cụm theo địa lý
-        ↓
-Khớp khung giờ mở cửa
-        ↓
-Chọn thời gian tham quan
-        ↓
-Tối ưu lộ trình
-        ↓
-Thêm thời gian đệm
-        ↓
-Các phương án lịch
-```
-
-Live context có thể gồm:
-
-```text
-thời tiết
-thời gian di chuyển thực tế
-điều kiện tạm thời
-```
-
-Live context chỉ dành cho từng request và không trở thành Place Intelligence lâu dài.
-
-## 9.1 Chỗ ở
-
-Hệ thống không gợi ý chỗ ở và Place Intelligence không chứa chỗ ở. Người dùng đã có chỗ ở thì nhập; resolve như §5 → anchor: điểm bắt đầu / kết thúc mỗi ngày, không đổi địa điểm được chọn. Không nhập → lộ trình không có điểm bắt đầu / kết thúc cố định.
-
----
-
-# 10. Mục tiêu lập kế hoạch
-
-Nhịp độ và mục tiêu tối ưu là hai thứ riêng.
-
-### Nhịp độ
-
-```text
-Thư thả
-Cân bằng
-Đi được nhiều nơi
-```
-
-Người dùng chỉ chọn một mức; hệ thống tự đổi thành tham số:
-
-* Thư thả: ít nơi, ở lâu mỗi nơi, đệm lớn.
-* Cân bằng: cân giữa chất lượng trải nghiệm và số nơi.
-* Đi được nhiều nơi: thêm điểm dừng nhưng vẫn không vi phạm physical constraint.
-
-Nhịp độ ảnh hưởng đến:
-
-* thời gian tham quan;
-* số nơi mỗi ngày;
-* thời gian nghỉ;
-* độ lớn thời gian đệm;
-* mức di chuyển chấp nhận.
-
-### Mục tiêu lập kế hoạch
-
-Các mục tiêu có thể gồm:
-
-```text
-Ít di chuyển
-Chi phí thấp
-Vững trước thời tiết
-Đa dạng trải nghiệm
-Hợp sở thích
-```
-
-Mục tiêu được chọn từ bối cảnh chuyến đi của người dùng, không cố định từ trước.
-
----
-
-# 11. Kiểm tra cuối
-
-Một lịch trình không được chấp nhận chỉ vì trông hợp lý.
-
-```text
-Lịch trình
-   ↓
-Kiểm tra
-   ├── ngày đi
-   ├── giờ mở cửa
-   ├── chồng lấn
-   ├── thời gian di chuyển
-   ├── anchor
-   ├── ngân sách
-   ├── hard constraint
-   └── địa điểm trùng
-   ↓
-đạt?
-├── có    → tiếp tục
-└── không → sửa → kiểm tra lại
-```
-
-Physical constraint không bao giờ bị nới một cách lặng lẽ.
-
-Nếu không tạo được lịch hợp lệ, hệ thống quay lại tầng quyết định.
-
----
-
-# 12. Độ vững
-
-Một kế hoạch khả thi vẫn có thể quá mong manh.
-
-```text
-Lịch đã kiểm tra
-        ↓
-Kiểm tra độ vững
-        ↓
-┌──────────┬──────────┬──────────┐
-│ Vững     │ Khả thi  │ Mong     │
-│          │          │ manh     │
-└──────────┴──────────┴──────────┘
-```
-
-* Vững: đủ đệm để chịu vài chậm trễ nhỏ.
-* Khả thi: chạy được nếu phần lớn hoạt động đúng giờ dự kiến.
-* Mong manh: vẫn đúng về toán nhưng một chậm trễ nhỏ có thể làm hỏng các điểm sau.
-
-Việc kiểm tra xét các nhiễu nhỏ như:
-
-```text
-xuất phát trễ
-tham quan lâu hơn
-giao thông tăng
-thông tin vận hành chưa chắc chắn
-```
-
-Ví dụ:
-
-```text
-trễ +30 phút
-    ↓
-điểm cuối không đến kịp
-    ↓
-kế hoạch = Mong manh
-```
-
----
-
-# 13. Kế hoạch dự phòng
-
-Với các phần nhạy cảm của chuyến đi, TripGuardian có thể chuẩn bị phương án thay thế.
-
-```text
-Địa điểm nhạy cảm
-      ↓
-Lý do
-├── thời tiết
-├── thời gian
-├── độ đông
-├── khoảng cách
-└── độ không chắc chắn
-      ↓
-Dự phòng
-```
-
-Ví dụ:
-
-```text
-Mưa
-→ nơi ngoài trời → nơi trong nhà thay thế
-
-Bị trễ
-→ bỏ điểm có ưu tiên thấp nhất
-
-Kẹt xe
-→ dùng ứng viên gần đó
-
-Giờ mở cửa chưa chắc
-→ chuẩn bị nơi thay thế cùng khu vực
-```
-
----
-
-# 14. Output cuối cùng
-
-```text
-Kế hoạch đã kiểm tra
-├── lịch trình
-├── lộ trình
-├── chi phí ước tính
-├── tải di chuyển
-├── lý do cho các lựa chọn chính
-├── đánh đổi
-├── cảnh báo
-├── độ không chắc chắn
-├── độ vững
-└── phương án dự phòng
-```
-
-Kế hoạch phải giải thích được cả:
-
-> Vì sao chọn những nơi này?
-
-và:
-
-> Đã phải hy sinh gì để chuyến đi khả thi?
-
----
-
-# 15. Các vòng phản hồi chính
-
-TripGuardian không phải một pipeline một chiều.
-
-### Vòng lựa chọn
-
-```text
-Shortlist
-   ↓
-Người dùng tuyển chọn
-   ↓
-Khả thi
-   │
- xung đột
-   └──────────────→ Người dùng tuyển chọn
-```
-
-### Vòng xếp lịch
-
-```text
-Lập kế hoạch
-   ↓
-Có nơi không xếp được
-   ↓
-Quay lại tuyển chọn
-   ↓
-Thay / Bỏ / Nới
-   ↓
-Lập kế hoạch
-```
-
-### Vòng kiểm tra
-
-```text
-Lịch trình
-   ↓
-Kiểm tra / Độ vững
-   ↓
-Vấn đề
-   ↓
-Sửa / Phương án thay thế
-   ↓
-Kiểm tra lại
-```
-
-### Vòng cá nhân hóa
-
-```text
-User Profile
-   ↓
-Gợi ý
-   ↓
-Quyết định của người dùng
-   ↓
-Session Profile → Gợi ý thích nghi
-   ↓
-Kết quả chuyến đi (đã đến + phản hồi)
-   ↓
-Bằng chứng lặp lại / mạnh?
-   ├─ không → chỉ trong session
-   └─ có    → Cập nhật Long-term Profile
-```
-
----
-
-# 16. Kiến trúc tổng thể
-
-```text
-                     TRIPGUARDIAN
-
-
- ┌─────────────────────────────────────────────┐
- │             PLACE INTELLIGENCE              │
- │                                             │
- │ Khám phá                                    │
- │    ↓                                        │
- │ Trích xuất + Resolve địa điểm               │
- │    ↓                                        │
- │ Observe                                     │
- │    ↓                                        │
- │ Tổng hợp (rule)                             │
- │    ↓                                        │
- │ Kiểm tra + Định tuyến → Hàng đợi review     │
- │    ↓                                        │
- │ Place Intelligence (serving index)          │
- └──────────────────────┬──────────────────────┘
-                        │
-                        │
- ┌──────────────────────▼──────────────────────┐
- │              TRIP UNDERSTANDING             │
- │                                             │
- │ Kinh nghiệm + Trạng thái bắt đầu            │
- │    ↓                                        │
- │ User Profile (prior, khi đồng ý)            │
- │    ↓                                        │
- │ Thông tin cơ bản                            │
- │    ↓                                        │
- │ Anchor                                      │
- │    ↓                                        │
- │ Constraint                                  │
- │    ↓                                        │
- │ Ghi đè riêng cho chuyến đi                  │
- │    ↓                                        │
- │ Sở thích + Nhịp độ                          │
- │    ↓                                        │
- │ Trip State đã chuẩn hóa                     │
- └──────────────────────┬──────────────────────┘
-                        │
-                        ▼
- ┌─────────────────────────────────────────────┐
- │               PLACE DECISION                │
- │                                             │
- │ Resolve địa điểm của người dùng             │
- │    ↓                                        │
- │ Truy xuất ứng viên                          │
- │    ↓                                        │
- │ Sàng lọc constraint                         │
- │    ↓                                        │
- │ Độ hợp bối cảnh                             │
- │    ↓                                        │
- │ Xếp hạng sở thích + đa dạng                 │
- │    ↓                                        │
- │ So sánh phương án                           │
- │    ↓                                        │
- │ Người dùng tuyển chọn                       │
- │    ↓                                        │
- │ Khả thi của tổ hợp                          │
- │    ↓                                        │
- │ Địa điểm đã xác nhận                        │
- └──────────────────────┬──────────────────────┘
-                        │
-                  Live Context
-                        │
-                        ▼
- ┌─────────────────────────────────────────────┐
- │           PLANNING & VALIDATION             │
- │                                             │
- │ Chia theo ngày                              │
- │    ↓                                        │
- │ Gom cụm địa điểm                            │
- │    ↓                                        │
- │ Khớp khung giờ                              │
- │    ↓                                        │
- │ Chọn thời gian tham quan                    │
- │    ↓                                        │
- │ Tối ưu lộ trình                             │
- │    ↓                                        │
- │ Kiểm tra constraint                         │
- │    ↓                                        │
- │ Kiểm tra độ vững                            │
- │    ↓                                        │
- │ Kế hoạch dự phòng                           │
- │    ↓                                        │
- │ Kế hoạch đã kiểm tra                        │
- └─────────────────────────────────────────────┘
-```
-
----
-
-# 17. Các quyết định thiết kế chính
+## 8. Các quyết định thiết kế chính
 
 | Quyết định | Lý do |
 | --- | --- |
@@ -939,8 +165,10 @@ Bằng chứng lặp lại / mạnh?
 | Kiểm tra là tất định | Một kế hoạch trông hợp lý là chưa đủ |
 | Độ vững đi sau khả thi | Kế hoạch đúng về toán vẫn có thể dễ đổ vỡ trong thực tế |
 | Phương án dự phòng dùng lại các ứng viên bị loại | Phương án thay thế giải thích được và hợp bối cảnh |
+| Chỗ ở không vào Place Intelligence, chỉ tra live theo request | Giá và tình trạng phòng đổi theo ngày; nó là biến trong bài tối ưu, không phải tri thức về địa điểm |
 | User Profile là prior, xếp hạng sau constraint | Hành vi trong quá khứ không được lấn át chuyến đi hiện tại hay constraint của nó |
 | Session profile và long-term profile tách riêng | Sở thích có thể thay đổi trong một chuyến mà không viết lại gu dài hạn |
 | Lịch sử trải nghiệm tách khỏi sở thích | Đã đến không có nghĩa là thích; chưa trải nghiệm không có nghĩa là không thích |
 | Dữ liệu địa điểm do agent xây, được kiểm tra bằng gate và định tuyến rủi ro | Mở rộng theo số địa điểm; công sức của người tăng theo rủi ro, không theo kích thước corpus |
 | Cố định vai trò model, không cố định model | Đổi model bằng config khi nhãn review cho thấy model tốt hơn hoặc rẻ hơn |
+| Phiên là `State` có phiên bản + một hàm thuần sinh `State` mới | Undo / redo thật, và mỗi act chỉ chạy lại đúng phần bị ảnh hưởng (`scope.py`) |

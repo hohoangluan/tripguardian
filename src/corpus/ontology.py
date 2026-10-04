@@ -1,6 +1,6 @@
 """Feature ontology (config/ontology.yaml): the feature ids that every source's observations and the User Profile share.
 
-Observations may only carry a feature and value listed here (gate, docs/specs/CORPUS_SPEC.md §6).
+Observations may only carry a feature and value listed here (gate, docs/CORPUS.md §6).
 """
 
 from dataclasses import dataclass, field

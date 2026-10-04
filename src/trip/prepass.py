@@ -1,4 +1,4 @@
-"""Deterministic first read of a user message (docs/TRIP_UNDERSTANDING.md §17).
+"""Deterministic first read of a user message (docs/TRIP_UNDERSTANDING.md §4).
 
 Numbers, dates, who, transport, health hints, money and keyword features. Runs before the agent, so the screen reacts at
 once and a failed agent call still records something. Every proposal quotes the user's own words.

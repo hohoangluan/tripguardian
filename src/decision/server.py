@@ -1,4 +1,4 @@
-"""HTTP API for the web (spec §16). Local only: binds 127.0.0.1."""
+"""HTTP API for the web (docs/PLACE_DECISION.md §18). Local only: binds 127.0.0.1."""
 
 import json
 import re

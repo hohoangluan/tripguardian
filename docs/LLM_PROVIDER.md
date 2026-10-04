@@ -1,12 +1,13 @@
 # LLM Provider
 
-Code gọi model theo **vai trò**, không gọi thẳng một model cố định. Vai trò (`Role`: biến env của key / endpoint / model) và mọi task (`Task`: vai trò, prompt, schema, `max_tokens`, `temperature`, `parallel`) khai báo ở `src/corpus/llm/` (`roles.py`, `tasks.py`); sửa prompt hay thiết lập ở đó. Định nghĩa và yêu cầu của từng vai trò: `docs/specs/CORPUS_SPEC.md`, mục Vai trò model. File này chỉ ghi model nào đang đảm nhận vai trò và cách kết nối.
+Code gọi model theo **vai trò**, không gọi thẳng một model cố định. Vai trò (`Role`: biến env của key / endpoint / model) và mọi task (`Task`: vai trò, prompt, schema, `max_tokens`, `temperature`, `parallel`) khai báo ở `src/corpus/llm/` (`roles.py`, `tasks.py`); sửa prompt hay thiết lập ở đó. Định nghĩa và yêu cầu của từng vai trò: `docs/CORPUS.md` §Vai trò model. File này chỉ ghi model nào đang đảm nhận vai trò và cách kết nối.
 
-| Vai trò | Model hiện tại | Đường mạng |
-|---|---|---|
-| ASR | ChunkFormer trên GPU local | Local |
-| Extractor | Gemma 4 trên UIT API (miễn phí, nhận ảnh) | Trực tiếp trong mạng UIT |
-| Judge | Gemma 4 trên UIT API (cùng model với Extractor) | Trực tiếp trong mạng UIT |
+| Vai trò | Dùng ở | Model hiện tại | Đường mạng |
+|---|---|---|---|
+| ASR | `corpus` (TikTok) | ChunkFormer trên GPU local; ASR2 PhoWhisper-medium | Local |
+| Extractor | `corpus` (observe, filter, qc, kiểm span) | Gemma 4 trên UIT API (miễn phí, nhận ảnh) | Trực tiếp trong mạng UIT |
+| Judge | `corpus` (audit, match mơ hồ) | Gemma 4 trên UIT API (cùng model với Extractor) | Trực tiếp trong mạng UIT |
+| Agent | `trip`, `decision`, `planning` (mỗi lượt gõ chữ) | Gemma 4 trên UIT API | Trực tiếp trong mạng UIT |
 
 Judge và Extractor dùng chung model, tách vai trò bằng prompt chuyên biệt riêng cho từng vai trò; Judge bật thinking. Vì chung model nên lỗi hai bên không hoàn toàn độc lập: nếu nhãn review cho thấy Judge bỏ sót lỗi của Extractor, chuyển Judge sang họ model khác (chỉ đổi config, ví dụ `qwen3.8-27b` tại `https://llm.uit.edu.vn/qwen/v1`).
 
@@ -35,12 +36,17 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 | `LLM_API_KEY` | Key UIT API (Extractor) |
 | `EXTRACTOR_BASE_URL`, `EXTRACTOR_MODEL` | Endpoint và model của Extractor |
 | `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL` | Key, endpoint và model của Judge (hiện = UIT Gemma) |
+| `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_MODEL` | Key, endpoint và model của Agent — ba server online (`trip`, `decision`, `planning`) đọc biến này; thiếu thì mọi lượt gõ chữ chạy bằng `policy.py` từ khóa, không lỗi |
+| `DATA_DIR` | Gốc dữ liệu thô (mặc định `data`) |
+| `LIVE_CONTACT` | Liên hệ gửi trong User-Agent của request live context (Nominatim yêu cầu) |
 
 Đọc qua `os.environ[...]` / `python-dotenv`. Không bao giờ hardcode key trong source, test, hay tài liệu.
 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
 Mọi model được gọi trực tiếp: UIT trong mạng campus, ASR trên GPU local.
+
+Vai trò Agent khác ba vai trò kia ở chỗ nó chạy **trong một phiên người dùng**, nên có ngân sách thời gian: chờ token đầu `first_token_s` giây, cả call `total_s` giây (`config/trip.yaml`, `config/decision.yaml`, `config/planning.yaml`), quá thì trả lời bằng `policy.py`. Một call mỗi lượt, output là JSON có schema, `guard.py` chặn mọi tên / số không có trong kết quả tool của phiên.
 
 ## ASR local
 
@@ -70,4 +76,4 @@ Không bao giờ dùng `verify=False` / `curl -k`. Máy có CA store mới khôn
 
 ## Grounding
 
-Không dựa vào kiến thức sẵn có của model cho fact cụ thể hoặc thời sự. Luôn đưa văn bản nguồn vào prompt và yêu cầu model chỉ trả lời từ văn bản đó. Đây cũng là ranh giới dự án đã áp ở mức code: không bịa địa điểm, không có bằng chứng → không phải fact (xem `RULE.md`, `docs/Project_Context.md`).
+Không dựa vào kiến thức sẵn có của model cho fact cụ thể hoặc thời sự. Luôn đưa văn bản nguồn vào prompt và yêu cầu model chỉ trả lời từ văn bản đó. Đây cũng là ranh giới dự án đã áp ở mức code: không bịa địa điểm, không có bằng chứng → không phải fact (xem `RULE.md`, `docs/ARCHITECTURE.md` §1).

@@ -1,4 +1,4 @@
-"""One agent call per typed message on the curation screen (spec §14): prompt from the current view, streamed `say`,
+"""One agent call per typed message on the curation screen (docs/PLACE_DECISION.md §18): prompt from the current view, streamed `say`,
 typed plan. Same streaming guards as src/trip/agent.py, kept here: modules only meet through public APIs."""
 
 import asyncio

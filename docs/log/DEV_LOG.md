@@ -64,7 +64,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 
 ### Hiện tại (2026-10-01)
 - hành vi:
-  - Lệnh, phase, layout file: `docs/specs/CORPUS_SPEC.md` §1 (Discover, Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
+  - Lệnh, phase, layout file: `docs/CORPUS.md` §1 Discover (Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
   - Rời trang theo tín hiệu kết thúc (spec §1): TikTok `comments_complete` (mọi danh sách comment / reply trả `has_more=0`, không còn request chờ; body rỗng = bị chặn, dừng ngay); Maps review dừng khi ô loader cuối khung bị làm rỗng (`reviews_complete`); Maps search dừng ở dòng "Bạn đã xem hết danh sách này", ô không tới được dòng đó (`end=false`) thì chia nhỏ như ô đầy.
   - Trang TikTok tự tải lại ngay sau khi mở: item JSON đọc bằng vòng chờ (tối đa 20 s), lỗi "Execution context was destroyed" coi là chưa xong.
   - Maps: sắp xếp review "Mới nhất" được kiểm bằng nhãn nút (text dạng tổ hợp, so sánh sau `normalize('NFC')`), không áp dụng được thì lỗi + thử lại; cuộn bằng cách đưa mục cuối vào tầm nhìn (`scrollBy` / wheel hay không tải thêm); review layout lưu trú ("4/5", "… trước trên Google") đọc được; bỏ chữ icon-font khỏi `address` / `hours`; trang có link đăng nhập → `LoginRequired` (phiên hết hạn mà cookie `SID` vẫn còn).
@@ -86,7 +86,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 
 ### Trước đó (2026-09-29, tối)
 - hành vi:
-  - Lệnh, phase, layout file: `docs/specs/CORPUS_SPEC.md` §1 (Discover, Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
+  - Lệnh, phase, layout file: `docs/CORPUS.md` §1 Discover (Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
   - Rời trang theo tín hiệu kết thúc (spec §1): TikTok `comments_complete` (mọi danh sách comment / reply trả `has_more=0`, không còn request chờ; body rỗng = bị chặn, dừng ngay); Maps review dừng khi ô loader cuối khung bị làm rỗng (`reviews_complete`); Maps search dừng ở dòng "Bạn đã xem hết danh sách này", ô không tới được dòng đó (`end=false`) thì chia nhỏ như ô đầy.
   - Trang TikTok tự tải lại ngay sau khi mở: item JSON đọc bằng vòng chờ (tối đa 20 s), lỗi "Execution context was destroyed" coi là chưa xong.
   - Maps: sắp xếp review "Mới nhất" được kiểm bằng nhãn nút (text dạng tổ hợp, so sánh sau `normalize('NFC')`), không áp dụng được thì lỗi + thử lại; cuộn bằng cách đưa mục cuối vào tầm nhìn (`scrollBy` / wheel hay không tải thêm); review layout lưu trú ("4/5", "… trước trên Google") đọc được; bỏ chữ icon-font khỏi `address` / `hours`; trang có link đăng nhập → `LoginRequired` (phiên hết hạn mà cookie `SID` vẫn còn).
@@ -125,7 +125,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 - hành vi: mỗi feature có `quality` (độ chính xác đo bằng nhãn của giá trị đứng đầu), `servable` (nguồn thẩm quyền, qua ngưỡng nhãn, hoặc người `accept`), `review_decision`; quyết định `feature_review` của người: `disable` → `status = disabled`, `accept` bỏ `needs_review`, `report` / `refresh` đặt `needs_review`. File observation ontology cũ vẫn được đọc tới khi observe chạy lại (trước đây bị bỏ: đổi ontology là xóa sạch intel); intel ghi `observation_versions`. `estimates` (`aggregate/estimates.py`, `config/category_defaults.yaml`): nhóm category, thời gian tham quan [ngắn, thường, dài] (review khi ≥ 3 tác giả đồng ý, còn lại mặc định theo category), giá vé VND (số tiền trong quote `entry_fee`, mỗi tác giả một giá trị lớn nhất, hoặc vé Maps), `usable_as` mặc định, `effort_hint` (chỉ để xếp hạng: dốc có ở 16% nhà hàng, 37% quán cà phê đã có bằng chứng). Lần chạy: 1.437 nơi, 100% có thời gian tham quan (51 từ review), 241 có giá vé.
 
 ### Trước đó (2026-10-01, đêm)
-- hành vi: thêm `mention_rate` mỗi feature (tác giả nói / `voices`), `identity` (category, lat, lng, address), `operation.hours` / `closure`. Lý do: feature chỉ `present` có `agreement` luôn 1 (1/250 review nói view đẹp vẫn là "có view"); Place Decision cần giờ mở cửa, đóng cửa, vị trí. Quy tắc: `docs/specs/CORPUS_SPEC.md` §5.
+- hành vi: thêm `mention_rate` mỗi feature (tác giả nói / `voices`), `identity` (category, lat, lng, address), `operation.hours` / `closure`. Lý do: feature chỉ `present` có `agreement` luôn 1 (1/250 review nói view đẹp vẫn là "có view"); Place Decision cần giờ mở cửa, đóng cửa, vị trí. Quy tắc: `docs/CORPUS.md` §5 Aggregate.
 
 ## corpus-observe-tiktok — Observation từ video TikTok
 
@@ -138,13 +138,14 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 ### Trước đó
 _không có_
 
-## corpus-serving — Serving record + đánh giá offline cho Place Decision
+## corpus-serving — Serving record cho Place Decision
 
-- file: `src/corpus/serving/` (`record.py`, `groups.py`, `run.py`, `evaluate.py`), `config/serving.yaml`, `config/eval_trips.yaml`, `tests/serving/`
-- cách kiểm chứng: `python -m pytest -q tests/serving`; `python -m corpus serving` rồi `python -m corpus evaluate`
+- file: `src/corpus/serving/` (`record.py`, `groups.py`, `run.py`), `config/serving.yaml`, `config/eval_trips.yaml`, `tests/serving/`
+- cách kiểm chứng: `python -m pytest -q tests/serving`; `python -m corpus serving` rồi `python -m decision evaluate`
 
 ### Hiện tại (2026-10-02)
-- hành vi: `serving` đọc intel → `data/serving/places.json`: trạng thái theo khía cạnh (`VERIFIED` khi `servable` và còn mới; chưa đo / xung đột / đồng thuận thấp → `UNCERTAIN` kèm lý do; quá cửa sổ độ mới → `OUTDATED`; `NEEDS_REVIEW`, `DISABLED` không xuất hiện), nơi đóng cửa (tạm hoặc hẳn) không vào; giờ / giá là fact có độ mới, thời gian tham quan / giá vé / `effort_hint` là estimate; `usable_as` = mặc định category trừ `experience` khi coverage `NONE`; `check()` fail-closed (pass cần giá trị chắc chắn mà không ai nói ngược). Khu vực: leader clustering bán kính 1,2 km quanh nơi đông nhất (118 khu). Gần trùng: cùng nhóm category + vai trò, Jaccard ≥ 0,6 trên feature "loại nơi" được ≥ 2 người và ≥ 3% người viết nhắc, so với leader (không nối chuỗi: single linkage cho một nhóm 416 nơi). MMR. 1.394 nơi trong ~11 s. `evaluate`: 30 Trip State ẩn, sàng lọc + xếp hạng + MMR: 0 vi phạm ràng buộc cứng (kiểm bằng phân phối gốc, không bằng `check()`), 0 `unknown` trong danh sách chính, gần trùng 0%; 18/30 chuyến không đủ 8 nơi vì mọi điều kiện effort / thời tiết / chặt chém chưa có giá trị `pass` nào được đo (chưa có nhãn, `absent` hiếm).
+- hành vi: `serving` đọc intel → `data/serving/places.json`: trạng thái theo khía cạnh (`VERIFIED` khi `servable` và còn mới; chưa đo / xung đột / đồng thuận thấp → `UNCERTAIN` kèm lý do; quá cửa sổ độ mới → `OUTDATED`; `NEEDS_REVIEW`, `DISABLED` không xuất hiện), nơi đóng cửa (tạm hoặc hẳn) không vào; giờ / giá là fact có độ mới, thời gian tham quan / giá vé / `effort_hint` là estimate; `usable_as` = mặc định category trừ `experience` khi coverage `NONE`; `check()` fail-closed (pass cần giá trị chắc chắn mà không ai nói ngược). Khu vực: leader clustering bán kính 1,2 km quanh nơi đông nhất (118 khu). Gần trùng: cùng nhóm category + vai trò, Jaccard ≥ 0,6 trên feature "loại nơi" được ≥ 2 người và ≥ 3% người viết nhắc, so với leader (không nối chuỗi: single linkage cho một nhóm 416 nơi). MMR. 1.394 nơi trong ~11 s.
+- đo: `serving/evaluate.py` đã bỏ; `python -m decision evaluate` chạy đúng pipeline thật thay nó. Lần chạy gần nhất: 0 vi phạm ràng buộc cứng, 0 `unknown` trong danh sách chính, gần trùng 0%; 18/30 chuyến không đủ 8 nơi vì mọi điều kiện effort / thời tiết / chặt chém chưa có giá trị `pass` nào được đo (chưa có nhãn, `absent` hiếm).
 
 ### Trước đó
 _không có_
@@ -155,7 +156,7 @@ _không có_
 - cách kiểm chứng: `python -m pytest -q tests/crawl/gmaps tests/observe/gmaps`; `python -m corpus gmaps photos --limit 5` rồi `python -m corpus gmaps photo_observe --limit 5` (mạng UIT)
 
 ### Hiện tại (2026-10-02)
-- hành vi: quy tắc ở `docs/specs/CORPUS_SPEC.md` §4 (Ảnh Google Maps). Phát hiện khi dò: Chrome headless bị Google cho Maps "chế độ bị hạn chế" (không tab review / ảnh) dù đăng nhập → `open_profile` / `open_sessions` dùng user agent Chrome thường, `check_signed_in` dừng khi gặp thông báo. Thử 4 nơi: lần đầu `setting` suy từ ảnh món ăn, một ảnh vừa `indoor` vừa `outdoor`, "vài bậc ở cửa" thành `steep_or_stairs` → prompt chỉ cho `setting` từ khu khách ngồi / đi, bậc thang phải là leo dài, gate bỏ ảnh có hai giá trị. Ảnh cận cảnh vẫn đôi khi thành `indoor` (yếu; aggregate đếm theo người đăng). Thư viện "Tất cả" của nhiều nơi phần lớn là ảnh cũ (một nơi 30 ảnh cũ / 0 giữ). Tốc độ crawl ~2,6 nơi/phút ở 3 tab.
+- hành vi: quy tắc ở `docs/CORPUS.md` §4 Observe (Ảnh Google Maps). Phát hiện khi dò: Chrome headless bị Google cho Maps "chế độ bị hạn chế" (không tab review / ảnh) dù đăng nhập → `open_profile` / `open_sessions` dùng user agent Chrome thường, `check_signed_in` dừng khi gặp thông báo. Thử 4 nơi: lần đầu `setting` suy từ ảnh món ăn, một ảnh vừa `indoor` vừa `outdoor`, "vài bậc ở cửa" thành `steep_or_stairs` → prompt chỉ cho `setting` từ khu khách ngồi / đi, bậc thang phải là leo dài, gate bỏ ảnh có hai giá trị. Ảnh cận cảnh vẫn đôi khi thành `indoor` (yếu; aggregate đếm theo người đăng). Thư viện "Tất cả" của nhiều nơi phần lớn là ảnh cũ (một nơi 30 ảnh cũ / 0 giữ). Tốc độ crawl ~2,6 nơi/phút ở 3 tab.
 
 ### Trước đó
 _không có_
@@ -171,6 +172,35 @@ _không có_
 ### Trước đó
 _không có_
 
+## trip — Trip Understanding: hội thoại ngắn tới Search Input
+
+- file: `src/trip/` (toàn bộ), `config/trip.yaml`, `tests/trip/`, `web/src/user/tu/`, `web/src/user/screens/Understand.tsx`
+- cách kiểm chứng: `python -m pytest -q tests/trip`; `python -m pytest -m live tests/trip/test_live.py` (Gemma thật); `python -m trip serve` + `/app/understand`
+
+### Hiện tại (2026-10-02)
+- hành vi: mỗi field của `TripState` mang value + source + confidence + status + evidence, nên bản hiểu nhu cầu nói được giá trị đến từ đâu và người dùng sửa tại chỗ. Một lượt: `prepass.py` (rule tất định đọc câu trước khi gọi model) → một call Agent streaming (`agent.py`) → `guard.py` chặn mọi tên / số không có trong câu người dùng hay trong catalog → cập nhật state. Agent lỗi, chậm (`first_token_s` 8 s, `total_s` 30 s) hay JSON hỏng → `policy.py` từ khóa làm lượt đó.
+- chọn câu hỏi: tầng 1 là rule (tín hiệu an toàn → nhóm C; field chặn kiểm tra khả thi; người dùng dán link → xác nhận anchor), tầng 2 bám mạch người dùng, tầng 3 chấm `impact / cost` bằng cách thử từng đáp án trên serving index (`coverage.py`, `questions.py`). Dừng khi `stop_score` 0,15 hoặc hết `turn_budget` 5 lượt.
+- `entry_point` / `exit_point` vào Trip State và Search Input (chỉ text + `place_id`; geocode xảy ra ở Planning nên `trip` không phụ thuộc `live`).
+- `compile.py` sinh `SearchInput` (`hard_filters` có `unknown_policy`, `soft_weights` theo feature id dùng chung ontology, `unknowns`, `unmapped`); phiên mirror ra `data/trip/sessions/<id>.json` nên reload / restart tiếp được.
+- giới hạn: `say` bị thay bằng chuỗi rỗng chứ không phải một câu dẫn khi guard chặn; signal chưa sửa được trong panel; phiên không bao giờ được dọn; ngày trong quá khứ vẫn được nhận.
+
+### Trước đó
+_không có_
+
+## decision — Place Decision: Search Input tới Decision Output
+
+- file: `src/decision/` (toàn bộ), `config/decision.yaml`, `config/eval_trips.yaml`, `tests/decision/`, `web/src/user/pd/`, `web/src/user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`
+- cách kiểm chứng: `python -m pytest -q tests/decision`; `python -m pytest -m live tests/decision/test_decision_live.py`; `python -m decision serve` + `/app/shortlist`; `python -m decision evaluate`
+
+### Hiện tại (2026-10-02)
+- hành vi: một đường tất định `pipeline.py`: resolve anchor → truy xuất → `screen.py` sàng lọc fail-closed (`corpus.serving.check()` trả `pass | fail | unknown`; `unknown` không vào danh sách chính, nới chỉ áp cho đúng một nơi) → `fit.py` độ hợp bối cảnh thô (cụm, độ đông theo buổi, mùa mưa, đường vào — không gọi route service) → `rank.py` điểm lưu từng thành phần → `diversify.py` gom nơi gần trùng + MMR → `cards.py` thẻ ứng viên, `compare.py` so sánh chỉ trên khía cạnh cả hai đều có bằng chứng.
+- tuyển chọn: `curation.py` act thuần (`select`, `drop` kèm `reason`, `lock`, `unlock`, `swap`, `relax`, `wishlist`, `prefer`, `feedback`, `answer`, `undo`) sinh `State` mới và Session Profile nó dạy; `scope.replan_scope` / `input_scope` nói bước sớm nhất phải chạy lại. `feasibility.py` chấm tổ hợp sau mỗi thao tác. `confirm` → Decision Output (`confirmed`, `backup_pool`, `wishlist`, `trip_context`, `decision_log`).
+- gõ chữ: `agent.py` một call mỗi lượt, `guard.py` đòi quote thật + alias thật + nêu tên khi act rủi ro, `policy.py` từ khóa khi agent lỗi. Phiên mirror ra `data/decision/sessions/<id>.json`.
+- `python -m decision evaluate`: 30 Trip State ẩn chạy qua đúng pipeline thật. 18/30 chuyến không đủ 8 nơi vì mọi điều kiện effort / thời tiết / chặt chém chưa có giá trị `pass` nào được đo (chưa có nhãn) — giới hạn của corpus, không của Decision.
+
+### Trước đó
+_không có_
+
 ## planning — Lịch trình từ Decision Output tới Plan Output
 
 - file: `src/live/` (`osrm/`, `weather/`, `lodging/`, `geocode/`, `sun.py`, `holidays.py`, `cache.py`), `src/planning/` (toàn bộ), `config/planning.yaml`, `config/live.yaml`, `config/climate.yaml`, `config/holidays.yaml`, `tests/live/`, `tests/planning/`, `web/src/user/planning/`, `web/src/user/screens/Itinerary.tsx`
@@ -181,7 +211,7 @@ _không có_
 - phiên có undo/redo; `act` tất định (chip) và `turn` (gõ chữ: một call agent mỗi lượt, `guard.py` chặn số/alias bịa, rơi về `policy.py` từ khoá khi agent lỗi/timeout) đi qua cùng đường `repair_day` / `relayout`.
 - web: `Itinerary.tsx` gọi phiên Planning thật (chọn phương án, timeline, chỗ ở, gõ chữ, chốt → `/app/feedback`); `planner.ts` (ước lượng client cũ) chỉ còn cho màn debug của admin.
 - `python -m planning evaluate`: 30 chuyến ẩn ở `config/eval_trips.yaml` chạy qua Decision (trong tiến trình) rồi Planning, ghi `data/planning/eval.json`. Chạy 2026-10-03 trên serving hiện tại: 0/10 chuyến có lịch khả thi. Nguyên nhân: 6 chuyến Decision không confirm (partial/infeasible), 3 chuyến Decision confirm nhưng không có nơi nào, 1 chuyến Planning không dựng được phương án hợp lệ (giờ mở cửa chưa biết). Chưa có số tiết kiệm phút di chuyển hay chỗ ở vì không có phương án nào để đo.
-- giới hạn: `evaluate` không mô phỏng hội thoại nhiều lượt với agent; `lodging_near` chưa tìm lại K ứng viên quanh tâm mới; "bỏ nhiều nơi qua nhiều lượt" chỉ nhắc ở kênh gõ chữ. Đầy đủ ở `docs/specs/PLANNING_SPEC.md` §Giới hạn đã biết.
+- giới hạn: `evaluate` không mô phỏng hội thoại nhiều lượt với agent; `lodging_near` chưa tìm lại K ứng viên quanh tâm mới; "bỏ nhiều nơi qua nhiều lượt" chỉ nhắc ở kênh gõ chữ. Đầy đủ ở `docs/PLANNING.md` §Giới hạn đã biết.
 
 ### Trước đó
 _không có_

@@ -1,4 +1,4 @@
-"""Robustness (docs/specs/PLANNING_SPEC.md ⓕ, docs/ARCHITECTURE.md §12): solid / feasible / fragile.
+"""Robustness (docs/PLANNING.md ⓕ, docs/ARCHITECTURE.md §12): solid / feasible / fragile.
 
 Fixed perturbations from config, never random. Each scenario re-runs the chosen order of every day and counts the
 places that no longer fit: a visit outside its hours, or one after which the day's end point cannot be reached in

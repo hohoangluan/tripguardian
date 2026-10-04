@@ -1,6 +1,8 @@
 # TripGuardian — Thiết kế chức năng Web
 
-Tài liệu này nói **mỗi vai trò được làm gì và mỗi màn hình phải cho làm gì, hiển thị gì**. Không bàn vì sao (xem `docs/Project_Context.md`), luồng hệ thống phía sau (xem `docs/ARCHITECTURE.md`), hay cách thiết kế giao diện (xem `docs/UX_Design_Brief.md`).
+Tài liệu này nói **mỗi vai trò được làm gì và mỗi màn hình phải cho làm gì, hiển thị gì**. Không bàn vì sao (xem `docs/Project_Context.md`), luồng hệ thống phía sau (xem `docs/ARCHITECTURE.md`), cách thiết kế giao diện (xem `docs/UX_Design_Brief.md`), hay đặc tả trang cho designer (xem `docs/UI_SPEC_USER_WEB.md`).
+
+Màn nào nằm ở file nào và gọi backend nào: §6.
 
 ---
 
@@ -37,13 +39,13 @@ User **không** được: sửa dữ liệu nguồn của địa điểm, sửa 
 | Xung đột | Accept để giữ chưa chắc chắn, hoặc Report error trên observation của nguồn sai (build lại, rule chọn giá trị; xung đột vẫn giữ trong lịch sử) |
 | Quan sát | Xem phiên chuyến đi, analytics, pilot, trạng thái hệ thống, lỗi, phản hồi |
 
-Admin **không** gõ giá trị mới cho fact của địa điểm: dữ liệu do agent xây, giá trị sai được báo lỗi và hệ thống build lại từ bằng chứng (`docs/CORPUS.md` §7). Admin không sửa lịch trình của User và không quyết định thay User.
+Admin **không** gõ giá trị mới cho fact của địa điểm: dữ liệu do agent xây, giá trị sai được báo lỗi và hệ thống build lại từ bằng chứng (`docs/CORPUS.md` §7 Publish và review). Admin không sửa lịch trình của User và không quyết định thay User.
 
 ---
 
 ## 2. User Web — các màn hình
 
-Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầu (`docs/ARCHITECTURE.md` §3). Cách hiển thị giá trị chưa chắc chắn, fact, signal, estimate: `docs/UX_Design_Brief.md` §4.
+Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầu (`docs/TRIP_UNDERSTANDING.md` §2). Cách hiển thị giá trị chưa chắc chắn, fact, signal, estimate: `docs/UX_Design_Brief.md` §4.
 
 ### 2.1 Vào ứng dụng
 
@@ -54,11 +56,11 @@ Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầ
 
 - Bắt buộc: ngày đi, số người và là ai (người yêu, bạn, trẻ em, bố mẹ), phương tiện. Không bắt buộc: chỗ ở (đã có thì nhập, tra như §2.4; chỉ quyết định điểm bắt đầu / kết thúc của lộ trình; hệ thống không gợi ý chỗ ở).
 - Tùy chọn: nơi bắt buộc đến, booking cố định, giờ check-in/check-out và giờ phải rời Đà Lạt, giới hạn cứng (ngân sách, thời gian di chuyển tối đa mỗi chặng, tránh đường dốc, phải xong trước một giờ, loại hoạt động không muốn).
-- Giới hạn cứng và sở thích mềm là hai loại khác nhau (`docs/ARCHITECTURE.md` §4).
+- Giới hạn cứng và sở thích mềm là hai loại khác nhau (`docs/ARCHITECTURE.md` §2).
 
 ### 2.3 Khám phá sở thích
 
-- Mỗi lần một câu hỏi, kèm chip gợi ý, ô nhập tự do, "Chưa chắc", "Bỏ qua / gợi ý trước đi". Quy tắc chọn câu hỏi: `docs/Project_Context.md` §12.
+- Mỗi lần một câu hỏi, kèm chip gợi ý, ô nhập tự do, "Chưa chắc", "Bỏ qua / gợi ý trước đi". Quy tắc chọn câu hỏi và ngân hàng câu hỏi: `docs/TRIP_UNDERSTANDING.md` §5, §12.
 - Có profile: chỉ hỏi điều khác lần này — "Theo gu quen thuộc / Muốn thử cái mới / Đi với người khác / Có yêu cầu riêng".
 - Kết thúc bằng **Tóm tắt chuyến đi**: thông tin cơ bản, anchor, giới hạn cứng, sở thích (đánh dấu nếu lấy từ hồ sơ), điều còn chưa biết. Sửa được trước khi bắt đầu tìm.
 
@@ -66,7 +68,7 @@ Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầ
 
 - Mỗi mục: đã khớp ✓ / cần chọn (2–3 ứng viên với tên, khu vực, ảnh hoặc ghim bản đồ) / không tìm thấy (giữ ở dạng "chưa xác minh" hoặc xóa).
 - Gộp trùng ("Túi Mơ To" và "Tiệm Túi Mơ To" là một nơi). Gắn nhãn bắt buộc đến / đã lưu / đã đi / tránh / chưa rõ.
-- Không bao giờ đoán match. Nơi chưa xác minh vẫn ở lại trong chuyến đi, có đánh dấu (`docs/ARCHITECTURE.md` §5).
+- Không bao giờ đoán match. Nơi chưa xác minh vẫn ở lại trong chuyến đi, có đánh dấu (`docs/PLACE_DECISION.md` §4).
 
 ### 2.5 Shortlist
 
@@ -111,12 +113,12 @@ Thời gian        60–90 phút
 | **Khả thi một phần** | Nơi nào xung đột, vi phạm quy tắc nào, mỗi cách sửa được gì ("Bỏ C: tiết kiệm 90 phút, Ngày 2 ổn"); người dùng chọn cách sửa |
 | **Không khả thi** | Lý do tổng thể (cần 14 giờ, có 9 giờ · vượt ngân sách 400k · hai booking trùng giờ) và lối quay lại tuyển chọn |
 
-Xung đột với giới hạn của người dùng → đưa ra "nới giới hạn này" kèm cái giá cụ thể. Xung đột vật lý → chỉ đưa ra cách dời có thật (`docs/ARCHITECTURE.md` §8).
+Xung đột với giới hạn của người dùng → đưa ra "nới giới hạn này" kèm cái giá cụ thể. Xung đột vật lý → chỉ đưa ra cách dời có thật (`docs/PLACE_DECISION.md` §13.3).
 
 ### 2.10 Lịch trình
 
 - Theo từng ngày: dòng thời gian (giờ đến, khoảng thời gian ở lại, di chuyển giữa các điểm), bản đồ lộ trình, chi phí ước tính, cảnh báo tại đúng điểm dừng.
-- Nhãn độ vững mỗi ngày: Vững / Khả thi / Mong manh, kèm lý do một câu (`docs/ARCHITECTURE.md` §12).
+- Nhãn độ vững mỗi ngày: Vững / Khả thi / Mong manh, kèm lý do một câu (`docs/PLANNING.md` ⓕ).
 - Phương án dự phòng gắn với điểm nhạy cảm ("Nếu mưa: A → B trong nhà", "Bị trễ: bỏ C trước"); chỉ thay khi người dùng chọn.
 - Thông tin chưa xác nhận vẫn được đánh dấu ("Giờ mở cửa chưa xác nhận — kiểm tra trước khi đi").
 
@@ -136,36 +138,45 @@ Xung đột với giới hạn của người dùng → đưa ra "nới giới h
 
 ```text
 ADMIN
-├── Dashboard
-├── Review Queue
-├── Places (danh sách + chi tiết)
-├── Evidence (theo dõi + xung đột)
-├── Trip Sessions
-├── Analytics
-└── System Monitor
+├── Dashboard                     /admin
+├── Review Queue                  /admin/review
+├── Labels (gán nhãn đo chất lượng) /admin/labels
+├── Places (danh sách + chi tiết)  /admin/places
+├── Evidence (theo dõi + xung đột) /admin/evidence
+├── Trip Sessions                 /admin/sessions
+├── Analytics                     /admin/analytics
+└── System Monitor                /admin/system
 ```
 
 ### 3.1 Hàng đợi review
 
-Việc chính hằng ngày của Admin. Nội dung và thứ tự hàng đợi: `docs/CORPUS.md` §7.
+Việc chính hằng ngày của Admin. Nội dung và thứ tự hàng đợi: `docs/CORPUS.md` §7 Publish và review.
 
 - **Danh sách:** loại mục (giá trị Judge đánh dấu · kiểm tra giá trị cho phép về an toàn / tiếp cận / đối tượng phù hợp · tên chưa resolve · feature đề xuất), địa điểm, khía cạnh, vì sao nằm ở đây, mức rủi ro.
 - **Một mục:** giá trị, thành phần độ tin cậy (số nguồn, đồng thuận, độ mới, loại nguồn), bằng chứng (clip tại timestamp, comment, trích đoạn chính thức), finding của Judge.
 - **Thao tác:** Accept · Disable · Report error (giá trị / liên kết / loại POI/ZONE / trùng / category). Accept hàng loạt cho mục rủi ro thấp cùng loại.
 - Mẫu ngẫu nhiên các mục đã publish được trộn vào **không đánh dấu** và phải trông y hệt các mục khác.
 
-### 3.2 Danh sách địa điểm và chi tiết
+### 3.2 Gán nhãn (đo chất lượng)
 
-- **Danh sách:** địa điểm · trạng thái · bằng chứng · độ tin cậy · cập nhật. Lọc theo trạng thái (bộ trạng thái chung: `docs/CORPUS.md` §6), category, thành phố (theo config), coverage. Hiển thị khía cạnh có trạng thái tệ nhất.
+Nơi duy nhất sinh ra thước đo precision của corpus (`docs/CORPUS.md` §Đo chất lượng). Khác hàng đợi review: ở đây người duyệt không quyết định số phận một giá trị, chỉ nói "bằng chứng này có đỡ được giá trị này không".
+
+- **Một mục:** feature + giá trị cần chấm, bối cảnh, và đoạn review gốc có **tô đậm đúng quote** mà Extractor dựa vào; ảnh Maps và video TikTok hiện cùng cách.
+- **Thao tác:** nhãn đúng / sai / không rõ, kèm ghi chú tùy chọn. Lấy theo lô (`BATCH` = 4) để chấm nhanh.
+- **Thống kê:** số nhãn và precision (kèm cận dưới Wilson) theo từng feature, so với `gate` — giá trị chưa đủ nhãn thì chưa được phục vụ một mình (`docs/CORPUS.md` §5 Aggregate, `servable`).
+
+### 3.3 Danh sách địa điểm và chi tiết
+
+- **Danh sách:** địa điểm · trạng thái · bằng chứng · độ tin cậy · cập nhật. Lọc theo trạng thái (bộ trạng thái chung: `docs/CORPUS.md` §Trạng thái), category, thành phố (theo config), coverage. Hiển thị khía cạnh có trạng thái tệ nhất.
 - **Chi tiết:** Identity, Operation, Experience, Environment, Effort, Suitability — mỗi khía cạnh có trạng thái, coverage, bằng chứng, độ mới, độ tin cậy; finding của Judge và lịch sử review.
 - **Thao tác:** Accept · Disable · Report error · Request refresh. Provenance cũ không bao giờ bị xóa.
 
-### 3.3 Theo dõi bằng chứng và xung đột
+### 3.4 Theo dõi bằng chứng và xung đột
 
 - **Mỗi bản ghi:** nhận định · nguồn · thời điểm thu thập · độ tin cậy · trạng thái. Lọc: Fresh / Outdated / Missing / Conflicting / Single source.
 - **Xung đột** (cùng nhận định, khác giá trị): Accept (giữ chưa chắc chắn) · Report error trên observation của nguồn sai (build lại, rule chọn giá trị) · Refresh sources. Khi chưa xử lý, User Web nhận trạng thái chưa chắc chắn.
 
-### 3.4 Dashboard
+### 3.5 Dashboard
 
 ```text
 Places 842 · Verified 691 · Needs Review 23 · Outdated 53
@@ -175,7 +186,7 @@ Today: trip sessions 18 · completed plans 13 · blocked plans 2 · feasible pla
 
 Vài con số để phát hiện vấn đề nhanh; không cần nhiều biểu đồ.
 
-### 3.5 Phiên chuyến đi
+### 3.6 Phiên chuyến đi
 
 Để debug, đánh giá pilot, tìm chỗ người dùng bỏ dở. Không hiển thị dữ liệu cá nhân không cần thiết.
 
@@ -184,7 +195,7 @@ Trip #1028 · lần đầu · 3 ngày · bắt đầu từ địa điểm đã l
 15 nhập → 12 đã xác minh → 3 bị lọc → 8 shortlist → 6 được chọn → 1 xung đột → 5 cuối cùng → khả thi sau điều chỉnh
 ```
 
-### 3.6 Analytics
+### 3.7 Analytics
 
 | Nhóm | Đo |
 |---|---|
@@ -196,7 +207,7 @@ Trip #1028 · lần đầu · 3 ngày · bắt đầu từ địa điểm đã l
 
 Chỉ số chất lượng quan trọng hơn lượt xem hay click CTA. Ngưỡng chỉ đặt sau khi có baseline thật.
 
-### 3.7 Theo dõi hệ thống và lỗi
+### 3.8 Theo dõi hệ thống và lỗi
 
 - **Thành phần:** Corpus build (lần chạy gần nhất, ngân sách đã dùng) · Discovery · Resolution · Evidence pipeline · Recommendation · Feasibility · Routing · LLM. Trạng thái: Healthy / Warning / Unavailable.
 - **Lỗi gần đây:** thời gian · sự kiện · địa điểm hoặc chuyến đi liên quan ("20:14 thiếu giờ mở cửa — Place #128").
@@ -207,9 +218,31 @@ Chỉ số chất lượng quan trọng hơn lượt xem hay click CTA. Ngưỡn
 
 | User Web | Admin Web |
 |---|---|
-| 1. Thiết lập chuyến đi · 2. Khám phá sở thích · 3. Shortlist · 4. So sánh · 5. Tuyển chọn · 6. Kết quả khả thi · 7. Lịch trình · 8. Cảnh báo / dự phòng | 1. Hàng đợi review · 2. Danh sách địa điểm + chi tiết · 3. Theo dõi bằng chứng · 4. Phiên chuyến đi · 5. Analytics sản phẩm / pilot · 6. Theo dõi hệ thống · 7. Acquisition / UTM |
+| 1. Thiết lập chuyến đi · 2. Khám phá sở thích · 3. Shortlist · 4. So sánh · 5. Tuyển chọn · 6. Kết quả khả thi · 7. Lịch trình · 8. Cảnh báo / dự phòng | 1. Hàng đợi review · 2. Gán nhãn · 3. Danh sách địa điểm + chi tiết · 4. Theo dõi bằng chứng · 5. Phiên chuyến đi · 6. Analytics sản phẩm / pilot · 7. Theo dõi hệ thống · 8. Acquisition / UTM |
 
 ## 5. Ngoài phạm vi MVP
 
 - User Web: chỉ đường từng bước, đặt chỗ và thanh toán, tính năng mạng xã hội, cộng tác nhóm lớn, thành phố ngoài Đà Lạt.
 - Admin Web: nhiều cấp admin, quy trình duyệt nhiều bước, ma trận quyền chi tiết, CRM, hệ thống chăm sóc khách hàng, billing, quản lý booking, nền tảng quản lý campaign, quản lý tài khoản nâng cao, nền tảng kiểm duyệt, dashboard doanh nghiệp.
+
+---
+
+## 6. Triển khai — màn nào ở đâu
+
+Một app React (`web/`, Vite). `App.tsx` chọn bề mặt theo đường dẫn; mỗi bề mặt có bảng route riêng.
+
+| Màn (§) | File | Backend |
+|---|---|---|
+| Landing, Story, Choose (§1) | `web/src/pages/`, `web/src/scene/` (thế giới 3D) | — |
+| Đăng nhập, hai câu mở đầu (§2.1) | `pages/Auth.tsx`, `pages/Start.tsx`, `user/account.ts` | — (bản thử mô phỏng trong trình duyệt) |
+| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/tu/` | `trip` :8766 — `/api/trip` |
+| Shortlist, Chi tiết, So sánh, Tuyển chọn, Khả thi (§2.5–2.9) | `user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`, `user/pd/` | `decision` :8767 — `/api/decision` |
+| Lịch trình (§2.10) | `user/screens/Itinerary.tsx`, `user/planning/` | `planning` :8768 — `/api/planning` |
+| Hồ sơ, Phản hồi (§2.11–2.12) | `user/screens/{Profile,Feedback}.tsx` | — |
+| Admin, mọi màn (§3) | `admin/AdminApp.tsx`, `admin/screens/`, `admin/api.ts` | `review` :8765 — `/api/queue`, `/api/labels{,/next,/stats,/photo,/frame}`, `/api/decision{,s}` |
+
+Dữ liệu chỉ-đọc của corpus mà cả hai bề mặt dùng để hiển thị địa điểm: `web/public/data/snapshot.json`, sinh bằng `python web/scripts/export_snapshot.py` sau `python -m corpus aggregate`. Không có file đó thì mọi màn báo lỗi tải dữ liệu.
+
+`user/planner.ts` là bộ ước lượng lịch chạy trong trình duyệt của bản thử; màn Lịch trình không còn dùng nó, chỉ màn debug `admin/screens/Sessions.tsx` còn gọi.
+
+Chạy cả stack: `README.md`. Hệ thị giác, font, màu: `docs/UX_Design_Brief.md` §7.

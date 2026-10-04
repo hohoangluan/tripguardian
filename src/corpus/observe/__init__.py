@@ -1,4 +1,4 @@
-"""Observe (docs/specs/CORPUS_SPEC.md §4): each source's evidence -> observations in one shared format.
+"""Observe (docs/CORPUS.md §4): each source's evidence -> observations in one shared format.
 
 One sub-package per source (gmaps now, tiktok later); all write data/<source>/observations/<fid_dir>.json with
 records built by observation(), which corpus.aggregate reads without knowing the source.

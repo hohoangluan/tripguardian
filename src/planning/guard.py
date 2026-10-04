@@ -1,4 +1,4 @@
-"""Checks an agent TurnPlan before it reaches Engine.act (docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp
+"""Checks an agent TurnPlan before it reaches Engine.act (docs/PLANNING.md §Vòng người dùng sửa và góp
 ý): quotes come from the message, aliases are on screen, a risky pick (lodging, variant) is named by the user.
 Mirrors src/decision/guard.py in shape, not in import -- planning may not import decision (RULE.md §2)."""
 

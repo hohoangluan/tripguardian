@@ -1,7 +1,7 @@
 """Gold labels for review observations: data/review/labels.jsonl, append-only; the latest label per observation wins.
 
 A person reads the review text next to what the Extractor claimed and says correct / wrong / unsure. The labels give
-the precision per (feature, value) that docs/specs/CORPUS_SPEC.md §Đo chất lượng asks for; a value whose measured
+the precision per (feature, value) that docs/CORPUS.md §Đo chất lượng asks for; a value whose measured
 precision is below the gate is not served by itself. They never edit observations.
 
 A label judges what a person can read: this review, this feature and value, these quoted words. It is keyed by that

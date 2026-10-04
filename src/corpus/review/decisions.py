@@ -1,6 +1,6 @@
 """A person's decisions on review items: data/review/decisions.jsonl, append-only; the latest per item wins.
 
-Decisions are labels (docs/specs/CORPUS_SPEC.md §7): they never edit crawled values. The crawl reads them:
+Decisions are labels (docs/CORPUS.md §7): they never edit crawled values. The crawl reads them:
 video_filter keep/drop overrides the model; retry puts an item back into the next crawl.
 """
 

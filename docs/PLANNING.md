@@ -1,6 +1,6 @@
-# Planning & Validation + Live Context — Thiết kế chi tiết
+# Planning & Validation + Live Context
 
-Vị trí trong luồng hệ thống: `docs/ARCHITECTURE.md` §9–14. Đầu vào: `docs/PLACE_DECISION.md` §15. File này là thiết kế chi tiết để triển khai.
+Bước online thứ ba và cuối. Vị trí trong luồng: `docs/ARCHITECTURE.md` §3. Đầu vào: `docs/PLACE_DECISION.md` §15. Code: `src/live/` (Live Context) + `src/planning/` (lịch trình); CLI và API ở §CLI và API.
 
 ## Mục tiêu
 
@@ -16,7 +16,7 @@ Ngoài: booking và thanh toán; điều hướng turn-by-turn; traffic thời g
 
 ## Nguyên tắc
 
-1. **Chỗ ở không bao giờ vào Place Intelligence.** Nó được tra live theo từng request, chỉ sống trong phiên, mang `source` + `fetched_at` (`ARCHITECTURE.md` §1).
+1. **Chỗ ở không bao giờ vào Place Intelligence.** Nó được tra live theo từng request, chỉ sống trong phiên, mang `source` + `fetched_at` (`docs/ARCHITECTURE.md` §1).
 2. **Chỗ ở là biến trong bài tối ưu**, không phải danh sách gợi ý rời. Mỗi ứng viên được chấm bằng cách làm anchor đầu / cuối ngày rồi xếp lại cả lịch và đo.
 3. **Mọi bước tất định.** Cùng input → cùng output. Không random. Agent chỉ hiểu câu tự do và giải thích; mọi thứ cần đúng là rule.
 4. **Physical constraint không bao giờ nới ngầm.** Không có đường code nào nới nó.
@@ -29,30 +29,36 @@ Ngoài: booking và thanh toán; điều hướng turn-by-turn; traffic thời g
 ```
 src/live/                      Live Context — gọi mạng, đọc-ghi cache; KHÔNG có đường ghi data/intel
   __init__.py                  public API: travel_matrix, route_shape, weather, lodging_near, geocode,
-                               sun_times, holidays
-  cache.py                     cache theo key + TTL → data/live/<source>/
+                               sun_times, holidays, Unavailable
+  http.py                      một JSON GET, một timeout, không retry; lỗi → Unavailable
+  cache.py settings.py         cache theo key + TTL → data/live/<source>/; ngưỡng từ config/live.yaml
   osrm/                        ma trận thời gian (/table) + hình lộ trình (/route), service local
   weather/                     Open-Meteo: dự báo theo giờ trong tầm; ngoài tầm → khí hậu theo tháng
-  lodging/                     crawl mặt lodging của Maps theo request
+  lodging/                     crawl mặt lodging của Maps theo request, qua public API của corpus.crawl
   geocode/                     text → toạ độ (Nominatim)
   sun.py                       mọc / lặn, công thức NOAA, tính local
   holidays.py                  config/holidays.yaml
 
 src/planning/                  Planning & Validation — rule tất định
   model.py settings.py         kiểu dữ liệu; ngưỡng từ config/planning.yaml
+  places.py                    Decision Output + serving record → nơi xếp được + điểm đầu / cuối chuyến
+  frame.py                     các ngày của chuyến: ngày, thứ, khung giờ dùng được
+  travel.py                    một ma trận OSRM mỗi chuyến, chặng ngắn đi bộ, đường lui thô có nhãn
+  traits.py                    fact của một nơi mà mục tiêu / độ vững / dự phòng dùng chung
   lodging.py                   ⓐ vùng tìm → sàng → K ứng viên
   cluster.py days.py route.py  ⓑ gom cụm, chia ngày (DP), thứ tự trong ngày
   schedule.py                  ⓒ khớp giờ mở, visit theo pace, đệm, nghỉ
-  validate.py                  ⓓ kiểm tra cuối, fail-closed
-  robustness.py                ⓔ độ vững 3 mức
-  backup.py                    ⓕ dự phòng từ backup_pool
-  objectives.py variants.py    điểm theo mục tiêu; dựng 2–3 phương án
+  validate.py                  ⓔ kiểm tra cuối, fail-closed
+  robustness.py                ⓕ độ vững 3 mức
+  backup.py                    ⓗ dự phòng từ backup_pool
+  objectives.py variants.py    ⓖ điểm theo mục tiêu; dựng 2–3 phương án
+  build.py                     ghép một đường: prepare → schedule_trip → with_home
   repair.py scope.py           repair_day; phạm vi chạy lại
   output.py                    Plan Output
-  session.py                   phiên có phiên bản, undo
+  session.py                   phiên có phiên bản, undo / redo
   agent.py guard.py policy.py  một call mỗi lượt chữ; guard; policy từ khóa khi agent lỗi
   engine.py server.py          HTTP + SSE, cổng 8768
-  evaluate.py                  mô phỏng offline
+  evaluate.py                  đo offline trên 30 chuyến ẩn
 ```
 
 Phụ thuộc một hướng: `planning` → `live`, `decision`, `trip`, `corpus.serving`, `corpus.ontology` (chỉ qua `__init__.py`; RULE §2). `live` không biết `planning`. `decision` không đổi.
@@ -61,15 +67,15 @@ Dữ liệu:
 
 | Thư mục | Ghi bởi | Nội dung |
 |---|---|---|
-| `data/live/{osrm,weather,lodging,geocode}/` | `src/live` | cache theo request, có TTL, mỗi mục mang `source` + `fetched_at` |
-| `data/planning/` | `src/planning` | phiên, phiên bản lịch, Plan Output, `eval.json` |
+| `data/live/<source>/` | `src/live` | cache theo request, có TTL, mỗi mục mang `source` + `fetched_at` (`lodging`, `osrm`, `weather`, `geocode` — chỉ tạo khi nguồn đó được gọi) |
+| `data/planning/sessions/` | `src/planning` | phiên; `data/planning/eval.json` là kết quả `evaluate` |
 | `data/intel/`, `data/serving/`, `data/gmaps/` | chỉ offline corpus | Planning chỉ đọc |
 
 ## Đầu vào
 
-Decision Output nguyên dạng (`PLACE_DECISION.md` §15): `confirmed` (id, role `anchor | locked | selected`, visit minutes, flags, relaxed), `backup_pool` (kèm `for` + `reason`), `wishlist`, `trip_context` (bản chụp Search Input), `decision_log`, `feasibility`.
+Decision Output nguyên dạng (`docs/PLACE_DECISION.md` §15): `confirmed` (id, role `anchor | locked | selected`, visit minutes, flags, relaxed), `backup_pool` (kèm `for` + `reason`), `wishlist`, `trip_context` (bản chụp Search Input), `decision_log`, `feasibility`.
 
-Thêm vào Trip State (`TRIP_UNDERSTANDING.md` §4, §11): `entry_point`, `exit_point` kiểu `Base` (text + `place_id` hoặc toạ độ sau geocode) — nơi người dùng vào / ra thành phố (bến xe, sân bay, tự lái). `src/trip/questions.py` thêm một câu khi chưa biết. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at`, gắn cờ "ước lượng ngày đầu / cuối kém chắc".
+Thêm vào Trip State (`docs/TRIP_UNDERSTANDING.md` §3, §9): `entry_point`, `exit_point` kiểu `Base` (text + `place_id` hoặc toạ độ sau geocode) — nơi người dùng vào / ra thành phố (bến xe, sân bay, tự lái). `src/trip/questions.py` thêm một câu khi chưa biết. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at`, gắn cờ "ước lượng ngày đầu / cuối kém chắc".
 
 ## Live Context
 
@@ -96,7 +102,7 @@ Một ma trận mỗi lượt cho tập điểm = `confirmed` + K chỗ ở + `e
 
 Dùng mặt **"Khách sạn"** của Maps, không phải search địa điểm thường: đặt check-in = ngày đầu chuyến, check-out = ngày cuối (`nights = days − 1`), đặt trần giá bằng bộ lọc giá của Maps. Thẻ trả về: `name`, `fid`, `lat/lng`, `rating`, `reviews`, `price_per_night`, `amenities`.
 
-- Mặt lodging của Maps **bỏ qua khung bản đồ** (`CORPUS_SPEC.md` §Phạm vi) nên không liệt kê đủ được. Với live-only thì không sao: chỉ cần top ứng viên quanh một khu.
+- Mặt lodging của Maps **bỏ qua khung bản đồ** (`CORPUS.md` §Phạm vi) nên không liệt kê đủ được. Với live-only thì không sao: chỉ cần top ứng viên quanh một khu.
 - Nhiều homestay Đà Lạt không lên OTA nên không có giá, có khi không có thẻ. Thẻ không giá vẫn **được giữ**, `price = unknown`, không bị trần giá loại, hiện "chưa có giá".
 - `price_per_night` là giá OTA tại thời điểm crawl → mang `source` + `fetched_at`, nhãn "giá tham khảo, kiểm lại khi đặt". Không phải Fact.
 - `start_date` chưa biết (chỉ có `month`) → crawl không đặt ngày; giá bỏ trống, gắn cờ.
@@ -141,15 +147,17 @@ Visit theo pace: thong thả → `long`, cân bằng → `typical`, đi nhiều 
 
 ### ⓔ Kiểm tra cuối — `validate.py`
 
-Đúng `ARCHITECTURE.md` §11: ngày đi · giờ mở cửa · chồng lấn · thời gian di chuyển · anchor · ngân sách (gồm tiền phòng khi đã biết giá) · hard constraint · địa điểm trùng. Trả `ok` + danh sách vi phạm, mỗi vi phạm có `physical: bool` và cái giá đã tính của từng cách sửa. Không phương án nào hợp lệ → trả về tầng Place Decision kèm nơi gây lỗi (`PLACE_DECISION.md` §14, dòng "Planning báo không xếp được").
+Nơi **duy nhất** kết luận đạt / không đạt, và kết luận từ chính dòng thời gian cuối cùng. Tám kiểm tra: ngày đi · giờ mở cửa · chồng lấn · thời gian di chuyển · anchor · ngân sách (gồm tiền phòng khi đã biết giá) · hard constraint · địa điểm trùng. Trả `ok` + danh sách vi phạm, mỗi vi phạm có `physical: bool` và cái giá đã tính của từng cách sửa. Không phương án nào hợp lệ → trả về tầng Place Decision kèm nơi gây lỗi (`docs/PLACE_DECISION.md` §14, dòng "Planning báo không xếp được").
 
 ### ⓕ Độ vững — `robustness.py`
 
-Nhiễu cố định trong config, không random: xuất phát trễ +15 / +30 phút; visit +20%; travel +25%; mưa theo xác suất dự báo. Mỗi kịch bản chạy lại thứ tự đã chọn của từng ngày và đếm số nơi bị mất (ngoài giờ mở, hoặc sau nó không kịp về điểm kết ngày; đệm là thứ hấp thụ trễ). Mưa không random: nơi phơi mưa ở ngày `rain_prob ≥ rain_high` tính là mất; không có dự báo thì bỏ kịch bản này và nói rõ. Ba mức: Vững = mọi kịch bản mất ≤ `solid_max_lost`; Khả thi = các kịch bản `tier: small` mất ≤ `feasible_max_lost`; còn lại Mong manh. `travel_source = rough` → trần "Khả thi".
+Nhiễu cố định trong config, không random: xuất phát trễ +15 / +30 phút; visit +20%; travel +25%; mưa theo xác suất dự báo. Mỗi kịch bản chạy lại thứ tự đã chọn của từng ngày và đếm số nơi bị mất (ngoài giờ mở, hoặc sau nó không kịp về điểm kết ngày; đệm là thứ hấp thụ trễ). Mưa không random: nơi phơi mưa ở ngày `rain_prob ≥ rain_high` tính là mất; không có dự báo thì bỏ kịch bản này và nói rõ. Ba mức — **Vững** (đủ đệm để chịu vài chậm trễ nhỏ), **Khả thi** (chạy được nếu phần lớn đúng giờ dự kiến), **Mong manh** (đúng về toán nhưng một chậm trễ nhỏ làm hỏng các điểm sau): Vững = mọi kịch bản mất ≤ `solid_max_lost`; Khả thi = các kịch bản `tier: small` mất ≤ `feasible_max_lost`; còn lại Mong manh. `travel_source = rough` → trần "Khả thi".
 
 ### ⓖ Mục tiêu và phương án — `objectives.py`, `variants.py`
 
-Mục tiêu (`ARCHITECTURE.md` §10): `least_travel`, `low_cost`, `weather_robust`, `diverse`, `preference_fit`. Chọn tối đa 3 bằng rule từ Trip State (pace; `budget_vnd` đã biết?; tháng mưa?; `soft_weights`).
+**Nhịp độ và mục tiêu là hai thứ riêng.** Nhịp độ (`pace`: thong thả · cân bằng · đi nhiều) mô tả cường độ chuyến đi và đổi thành tham số: thời gian tham quan, số nơi mỗi ngày, thời gian nghỉ, độ lớn đệm, mức di chuyển chấp nhận. Mục tiêu mô tả tối ưu theo cái gì.
+
+Năm mục tiêu: `least_travel`, `low_cost`, `weather_robust`, `diverse`, `preference_fit`. Chọn tối đa 3 bằng rule từ Trip State (pace; `budget_vnd` đã biết?; tháng mưa?; `soft_weights`) — không cố định trước.
 
 ```
 for lodging in K+1 ứng viên:          # 6 + phương án không chỗ ở
@@ -208,7 +216,7 @@ Agent quyết phần con người:
 | "sáng muốn cà phê trước" | `reorder` ngày đó, nêu cái giá nếu phá giờ mở của nơi khác |
 | "chỗ ở gần chợ đêm hơn" | đổi tâm vùng tìm → `lodging_near` lại → diff |
 | "xa quá" (không nói nơi nào) | hỏi một câu: nơi nào, hay cả ngày nào |
-| bỏ nhiều nơi qua nhiều lượt | dừng sửa lẻ, đề nghị quay về Place Decision chọn lại (`PLACE_DECISION.md` §14) |
+| bỏ nhiều nơi qua nhiều lượt | dừng sửa lẻ, đề nghị quay về Place Decision chọn lại (`docs/PLACE_DECISION.md` §14) |
 | "đổi hết đi" | không tự xoá; hỏi xác nhận, nêu hệ quả |
 
 ## Guardrail
@@ -226,7 +234,7 @@ Agent quyết phần con người:
 
 ## Plan Output
 
-`ARCHITECTURE.md` §14, thêm phần chỗ ở và phương án:
+Kế hoạch phải trả lời được cả "vì sao chọn những nơi này" và "đã phải hy sinh gì để khả thi":
 
 ```text
 Plan Output
@@ -246,9 +254,19 @@ Plan Output
 └── provenance     mỗi số live kèm `source` + `fetched_at`
 ```
 
-## API và web
+## CLI và API
 
-`python -m planning serve` → `127.0.0.1:8768`, web qua proxy `/api/planning`.
+| Lệnh | Việc |
+|---|---|
+| `python -m planning build <decision_output.json>` | in một lịch trình đã kiểm (`--out` ghi Plan Output dạng json) |
+| `python -m planning variants <decision_output.json>` | in 2–3 phương án theo mục tiêu, kèm độ vững và dự phòng (`--weather forecast.json`) |
+| `python -m planning lodging <decision_output.json>` | như trên, cộng chỗ ở cạnh tranh làm neo mỗi ngày; cần Chrome đã đăng nhập `gmaps` |
+| `python -m planning serve [--port 8768]` | HTTP + SSE cho web |
+| `python -m planning evaluate` | 30 chuyến ẩn qua Decision → Planning → `data/planning/eval.json` (§Đo) |
+
+`build` / `variants` / `lodging` / `evaluate` cần OSRM đang chạy để có số thật; không có thì rơi về ước lượng thô kèm cảnh báo (§Live Context).
+
+`serve` bind `127.0.0.1:8768`; web gọi qua proxy `/api/planning`.
 
 ```
 POST   /api/planning/sessions              {decision_session_id | decision_output}
@@ -257,16 +275,32 @@ POST   /api/planning/sessions/<id>/act     tất định; 400 khi act sai (state
 POST   /api/planning/sessions/<id>/turn    SSE: say(delta|replace) · view · progress · done · error
 GET    /api/planning/sessions/<id>/variants
 GET    /api/planning/sessions/<id>/lodging tiến độ crawl + ứng viên đã chấm
+GET    /api/planning/sessions/<id>/lodging/events  SSE tiến độ crawl nền
 POST   /api/planning/sessions/<id>/confirm → Plan Output; 409 khi chưa hợp lệ
 ```
 
 Lỗi: 400 act sai, 404 không có phiên, 409 sai phiên bản hoặc chưa chốt được. Event `progress` là phần thêm so với `decision` (báo crawl chỗ ở đang chạy).
 
-Web: `web/src/user/screens/Itinerary.tsx` đổi sang gọi `/api/planning`; `web/src/user/planner.ts` (ước lượng chạy trong trình duyệt của bản thử) **xoá**. Màn gồm: tab phương án + bảng đánh đổi · timeline từng ngày (giờ, chặng, phút di chuyển, đệm, nghỉ) · panel chỗ ở (tổng phút di chuyển cả chuyến, giá hoặc "chưa có giá", "chưa xác minh") · diff mỗi lần sửa · cảnh báo và độ không chắc · dự phòng · nút chốt. Ô gõ chữ tự do như `/app/shortlist`.
+Web: `web/src/user/planning/` (`types.ts`, `api.ts`, `planning.tsx` — `PlanningProvider` + `usePlanning()`) và `web/src/user/screens/Itinerary.tsx` ở `/app/plan`. Màn gồm: tab phương án + bảng đánh đổi · timeline từng ngày (giờ, chặng, phút di chuyển, đệm, nghỉ) · panel chỗ ở (tổng phút di chuyển cả chuyến, giá hoặc "chưa có giá", "chưa xác minh") · diff mỗi lần sửa · cảnh báo và độ không chắc · dự phòng · nút chốt. Ô gõ chữ tự do như `/app/shortlist`. `Feasibility.tsx` tạo phiên Planning khi người dùng chốt ở Place Decision. Chức năng từng màn: `docs/Role_Web_Functional_Design.md` §2.10.
 
 ## Cấu hình — `config/planning.yaml`
 
-`version`; `road_factor`, `rough_speed_kmh` (đường lui khi OSRM chết), `walk_km`, `walk_kmh`; `default_days`, `day_start`, `day_end`, `leave_at`; `visit_key`, `per_day`, `buffer_min` (+ phụ phí `long_leg_min`, `buffer_extra_long`, `buffer_extra_uncertain`), `rest_min`, `max_consecutive_min`; `meals_per_day`, `meal_min`, `meal_windows`; `pins`; `cluster_max_min`, `cluster_merge_min`, `fill_ratio`, `intra_leg_min`, `max_days`, `max_clusters`, `exact_n`, `improve_passes`; `weights` (`travel`, `overflow`, `count`, `closed`). P4 thêm: `rain_high`, `buffer_extra_rain`; `robustness` (kịch bản nhiễu có `tier` small / large, `solid_max_lost`, `feasible_max_lost`); `max_variants`, `objective_order`, `objective_weights` (trộn lên `weights` khi chia ngày: `travel`, `exposed`, `repeat`, `pref_risk`); `near_close_min`, `far_leg_min`, `backup_radius_min`, `backups_per_place`. Các phase sau thêm: `radius_km` theo mobility, `lodging_k`, `lodging_share`, `min_reviews`, `split_min`, trọng số phạt của `repair_day`.
+Một chỗ duy nhất cho mọi ngưỡng của Planning:
+
+| Nhóm | Khoá |
+|---|---|
+| Di chuyển | `road_factor`, `rough_speed_kmh` (đường lui khi OSRM chết), `walk_km`, `walk_kmh` |
+| Khung ngày | `default_days`, `day_start`, `day_end`, `leave_at` |
+| Nhịp độ | `visit_key`, `per_day`, `buffer_min` (+ phụ phí `long_leg_min`, `buffer_extra_long`, `buffer_extra_uncertain`, `buffer_extra_rain`), `rest_min`, `max_consecutive_min` |
+| Bữa ăn, buổi | `meals_per_day`, `meal_min`, `meal_windows`, `pins` |
+| Cụm, ngày, thứ tự | `cluster_max_min`, `cluster_merge_min`, `fill_ratio`, `intra_leg_min`, `max_days`, `max_clusters`, `exact_n`, `improve_passes`, `weights` (`travel`, `overflow`, `count`, `closed`) |
+| Mục tiêu, phương án | `max_variants`, `objective_order`, `objective_weights` (trộn lên `weights` khi chia ngày: `travel`, `exposed`, `repeat`, `pref_risk`) |
+| Độ vững | `rain_high`, `robustness` (kịch bản nhiễu có `tier` small / large, `solid_max_lost`, `feasible_max_lost`) |
+| Dự phòng | `near_close_min`, `far_leg_min`, `backup_radius_min`, `backups_per_place` |
+| Chỗ ở | `radius_km` theo mobility, `lodging_k`, `lodging_share`, `min_reviews`, `split_min` |
+| Phiên | trọng số phạt của `repair_day`, `decision_url` |
+
+`version` ở đầu file.
 
 TTL từng nguồn live và endpoint OSRM nằm ở `config/live.yaml`, không nằm ở đây: `src/live` không được đọc config của `planning` (phụ thuộc một hướng).
 
@@ -290,46 +324,14 @@ Dùng lại `config/eval_trips.yaml` (30 chuyến ẩn): Trip Understanding → 
 |---|---|
 | Hard constraint violation trong lịch | 0 |
 | Unsupported claim rate (`say` ngoài kết quả tool) | 0 |
-| Feasible itinerary rate (tổ hợp Decision nói "khả thi" mà Planning xếp được) | cao; phần hụt là sai số ước lượng thô của Decision (`PLACE_DECISION.md` §17) |
+| Feasible itinerary rate (tổ hợp Decision nói "khả thi" mà Planning xếp được) | cao; phần hụt là sai số ước lượng thô của Decision (`docs/PLACE_DECISION.md` §17) |
 | Tỉ lệ Vững / Khả thi / Mong manh | báo cáo, chưa đặt ngưỡng trước pilot |
 | Phút di chuyển so với baseline | baseline = nearest-neighbour + anchor `base`, không chọn chỗ ở. Thước đo "tối ưu" có thật |
 | Chỗ ở giảm bao nhiêu phút mỗi ngày so với phương án không chỗ ở | báo cáo |
 | Số lượt sửa trước `confirm` | giảm công sức |
 | Độ trễ: dựng 21 phương án · crawl chỗ ở | < 2 s · báo cáo |
 
-Hành vi agent không tất định nên đo bằng mô phỏng nhiều lần và so với `policy.py`, như `PLACE_DECISION.md` §17; thêm số lần guardrail chặn, số tool-call mỗi lượt, độ trễ mỗi lượt.
-
-## Các phase
-
-Mỗi phase chạy được và test được riêng.
-
-| Phase | Nội dung |
-|---|---|
-| P1 | `src/live` nền: `cache`, `osrm`, `geocode`, `sun`, `holidays`; `scripts/osrm_setup.sh`; fixture |
-| P2 | Trip State: `entry_point` / `exit_point` + một câu hỏi + sửa `docs/TRIP_UNDERSTANDING.md` |
-| P3 | Planning lõi: `cluster` → `days` → `route` → `schedule` → `validate` → `output`; CLI `python -m planning build <decision_output.json>` in lịch. Chưa web, chưa agent |
-| P4 | `traits`, `robustness`, `backup`, `objectives`, `variants`; CLI `python -m planning variants` (thời tiết vào qua `--weather`, P5 mới tự lấy) |
-| P5 | `live/weather` (Open-Meteo + `config/climate.yaml`), `live/lodging` (qua `corpus.crawl`), `planning/lodging.py`, `build.with_home`, chấm K × mục tiêu trong `variants.build_lodging_variants`, hình dạng event `progress`; CLI `python -m planning lodging` |
-| P6 | `session` (phiên bản, undo), `act`, `repair_day`, `scope`, `server` + SSE |
-| P7 | `agent`, `guard`, `policy` |
-| P8 | Web: `Itinerary` thật; xoá `planner.ts` |
-| P9 | `evaluate.py`, đo, cập nhật `README.md` + `docs/log/DEV_LOG.md` |
-
-Sau P3 đã có lịch thật dùng được bằng CLI — bằng chứng sớm, trước khi làm phần tốn công.
-
-## Tài liệu phải sửa
-
-| Tài liệu | Sửa gì |
-|---|---|
-| `docs/ARCHITECTURE.md` §9.1 | "Hệ thống không gợi ý chỗ ở" → chỗ ở không vào Place Intelligence; Planning tra live theo request, chỉ sống trong phiên |
-| `docs/ARCHITECTURE.md` §18.2 | thêm tool `travel_matrix`, `lodging_near`, `route_shape` |
-| `docs/PLACE_DECISION.md` §5 | bỏ dòng "không có chỗ ở trong ứng viên" → trỏ sang spec này |
-| `docs/UX_Design_Brief.md` | "Chỗ ở không được gợi ý" → cách hiển thị chỗ ở live (chưa xác minh, giá tham khảo) |
-| `docs/specs/CORPUS_SPEC.md` §Phạm vi | giữ "chỗ ở ngoài corpus", nói rõ Planning tra live |
-| `docs/TRIP_UNDERSTANDING.md` §4, §11 | thêm `entry_point`, `exit_point` |
-| `AGENTS.md`, `README.md` | thêm spec này vào bảng tài liệu; thêm bước thiết lập OSRM và lệnh `python -m planning` |
-
-`config/queries.yaml` **không** thêm category chỗ ở: crawl live là đường riêng, không phải phase của corpus.
+Hành vi agent không tất định nên đo bằng mô phỏng nhiều lần và so với `policy.py`, như `docs/PLACE_DECISION.md` §17; thêm số lần guardrail chặn, số tool-call mỗi lượt, độ trễ mỗi lượt.
 
 ## Giới hạn đã biết
 
@@ -340,8 +342,8 @@ Sau P3 đã có lịch thật dùng được bằng CLI — bằng chứng sớm
 - Chưa có User Profile dài hạn nên `preference_fit` chỉ dùng `soft_weights` của phiên.
 - Giá và tiện nghi của chỗ ở đọc bằng quét văn bản thô trên thẻ Maps (không phải DOM đã dò kỹ): có thể trống hoặc
 sai nếu Maps đổi cách hiển thị; ngày check-in / check-out chưa đặt qua bộ lọc của Maps.
-- `place_live_status` (đóng cửa tạm, giờ ngày lễ) chưa gọi mạng gì ở P6: không có nguồn nào được đặt tên trong spec.
-`confirm` chỉ gom lại cờ `UNCERTAIN` / `OUTDATED` đã có.
+- `place_live_status` (đóng cửa tạm, giờ ngày lễ) chưa gọi mạng: chưa chọn được nguồn. `confirm` chỉ gom lại cờ
+`UNCERTAIN` / `OUTDATED` đã có.
 - `repair_day` ép "ghim ngày" của nơi `locked`, không ép cứng "ghim giờ" (vị trí chính xác trong ngày) — chỉ phạt
 lệch qua `repair_diff_weight`.
 - `Trip` / `Schedule` sống trong RAM của tiến trình server, không ghi đĩa: một restart rebuild lại từ `decision` +
@@ -349,18 +351,17 @@ lệch qua `repair_diff_weight`.
 tốn thêm một lượt dựng Trip (mạng OSRM / geocode đã có cache theo TTL của `live.cache`), không tốn thêm crawl chỗ ở
 nếu TTL `lodging` (24h, `config/live.yaml`) còn hiệu lực.
 - SSE `.../lodging/events` hiện poll nội bộ mỗi 50ms tới khi crawl xong hoặc tối đa 10s rồi vẫn phát `progress` với
-candidates hiện có — chưa có cơ chế callback trực tiếp từ thread nền (P7, khi `/turn` thật sự cần streaming dài
-hơi, nên thay bằng `queue.Queue` giữa thread crawl và handler thay vì poll).
+candidates hiện có — chưa có callback trực tiếp từ thread nền; một `queue.Queue` giữa thread crawl và handler sẽ
+thay được chỗ poll này.
 - `decision_session_id` yêu cầu server của `decision` đang chạy ở `decision_url` (`config/planning.yaml`); không có
 cơ chế retry / backoff — một lần lỗi mạng trả thẳng `ActionError` cho người dùng thử lại.
 - Sau khi chỗ ở crawl xong, các phương án đã dựng **không** tự chấm lại theo K ứng viên chỗ ở ("chấm lại K × mục
-tiêu → diff" ở §Chỗ ở không làm người dùng chờ chưa làm ở P6): người dùng vẫn chọn được chỗ ở qua `pick_lodging` /
+tiêu → diff" ở §Chỗ ở không làm người dùng chờ chưa có): người dùng vẫn chọn được chỗ ở qua `pick_lodging` /
 `set_lodging` và lịch xếp lại đúng, nhưng chưa có bảng so sánh "đổi sang chỗ ở X: −N phút/ngày" tự động. `act`'s
-`diff` hiện chỉ có `scope`, chưa phải diff đầy đủ theo nghĩa spec mô tả. Plan Output's `lodging.candidates` luôn
-`[]` (chỉ `lodging.chosen` có dữ liệu). Để lại cho một task riêng, không phải lỗi — không có đường nào trả kết quả
-sai, chỉ thiếu tính năng so sánh.
+`diff` hiện chỉ có `scope`, chưa phải diff đầy đủ như §Guardrail đòi. Plan Output's `lodging.candidates` luôn `[]`
+(chỉ `lodging.chosen` có dữ liệu). Không có đường nào trả kết quả sai, chỉ thiếu tính năng so sánh.
 - `lodging_near` (câu nói tới một địa danh) đặt chỗ ở thủ công đúng địa danh đó (`set_lodging`), chưa tìm lại K ứng
-viên chỗ ở quanh một tâm mới -- cần sửa `lodging.py`/`build.py`, để lại cho một phase sau.
+viên chỗ ở quanh một tâm mới — cần sửa `lodging.py` / `build.py`.
 - "Bỏ nhiều nơi qua nhiều lượt -> đề nghị quay về Place Decision" chỉ hoạt động trong kênh gõ chữ (`turn`); các act
 `drop_place` gửi qua chip không bị chặn bởi `rethink_drops` -- Planning chưa có cơ chế `Pending`/câu hỏi mở như
 `decision.Session` có.

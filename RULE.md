@@ -7,12 +7,11 @@
 - Viết tối giản: ngắn, chính xác, đúng chức năng; không lặp nội dung đã có ở tài liệu khác, chỉ trỏ tới.
 
 ## 0.1 Tài liệu chính thức
-- Tài liệu chính thức là các file trong `docs/` và thư mục con của nó (ví dụ `docs/specs/`, `docs/log/`) được liệt kê trong `AGENTS.md`. File không có trong danh sách đó (ví dụ spec/plan làm việc) không phải tài liệu chính thức.
-- Mỗi tài liệu giữ một vai trò riêng để không phải đọc tài liệu dài; mỗi nội dung chỉ nằm một nơi. Nơi khác cần thì dẫn sang (`docs/X.md` §N), không chép lại.
-- Spec dùng để xây thật (ví dụ `docs/specs/CORPUS_SPEC.md`) là tài liệu chính thức, tách khỏi tài liệu mô tả hiện trạng (ví dụ `docs/CORPUS.md`).
+- Tài liệu chính thức là các file trong `docs/` và thư mục con của nó (ví dụ `docs/log/`), được liệt kê trong `README.md`. File không có trong danh sách đó (ví dụ spec/plan làm việc) không phải tài liệu chính thức.
+- Mỗi tài liệu giữ **một** nội dung chuyên biệt để không phải đọc tài liệu dài; mỗi nội dung chỉ nằm một nơi. Nơi khác cần thì dẫn sang (`docs/X.md` §N), không chép lại.
 - Spec/plan làm việc là tạm thời: khi đã được duyệt và thực hiện, gộp nội dung còn giá trị vào tài liệu chính thức rồi xóa spec/plan. Không giữ thư mục spec/plan lưu trữ.
 - Không tạo bản dịch song song; thay đổi được sửa thẳng vào tài liệu chính thức.
-- Tài liệu chính thức mô tả **đúng code hiện tại**, không nhắc lại hành vi/cấu trúc trước đây, không viết "trước đây làm X, giờ đổi thành Y". Khi code đổi, sửa thẳng đoạn mô tả cũ, không thêm ghi chú lịch sử.
+- Tài liệu chính thức mô tả **đúng code hiện tại**, không nhắc lại hành vi/cấu trúc trước đây, không viết "trước đây làm X, giờ đổi thành Y", không viết theo kiểu plan ("phase sau sẽ thêm Y"). Khi code đổi, sửa thẳng đoạn mô tả cũ, không thêm ghi chú lịch sử.
 - Ngoại lệ: `docs/log/DEV_LOG.md` (giữ **Hiện tại** + **Trước đó** theo đúng khuôn mẫu của chính nó) và `docs/log/AGENT_FAILURES.md` (nhật ký bằng chứng lỗi) là log theo thiết kế, không phải tài liệu mô tả hiện trạng — không áp dụng quy tắc "chỉ giữ hiện tại" ở trên cho hai file này.
 
 ## 1. Nguồn sự thật

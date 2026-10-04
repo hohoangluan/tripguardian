@@ -1,4 +1,4 @@
-"""Decision Output + serving records -> a checked itinerary (docs/specs/PLANNING_SPEC.md, phase P3).
+"""Decision Output + serving records -> a checked itinerary (docs/PLANNING.md, phase P3).
 
 One path, no randomness: places -> one travel matrix -> clusters -> days -> stop order -> clock -> validate.
 prepare() does once what every variant shares; schedule_trip() lays the trip out for one objective's weights.

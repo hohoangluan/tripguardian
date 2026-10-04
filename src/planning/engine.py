@@ -1,4 +1,4 @@
-"""Planning sessions for the web (docs/specs/PLANNING_SPEC.md §API và web): create (fast, anchor = base), act (chips,
+"""Planning sessions for the web (docs/PLANNING.md §API và web): create (fast, anchor = base), act (chips,
 no model), variants, lodging (crawled in the background), confirm. One lock per session; each committing act is one
 version that undo / redo moves between.
 """
@@ -567,7 +567,7 @@ class Engine:
 
     def baseline_travel_min(self, sid: str) -> int:
         """Total travel minutes of the chosen variant's own day membership, laid out by plain nearest-neighbour
-        from base/entry (docs/specs/PLANNING_SPEC.md §Đo: "baseline = nearest-neighbour + anchor base, không chọn
+        from base/entry (docs/PLANNING.md §Đo: "baseline = nearest-neighbour + anchor base, không chọn
         chỗ ở"). base.variants is always built before the lodging crawl (_build_base), so its own `_results` are
         already anchored at base/entry, never at a lodging candidate -- exactly the baseline the spec means."""
         s = self._get(sid)
@@ -580,7 +580,7 @@ class Engine:
         return sum(simulate(_nearest_neighbour(list(r.order), cx), cx).travel_min
                    for cx, r in zip(base.trip.ctxs, results))
 
-    # ---------- turn (docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp ý) ----------
+    # ---------- turn (docs/PLANNING.md §Vòng người dùng sửa và góp ý) ----------
 
     def _turn_current(self, s: Session, base: _Base) -> list | None:
         """The laid-out days a turn talks about: the active Schedule, or the first variant's before a pick."""

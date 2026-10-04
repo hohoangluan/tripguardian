@@ -1,6 +1,8 @@
 # Trip Understanding
 
-Bước online đầu tiên: hiểu người dùng cần gì cho **chuyến này** trước khi tìm địa điểm. Trang này là bản tham chiếu; nguyên tắc sản phẩm, User Profile và ngân hàng câu hỏi nằm ở `docs/Project_Context.md` §6–12, vị trí trong luồng hệ thống ở `docs/ARCHITECTURE.md` §3.
+Bước online đầu tiên: hiểu người dùng cần gì cho **chuyến này** trước khi tìm địa điểm. Vị trí trong luồng: `docs/ARCHITECTURE.md` §3. Vì sao hỏi như vậy (nguyên tắc có căn cứ nghiên cứu) và User Profile: `docs/Project_Context.md` §6–11, §12.1.
+
+Code: `src/trip/`. CLI và API ở §14.
 
 ## 1. Trip Understanding là gì
 
@@ -29,7 +31,7 @@ NHU CẦU HIỆN TẠI ─┘
 | **Thông tin mang theo** | Link TikTok / Maps đã lưu, nơi bắt buộc đến, booking, giờ xe / máy bay, lịch có sẵn | **Anchor** + tín hiệu gu ngầm (6 link đều là quán cà phê view đồi → gu rõ) | Trung bình – cao |
 | **Nhu cầu hiện tại** | Câu user gõ, câu trả lời làm rõ, lựa chọn chip | **Sự thật của chuyến này** | Cao nhất |
 
-Khi các nguồn mâu thuẫn, thứ tự ưu tiên cố định (`ARCHITECTURE.md` §3.4):
+Khi các nguồn mâu thuẫn, thứ tự ưu tiên cố định:
 
 ```text
 Physical Constraint → User Hard Constraint → Override của chuyến này → Recent Interests → Demonstrated Preferences
@@ -37,19 +39,24 @@ Physical Constraint → User Hard Constraint → Override của chuyến này �
 
 Ví dụ: profile có `hiking = high`, chuyến này "đi với bố mẹ, mẹ đau gối" → hiking bị tắt **cho chuyến này**, không hỏi lại, không sửa long-term profile.
 
-Kinh nghiệm (lần đầu / đã từng đến) và trạng thái bắt đầu (khám phá / đã lưu / anchor / lịch có sẵn) là hai trục độc lập (`ARCHITECTURE.md` §3.1–3.2). Kinh nghiệm quyết định **mức dẫn dắt**; trạng thái bắt đầu quyết định **luồng bắt đầu từ đâu**. Không trục nào trực tiếp quyết định địa điểm.
+Kinh nghiệm (lần đầu / đã từng đến) và trạng thái bắt đầu (khám phá / đã lưu / anchor / lịch có sẵn) là hai trục độc lập. Kinh nghiệm quyết định **mức dẫn dắt**; trạng thái bắt đầu quyết định **luồng bắt đầu từ đâu**. Không trục nào trực tiếp quyết định địa điểm.
 
 ## 3. Trip State
 
 ```text
 Trip State
-├── Thông tin cơ bản   dates, duration, companions, base (chỗ ở), mobility
-├── Anchor             nơi bắt buộc, booking, sự kiện giờ cố định, check-in/out, giờ rời Đà Lạt; độ ưu tiên
-├── Constraint         physical constraint, user hard constraint
-├── Sở thích           override của chuyến, session profile, mặc định từ long-term profile
-├── Nhịp độ            thong thả | cân bằng | đi nhiều  +  travel tolerance, crowd tolerance
-└── Novelty            theo gu quen | thử mới | trộn  (dựa trên Experience History)
+├── Thông tin cơ bản   start_date | month, days, companions, people, base (chỗ ở), mobility, budget_vnd
+├── Điểm vào / ra      entry_point, exit_point — nơi chuyến đi vào và rời thành phố (bến xe, sân bay, tự lái)
+├── Khung giờ          arrive_at, leave_at, day_end
+├── Anchor             nơi bắt buộc, booking, sự kiện giờ cố định; độ ưu tiên must | want
+├── Constraint         hard: physical constraint + user hard constraint
+├── Sở thích           soft: override của chuyến, session profile, mặc định từ long-term profile
+├── Nhịp độ            pace thong thả | cân bằng | đi nhiều  +  max_leg_min, crowd_tolerance
+├── Novelty            theo gu quen | thử mới | trộn  +  visited (Experience History)
+└── meta               experience, start_with, lượt đã hỏi, đã bỏ qua, từ chủ quan còn chờ làm rõ
 ```
+
+`entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Chỉ lưu text + `place_id`; geocode xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
 
 Mỗi field không lưu giá trị trần mà lưu kèm nguồn và trạng thái:
 
@@ -94,14 +101,14 @@ Phân vai:
 
 | Việc | Ai làm | Lý do |
 |---|---|---|
-| Tách field từ câu tự do, phát hiện từ chủ quan, sinh câu nối tiếp / laddering, diễn đạt theo giọng §12.5 | LLM | Ngôn ngữ tự do, mơ hồ |
+| Tách field từ câu tự do, phát hiện từ chủ quan, sinh câu nối tiếp / laddering, diễn đạt theo giọng §13 | LLM | Ngôn ngữ tự do, mơ hồ |
 | Chọn câu tiếp theo, điều kiện dừng, ghi Trip State, biên dịch Search Input | Rule tất định | Test được, tái lập được, không trôi hành vi khi đổi model |
 
 LLM được đề xuất câu hỏi nối tiếp (nhóm I), nhưng câu trả lời luôn được chuẩn hóa về field của Trip State.
 
 ## 5. Chọn câu hỏi tiếp theo
 
-Ba tầng, xét theo thứ tự. Ngân hàng câu hỏi nhóm A–I: `Project_Context.md` §12.2.
+Ba tầng, xét theo thứ tự. Ngân hàng câu hỏi nhóm A–I: §12.
 
 ```text
 Tầng 1 — BẮT BUỘC (rule, không chấm điểm)
@@ -139,7 +146,7 @@ với mỗi field chưa biết f:
 
 Ví dụ: 6 anchor rải rác → `travel tolerance` chia top-K mạnh → score cao. Chỉ 1 anchor ở trung tâm → câu đó gần như không đổi gì → bỏ.
 
-Feature trong Search Input dùng chung id với feature ontology của corpus (`CORPUS.md` §5), nên việc thử đáp án chạy thẳng trên serving record.
+Feature trong Search Input dùng chung id với feature ontology của corpus (`docs/CORPUS.md` §Bản ghi địa điểm), nên việc thử đáp án chạy thẳng trên serving record.
 
 ## 7. Điều kiện dừng
 
@@ -171,17 +178,19 @@ Chưa rõ    ngân sách · ăn uống
 
 ## 9. Search Input
 
-Output cuối cùng, đầu vào của Place Decision (`ARCHITECTURE.md` §6, `docs/PLACE_DECISION.md`).
+Output cuối cùng, đầu vào của Place Decision (`docs/PLACE_DECISION.md` §2.1). Kiểu: `trip.SearchInput`. Mỗi `hard_filter` mang `unknown_policy` (`exclude` | `flag`) để Place Decision biết phải fail-closed tới mức nào.
 
 ```text
 Search Input
-├── context        dates, duration, base, mobility, companions
+├── context        start_date | month, days, base, entry_point, exit_point, mobility, companions,
+│                  people, arrive_at, leave_at, day_end, budget_vnd, experience
 ├── hard_filters   physical + user hard constraint            → loại ứng viên (fail-closed)
 ├── anchors        nơi bắt buộc + độ ưu tiên                  → giữ; đánh giá xung quanh chúng
 ├── soft_weights   sở thích đã làm rõ, theo feature id         → xếp hạng
 ├── pace           thong thả | cân bằng | đi nhiều + travel/crowd tolerance
 ├── novelty        quen | mới | trộn; danh sách nơi đã đi      → giảm / loại nơi đã đi khi muốn mới
-└── unknowns       field chưa rõ                               → không lọc, xếp hạng trung tính, gắn cờ khi giải thích
+├── unknowns       field chưa rõ                               → không lọc, xếp hạng trung tính, gắn cờ khi giải thích
+└── unmapped       tên người dùng nêu mà chưa resolve được     → Place Decision hỏi lại
 ```
 
 Từ chủ quan phải được biên dịch thành feature trước khi vào `soft_weights`:
@@ -197,7 +206,7 @@ Quy tắc cho `unknown`: không dùng để lọc, không suy thành "không th�
 
 ## 10. Điều chỉnh theo người dùng
 
-Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi là mức hướng dẫn, dạng câu hỏi và độ sâu (`Project_Context.md` §12.4).
+Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi là mức hướng dẫn, dạng câu hỏi và độ sâu; căn cứ nghiên cứu ở `Project_Context.md` §12.1.
 
 | Tín hiệu | Cách hỏi |
 |---|---|
@@ -222,7 +231,139 @@ Chỉ dùng thông tin user đã cung cấp hoặc thể hiện trong hội tho�
 | Hệ thống đoán sai | Bản hiểu nhu cầu đánh dấu ✎ phần suy luận / profile; sửa tại chỗ |
 | Câu nhạy cảm (sức khỏe, ngân sách, ăn kiêng) | Giọng trung tính, nói rõ vì sao hỏi, luôn có `Bỏ qua` |
 
-## 12. Ví dụ đầy đủ
+## 12. Ngân hàng câu hỏi
+
+Bộ câu hỏi là **ngân hàng**, không phải form; nhóm A–I là nhóm chủ đề, **không phải thứ tự hỏi** (thứ tự do §5 quyết định). Hệ thống chỉ lấy câu còn thiếu và có khả năng đổi kết quả (`Project_Context.md` §12.1 #1); câu đã biết từ input, anchors hoặc User Profile thì hiển thị để xác nhận thay vì hỏi lại (`Project_Context.md` §7.1). Mọi câu đều có `Không chắc` và `Bỏ qua`.
+
+**A. Khung chuyến đi** — gần như luôn cần; thiếu thì không lập được lịch.
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
+| ----------- | -------------- | ------- |
+| Bạn đi ngày nào, trong mấy ngày? | chọn ngày / "chưa chốt, khoảng … ngày" | `dates`, `duration` |
+| Bạn ở khu nào? | chọn trên bản đồ / "chưa đặt" | `accommodation / base` |
+| Bạn di chuyển trong Đà Lạt bằng gì? | tự lái xe máy · ô tô riêng · Grab/taxi · chưa biết | `mobility` |
+| Có mốc giờ cố định nào không? | giờ nhận/trả phòng · giờ xe/máy bay · lịch hẹn | `user hard constraints` |
+
+**B. Người đồng hành** — thay đổi mạnh tập địa điểm phù hợp.
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
+| ----------- | -------------- | ------- | ------ |
+| Bạn đi cùng ai? | một mình · cặp đôi · bạn bè · gia đình có trẻ nhỏ · có người lớn tuổi | `companions` | [19] (quan hệ, tương tác xã hội là động cơ du lịch) |
+| (nếu đi nhóm) Trong nhóm có ai sở thích khác hẳn hoặc là người chốt quyết định? | có · không · không chắc | `companions` | [22] (quyết định nhóm trong du lịch) |
+
+**C. Ràng buộc thể chất và tiếp cận** — hard constraint, fail-closed.
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
+| ----------- | -------------- | ------- | ------ |
+| Có ai ngại đi bộ xa, leo dốc/bậc thang, hoặc cần lối đi bằng phẳng? | đi bộ ≤ ~15 phút · tránh dốc/bậc · không giới hạn | `physical constraints` | [23] (nhu cầu tiếp cận: vận động, thị giác, thính giác, nhận thức; gồm cả trẻ nhỏ, người lớn tuổi) |
+| Có ai say xe đường đèo, sợ độ cao, dị ứng hoặc ăn kiêng? | chọn nhiều | `physical constraints` | [23] |
+
+**D. Hard constraint của người dùng**
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
+| ----------- | -------------- | ------- |
+| Mức chi cho ăn uống và vé tham quan, mỗi người mỗi ngày? | các khoảng tiền · không quan trọng | `user hard constraints` |
+| Có kiểu địa điểm nào chắc chắn không muốn đi? | chọn nhiều + nhập tự do | `user hard constraints` |
+
+**E. Anchors**
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
+| ----------- | -------------- | ------- |
+| Có nơi nào bạn nhất định muốn đi hoặc đã lưu sẵn? | dán link TikTok / Maps · gõ tên | `anchors` |
+| Nếu không đủ thời gian, nơi nào có thể bỏ trước? | xếp thứ tự các anchor | `anchors` (độ ưu tiên) |
+
+**F. Nhịp độ và mức chịu đựng** — soft; lấy mặc định từ Behavioral Defaults nếu có (`Project_Context.md` §6.2).
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
+| ----------- | -------------- | ------- |
+| Chuyến này thiên về nghỉ ngơi hay khám phá nhiều nơi? | thong thả · cân bằng · đi nhiều | `pace` |
+| Một chặng di chuyển tối đa bao lâu thì bạn vẫn thấy ổn? | ≤ 15 · ≤ 30 · ≤ 60 phút | `travel tolerance` |
+| Chỗ đông người thì sao? | tránh · chấp nhận nếu đáng · không ngại | `crowd tolerance` |
+| Bạn hay bắt đầu ngày lúc mấy giờ? | sớm (săn mây) · bình thường · muộn | Behavioral Defaults |
+| Nếu trời mưa, bạn muốn? | đổi sang trong nhà · giữ nguyên nếu được · để hệ thống đề xuất | `trip-specific override` |
+
+**G. Mục đích và kiểu trải nghiệm** — soft; hỏi theo cách dùng (`Project_Context.md` §12.1 #4).
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
+| ----------- | -------------- | ------- | ------ |
+| Chuyến này chủ yếu để làm gì? | thoát khỏi nhịp thường ngày · thư giãn · gắn kết người đi cùng · thiên nhiên · văn hóa/ẩm thực địa phương · chụp ảnh · thử điều mới | preference của chuyến (`trip-specific override`) | [19], [20] |
+| Bạn hình dung khoảnh khắc đáng nhớ nhất của chuyến này là gì? | nhập tự do | preference của chuyến | [8], [15] |
+| Chọn vài ảnh bạn thấy "đúng chất" chuyến này. | lưới ảnh | preference của chuyến | [21] |
+
+**H. Kinh nghiệm và mức mới lạ** — chủ yếu cho Nhóm B (`Project_Context.md` §3.2).
+
+| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
+| ----------- | -------------- | ------- | ------ |
+| Bạn đã đến Đà Lạt chưa? Lần trước đã đi đâu? | chưa · rồi + chọn nơi đã đi | Experience History | [20] (động cơ đổi theo kinh nghiệm: người có kinh nghiệm thiên về trải nghiệm văn hóa địa phương, thiên nhiên) |
+| Lần này muốn quay lại chỗ quen hay thử cái mới? | theo gu thường ngày · muốn thử điều mới · trộn | `trip-specific override` (novelty) | `Project_Context.md` §6.3, §7.1 |
+
+**I. Câu hỏi nối tiếp** — chỉ xuất hiện khi được kích hoạt.
+
+| Khi nào | Câu hỏi mẫu | Căn cứ |
+| ------- | ----------- | ------ |
+| User dùng từ chủ quan ("chill", "yên tĩnh") | Với bạn "chill" nghĩa là: ít người · có view · ngồi lâu được · nhạc nhẹ? | [10] |
+| User nêu một địa điểm/hoạt động cụ thể | Điều gì ở nơi đó làm bạn muốn đến? | [18] |
+| User chọn `Không chắc` nhiều câu liền | Bạn muốn xem vài gợi ý trước rồi chỉnh không? | [16], [17] |
+| User bỏ một đề xuất | Vì sao bạn bỏ địa điểm này? (`Project_Context.md` §8.3) | [17] |
+
+Cài đặt: `src/trip/questions.py` (ngân hàng + rule tầng 1), `config/trip.yaml` (`turn_budget`, `stop_score`, `top_k`). Căn cứ nghiên cứu của từng nguyên tắc đặt câu hỏi: `Project_Context.md` §12.1.
+
+## 13. Giọng điệu
+
+Mặc định: **gần gũi nhưng không suồng sã** — như một người hướng dẫn du lịch am hiểu, không như bạn thân.
+
+Căn cứ nghiên cứu:
+
+* Chatbot hỏi theo phong cách hội thoại, thân mật (casual) làm người trả lời ít "trả lời cho xong" hơn so với phong cách trang trọng [27]; chatbot biết hỏi nối tiếp thu được câu trả lời cụ thể, rõ và nhiều thông tin hơn khảo sát dạng form [28].
+* Nhưng văn phong thân mật làm giảm tin tưởng khi người dùng chưa quen thương hiệu [29] — TripGuardian là sản phẩm mới với phần lớn user.
+* Với chatbot hỗ trợ du lịch, văn phong đúng với vai trò (register) quyết định cảm nhận phù hợp và độ tin cậy nhiều hơn sở thích cá nhân của user [30]; đặc điểm xã hội của chatbot phải khớp kỳ vọng của user, làm quá sẽ gây khó chịu [31].
+* Khi hỏi thông tin nhạy cảm về sức khỏe, user đánh giá văn phong trang trọng là có năng lực và phù hợp hơn [32].
+* Tiếng Việt không có đại từ trung tính; cách xưng hô luôn định vị quan hệ, tuổi và mức tôn trọng giữa hai bên [33].
+
+Quy tắc:
+
+| Tình huống | Giọng điệu | Ví dụ |
+| ---------- | ---------- | ----- |
+| Mặc định | Câu ngắn, tự nhiên, xưng "mình" – gọi "bạn"; không tiếng lóng, emoji tiết chế. | "Chuyến này bạn muốn thong thả hay đi được nhiều nơi?" |
+| User dùng văn phong thân mật | Được nới theo user một mức, không bắt chước tiếng lóng hay đổi sang cách xưng hô quá thân mật ("tui", "bà", "ní"). | — |
+| Câu hỏi nhạy cảm (nhóm C, ngân sách, ăn kiêng) | Trung tính, tôn trọng, nói rõ vì sao hỏi, nhấn mạnh có thể bỏ qua. | "Để tránh chỗ phải leo dốc, cho mình hỏi: có ai trong nhóm ngại đi bộ xa hoặc lên bậc thang không? Bạn có thể bỏ qua." |
+| Cảnh báo, không khả thi, thiếu dữ liệu | Rõ ràng, không đùa, không giảm nhẹ. | "Hai nơi này cách nhau khoảng 50 phút, không kịp trước giờ đóng cửa." |
+
+Giọng điệu chỉ đổi cách diễn đạt, không đổi nội dung câu hỏi, lựa chọn gợi ý hay field được ghi.
+## 14. CLI và API
+
+`python -m trip serve [--port 8766]` bind `127.0.0.1`; web gọi qua proxy `/api/trip`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); không có thì mọi lượt chạy bằng `policy.py`.
+
+```
+POST   /api/trip/sessions          {experience?, start_with?}  → phiên mới + thẻ mở đầu
+GET    /api/trip/sessions/<id>
+POST   /api/trip/sessions/<id>/turn  SSE: say(delta|replace) · view · done · error
+GET    /api/trip/places?q=<tên>    tra địa điểm cho anchor / nơi đã lưu (chỉ đọc serving index)
+```
+
+Module:
+
+```
+src/trip/
+  settings.py       ngưỡng từ config/trip.yaml
+  text.py           so khớp tên bỏ dấu, bỏ dấu câu
+  state.py          TripState (mỗi field có value, source, confidence, status, evidence), SearchInput
+  catalog.py        đọc serving index: tên → place_id, coverage của hard filter
+  prepass.py        rule tất định đọc câu người dùng trước khi gọi model
+  resolve.py        tên người dùng nêu → place_id, hoặc unmapped
+  values.py         chuẩn hóa giá trị về field của Trip State
+  questions.py      ngân hàng câu hỏi (§12) + rule tầng 1 + chấm giá trị thông tin (§6)
+  coverage.py       hard filter này có đủ bằng chứng trong corpus để đáng hỏi không
+  understanding.py  bản hiểu nhu cầu (§8)
+  compile.py        Trip State → Search Input (§9)
+  agent.py guard.py policy.py   một call mỗi lượt; guard; policy từ khóa khi agent lỗi
+  engine.py sessions.py server.py  phiên có phiên bản, HTTP + SSE, cổng 8766
+```
+
+Test: `python -m pytest -q tests/trip`; gọi model thật: `python -m pytest -m live tests/trip/test_live.py`.
+
+
+## 15. Ví dụ đầy đủ
 
 **Có sẵn:** profile `cà phê = high`, `hiking = high`, Behavioral Defaults "dậy sớm"; Experience History: đã đi Hồ Xuân Hương, Langbiang.
 
@@ -257,7 +398,7 @@ unknowns      budget, dietary
 
 Ba lượt hỏi đủ tạo Search Input chính xác. Phần còn lại lấy từ profile, anchor và suy luận, và user thấy rõ phần nào là suy luận để sửa.
 
-## 13. Đánh giá
+## 16. Đánh giá
 
 Mô phỏng offline: user giả lập bằng LLM, mỗi user có một Trip State ẩn biết trước. So với baseline form cố định.
 

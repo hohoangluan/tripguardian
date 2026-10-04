@@ -1,4 +1,4 @@
-# Live Context settings (docs/specs/PLANNING_SPEC.md §Live Context).
+# Live Context settings (docs/PLANNING.md §Live Context).
 # Planning reads config/planning.yaml; this file belongs to src/live alone, so src/live needs no other package.
 version: 1
 
@@ -23,7 +23,7 @@ nominatim_min_interval_s: 1.0
 # Open-Meteo: free, no key, daily forecast up to 16 days ahead; config/climate.yaml covers dates beyond that.
 open_meteo_url: https://api.open-meteo.com/v1/forecast
 
-# Maps' hotel list ("Khách sạn"), queried through corpus.crawl's public API (PLANNING_SPEC.md §Chỗ ở).
+# Maps' hotel list ("Khách sạn"), queried through corpus.crawl's public API (docs/PLANNING.md §Chỗ ở (crawl live)).
 lodging_query_limit: 40
 
 # Seconds. Roads change slowly, forecasts quickly, OTA prices daily.

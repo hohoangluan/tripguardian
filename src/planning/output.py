@@ -1,4 +1,4 @@
-"""Plan Output (docs/specs/PLANNING_SPEC.md §Plan Output): the chosen variant, finalized at confirm().
+"""Plan Output (docs/PLANNING.md §Plan Output): the chosen variant, finalized at confirm().
 
 route and cost are the two parts no variant dict already carries (route needs a fresh OSRM call per day; cost needs
 the chosen lodging's price). Everything else here is reshaping what build.py / variants.py already computed.

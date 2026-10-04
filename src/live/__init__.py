@@ -1,4 +1,4 @@
-"""Live Context: facts fetched per request from outside (docs/specs/PLANNING_SPEC.md §Live Context).
+"""Live Context: facts fetched per request from outside (docs/PLANNING.md §Live Context).
 
 Three rules hold for everything in here:
   - it never writes Place Intelligence; the only thing it writes is its own cache under data/live/;

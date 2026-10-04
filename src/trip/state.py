@@ -1,4 +1,4 @@
-"""Trip State and Search Input (docs/TRIP_UNDERSTANDING.md §17).
+"""Trip State and Search Input (docs/TRIP_UNDERSTANDING.md §3, §9).
 
 Every value carries where it came from. apply() is the only way a state changes; settle() closes physical signals that
 a hard filter already answers.

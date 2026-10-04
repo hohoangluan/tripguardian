@@ -1,4 +1,4 @@
-# Đà Lạt's monthly rain probability (docs/specs/PLANNING_SPEC.md §Live Context), hand-entered like
+# Đà Lạt's monthly rain probability (docs/PLANNING.md §Live Context), hand-entered like
 # config/holidays.yaml: used only for a date beyond Open-Meteo's forecast horizon. A rough estimate to tune against
 # local knowledge before the pilot, not a measurement.
 rain_prob_by_month:

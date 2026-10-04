@@ -1,4 +1,4 @@
-"""Estimates of one place (docs/specs/CORPUS_SPEC.md §5): category group, visit time as a range, entry fee in VND.
+"""Estimates of one place (docs/CORPUS.md §5): category group, visit time as a range, entry fee in VND.
 
 config/category_defaults.yaml holds the per-category defaults. An estimate always says where it came from
 (`source`): review evidence when enough people said it, the category default otherwise. Never a fact, never a hard

@@ -136,7 +136,7 @@ def test_confirm_refuses_an_unvalidated_plan():
     out = e.confirm(sid)
     assert out["chosen"]
     # confirm() re-derives violations from the cached results' items via validate() -- it never trusts a DayResult's
-    # own .violations field (docs/specs/PLANNING_SPEC.md ⓔ: "validate.py là nơi duy nhất kết luận pass / fail").
+    # own .violations field (docs/PLANNING.md ⓔ: "validate.py là nơi duy nhất kết luận pass / fail").
     # Corrupt a day's first item to start before the day opens, which validate() catches independently of anything
     # simulate() itself noticed.
     pos = e.store.get(sid).position

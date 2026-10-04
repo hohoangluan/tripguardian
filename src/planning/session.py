@@ -1,5 +1,5 @@
 """A Planning session: a Decision Output plus the user's edits, versioned for undo / redo
-(docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp ý). Shaped like src/decision/session.py; in memory,
+(docs/PLANNING.md §Vòng người dùng sửa và góp ý). Shaped like src/decision/session.py; in memory,
 mirrored to data/planning/sessions/<id>.json so a reload or a restart resumes. Only State is persisted -- the laid
 out Schedule is rebuilt by the engine (Task 6), never serialized here.
 """

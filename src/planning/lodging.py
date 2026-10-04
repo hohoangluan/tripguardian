@@ -1,4 +1,4 @@
-"""Lodging candidates for the trip (docs/specs/PLANNING_SPEC.md ⓐ): search area, sieve, shortlist to K.
+"""Lodging candidates for the trip (docs/PLANNING.md ⓐ): search area, sieve, shortlist to K.
 
 Candidates never become Place Intelligence: they live only in this call's result, each carrying source and
 fetched_at. A sieve step with no amenity evidence keeps the candidate (unknown, not rejected); it never drops one
@@ -103,7 +103,7 @@ def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, lodgin
 
 def progress_event(cands: list[dict], baseline_travel_min: int | None) -> dict:
     """The one event P6's SSE server relays while lodging crawls in the background
-    (docs/specs/PLANNING_SPEC.md §Chỗ ở không làm người dùng chờ). baseline_travel_min comes from the caller (the
+    (docs/PLANNING.md §Chỗ ở không làm người dùng chờ). baseline_travel_min comes from the caller (the
     trip already scheduled once without lodging): this module never recomputes it.
     """
     return {"event": "progress", "stage": "lodging_scored",

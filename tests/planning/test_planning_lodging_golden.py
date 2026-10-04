@@ -1,4 +1,4 @@
-"""Golden lodging variants of the sample trip (docs/specs/PLANNING_SPEC.md §Test).
+"""Golden lodging variants of the sample trip (docs/PLANNING.md §Test).
 UPDATE_GOLDEN=1 python -m pytest tests/planning/test_planning_lodging_golden.py"""
 
 import json

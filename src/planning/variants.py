@@ -1,4 +1,4 @@
-"""Two or three checked variants, each best on a different objective (docs/specs/PLANNING_SPEC.md ⓖ).
+"""Two or three checked variants, each best on a different objective (docs/PLANNING.md ⓖ).
 
 One prepare() and one travel matrix for all of them. Each chosen objective lays the trip out with its own day-split
 weights; a variant validate rejects is dropped, two variants with the same days in the same order are one. No variant
@@ -123,7 +123,7 @@ def _nights(ctx: dict) -> int:
 
 def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None,
                            matrix_fn=None, sun_fn=None, weather: dict | None = None, lodging_fn=None) -> dict:
-    """build_variants, with lodging candidates competing as each day's anchor (docs/specs/PLANNING_SPEC.md ⓐ ⓖ).
+    """build_variants, with lodging candidates competing as each day's anchor (docs/PLANNING.md ⓐ ⓖ).
 
     Every candidate (plus the original base, as "no lodging") is tried under every chosen objective, sharing one
     travel matrix and one day-order cache keyed on where each day starts and ends. An objective keeps whichever

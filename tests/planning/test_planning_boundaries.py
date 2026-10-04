@@ -1,5 +1,5 @@
 """Planning reads other packages only through their public API and writes nothing of the corpus
-(docs/specs/PLANNING_SPEC.md §Ranh giới module; RULE.md §2)."""
+(docs/PLANNING.md §Ranh giới module; RULE.md §2)."""
 
 import ast
 from pathlib import Path
@@ -31,7 +31,7 @@ def test_there_is_something_to_check():
 def test_no_deep_import_into_live_or_corpus_and_none_into_decision_or_trip(path):
     for name in imports(path):
         top = name.split(".")[0]
-        # decision: only evaluate.py, offline, in process, through decision's public __init__ (PLANNING_SPEC.md
+        # decision: only evaluate.py, offline, in process, through decision's public __init__ (docs/PLANNING.md
         # §Ranh giới module lists decision as a one-way dependency; P9 ruling). Everywhere else it stays forbidden.
         assert top != "decision" or (path.name == "evaluate.py" and name == "decision"), f"{path.name} imports {name}"
         # trip: only its public text helpers (trip/__init__.py), the same import decision/guard.py makes (P7 ruling)

@@ -1,4 +1,4 @@
-"""One agent call per typed message on the Planning screen (docs/specs/PLANNING_SPEC.md §Vòng người dùng sửa và góp
+"""One agent call per typed message on the Planning screen (docs/PLANNING.md §Vòng người dùng sửa và góp
 ý): prompt from the session's current laid-out trip, streamed `say`, typed plan. Same streaming guards as
 src/decision/agent.py and src/trip/agent.py, kept here: modules only meet through public APIs."""
 

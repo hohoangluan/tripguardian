@@ -1,6 +1,8 @@
 # Place Decision
 
-Bước online thứ hai: từ **Search Input** của Trip Understanding và serving index của Place Intelligence, giúp người dùng chọn ra **tập địa điểm đã xác nhận** trước khi xếp lịch. Trang này là bản tham chiếu; nguyên tắc sản phẩm ở `docs/Project_Context.md` §9, §14; vị trí trong luồng hệ thống ở `docs/ARCHITECTURE.md` §5–8; đầu vào ở `docs/TRIP_UNDERSTANDING.md` §9.
+Bước online thứ hai: từ **Search Input** của Trip Understanding và serving index của Place Intelligence, giúp người dùng chọn ra **tập địa điểm đã xác nhận** trước khi xếp lịch. Vị trí trong luồng: `docs/ARCHITECTURE.md` §3. Đầu vào: `docs/TRIP_UNDERSTANDING.md` §9. Nguyên tắc sản phẩm: `docs/Project_Context.md` §9, §14.
+
+Code: `src/decision/`. CLI và API ở §18.
 
 ## 1. Place Decision là gì
 
@@ -14,10 +16,10 @@ SERVING INDEX ─┘                              (fail-closed) (thô)          
 ```
 
 - Mục tiêu là **một tập quyết định nhỏ, hữu ích**, không phải danh sách dài. Hệ thống hỗ trợ chọn, không chọn thay.
-- Constraint trước sở thích: profile và sở thích chỉ xếp hạng ứng viên đã qua sàng lọc (`Project_Context.md` §14.2, §14.7).
+- Constraint trước sở thích: profile và sở thích chỉ xếp hạng ứng viên đã qua sàng lọc (`docs/Project_Context.md` §14.2, §14.8).
 - Không bịa: địa điểm thiếu bằng chứng cho một khía cạnh thì khía cạnh đó là `unknown`, không phải "không có".
 - Chỉ đọc: Place Decision đọc serving record, không ghi Place Intelligence. Nó chỉ ghi Session Profile (từ thao tác tuyển chọn) và danh sách đã xác nhận.
-- Chỉ dùng độ hợp không gian **thô**. Thời gian di chuyển thực tế, thời tiết, điều kiện tạm thời thuộc Live Context của bước Planning (`ARCHITECTURE.md` §9).
+- Chỉ dùng độ hợp không gian **thô**. Thời gian di chuyển thực tế, thời tiết, điều kiện tạm thời thuộc Live Context của bước Planning (`docs/PLANNING.md` §Live Context).
 
 ## 2. Đầu vào
 
@@ -39,7 +41,7 @@ Search Input có thể đổi giữa chừng (user sửa bản hiểu nhu cầu,
 
 ### 2.2 Serving record
 
-Place Decision chỉ đọc serving record (`CORPUS.md` §5), không duyệt đồ thị bằng chứng:
+Place Decision chỉ đọc serving record (`docs/CORPUS.md` §Bản ghi địa điểm), không duyệt đồ thị bằng chứng:
 
 ```text
 Identity      id, POI | ZONE, category, vị trí / hình học, cụm / khu vực
@@ -51,7 +53,7 @@ Suitability   cặp đôi, gia đình, người lớn tuổi, …
 Provenance    trạng thái theo khía cạnh, coverage theo khía cạnh, confidence 4 thành phần, tham chiếu bằng chứng
 ```
 
-Chỉ record có trạng thái `VERIFIED`, `UNCERTAIN`, `OUTDATED` được dùng (`CORPUS.md` §6). `NEEDS_REVIEW` và `DISABLED` không bao giờ xuất hiện.
+Chỉ record có trạng thái `VERIFIED`, `UNCERTAIN`, `OUTDATED` được dùng (`docs/CORPUS.md` §Trạng thái). `NEEDS_REVIEW` và `DISABLED` không bao giờ xuất hiện.
 
 ## 3. Luồng xử lý
 
@@ -68,20 +70,20 @@ Chỉ record có trạng thái `VERIFIED`, `UNCERTAIN`, `OUTDATED` được dùn
 ⑩  XÁC NHẬN         danh sách đã xác nhận + pool dự phòng → Planning (§15)
 ```
 
-⑧ ↔ ⑨ là vòng lặp chính. Planning không xếp được thì quay về ⑧ (`ARCHITECTURE.md` §15).
+⑧ ↔ ⑨ là vòng lặp chính. Planning không xếp được thì quay về ⑧ (`docs/ARCHITECTURE.md` §6).
 
 Phân vai:
 
 | Việc | Ai làm | Lý do |
 |---|---|---|
-| Resolve, truy xuất, sàng lọc, chấm điểm, đa dạng, khả thi | Rule tất định | Test được, tái lập được; AI không tự xác nhận khả thi (`Project_Context.md` §14.6) |
+| Resolve, truy xuất, sàng lọc, chấm điểm, đa dạng, khả thi | Rule tất định | Test được, tái lập được; AI không tự xác nhận khả thi (`docs/Project_Context.md` §14.7) |
 | Chọn cặp so sánh, tính khác biệt giữa hai nơi | Rule tất định | Chỉ so trên khía cạnh có bằng chứng |
 | Diễn đạt "vì sao phù hợp", "đánh đổi", lý do bỏ thành câu | LLM | Chỉ diễn đạt lại field của serving record và kết quả rule; không thêm nhận định mới |
 | Hiểu lý do bỏ / critique nhập tự do ("xa quá", "muốn chỗ ít người hơn") | LLM | Chuẩn hóa về field của Search Input / Session Profile |
 
 ## 4. Resolve địa điểm của người dùng
 
-Anchor, địa điểm đã lưu, địa điểm nhập tay đi qua cùng bộ matcher của corpus (`ARCHITECTURE.md` §5, `CORPUS.md` §8).
+Anchor, địa điểm đã lưu, địa điểm nhập tay đi qua cùng bộ matcher của corpus (`docs/CORPUS.md` §3 Resolve). Input của người dùng không bao giờ thành bằng chứng về địa điểm.
 
 | Kết quả | Xử lý tiếp |
 |---|---|
@@ -103,10 +105,10 @@ nguồn ứng viên
 └── tìm kiếm của user           tìm tên / feature trong phiên
 ```
 
-- Luồng bắt đầu theo **trạng thái bắt đầu** (`ARCHITECTURE.md` §3.2): khám phá → truy xuất rộng; đã lưu → tập = danh sách đã lưu, truy xuất thêm chỉ để có phương án thay thế; lịch có sẵn → đi thẳng tới ⑨ để phát hiện xung đột.
+- Luồng bắt đầu theo **trạng thái bắt đầu** (`docs/TRIP_UNDERSTANDING.md` §2): khám phá → truy xuất rộng; đã lưu → tập = danh sách đã lưu, truy xuất thêm chỉ để có phương án thay thế; lịch có sẵn → đi thẳng tới ⑨ để phát hiện xung đột.
 - Truy xuất rộng hơn shortlist nhiều lần để sàng lọc và đa dạng còn đủ chỗ chọn; cỡ nằm trong config.
-- Coverage giới hạn vai trò: địa điểm `experience = NONE` chỉ được dùng làm chỗ ăn, anchor, hoặc dự phòng, không được gợi ý như một trải nghiệm (`CORPUS.md` §4).
-- Không có chỗ ở trong ứng viên (`ARCHITECTURE.md` §9.1).
+- Coverage giới hạn vai trò: địa điểm `experience = NONE` chỉ được dùng làm chỗ ăn, anchor, hoặc dự phòng, không được gợi ý như một trải nghiệm (`docs/CORPUS.md` §Ba loại output).
+- Không có chỗ ở trong ứng viên: chỗ ở không nằm trong Place Intelligence, Planning tra live theo request (`docs/PLANNING.md` §Chỗ ở (crawl live)).
 
 ## 6. Sàng lọc constraint
 
@@ -162,7 +164,7 @@ Nới là quyết định của user, chỉ áp cho địa điểm đó trong ch
 Mỗi ứng viên bị loại giữ `reason` (constraint, giá trị, bằng chứng). Dùng để:
 
 - trả lời "vì sao không có nơi X?";
-- dựng pool dự phòng cho Planning (`ARCHITECTURE.md` §13): ứng viên bị loại vì lý do theo ngữ cảnh (ví dụ ngoài trời) vẫn có thể là phương án thay thế trong điều kiện khác;
+- dựng pool dự phòng cho Planning (`docs/PLANNING.md` ⓗ): ứng viên bị loại vì lý do theo ngữ cảnh (ví dụ ngoài trời) vẫn có thể là phương án thay thế trong điều kiện khác;
 - đo chất lượng (§17).
 
 ## 7. Độ hợp bối cảnh
@@ -194,7 +196,7 @@ score = w_ctx   · context_fit
 
 Quy tắc:
 
-- Feature id dùng chung với ontology của corpus (`CORPUS.md` §5), nên `preference_fit` là phép khớp trực tiếp.
+- Feature id dùng chung với ontology của corpus (`docs/CORPUS.md` §Bản ghi địa điểm), nên `preference_fit` là phép khớp trực tiếp.
 - Địa điểm **không có bằng chứng** cho một feature → đóng góp 0, không âm. Phần thiếu đi vào `uncertainty`, chỉ tính cho feature user quan tâm.
 - Feature `off` cho chuyến này (ví dụ `hiking = off`) → không cộng; không loại trừ khi đó không phải hard filter.
 - `novelty = high` → nơi trong Experience History bị giảm mạnh hoặc loại khỏi khám phá (không loại nếu user đưa vào anchor). Đã đến ≠ đã thích (`Project_Context.md` §11).
@@ -213,7 +215,7 @@ Nhóm "cà phê view đồi, yên tĩnh"
 └── thay thế  B, C   hiển thị khi mở nhóm hoặc so sánh
 ```
 
-Chọn tiếp theo kiểu MMR: mỗi lần chọn ứng viên có `score` cao nhưng khác nhất với các nơi đã chọn, để shortlist gồm các lựa chọn thực sự khác nhau (`ARCHITECTURE.md` §6.4).
+Chọn tiếp theo kiểu MMR (`corpus.serving.mmr`): mỗi lần chọn ứng viên có `score` cao nhưng khác nhất với các nơi đã chọn, để shortlist gồm các lựa chọn thực sự khác nhau.
 
 ### 9.2 Cỡ shortlist
 
@@ -232,7 +234,7 @@ Hệ số dư để user có chỗ chọn nhưng không bị ngợp. Số cụ t
 
 ### 9.3 Nhóm hiển thị
 
-Shortlist được trình bày theo nhóm hữu ích (`ARCHITECTURE.md` §7), chọn theo chuyến: theo loại trải nghiệm, theo khu vực, hoặc theo buổi phù hợp. Anchor luôn đứng đầu, tách riêng.
+Shortlist được trình bày theo nhóm hữu ích, chọn theo chuyến: theo loại trải nghiệm, theo khu vực, hoặc theo buổi phù hợp. Anchor luôn đứng đầu, tách riêng.
 
 ## 10. So sánh
 
@@ -259,7 +261,7 @@ Mỗi so sánh chỉ dùng giá trị trong serving record. Tác động di chuy
 
 ## 11. Thẻ ứng viên
 
-Mỗi ứng viên chỉ hiển thị thông tin phục vụ quyết định (`ARCHITECTURE.md` §7, `UX_Design_Brief.md`):
+Mỗi ứng viên chỉ hiển thị thông tin phục vụ quyết định (`docs/Role_Web_Functional_Design.md` §2.5, `docs/UX_Design_Brief.md` §4):
 
 | Mục | Nội dung | Nguồn |
 |---|---|---|
@@ -270,7 +272,7 @@ Mỗi ứng viên chỉ hiển thị thông tin phục vụ quyết định (`AR
 | Độ tin cậy | Trạng thái theo khía cạnh; `UNCERTAIN` / `OUTDATED` hiển thị rõ | Provenance |
 | Phụ thuộc unknown | "Chưa biết ngân sách của bạn; giá nơi này khoảng …" | `unknowns` |
 
-Giờ / giá / vị trí lấy từ bằng chứng official hoặc Google, không trộn với bằng chứng trải nghiệm (`CORPUS.md` §8). Không hiển thị một review đơn lẻ như sự thật.
+Giờ / giá / vị trí lấy từ bằng chứng official hoặc Google, không trộn với bằng chứng trải nghiệm (`docs/CORPUS.md` §Place Decision dùng corpus thế nào). Không hiển thị một review đơn lẻ như sự thật.
 
 ## 12. Người dùng tuyển chọn
 
@@ -333,7 +335,7 @@ Gợi ý sửa luôn kèm cái giá cụ thể, dựa trên cùng phép tính: "
 
 ### 13.3 Nơi user khóa gây xung đột
 
-Theo đúng `ARCHITECTURE.md` §8: chỉ vi phạm user constraint → hỏi nới kèm cái giá; vi phạm physical → không tạo tổ hợp giả vờ khả thi (giữ wishlist, đề xuất ngày khác, bỏ nơi khác); giờ chưa chắc → cho giữ kèm cảnh báo.
+Theo đúng mô hình constraint (`docs/ARCHITECTURE.md` §2): chỉ vi phạm user constraint → hỏi nới kèm cái giá; vi phạm physical → không tạo tổ hợp giả vờ khả thi (giữ wishlist, đề xuất ngày khác, bỏ nơi khác); giờ chưa chắc → cho giữ kèm cảnh báo.
 
 ## 14. Chạy lại khi đầu vào đổi
 
@@ -350,7 +352,7 @@ Nơi đã chọn / khóa không bị loại âm thầm khi chạy lại; nếu c
 
 ## 15. Output
 
-Output cuối cùng, đầu vào của Planning & Validation (`ARCHITECTURE.md` §9).
+Output cuối cùng, đầu vào của Planning & Validation (`docs/PLANNING.md` §Đầu vào).
 
 ```text
 Decision Output
@@ -362,7 +364,7 @@ Decision Output
 └── decision_log   vì sao chọn, vì sao bỏ, đánh đổi user chấp nhận → để giải thích ở kế hoạch cuối
 ```
 
-`decision_log` giúp kế hoạch cuối trả lời "Vì sao chọn những nơi này?" và "Đã phải hy sinh gì?" (`ARCHITECTURE.md` §14).
+`decision_log` giúp kế hoạch cuối trả lời "Vì sao chọn những nơi này?" và "Đã phải hy sinh gì?" (`docs/PLANNING.md` §Plan Output).
 
 ## 16. Ví dụ đầy đủ
 
@@ -402,7 +404,7 @@ unknowns      budget, dietary
 
 Giá cả không được kiểm vì `budget` là `unknown`; thẻ ứng viên hiển thị khoảng giá để user tự cân nhắc.
 
-## 17. Đánh giá
+## 17. Đánh giá — `python -m decision evaluate`
 
 Mô phỏng offline trên các Trip State ẩn (dùng chung bộ mô phỏng với `TRIP_UNDERSTANDING.md` §13) + nhãn review của corpus. So với baseline trong `Project_Context.md` §19.
 
@@ -416,3 +418,53 @@ Mô phỏng offline trên các Trip State ẩn (dùng chung bộ mô phỏng v�
 | Số vòng tuyển chọn ↔ khả thi trước khi xác nhận | Chi phí quyết định |
 | Tỉ lệ tổ hợp "khả thi" bị Planning trả về | Độ chính xác của ước lượng thô |
 | Kết quả đổi hợp lý khi đổi preference | Cá nhân hóa (`Project_Context.md` §18) |
+
+---
+
+## 18. CLI và API
+
+```
+python -m decision evaluate            # 30 Trip State ẩn ở config/eval_trips.yaml, trong tiến trình
+python -m decision serve [--port 8767] # HTTP + SSE cho web
+```
+
+`serve` bind `127.0.0.1`; web gọi qua proxy `/api/decision`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); không có thì mọi lượt gõ chữ chạy bằng `policy.py`.
+
+```
+POST   /api/decision/sessions                   {search_input, trip_session?}
+GET    /api/decision/sessions/<id>
+POST   /api/decision/sessions/<id>/act          tất định; 400 khi act sai (state không đổi)
+POST   /api/decision/sessions/<id>/turn         {text} → SSE: say(delta|replace) · view · done · error
+GET    /api/decision/sessions/<id>/compare?a=&b=
+GET    /api/decision/sessions/<id>/why-not/<place_id>
+POST   /api/decision/sessions/<id>/confirm      → Decision Output; 409 khi chưa chốt được
+```
+
+Lỗi: 400 act sai hoặc `text` rỗng / > 1000 ký tự, 404 không có phiên, 409 version ontology của Search Input khác corpus hoặc chưa chốt được.
+
+Act trên một địa điểm: `select`, `drop` (kèm `reason`: `far | crowded | pricey | dislike | visited`), `lock`, `unlock`, `swap`, `relax`, `wishlist`; ngoài ra `prefer`, `feedback`, `answer`, `undo`, `confirm`. `scope.replan_scope(act)` trả bước sớm nhất phải chạy lại theo bảng §14; `scope.input_scope(old, new)` làm điều đó khi người dùng sửa bản hiểu nhu cầu.
+
+Module:
+
+```
+src/decision/
+  model.py settings.py       kiểu dữ liệu; ngưỡng từ config/decision.yaml
+  geo.py trip_days.py        khoảng cách thô theo cụm; các ngày của chuyến
+  screen.py                  ③ sàng lọc fail-closed, nới theo từng nơi (§6)
+  fit.py                     ④ độ hợp bối cảnh thô (§7)
+  rank.py                    ⑤ điểm kèm từng thành phần (§8)
+  diversify.py               ⑥ gom nơi gần trùng + MMR (§9)
+  compare.py cards.py        ⑦ so sánh chỉ trên bằng chứng; thẻ ứng viên (§10, §11)
+  curation.py                ⑧ act thuần sinh State mới + Session Profile nó dạy (§12)
+  feasibility.py             ⑨ khả thi của tổ hợp (§13)
+  pipeline.py                ① → ⑥ một đường, tất định
+  output.py                  ⑩ Decision Output (§15)
+  scope.py                   chạy lại từ bước nào (§14)
+  agent.py guard.py policy.py  một call mỗi lượt chữ; guard; policy từ khóa khi agent lỗi
+  engine.py session.py server.py  phiên có phiên bản, HTTP + SSE, cổng 8767
+  evaluate.py                đo offline (§17)
+```
+
+Test: `python -m pytest -q tests/decision`; gọi model thật: `python -m pytest -m live tests/decision/test_decision_live.py`.
+
+Web: `web/src/user/pd/` (`types.ts`, `api.ts`, `decision.tsx` — `DecisionProvider` + `useDecision()`), màn `Shortlist.tsx`, `PlaceDetail.tsx`, `Compare.tsx`, `Curate.tsx`, `Feasibility.tsx`. Chức năng từng màn: `docs/Role_Web_Functional_Design.md` §2.5–2.9.

@@ -1,8 +1,8 @@
 # Kế hoạch: nâng chất lượng corpus cho Place Decision
 
-Plan làm việc tạm (`RULE.md` §0.1): khi xong từng việc, gộp phần còn giá trị vào `docs/specs/CORPUS_SPEC.md` / `docs/CORPUS.md` / `docs/log/DEV_LOG.md`, xóa mục tương ứng ở đây; hết việc thì xóa file.
+Plan làm việc tạm (`RULE.md` §0.1): khi xong từng việc, gộp phần còn giá trị vào `docs/CORPUS.md` / `docs/log/DEV_LOG.md`, xóa mục tương ứng ở đây; hết việc thì xóa file.
 
-Hiện trạng (2026-10-02, trưa): code của V1–V6 đã xong và đã ghi vào `CORPUS_SPEC.md` §4–§5 + `DEV_LOG.md` (corpus-observe, corpus-aggregate, corpus-review, corpus-observe-tiktok, corpus-serving). Còn lại là việc máy chạy, việc người, và hai quyết định.
+Hiện trạng (2026-10-02, trưa): code của V1–V6 đã xong và đã ghi vào `docs/CORPUS.md` §4–§5 + `DEV_LOG.md` (corpus-observe, corpus-aggregate, corpus-review, corpus-observe-tiktok, corpus-serving). Còn lại là việc máy chạy, việc người, và hai quyết định.
 
 ## Trạng thái chạy máy (2026-10-02 14:40) — session khác tiếp tục từ đây
 
@@ -23,7 +23,7 @@ Việc nên làm khi máy rảnh: (1) `python -m corpus gmaps photos` cho hết 
 
 ## Việc người
 
-- **Gán nhãn** (`python -m corpus review` + `cd web && npm run dev`, `/admin/labels`): ≥ 30 nhãn đúng/sai cho mỗi giá trị quan trọng; ưu tiên `steep_or_stairs`, `long_walk` (cả `absent`), `weather_exposed`, `booking_needed`, `entry_fee`, `visit_duration`, suitability, rồi nguồn TikTok. Nhãn khóa theo nội dung nên gán ngay bây giờ vẫn giữ sau lần chạy lại (trừ khẳng định lần chạy mới không còn tạo). Sau khi gán: `python -m corpus aggregate && python -m corpus serving && python -m corpus evaluate`.
+- **Gán nhãn** (`python -m corpus review` + `cd web && npm run dev`, `/admin/labels`): ≥ 30 nhãn đúng/sai cho mỗi giá trị quan trọng; ưu tiên `steep_or_stairs`, `long_walk` (cả `absent`), `weather_exposed`, `booking_needed`, `entry_fee`, `visit_duration`, suitability, rồi nguồn TikTok. Nhãn khóa theo nội dung nên gán ngay bây giờ vẫn giữ sau lần chạy lại (trừ khẳng định lần chạy mới không còn tạo). Sau khi gán: `python -m corpus aggregate && python -m corpus serving && python -m decision evaluate`.
 - Nghiệm thu V1: 5 feature đã sửa (`condition_change`, `long_walk`, `weather_exposed`, `booking_needed`, `visit_duration`) đạt ≥ 85% trên nhãn.
 
 ## Quyết định đã chốt
@@ -46,4 +46,4 @@ Việc nên làm khi máy rảnh: (1) `python -m corpus gmaps photos` cho hết 
 
 - Gemma (UIT) chỉ truy cập được trên mạng UIT; key chung 40 call đồng thời: không chạy TikTok observe / `place_verify` song song với `gmaps observe` (429).
 - 9router (`cx/gpt-5.6-*`) thử làm extractor 2026-10-02: 3–4 phút một lô, `REVIEW_VERIFY` lỗi → không dùng cho chạy toàn bộ.
-- Docs `CORPUS_SPEC.md`, `CORPUS.md`, `PLACE_DECISION.md`, `DEV_LOG.md` còn sửa đổi chưa commit của session khác (phần crawl, vai trò model, data layout); khi commit docs chỉ stage hunk của mình.
+- Docs `CORPUS.md`, `PLACE_DECISION.md`, `DEV_LOG.md` còn sửa đổi chưa commit của session khác (phần crawl, vai trò model, data layout); khi commit docs chỉ stage hunk của mình.

@@ -1,4 +1,4 @@
-# Place Decision thresholds (docs/plans/PLACE_DECISION_SPEC.md §18). Starting values; tune after the pilot.
+# Place Decision thresholds (docs/PLACE_DECISION.md). Starting values; tune after the pilot.
 version: 1
 center: {name: "trung tâm Đà Lạt", lat: 11.9404, lng: 108.4583}
 speed_kmh: {motorbike: 25, car: 25, ride: 22}

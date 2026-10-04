@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time OSRM setup for Planning's travel matrices (docs/specs/PLANNING_SPEC.md, Live Context).
+# One-time OSRM setup for Planning's travel matrices (docs/PLANNING.md, Live Context).
 # Needs docker. Data lands in ./osrm-data, which .gitignore excludes.
 set -euo pipefail
 

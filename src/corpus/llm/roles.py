@@ -1,4 +1,4 @@
-"""Model roles (docs/specs/CORPUS_SPEC.md, Vai trò model): which .env keys point each role at its model.
+"""Model roles (docs/CORPUS.md, Vai trò model): which .env keys point each role at its model.
 
 Which model fills a role is config (docs/LLM_PROVIDER.md); code asks for a role, never for a model.
 """

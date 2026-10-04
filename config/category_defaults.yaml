@@ -1,4 +1,4 @@
-# Estimates by Maps category (docs/specs/CORPUS_SPEC.md §5). Shown as an estimate ("chưa xác minh"), never as a fact,
+# Estimates by Maps category (docs/CORPUS.md §5). Shown as an estimate ("chưa xác minh"), never as a fact,
 # and never used by a hard filter. Evidence from reviews / videos wins when there is enough of it.
 # A category goes to the first group whose `match` words it contains (lower case); no match -> `other`.
 # visit_minutes: [short, typical, long] for one visit.

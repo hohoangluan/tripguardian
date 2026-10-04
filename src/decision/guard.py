@@ -1,4 +1,4 @@
-"""Checks an agent TurnPlan before it touches the session (spec §14): quotes come from the message, aliases are on
+"""Checks an agent TurnPlan before it touches the session (docs/PLACE_DECISION.md §18): quotes come from the message, aliases are on
 screen, values are in the allowed sets; `say` holds no number or place name the user and the screen do not hold."""
 
 import re

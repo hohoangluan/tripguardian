@@ -2,27 +2,29 @@
 
 Hệ thống place intelligence + lập lịch trình cá nhân hóa.
 
-**Bắt buộc tuân theo:** `RULE.md`
+**Bắt buộc tuân theo:** `RULE.md`. Rule thường trực chỉ nằm một chỗ ở đó; `CLAUDE.md` chỉ import file này.
 
-**Đọc khi cần (không chép nội dung vào file này):**
-- Sản phẩm: vì sao, cho ai, User Profile, nguyên tắc, phạm vi MVP, thước đo: `docs/Project_Context.md`
-- Kiến trúc: luồng hệ thống và quy tắc quyết định: `docs/ARCHITECTURE.md`
-- Corpus Place Intelligence: `docs/CORPUS.md` (tổng quan), `docs/specs/CORPUS_SPEC.md` (thiết kế chi tiết: vai trò model, gate, định tuyến, data model, phase)
-- Place Decision (Search Input → shortlist → địa điểm đã xác nhận): `docs/PLACE_DECISION.md`
-- Planning & Validation + Live Context (địa điểm đã xác nhận → lịch trình đã kiểm, chỗ ở live): `docs/specs/PLANNING_SPEC.md`
-- Chức năng Web theo vai trò (quyền, từng màn làm gì): `docs/Role_Web_Functional_Design.md`
-- Brief UI/UX cho designer (nguyên tắc, cách hiển thị dữ liệu, ràng buộc): `docs/UX_Design_Brief.md`
-- Nhật ký tính năng / trạng thái code: `docs/log/DEV_LOG.md` (chỉ đọc khi người dùng yêu cầu, hoặc khi cần tìm hiểu code đã sửa gì / thay đổi gì)
-- Cấu hình LLM provider (endpoint, chọn model, key, lưu ý): `docs/LLM_PROVIDER.md`
-- Nhật ký lỗi của agent (bằng chứng trước khi nâng thành rule): `docs/log/AGENT_FAILURES.md`
+**Mục lục tài liệu, cách thiết lập, cách chạy, cách test:** `README.md`. Không chép danh sách tài liệu vào đây.
 
-`CLAUDE.md` chỉ import file này. Rule thường trực chỉ nằm một chỗ trong `RULE.md`.
+## Vào việc từ đâu
 
-## Tóm tắt (xem RULE.md + Project_Context.md + ARCHITECTURE.md)
+| Việc | Đọc |
+|---|---|
+| Hiểu toàn hệ thống trước khi sửa | `docs/ARCHITECTURE.md` |
+| Sửa một giai đoạn | tài liệu của chính giai đoạn đó (`docs/CORPUS.md`, `TRIP_UNDERSTANDING.md`, `PLACE_DECISION.md`, `PLANNING.md`) — mỗi file có §Ranh giới module / §CLI và API trỏ thẳng vào code |
+| Biết code đã làm gì, đã sửa gì | `docs/log/DEV_LOG.md` (chỉ khi cần) |
+| Đổi prompt, model, key | `docs/LLM_PROVIDER.md` |
+| Sửa Web | `docs/Role_Web_Functional_Design.md` (§6 = màn nào ở file nào) |
 
-- Tài liệu viết **tiếng Việt**. Code, comment, identifier, tên file viết **tiếng Anh** (`RULE.md` §0).
-- Offline ghi Place Intelligence. Online chỉ đọc nó; online chỉ ghi lịch trình và user/session profile (khi người dùng đồng ý).
-- Không bao giờ bịa ra địa điểm. Không có bằng chứng → không phải fact. Hard constraint fail-closed.
-- User Profile là prior cá nhân hóa, không phải fact hay constraint: bối cảnh chuyến đi hiện tại thắng, `unknown` ≠ không thích, đã đến ≠ đã thích, một sự kiện không ghi đè profile dài hạn.
-- Module **chỉ** giao tiếp qua public API của module (`__init__.py`). Không deep import.
-- Gọi model theo **vai trò** (Extractor, Judge, ASR); model cụ thể nằm trong config. Key để trong `.env`, không hardcode. Xem `docs/LLM_PROVIDER.md`.
+## Bất biến không được phá
+
+- Tài liệu viết **tiếng Việt**; code, comment, identifier, tên file viết **tiếng Anh** (`RULE.md` §0).
+- Offline ghi Place Intelligence. Online chỉ đọc nó; online chỉ ghi lịch trình và user / session profile.
+- Không bao giờ bịa địa điểm. Không có bằng chứng → `unknown`, không phải `false`. Hard constraint fail-closed.
+- Physical constraint không có đường code nào nới được.
+- User Profile là prior, không phải fact hay constraint: bối cảnh chuyến đi hiện tại thắng, `unknown` ≠ không thích, đã đến ≠ đã thích.
+- Module **chỉ** giao tiếp qua public API (`__init__.py`). Không deep import.
+- Gọi model theo **vai trò** (ASR, Extractor, Judge, Agent); model cụ thể nằm trong config, key trong `.env`.
+- Mỗi nguồn ngoài (TikTok, Google, …) có module và thư mục dữ liệu riêng; không gộp.
+
+Lỗi lặp lại của agent được ghi làm bằng chứng ở `docs/log/AGENT_FAILURES.md` trước khi được nâng thành rule.
