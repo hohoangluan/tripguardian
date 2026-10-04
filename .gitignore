@@ -14,3 +14,13 @@ data/
 .superpowers/
 
 osrm-data/
+
+# Run logs and pid files (./run.sh, background crawls)
+logs/
+*.pid
+
+# Superseded design shots; the current set is docs/design/desktop/v3-rose-photo
+docs/design/**/_archive/
+
+# Data bundle made by scripts/pack_data.py, shared outside git
+tripguardian-data-*.zip

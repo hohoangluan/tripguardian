@@ -3,6 +3,7 @@ name = "tripguardian"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "openai>=1.40",
     "playwright>=1.45",
     "python-dotenv>=1.0",
     "pydantic>=2.6",
@@ -11,7 +12,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-asr = ["chunkformer", "silero-vad", "soundfile", "torch"]  # chunkformer: pip install --no-deps (deepspeed fails on Windows)
+asr = ["chunkformer", "silero-vad", "soundfile", "torch", "transformers"]  # chunkformer: pip install --no-deps (deepspeed fails on Windows)
 
 [build-system]
 requires = ["setuptools>=69"]

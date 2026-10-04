@@ -24,6 +24,7 @@ Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ
 | `docs/Role_Web_Functional_Design.md` | Chức năng Web theo vai trò, từng màn, và màn nào nằm ở file nào |
 | `docs/UX_Design_Brief.md` | Brief UI/UX: nguyên tắc, cách hiển thị chất lượng dữ liệu, hệ thị giác |
 | `docs/UI_SPEC_USER_WEB.md` | Đặc tả trang User Web cho designer / Figma |
+| `docs/UI_SPEC_LANDING.md` | Đặc tả landing: thế giới 3D, ngân sách chữ, animation |
 | `docs/LLM_PROVIDER.md` | Model nào đảm nhận vai trò nào: endpoint, key, chứng chỉ, ASR local |
 | `docs/log/DEV_LOG.md` | Nhật ký **code đang có gì** theo từng tính năng |
 | `docs/log/AGENT_FAILURES.md` | Nhật ký lỗi của coding agent, làm bằng chứng trước khi nâng thành rule |
@@ -32,12 +33,24 @@ Quy tắc làm việc (bắt buộc): `RULE.md`. Hướng dẫn cho agent: `AGEN
 
 ## Thiết lập
 
-1. `cp .env.example .env` rồi điền key và model — ý nghĩa từng biến ở `docs/LLM_PROVIDER.md`.
-2. Nếu gọi `llm.uit.edu.vn` lỗi chứng chỉ, tạo CA bundle một lần mỗi máy — `docs/LLM_PROVIDER.md` §Chứng chỉ TLS.
-3. `pip install -e .` (thêm `.[dev]` cho pytest, `.[asr]` cho ASR local).
-4. `cd web && npm install`.
-5. Đăng nhập tài khoản phụ, một lần mỗi máy: `python -m corpus login tiktok`, `python -m corpus login gmaps`.
-6. Thời gian di chuyển cho Planning: `bash scripts/osrm_setup.sh` một lần mỗi máy (cần docker; tải OSM Việt Nam, dựng chỉ mục, rồi mở `127.0.0.1:5000`). Không chạy OSRM thì Planning vẫn chạy ở chế độ ước lượng thô và gắn cảnh báo. Endpoint và TTL ở `config/live.yaml`; `LIVE_CONTACT` trong `.env` là liên hệ gửi kèm request.
+Mục tiêu: clone code, tải gói dữ liệu, chạy được cả hệ thống như máy đang phát triển. Dữ liệu không nằm trong git.
+
+**Cần cài trước:** Python ≥ 3.12 (đang dùng 3.13), Node ≥ 20.19 (đang dùng 24), Git Bash (Windows; `run.sh` là shell script, dùng `netstat`/`taskkill`), Google Chrome bản thường (Playwright mở Chrome qua `channel="chrome"`), Docker (chỉ cho OSRM). Chỉ khi crawl: ffmpeg trên `PATH`, GPU cho ASR.
+
+```sh
+git clone https://github.com/hohoangluan/tripguardian && cd tripguardian
+python -m venv .venv && source .venv/Scripts/activate   # Linux/macOS: .venv/bin/activate
+pip install -e ".[dev]"                                 # thêm .[asr] chỉ khi chạy ASR; chunkformer: pip install --no-deps
+cd web && npm install && cd ..
+cp .env.example .env                                     # điền key: docs/LLM_PROVIDER.md
+```
+
+1. **Dữ liệu.** Tải `tripguardian-data-<ngày>.zip` từ Drive của nhóm, giải nén **tại thư mục gốc repo**: `python -m zipfile -e tripguardian-data-<ngày>.zip .`. Gói trả về `data/` và `web/public/data/snapshot.json` đúng chỗ. Gói không có `video.mp4` của TikTok (chỉ bước ASR khi crawl cần); bản `--no-photos` không có ảnh Maps, khi đó `/admin/labels` không hiện ảnh.
+2. **Key.** Trip Understanding, chọn câu hỏi và mọi phase cần model gọi API UIT, chỉ trả lời trong mạng campus; key và endpoint ở `.env`. Lỗi chứng chỉ `llm.uit.edu.vn`: tạo CA bundle một lần mỗi máy — `docs/LLM_PROVIDER.md` §Chứng chỉ TLS.
+3. **OSRM** (thời gian di chuyển cho Planning): `bash scripts/osrm_setup.sh` một lần mỗi máy — tải OSM Việt Nam, dựng chỉ mục vào `osrm-data/`, mở `127.0.0.1:5000`. Lần sau chỉ cần chạy lại container (dòng `docker run ... -p 127.0.0.1:5000:5000` cuối script). Không có OSRM thì Planning ước lượng thô và gắn cảnh báo. Endpoint và TTL ở `config/live.yaml`; `LIVE_CONTACT` trong `.env` là liên hệ gửi kèm request.
+4. **Chỉ khi crawl:** đăng nhập tài khoản phụ một lần mỗi máy, `python -m corpus login tiktok`, `python -m corpus login gmaps` (profile lưu ở `.browser/`, đã gitignore). Chạy dịch vụ và Planning lodging không cần đăng nhập.
+
+Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-photos]` (cái gì bị bỏ và vì sao: docstring của script), rồi đưa zip lên Drive. Sửa `data/` xong mà web cần thấy: `python web/scripts/export_snapshot.py` trước khi đóng gói.
 
 ## Chạy
 
@@ -82,12 +95,19 @@ Phase cần model cần mạng UIT; gặp captcha thì giải trong cửa sổ t
 ## Test
 
 ```sh
-python -m pytest -q                      # 1028 test, không gọi mạng
+python -m pytest -q                      # không gọi mạng, không cần gói dữ liệu
 python -m pytest -q tests/planning        # một giai đoạn
 python -m pytest -m live tests/trip/test_live.py   # gọi model thật, chạy tay
 ```
 
 Test gọi mạng hoặc model thật nằm sau marker `live` và bị `addopts` loại khỏi lần chạy mặc định (`pyproject.toml`).
+
+## Làm việc nhóm
+
+- Mỗi task một branch từ `main` (`feat/<giai-đoạn>-<việc>`, `fix/...`), mở PR vào `main`; không push thẳng `main`.
+- Trước khi mở PR: `python -m pytest -q` xanh. CI (`.github/workflows/test.yml`) chạy đúng lệnh này trên mỗi PR.
+- Bắt buộc theo `RULE.md`: tài liệu tiếng Việt, code tiếng Anh, chỉ gọi module khác qua `__init__.py`, sửa tài liệu của giai đoạn khi đổi hành vi.
+- Không commit `.env`, `data/`, `.browser/`, `logs/` (đã gitignore). Dữ liệu chung đi qua gói zip ở §Thiết lập.
 
 ## Ranh giới
 
