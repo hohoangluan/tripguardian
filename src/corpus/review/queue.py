@@ -55,6 +55,16 @@ def _tiktok(city: str) -> list[dict]:
 def _gmaps() -> list[dict]:
     root = data_dir() / "gmaps"
     items = []
+    # Places the model judged not relevant: a person may keep them (listing.kept_fids reads that decision).
+    for f in sorted((root / "filter").glob("*.json")) if (root / "filter").exists() else []:
+        if f.name == "summary.json":
+            continue
+        res = _read(f)
+        rel = (res.get("llm") or {}).get("relevance")     # no llm: the model failed, the place is simply not judged yet
+        if rel and rel != "yes":
+            items.append({"kind": "place_filter", "id": res["fid"], "source": "gmaps", "title": res["name"],
+                          "url": res.get("url"), "status": rel, "why": f"model: {rel} — {res['llm']['reason']}",
+                          "details": {"loại": res.get("category")}})
     for f in sorted((root / "places").glob("*/place.json")) if (root / "places").exists() else []:
         p = _read(f)
         base = {"id": p["fid"], "source": "gmaps", "title": p.get("name") or p["fid"], "url": p.get("url")}

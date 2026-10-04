@@ -1,7 +1,7 @@
 """A person's decisions on review items: data/review/decisions.jsonl, append-only; the latest per item wins.
 
 Decisions are labels (docs/CORPUS.md §7): they never edit crawled values. The crawl reads them:
-video_filter keep/drop overrides the model; retry puts an item back into the next crawl.
+video_filter / place_filter keep/drop overrides the model; retry puts an item back into the next crawl.
 """
 
 import json
@@ -10,6 +10,7 @@ from ..crawl.common.files import append_jsonl, data_dir, now
 
 ACTIONS = {
     "video_filter": ("keep", "drop"),
+    "place_filter": ("keep", "drop"),  # Maps places the model judged not for tourists (docs/CORPUS.md: review)
     "video_comments": ("retry", "accept"),
     "place_qc": ("accept", "disable"),
     "place_reviews": ("retry", "accept"),
