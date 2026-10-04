@@ -278,3 +278,12 @@ def test_the_hotel_list_is_recognised_by_its_nightly_price_control_not_only_by_t
     hotel = '<div aria-label="Đặt ngày nhận phòng sớm hơn một ngày"></div><div aria-label="Giá mỗi đêm"></div>'
     assert asyncio.run(check(hotel)) is True
     assert asyncio.run(check('<div aria-label="4,7 sao 2.369 bài đánh giá"></div>')) is False
+
+
+def test_hotel_card_prices_in_the_short_forms_maps_shows_now():
+    # card text as Maps shows it on 2026-10-04: thousands as "N", millions as "Tr", a no-break space before
+    assert search.price_vnd("Roha Hotel | 3,8 | Khách sạn 2 sao | 155\xa0N | Đỗ xe miễn phí") == 155000
+    assert search.price_vnd("MerPerle Dalat Hotel | 4,9 | Khách sạn 5 sao | 1,59\xa0Tr | Bể bơi") == 1590000
+    assert search.price_vnd("Khách sạn | 696.263 ₫ | Wi-Fi") == 696263
+    assert search.price_vnd("Quán cà phê | 4,5 | 25 Nguyễn Trãi") is None
+    assert "pool" in search.amenities("1,59\xa0Tr | Bể bơi | Spa")

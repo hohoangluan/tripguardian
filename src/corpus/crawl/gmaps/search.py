@@ -42,15 +42,20 @@ _LATLNG = re.compile(r"!3d(-?[\d.]+)!4d(-?[\d.]+)")
 
 
 _PRICE = re.compile(r"([\d][\d.]*)\s*₫")
+# the hotel list's short forms (2026-10-04): "335 N" = 335 nghìn, "1,59 Tr" = 1,59 triệu (no-break space before)
+_PRICE_SHORT = re.compile(r"(?<![\d,.])(\d+(?:,\d+)?)\s*(N|Tr)(?![\w])")
 # Best-effort: a candidate's card text against a fixed phrase list, not a guessed CSS class. Re-check against the
 # live hotel list before trusting this — Maps may word or lay these out differently than assumed here.
 _AMENITY = {"parking": re.compile(r"bãi đỗ xe|bãi đậu xe", re.I), "breakfast": re.compile(r"bữa sáng", re.I),
-           "pool": re.compile(r"hồ bơi", re.I), "wifi": re.compile(r"wi-?fi", re.I)}
+           "pool": re.compile(r"hồ bơi|bể bơi", re.I), "wifi": re.compile(r"wi-?fi", re.I)}
 
 
 def price_vnd(card_text: str) -> int | None:
     m = _PRICE.search(card_text or "")
-    return int(m.group(1).replace(".", "")) if m else None
+    if m:
+        return int(m.group(1).replace(".", ""))
+    m = _PRICE_SHORT.search(card_text or "")
+    return round(float(m.group(1).replace(",", ".")) * (1000 if m.group(2) == "N" else 1_000_000)) if m else None
 
 
 def amenities(card_text: str) -> list[str]:
