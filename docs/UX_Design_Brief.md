@@ -93,12 +93,14 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 
 | | User Web + landing | Admin Web |
 |---|---|---|
-| Hướng | Poster du lịch Đà Lạt, ưu tiên điện thoại | "Phòng điều khiển", chỉ desktop, sáng/tối theo hệ thống |
+| Hướng | **Trắng hồng, editorial nhẹ** — nhiều trắng, nét mảnh, bình minh Đà Lạt ám hồng (chốt 2026-10-04) | "Phòng điều khiển", chỉ desktop, sáng/tối theo hệ thống |
 | Chữ | Phudu (tiêu đề, nút; chữ hoa, chỉ câu ngắn), Geologica (nội dung, tên địa điểm), Space Mono (giờ, số, khoảng ước tính) | Mona Sans (độ rộng tạo phân cấp), JetBrains Mono (dữ liệu, phím tắt) |
 | Nền | Landing: thế giới 3D làm nền; hero và 5 bước căn giữa (bước dính giữa màn hình: tiêu đề trên, thẻ sản phẩm giữa, hai chú thích hai bên), rồi phần giấy kem (video demo, FAQ, CTA). App: giấy kem, bề mặt đặc, dải ảnh poster sau tiêu đề mỗi màn | Bề mặt trung tính; thẻ "Việc cần làm" nền thông đậm là điểm nhìn đầu tiên |
-| Màu | Giấy `#F4F0E6`, thông `#1D3B33`, hồ `#2F5D6B`, dã quỳ `#F2B31B` (chữ vàng chỉ trên nền tối) | Cùng thông và dã quỳ; màu trạng thái theo `admin/model.ts` |
+| Màu | Nền `#FFF7F6` · thẻ `#FFFFFF` · mực mận `#3B2630` · hồng chính `#E4607F` · hồng nhạt `#FDE6EA` · mận đậm `#6E2B45` (quy tắc cứng, thanh dính) · hổ phách `#B06A12` (**chỉ** cảnh báo) · xanh mực `#47638A` (link, nguồn) · dã quỳ `#F2B31B` **chỉ còn một chỗ: mặt trời trong 3D của landing** | Giữ nguyên hệ cũ; màu trạng thái theo `admin/model.ts` |
 
-- Quy tắc cứng là khối nền thông đậm có khóa vàng; sở thích mềm là chip viền đứt.
+- Quy tắc cứng là khối nền **mận đậm đặc** có khóa; sở thích mềm là chip **viền đứt** trên nền trắng, có × để bỏ và nhãn "từ hồ sơ của bạn" khi suy ra từ hồ sơ.
+- **Chưa áp vào code:** `web/src/user/user.css` và `web/src/styles.css` vẫn là giấy kem + xanh thông. Đổi sang bảng trên là một lần restyle thật, và `web/public/media/demo.mp4` phải quay lại (`web/scripts/record_demo.mjs`) vì video đang mang màu cũ.
+- Landing có đặc tả riêng: `docs/UI_SPEC_LANDING.md` (nhuộm lại thế giới 3D, ngân sách chữ, animation).
 - Ảnh poster sinh qua `web/scripts/gen_images.py`; chúng là minh họa, không phải ảnh địa điểm thật. Ảnh bìa thẻ địa điểm lấy từ frame clip thật của chính nơi đó, có ghi creator.
 - Video demo landing quay từ app thật bằng `web/scripts/record_demo.mjs`.
 - Vào `/app` lần đầu là màn đăng nhập: Google (nổi nhất), Zalo, Facebook, Apple, TikTok, hoặc email + mật khẩu (email để còn lấy lại mật khẩu, không dùng username); nút "Dùng thử, không cần tài khoản" mạnh nhất vì không bắt buộc tài khoản. Bản thử mô phỏng đăng nhập trong trình duyệt (`web/src/user/account.ts`, không lưu mật khẩu); auth thật thay module này.
