@@ -258,3 +258,23 @@ def test_a_card_with_no_price_or_known_amenity_text_says_so_without_crashing():
 def test_parse_feed_fixture_still_has_price_and_amenities_keys_even_when_empty():
     rows = parse_fixture("feed.html", search.parse_feed)
     assert all(r["price_vnd"] is None and r["amenities"] == [] for r in rows)  # a non-lodging search finds neither
+
+
+def test_the_hotel_list_is_recognised_by_its_nightly_price_control_not_only_by_the_url():
+    # Maps dropped "!6e3" from the hotel-list URL (seen 2026-10-04); its date and nightly-price controls remain
+    import asyncio
+
+    from playwright.async_api import async_playwright
+
+    async def check(html):
+        async with async_playwright() as p:
+            b = await p.chromium.launch()
+            page = await (await b.new_context()).new_page()
+            await page.set_content(html)
+            try:
+                return await search.is_hotel_list(page)
+            finally:
+                await b.close()
+    hotel = '<div aria-label="Đặt ngày nhận phòng sớm hơn một ngày"></div><div aria-label="Giá mỗi đêm"></div>'
+    assert asyncio.run(check(hotel)) is True
+    assert asyncio.run(check('<div aria-label="4,7 sao 2.369 bài đánh giá"></div>')) is False

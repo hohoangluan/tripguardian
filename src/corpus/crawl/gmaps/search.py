@@ -88,6 +88,13 @@ STALE_ROUNDS = 3  # scrolls in a row that load nothing: the list is stuck, not f
 
 
 LODGING_URL = "!6e3"  # Maps' hotel list: date / price filters, results city-wide whatever the viewport
+# Maps stopped putting LODGING_URL in the URL (2026-10-04); the hotel list's own controls are the stable sign
+HOTEL_CONTROLS = '[aria-label="Giá mỗi đêm"], [aria-label^="Đặt ngày nhận phòng"]'
+
+
+async def is_hotel_list(page: Page) -> bool:
+    """Whether Maps answered with its hotel list (check-in / check-out and nightly price controls)."""
+    return LODGING_URL in page.url or await page.locator(HOTEL_CONTROLS).count() > 0
 
 
 async def search(ctx: BrowserContext, query: str, limit: int, at: tuple) -> tuple[list[dict], bool, bool]:
@@ -107,7 +114,7 @@ async def search(ctx: BrowserContext, query: str, limit: int, at: tuple) -> tupl
             await page.locator(FEED_A).last.scroll_into_view_if_needed()
             await feed.evaluate("e => e.scrollTo(0, e.scrollHeight)")
             stale = 0 if await more(page, FEED_A, n, timeout=10000) else stale + 1
-        return (await parse_feed(page))[:limit], end, LODGING_URL in page.url
+        return (await parse_feed(page))[:limit], end, await is_hotel_list(page)
     finally:
         await page.close()
 
