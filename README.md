@@ -1,5 +1,7 @@
 # TripGuardian
 
+> **Dự án học tập, phi thương mại.** Không dùng code, dữ liệu hay nội dung crawl (review Google Maps, video và bình luận TikTok) cho mục đích thương mại. Nội dung crawl thuộc về tác giả gốc và chỉ dùng cho nghiên cứu trong dự án này.
+
 Hệ thống place intelligence + lập lịch trình cá nhân hóa: giúp người dùng **chọn đúng địa điểm trước khi tạo lịch trình**, rồi kiểm tra tổ hợp đã chọn có đi được cùng nhau không. Phạm vi kiểm chứng ban đầu: Đà Lạt.
 
 Bốn giai đoạn, mỗi giai đoạn một package và một tài liệu:
