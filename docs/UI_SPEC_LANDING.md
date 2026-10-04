@@ -18,14 +18,15 @@ Dành cho designer / Figma và cho người code landing. Landing **giữ nguyê
 
 | Vai trò | Giá trị | Dùng ở đâu |
 |---|---|---|
-| Nền trang | `#FFF7F6` | ngoài 3D |
+| Nền trang | `#FFF9F8` | ngoài 3D |
 | Bề mặt | `#FFFFFF` | thẻ, top bar, scrim sau chữ |
-| Mực | `#3B2630` | chữ chính |
-| Hồng chính | `#E4607F` | nút, pin, tuyến, nhãn bước, dòng 2 headline |
-| Hồng nhạt | `#FDE6EA` | khối mềm, rãnh meter |
-| Mận đậm | `#6E2B45` | footer, khối quy tắc cứng |
-| Hổ phách | `#B06A12` | **chỉ** cảnh báo |
-| Xanh mực | `#47638A` | link, dòng nguồn dữ liệu |
+| Mực | `#3A2B32` | chữ chính |
+| Hồng phấn | `#EFB8C4` | nút (chữ mận), nhãn bước |
+| Hồng đậm | `#C97890` | pin, tuyến, dòng 2 headline (chỉ chữ ≥24px, 3.2:1) |
+| Hồng nhạt | `#FCEEF1` | khối mềm, rãnh meter |
+| Mận | `#6B3550` | footer, khối quy tắc cứng |
+| Hổ phách | `#A8660F` | **chỉ** cảnh báo |
+| Xanh mực | `#4A6488` | link, dòng nguồn dữ liệu |
 | **Vàng dã quỳ** | `#F2B31B` | **đúng một chỗ trên toàn trang: đĩa mặt trời trong 3D.** Không dùng ở đâu khác |
 
 Giữ vàng một chấm vì đó là màu nhận diện Đà Lạt; bỏ sạch thì landing mất chất địa phương, rải nhiều thì vỡ hệ trắng hồng.
@@ -40,10 +41,10 @@ Hình học, camera, animation giữ nguyên. Chỉ đổi màu:
 | `web/src/scene/Terrain.tsx` §mặt hồ | `#F3DDE0`, giữ `metalness 0.25` |
 | `web/src/scene/Pines.tsx` §`setHSL` | `0.42±.05 / .28–.40 / .13–.20` → `0.93±.03 / .10–.22 / .22–.32` (thông thành bóng mận xám) |
 | `web/src/scene/Director.tsx` §MIST, CLEAR | `#F6E7E6`, `#FDF3F1` |
-| `web/src/scene/Director.tsx` §đèn | hemisphere `#FFF7F6` / `#6E2B45`; nắng `#FFD9CE`; **thêm một đĩa mặt trời `#F2B31B`** |
+| `web/src/scene/Director.tsx` §đèn | hemisphere `#FFF9F8` / `#6B3550`; nắng `#FFD9CE`; **thêm một đĩa mặt trời `#F2B31B`** |
 | `web/src/scene/Mist.tsx` §points | `#FCEDEC` |
-| `web/src/scene/Pins.tsx` | pin thường `#A98E95` · pin đã chọn `#E4607F` · nhãn `#FFFFFF` · quầng sáng `#F2B31B` chỉ quanh mặt trời |
-| `web/src/scene/Route.tsx` | tuyến `#E4607F`; đoạn lỗi `#B06A12` |
+| `web/src/scene/Pins.tsx` | pin thường `#A98E95` · pin đã chọn `#C97890` · nhãn `#FFFFFF` · quầng sáng `#F2B31B` chỉ quanh mặt trời |
+| `web/src/scene/Route.tsx` | tuyến `#C97890`; đoạn lỗi `#B06A12` |
 | `web/src/styles.css` §`:root` | giữ nguyên **tên** token, đổi giá trị sang bảng trên |
 
 Rủi ro: hồng tương phản thấp hơn xanh–vàng cũ. Bắt buộc giữ **scrim trắng mềm** sau mọi chữ nằm trên 3D, và mực đậm `#3B2630`.
