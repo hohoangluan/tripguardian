@@ -7,7 +7,13 @@ import pytest
 
 from corpus.crawl.tiktok import page as tpage
 
-FIX = Path(__file__).parents[2] / "fixtures" / "tiktok"
+FIX = Path(__file__).parents[2] / "fixtures" / "tiktok"  # real captured responses: in the Drive data zip, not in git
+
+
+def fixture_json(name: str):
+    if not (FIX / name).exists():
+        pytest.skip(f"fixture {name} not present (Drive data zip)")
+    return json.loads((FIX / name).read_text(encoding="utf-8"))
 
 
 @pytest.fixture(autouse=True)

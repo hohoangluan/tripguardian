@@ -1,7 +1,8 @@
 """Pack the data a fresh clone needs to run the whole stack (./run.sh start) into one zip for sharing.
 
-Packs data/ with paths relative to the repo root, so unpacking at the repo root restores it in place
-(web/public/data/snapshot.json is in git). Leaves out what no running service reads:
+Packs data/ plus the files kept out of the public repo because they quote real people (reviews, TikTok handles and
+comments): web/public/data/snapshot.json and the captured test pages in tests/fixtures/{gmaps,tiktok}. Paths are
+relative to the repo root, so unpacking at the repo root restores them in place. Leaves out what no service reads:
   - data/tiktok/videos/*/video.mp4: only the ASR crawl steps read the clip; transcripts and frames are kept
   - logs, pid files, half-written *.tmp, shell scripts dropped into data/
   - data/gmaps/observations_before_v6: backup taken before the v6 observe rerun
@@ -18,6 +19,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+EXTRA = ("web/public/data/snapshot.json", "tests/fixtures/gmaps", "tests/fixtures/tiktok")
 SKIP_NAMES = {"video.mp4"}
 SKIP_SUFFIXES = {".tmp", ".log", ".err", ".pid", ".sh"}
 SKIP_DIRS = {("data", "gmaps", "observations_before_v6")}
@@ -36,6 +38,10 @@ def keep(rel: Path, photos: bool) -> bool:
 
 def main(photos: bool, out_dir: Path) -> None:
     files = [p for p in sorted((ROOT / "data").rglob("*")) if p.is_file() and keep(p.relative_to(ROOT), photos)]
+    for e in map(ROOT.joinpath, EXTRA):
+        if not e.exists():
+            print(f"warning: {e.relative_to(ROOT)} missing, not packed")
+        files += [e] if e.is_file() else sorted(p for p in e.rglob("*") if p.is_file())
     out = out_dir / f"tripguardian-data-{date.today():%Y%m%d}.zip"
     with zipfile.ZipFile(out, "w", allowZip64=True) as z:
         for i, p in enumerate(files, 1):

@@ -2,22 +2,22 @@ import asyncio
 import json
 
 import pytest
-from tiktok_helpers import FIX, fake_profile
+from tiktok_helpers import fake_profile, fixture_json
 
 from corpus.crawl.common import browser, files
 from corpus.crawl.tiktok import crawl
 
 
 def test_parse_comments_fixture_hides_authors():
-    raw = json.loads((FIX / "comments.json").read_text(encoding="utf-8"))
+    raw = fixture_json("comments.json")
     comments, _ = crawl.parse_comments(raw)
     assert comments and all(len(c["author_hash"]) == 16 for c in comments)
     assert raw["comments"][0]["user"]["uid"] not in json.dumps(comments)
 
 
 def test_parse_replies_fixture_links_parent():
-    top, _ = crawl.parse_comments(json.loads((FIX / "comments.json").read_text(encoding="utf-8")))
-    replies, _ = crawl.parse_comments(json.loads((FIX / "replies.json").read_text(encoding="utf-8")))
+    top, _ = crawl.parse_comments(fixture_json("comments.json"))
+    replies, _ = crawl.parse_comments(fixture_json("replies.json"))
     assert all(c["parent_id"] is None for c in top)
     assert replies and all(r["parent_id"] and r["parent_id"] != "0" for r in replies)
 

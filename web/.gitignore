@@ -1,6 +1,5 @@
 node_modules/
 dist/
 shots/
-public/data/*
-!public/data/snapshot.json
+public/data/
 *.tsbuildinfo

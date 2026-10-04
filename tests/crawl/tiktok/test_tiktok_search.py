@@ -2,14 +2,14 @@ import asyncio
 import json
 
 import pytest
-from tiktok_helpers import FIX, fake_profile
+from tiktok_helpers import fake_profile, fixture_json
 
 from corpus.crawl.common import browser
 from corpus.crawl.tiktok import search
 
 
 def test_parse_search_fixture():
-    items = search.parse_search(json.loads((FIX / "search.json").read_text(encoding="utf-8")))
+    items = search.parse_search(fixture_json("search.json"))
     assert items
     it = items[0]
     assert it["video_id"].isdigit() and it["url"].endswith("/video/" + it["video_id"])

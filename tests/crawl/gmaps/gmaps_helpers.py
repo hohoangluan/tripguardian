@@ -5,11 +5,14 @@ from pathlib import Path
 import pytest
 from playwright.async_api import async_playwright
 
-FIX = Path(__file__).parents[2] / "fixtures" / "gmaps"
+FIX = Path(__file__).parents[2] / "fixtures" / "gmaps"  # real captured pages: in the Drive data zip, not in git
 AREA = [11.78, 108.30, 12.12, 108.66]
 
 
 def parse_fixture(fixture: str, fn):
+    if not (FIX / fixture).exists():
+        pytest.skip(f"fixture {fixture} not present (Drive data zip)")
+
     async def run():
         async with async_playwright() as p:
             b = await p.chromium.launch()
