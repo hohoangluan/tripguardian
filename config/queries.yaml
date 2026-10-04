@@ -1,10 +1,9 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
   pause_s: [5, 10]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
-  tabs: 4  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
-           # measured empirically on this account (2026-10-02): tab 3 got blocked immediately, twice in a row;
-           # tab 2 held clean. 8 also caused a MemoryError on this machine (low free RAM) well before TikTok's
-           # own limit mattered — 2 is both the fast-and-stable tab count and safely under the RAM ceiling.
+  tabs: 4  # ceiling for parallel video tabs; the throttle starts at tabs_start and finds the working level itself
+           # (data/tiktok/throttle.json). Unattended, 2 held clean while 3 got blocked at once (2026-10-02); 4 assumes
+           # someone is at the browser to clear the captcha. 8 hit a MemoryError on a 16 GB machine with low free RAM.
   tabs_start: 2  # first run only
   cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks (user reloads the captcha by hand)
   max_cooldown_s: 10
