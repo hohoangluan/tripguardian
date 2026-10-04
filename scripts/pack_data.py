@@ -1,12 +1,13 @@
 """Pack the data a fresh clone needs to run the whole stack (./run.sh start) into one zip for sharing.
 
 Packs data/ plus the files kept out of the public repo because they quote real people (reviews, TikTok handles and
-comments): web/public/data/snapshot.json and the captured test pages in tests/fixtures/{gmaps,tiktok}. Paths are
+comments): web/public/data/{snapshot,covers}.json and the captured test pages in tests/fixtures/{gmaps,tiktok}. Paths are
 relative to the repo root, so unpacking at the repo root restores them in place. Leaves out what no service reads:
   - data/tiktok/videos/*/video.mp4: only the ASR crawl steps read the clip; transcripts and frames are kept
   - logs, pid files, half-written *.tmp, shell scripts dropped into data/
   - data/gmaps/observations_before_v6: backup taken before the v6 observe rerun
---no-photos also leaves out the Maps photos (data/gmaps/places/*/photos, ~2.4 GB); only /admin/labels shows them.
+--no-photos also leaves out the Maps photos (data/gmaps/places/*/photos, ~2.4 GB): /admin/labels and the web's place
+covers show them; without them covers fall back to clip frames, then to line art.
 
 Usage (from the repo root):
     python scripts/pack_data.py [--no-photos] [--out DIR]    -> DIR/tripguardian-data-<YYYYMMDD>.zip (DIR: repo root)
@@ -19,7 +20,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXTRA = ("web/public/data/snapshot.json", "tests/fixtures/gmaps", "tests/fixtures/tiktok")
+EXTRA = ("web/public/data/snapshot.json", "web/public/data/covers.json", "tests/fixtures/gmaps", "tests/fixtures/tiktok")
 SKIP_NAMES = {"video.mp4"}
 SKIP_SUFFIXES = {".tmp", ".log", ".err", ".pid", ".sh"}
 SKIP_DIRS = {("data", "gmaps", "observations_before_v6")}
