@@ -155,7 +155,7 @@ Chức năng từng màn theo vai trò: `docs/Role_Web_Functional_Design.md`. Ng
 | --- | --- |
 | Place Intelligence tách khỏi bối cảnh chuyến đi | Tri thức địa điểm và nhu cầu từng chuyến có vòng đời khác nhau |
 | Khám phá và bằng chứng tách riêng | Nguồn giúp tìm ra địa điểm chưa chắc đáng tin cho mọi nhận định |
-| Kinh nghiệm và trạng thái bắt đầu độc lập | Người có kinh nghiệm vẫn có thể bắt đầu từ đầu; người lần đầu có thể đã lưu sẵn địa điểm |
+| Trạng thái bắt đầu và mức dẫn dắt độc lập | Trạng thái bắt đầu có sẵn trong input nên không cần hỏi; mức dẫn dắt phải suy từ hành vi nên không thể hỏi trước |
 | Địa điểm của người dùng được resolve trước khi đánh giá | Tên đã lưu có thể là alias, bị trùng, hoặc là nơi chưa biết |
 | Physical, user-hard, và soft constraint tách riêng | Chúng cần cách xử lý xung đột khác nhau |
 | Chọn dùng độ hợp không gian thô; xếp lịch dùng thời gian di chuyển thực tế | Tránh tính kế hoạch chi tiết tốn kém trước khi biết shortlist |

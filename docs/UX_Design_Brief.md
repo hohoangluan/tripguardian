@@ -16,12 +16,16 @@ MVP: **Đà Lạt**, chuyến 2–4 ngày, cặp đôi / nhóm bạn / gia đìn
 
 ## 2. Thiết kế cho ai, trong bối cảnh nào
 
-| | Cần nhất từ giao diện |
-|---|---|
-| **Lần đầu đến** | Được dẫn dắt: bắt đầu từ đâu, mỗi ngày bao nhiêu điểm là thực tế, nên bỏ nơi nào trong các nơi giống nhau |
-| **Đã từng đến** | Nhanh: bỏ qua phần cơ bản, tìm cái mới, kiểm tra danh sách đã có |
+**Người dùng chính:** người tự lên kế hoạch chuyến tự túc 2–4 ngày tới Đà Lạt, đi một mình / cặp đôi / nhóm nhỏ, tự chọn điểm đến và tự di chuyển.
 
-Bốn điểm bắt đầu: chưa có ý tưởng · đã lưu địa điểm · có nơi bắt buộc đến · đã có lịch trình (`docs/Project_Context.md` §3).
+Giao diện **không hỏi người dùng thuộc nhóm nào**. Nó đọc hai thứ:
+
+| Đọc từ đâu | Giao diện đổi gì |
+|---|---|
+| **Trạng thái bắt đầu** — có sẵn trong thứ người dùng gõ hoặc dán | Luồng bắt đầu từ đâu: chưa có ý tưởng · đã lưu địa điểm · có nơi bắt buộc đến · đã có lịch trình |
+| **Mức dẫn dắt** — suy từ hành vi trong phiên (độ dài trả lời, tỉ lệ "Chưa chắc", mức sửa lại) | Lượng chip gợi ý, độ dài giải thích, số câu hỏi, độ chi tiết tùy chỉnh |
+
+Mặc định nghiêng về dẫn dắt nhiều, kèm lối tắt *"tôi đã có danh sách, kiểm tra giúp"* ở mọi bước. Chi tiết: `docs/Project_Context.md` §3.
 
 - **User Web ưu tiên điện thoại:** người dùng lên kế hoạch trên điện thoại, thường ngay sau khi xem TikTok.
 - **Admin Web là desktop:** dày thông tin, thao tác nhanh, có phím tắt.

@@ -189,7 +189,7 @@ score = w_ctx   · context_fit
       + w_pref  · preference_fit      Σ soft_weight(f) · có_feature(f) · confidence(f)
       + w_rec   · recent_interest     Recent Interests của profile (khi user đồng ý)
       + w_nov   · novelty             theo novelty + Experience History + Exploration Gap
-      + w_exp   · experience_fit      lần đầu: nơi đặc trưng được cộng; đã từng: nơi ít biết được cộng
+      + w_exp   · experience_fit      visited rỗng: nơi đặc trưng được cộng; có visited: nơi khác visited được cộng
       + w_pop   · popularity          chỉ là một tín hiệu, trọng số nhỏ
       − w_unc   · uncertainty         thiếu coverage / UNCERTAIN / OUTDATED ở khía cạnh quan trọng với user
 ```

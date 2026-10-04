@@ -39,7 +39,9 @@ Physical Constraint → User Hard Constraint → Override của chuyến này �
 
 Ví dụ: profile có `hiking = high`, chuyến này "đi với bố mẹ, mẹ đau gối" → hiking bị tắt **cho chuyến này**, không hỏi lại, không sửa long-term profile.
 
-Kinh nghiệm (lần đầu / đã từng đến) và trạng thái bắt đầu (khám phá / đã lưu / anchor / lịch có sẵn) là hai trục độc lập. Kinh nghiệm quyết định **mức dẫn dắt**; trạng thái bắt đầu quyết định **luồng bắt đầu từ đâu**. Không trục nào trực tiếp quyết định địa điểm.
+Trạng thái bắt đầu (khám phá / đã lưu / anchor / lịch có sẵn) và mức dẫn dắt là hai trục độc lập (`Project_Context.md` §3.1). Trạng thái bắt đầu có sẵn trong input và quyết định **luồng bắt đầu từ đâu**; mức dẫn dắt suy từ hành vi trong phiên và quyết định **cách hỏi**. Không trục nào trực tiếp quyết định địa điểm.
+
+Việc user đã từng đến Đà Lạt hay chưa không đổi cách hỏi. Nó chỉ vào Trip State qua `visited` khi user nêu nơi đã đi, phục vụ Novelty.
 
 ## 3. Trip State
 
@@ -53,7 +55,7 @@ Trip State
 ├── Sở thích           soft: override của chuyến, session profile, mặc định từ long-term profile
 ├── Nhịp độ            pace thong thả | cân bằng | đi nhiều  +  max_leg_min, crowd_tolerance
 ├── Novelty            theo gu quen | thử mới | trộn  +  visited (Experience History)
-└── meta               experience, start_with, lượt đã hỏi, đã bỏ qua, từ chủ quan còn chờ làm rõ
+└── meta               start_with, guidance, effort_budget, control, lượt đã hỏi, đã bỏ qua, từ chủ quan còn chờ làm rõ
 ```
 
 `entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Chỉ lưu text + `place_id`; geocode xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
@@ -79,6 +81,24 @@ Bảng này quyết định hành động cho từng field:
 | `source = inferred`, confidence thấp | Đưa vào mục "còn chưa chắc", hoặc hỏi nếu đổi kết quả |
 | `unknown`, không đổi kết quả | Bỏ, giữ `unknown` |
 | `skipped` | Không hỏi lại trong session |
+
+### Tầng dữ liệu đầu vào
+
+```text
+Tầng 0  Trước khi gõ gì         không yêu cầu gì
+Tầng 1  Chặn kiểm tra khả thi    days, start_date | month, companions + people, mobility, base
+Tầng 2  Miễn phí nếu user mang   link đã lưu, booking, giờ xe / máy bay → anchor, entry/exit, gu ngầm
+Tầng 3  Chỉ hỏi khi đổi kết quả  budget_vnd, pace, max_leg_min, crowd_tolerance, novelty, sở thích
+Tầng 4  Fail-closed              physical constraint — hỏi ngay khi có tín hiệu, bất kể điểm §6
+```
+
+Tầng 1 gom vào **một thẻ chip ở lượt mở đầu**, không tách thành nhiều lượt hỏi. `base` để trống được; thiếu thì Planning mang cờ "ước lượng kém chắc".
+
+Tối thiểu tuyệt đối trước đề xuất đầu tiên: `days`, `companions`, `mobility`. Mọi field khác được phép `unknown`.
+
+Tài khoản và User Profile được xin sau khi user đã thấy kết quả đầu, không xin trước (`Project_Context.md` §6.1).
+
+---
 
 ## 4. Luồng xử lý
 
@@ -206,12 +226,12 @@ Quy tắc cho `unknown`: không dùng để lọc, không suy thành "không th�
 
 ## 10. Điều chỉnh theo người dùng
 
-Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi là mức hướng dẫn, dạng câu hỏi và độ sâu; căn cứ nghiên cứu ở `Project_Context.md` §12.1.
+Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi là ba tham số `guidance`, `effort_budget`, `control` (`Project_Context.md` §3.3); căn cứ nghiên cứu ở `Project_Context.md` §12.1.
 
 | Tín hiệu | Cách hỏi |
 |---|---|
-| Lần đầu đến | Hỏi theo cách dùng ("chuyến này để làm gì"), luôn có chip, cho "xem gợi ý trước" sớm |
-| Đã từng đến | Hỏi thẳng tiêu chí; ưu tiên nhóm H (đã đi đâu, muốn mới hay quen) |
+| Trả lời ngắn, chưa nêu được tiêu chí, chủ yếu bấm chip | Hỏi theo cách dùng ("chuyến này để làm gì"), luôn có chip, cho "xem gợi ý trước" sớm |
+| Tự nêu tiêu chí, gọi tên khu vực cụ thể, nhắc chuyến trước | Hỏi thẳng tiêu chí; ưu tiên nhóm H (đã đi đâu, muốn mới hay quen) |
 | Chưa có ý tưởng | Nhiều câu mở + ví dụ, có thể chọn ảnh |
 | Có địa điểm đã lưu / lịch sơ bộ | Bắt đầu từ xác nhận anchor + constraint; ít câu sở thích |
 | Trả lời dài, tự nêu tiêu chí | Lựa chọn chi tiết, cho chỉnh từng tiêu chí |
@@ -290,7 +310,7 @@ Bộ câu hỏi là **ngân hàng**, không phải form; nhóm A–I là nhóm c
 | Bạn hình dung khoảnh khắc đáng nhớ nhất của chuyến này là gì? | nhập tự do | preference của chuyến | [8], [15] |
 | Chọn vài ảnh bạn thấy "đúng chất" chuyến này. | lưới ảnh | preference của chuyến | [21] |
 
-**H. Kinh nghiệm và mức mới lạ** — chủ yếu cho Nhóm B (`Project_Context.md` §3.2).
+**H. Kinh nghiệm và mức mới lạ** — chỉ dùng khi user tự nhắc tới chuyến trước.
 
 | Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
 | ----------- | -------------- | ------- | ------ |

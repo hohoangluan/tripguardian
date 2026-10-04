@@ -13,7 +13,7 @@ Người dùng không cần chuẩn bị sẵn một danh sách hoàn chỉnh. H
 
 TripGuardian sẽ:
 
-1. hiểu nhu cầu, kinh nghiệm và các ràng buộc của chuyến đi, bắt đầu từ User Profile nếu người dùng cho phép;
+1. hiểu nhu cầu và các ràng buộc của chuyến đi, bắt đầu từ User Profile nếu người dùng cho phép;
 2. tìm và kiểm tra các địa điểm phù hợp;
 3. loại hoặc cảnh báo các lựa chọn không khả thi;
 4. giúp người dùng so sánh và chọn địa điểm;
@@ -63,105 +63,71 @@ Trong phạm vi MVP, ưu tiên:
 * sử dụng xe máy, ô tô, taxi hoặc dịch vụ gọi xe;
 * phải tự tổng hợp thông tin từ nhiều nguồn.
 
-Người dùng được chia thành **hai nhóm chính theo mức độ kinh nghiệm với điểm đến**.
+Người dùng được xác định theo **hai trục độc lập**, không phải theo nhóm người.
 
-## 3.1. Nhóm A — Người lần đầu đến Đà Lạt
-
-Đây là người chưa có nhiều hiểu biết thực tế về địa điểm, khoảng cách, khu vực hoặc cách phân bổ thời gian tại Đà Lạt.
-
-Họ thường gặp các vấn đề:
-
-* không biết nên bắt đầu tìm từ đâu;
-* khó phân biệt địa điểm thực sự phù hợp với địa điểm chỉ nổi tiếng;
-* khó ước lượng khoảng cách và thời gian thực tế;
-* dễ chọn quá nhiều địa điểm;
-* khó đánh giá hai địa điểm có trải nghiệm tương tự nhau;
-* không biết một ngày nên đi bao nhiêu nơi.
-
-Nhóm này cần TripGuardian hỗ trợ nhiều hơn ở:
-
-**Khám phá → Thu hẹp lựa chọn → Giải thích → Kiểm tra khả thi.**
-
-### Các trạng thái thường gặp
-
-**Chưa biết mình muốn gì**
-
-> “Tôi đi Đà Lạt 3 ngày với người yêu nhưng chưa biết nên đi đâu.”
-
-Hệ thống cần giúp khám phá phong cách chuyến đi trước khi đề xuất.
-
-**Đã lưu một số địa điểm**
-
-> “Tôi lưu khoảng 15 chỗ trên TikTok nhưng không biết nên chọn chỗ nào.”
-
-Hệ thống cần kiểm tra, nhóm và giảm danh sách thành các lựa chọn phù hợp hơn.
-
----
-
-## 3.2. Nhóm B — Người đã từng đến Đà Lạt hoặc có kinh nghiệm
-
-Nhóm này đã biết một phần về điểm đến và thường không cần được giới thiệu lại các địa điểm cơ bản.
-
-Họ có thể:
-
-* đã từng đi Đà Lạt;
-* biết một số khu vực và khoảng cách;
-* có những nơi chắc chắn muốn quay lại;
-* muốn tìm trải nghiệm mới;
-* muốn tránh lặp lại chuyến đi trước;
-* hoặc đã có sẵn một kế hoạch tương đối rõ.
-
-Vấn đề của họ thường là:
-
-* tìm địa điểm mới phù hợp với sở thích;
-* kết hợp địa điểm mới với những nơi đã muốn đi;
-* kiểm tra thông tin đã thay đổi từ lần đi trước;
-* tối ưu một danh sách có sẵn;
-* xử lý các ràng buộc phức tạp hơn.
-
-Nhóm này cần TripGuardian hỗ trợ nhiều hơn ở:
-
-**Kiểm tra → So sánh → Tìm lựa chọn mới → Tối ưu → Xử lý xung đột.**
-
-### Các trạng thái thường gặp
-
-**Có địa điểm bắt buộc**
-
-> “Tôi đã đi Đà Lạt rồi. Lần này chắc chắn muốn quay lại Hồ Tuyền Lâm và tìm thêm vài chỗ mới.”
-
-Các địa điểm này trở thành **anchor** của chuyến đi.
-
-**Đã có plan sơ bộ**
-
-> “Tôi đã lên 8 địa điểm cho 3 ngày, kiểm tra giúp xem có hợp lý không.”
-
-Hệ thống không cần tạo lại từ đầu mà kiểm tra và đề xuất điều chỉnh.
-
----
-
-## 3.3. Kinh nghiệm và trạng thái bắt đầu là hai yếu tố khác nhau
-
-Việc đã từng đến Đà Lạt không đồng nghĩa người dùng đã có plan.
-
-Tương tự, người lần đầu đi vẫn có thể đã lưu rất nhiều địa điểm.
-
-Do đó TripGuardian xác định hai yếu tố độc lập:
+## 3.1. Hai trục
 
 ```text
-Experience
-├── First-time visitor
-└── Returning / experienced visitor
-
-Starting state
-├── Chưa có ý tưởng rõ
-├── Có một số địa điểm đã lưu
-├── Có các địa điểm bắt buộc
-└── Có lịch trình sơ bộ
+Trạng thái bắt đầu   (có sẵn trong input)          → luồng bắt đầu từ đâu
+Mức dẫn dắt          (suy từ hành vi trong phiên)  → cách hệ thống hỏi và giải thích
 ```
 
-Experience quyết định **mức độ hướng dẫn**.
+Trạng thái bắt đầu nằm sẵn trong thứ người dùng gõ hoặc dán, nên không cần hỏi.
 
-Starting state quyết định **điểm bắt đầu của luồng**.
+Mức dẫn dắt không quan sát được ở lượt đầu, nên khởi động từ mặc định chung rồi tự điều chỉnh theo từng lượt.
+
+Không trục nào trực tiếp quyết định địa điểm.
+
+---
+
+## 3.2. Trạng thái bắt đầu
+
+| Trạng thái | Ví dụ | Luồng |
+| ---------- | ----- | ----- |
+| Chưa có ý tưởng rõ | "Tôi đi Đà Lạt 3 ngày với người yêu nhưng chưa biết nên đi đâu." | Khám phá → thu hẹp → giải thích → kiểm tra khả thi |
+| Có địa điểm đã lưu | "Tôi lưu khoảng 15 chỗ trên TikTok nhưng không biết nên chọn chỗ nào." | Nhóm và kiểm tra danh sách → thu hẹp |
+| Có địa điểm bắt buộc | "Chắc chắn muốn quay lại Hồ Tuyền Lâm và tìm thêm vài chỗ mới." | Xác nhận anchor → tìm quanh anchor → kiểm tra |
+| Có lịch trình sơ bộ | "Tôi đã lên 8 địa điểm cho 3 ngày, kiểm tra giúp xem có hợp lý không." | Kiểm tra khả thi → so sánh → tối ưu → xử lý xung đột |
+
+Mọi trạng thái vào qua cùng một ô nhập. Hệ thống tự phân loại rồi chọn luồng.
+
+Người dùng có thể chuyển sang luồng khác bất cứ lúc nào; lối tắt "tôi đã có danh sách, kiểm tra giúp" luôn hiện diện.
+
+---
+
+## 3.3. Mức dẫn dắt
+
+Ba tham số liên tục, đọc từ hành vi trong phiên:
+
+| Tham số | Tín hiệu | Điều chỉnh |
+| ------- | -------- | ---------- |
+| `guidance` | Độ dài câu trả lời; có tự nêu tiêu chí không; bấm chip hay gõ tự do; gọi tên khu vực cụ thể | Chip và gợi ý sẵn so với câu mở; độ dài giải thích; hỏi cách dùng so với hỏi thẳng tiêu chí |
+| `effort_budget` | Tỉ lệ `Không chắc` / `Bỏ qua`; trả lời cụt; yêu cầu xem gợi ý trước | Số lượt hỏi còn lại; thời điểm chuyển sang đề xuất và học qua phản hồi |
+| `control` | Sửa bản hiểu nhu cầu; critique đề xuất; yêu cầu chỉnh từng tiêu chí | Độ chi tiết tùy chỉnh; hiện tiêu chí chỉnh tay hay chỉ hiện kết quả |
+
+Mặc định khi chưa có dữ liệu: `guidance` trung–cao, `effort_budget` 3–5 lượt, `control` trung.
+
+Giải thích thừa thì người dùng bỏ qua được; giải thích thiếu thì chuyến đi hỏng. Vì vậy mặc định nghiêng về dẫn dắt nhiều hơn, bù lại bằng progressive disclosure: trả lời ngắn trước, phần "vì sao" mở rộng khi cần.
+
+Cuối phiên, ba tham số được ghi vào Behavioral Defaults (mục 6.2). Phiên sau khởi động từ giá trị đã học thay vì mặc định chung.
+
+---
+
+## 3.4. Thuộc tính ảnh hưởng kết quả
+
+Các thuộc tính sau thay đổi tập ứng viên và phải được biết hoặc đánh dấu `unknown` trước khi tìm địa điểm:
+
+| Thuộc tính | Ảnh hưởng |
+| ---------- | --------- |
+| Số ngày và ngày cụ thể | Sức chứa, thời tiết, cuối tuần |
+| Đi với ai, số người | Nhịp độ, giờ kết thúc ngày, hoạt động buổi tối, ngân sách |
+| Phương tiện | Bán kính khả thi, rủi ro mưa và đường đèo |
+| Nơi lưu trú | Neo khoảng cách toàn chuyến |
+| Ràng buộc thể chất | Loại bỏ cứng |
+
+Việc từng đến Đà Lạt hay chưa không đổi cách hỏi. Nó chỉ có giá trị khi người dùng nêu ra nơi đã đi, và được dùng làm `visited` cho Novelty (mục 6.2).
+
+TripGuardian không suy đoán tuổi, giới tính hoặc đặc điểm cá nhân để thay đổi đề xuất hay cách hỏi.
 
 ---
 
@@ -203,17 +169,16 @@ Họ cần:
 * **giữ quyền quyết định:** người dùng vẫn là người chọn địa điểm cuối cùng;
 * **có phương án thay thế:** biết phải thay đổi gì khi kế hoạch không khả thi.
 
-Hai nhóm người dùng có cùng nhu cầu cuối cùng nhưng khác điểm bắt đầu:
+Nhu cầu cuối cùng giống nhau; trọng số thay đổi theo trạng thái bắt đầu (mục 3.2):
 
-|                           | Lần đầu đi | Đã có kinh nghiệm |
-| ------------------------- | ---------- | ----------------- |
-| Khám phá địa điểm         | Cao        | Trung bình        |
-| Cần hướng dẫn             | Cao        | Thấp hơn          |
-| So sánh lựa chọn          | Cao        | Cao               |
-| Tìm trải nghiệm mới       | Trung bình | Cao               |
-| Kiểm tra danh sách có sẵn | Trung bình | Cao               |
-| Kiểm tra khả thi          | Cao        | Cao               |
-| Giữ địa điểm bắt buộc     | Có thể có  | Thường gặp        |
+|                           | Chưa có ý tưởng | Đã lưu địa điểm | Có nơi bắt buộc | Có lịch sơ bộ |
+| ------------------------- | --------------- | --------------- | --------------- | ------------- |
+| Khám phá địa điểm         | Cao             | Trung bình      | Trung bình      | Thấp          |
+| Thu hẹp lựa chọn          | Trung bình      | Cao             | Trung bình      | Thấp          |
+| So sánh lựa chọn          | Cao             | Cao             | Trung bình      | Trung bình    |
+| Kiểm tra danh sách có sẵn | Thấp            | Cao             | Trung bình      | Cao           |
+| Kiểm tra khả thi          | Cao             | Cao             | Cao             | Cao           |
+| Tối ưu, xử lý xung đột    | Thấp            | Trung bình      | Cao             | Cao           |
 
 ---
 
@@ -237,34 +202,54 @@ User Profile chỉ là **prior phục vụ cá nhân hóa**, không phải sự 
 
 ## 6.1. Nguồn dữ liệu
 
-User Profile có thể được xây dựng từ các nguồn người dùng chủ động cho phép:
+User Profile được xây từ các nguồn người dùng chủ động cho phép:
 
 ```text
 User Signals
 │
-├── Google Maps Timeline
+├── Link người dùng tự dán cho chuyến này
 ├── Google Maps Saved Places
-├── TikTok / YouTube activity
-├── Search / travel-related browsing
+├── Google Maps Timeline — chỉ lát cắt du lịch
+├── TikTok saved / favorites
 ├── Past TripGuardian trips
 └── User decisions inside TripGuardian
 ```
 
-Các nguồn cung cấp những tín hiệu khác nhau:
+| Nguồn | Giá trị chính | Ma sát | Thời điểm xin |
+| ----- | ------------- | ------ | ------------- |
+| Link tự dán cho chuyến này | Anchor trực tiếp và gu ngầm (6 link đều là quán cà phê view đồi → gu rõ) | Không | Ngay trong ô nhập |
+| Saved Places | Nơi người dùng có ý định trải nghiệm | Trung bình | Sau khi đã có đề xuất đầu |
+| Timeline (lát cắt du lịch) | `visited` cho Novelty; `pace` và `max_leg_min` thật đo từ hành vi | Cao | Khi người dùng nói đã từng đi nhưng không nhớ đi đâu |
+| TikTok saved / favorites | Recent Interests, Exploration Gap | Cao | Ngoài phạm vi MVP |
+| Past TripGuardian Trips | Lựa chọn và trải nghiệm từ chuyến trước | Không | Tự có |
+| Current TripGuardian Actions | Preference thể hiện qua add, remove, lock, compare, replace | Không | Tự có |
 
-| Nguồn                        | Giá trị chính                                               |
-| ---------------------------- | ----------------------------------------------------------- |
-| Google Maps Timeline         | những nơi và loại trải nghiệm người dùng thực sự đã đi      |
-| Saved Places                 | nơi người dùng có ý định hoặc mong muốn trải nghiệm         |
-| TikTok / YouTube / Search    | những chủ đề và trải nghiệm đang được quan tâm              |
-| Past TripGuardian Trips      | lựa chọn và trải nghiệm từ các chuyến trước                 |
-| Current TripGuardian Actions | preference thể hiện qua add, remove, lock, compare, replace |
+Tín hiệu bên ngoài chỉ đến qua file do người dùng chủ động tạo: file Google Takeout (Saved Places), file Timeline xuất từ điện thoại (Google hiện lưu Timeline trên thiết bị), hoặc file "Tải dữ liệu của bạn" của TikTok. TripGuardian không đọc ngầm tài khoản người dùng.
 
-Không phải mọi hành vi đều phản ánh preference.
+Mọi nguồn đều tùy chọn. Không có nguồn nào thì profile bắt đầu từ các quyết định trong TripGuardian.
 
-Các địa điểm mang tính routine như nhà, trường học, nơi làm việc hoặc nhu cầu hằng ngày cần được tách khỏi các hành vi leisure/travel trước khi sử dụng cho cá nhân hóa.
+### Thời điểm xin dữ liệu
 
-Trên thực tế, tín hiệu bên ngoài chỉ đến qua file hoặc kết nối do người dùng chủ động tạo: file Google Takeout (Saved Places), file Timeline xuất từ điện thoại (Google hiện lưu Timeline trên thiết bị), hoặc file "Tải dữ liệu của bạn" của TikTok. TripGuardian không đọc ngầm tài khoản người dùng. Mọi nguồn đều tùy chọn; không có nguồn nào thì profile bắt đầu từ các quyết định trong TripGuardian.
+```text
+Lần đầu dùng       → không xin gì, không banner
+Sau giá trị đầu    → mời một lần, bỏ qua được
+Tốt nhất           → xin đúng lúc hệ thống thiếu thông tin, nêu rõ đổi lấy gì
+```
+
+Ví dụ: người dùng nói "tôi đi Đà Lạt rồi mà quên đi chỗ nào" → đề nghị tải Timeline lên để lọc ra nơi đã đi. Một mục đích, ích lợi thấy ngay ở câu sau.
+
+Hệ thống không chặn người dùng ở bất kỳ bước nào để chờ dữ liệu.
+
+### Luật tối thiểu hóa
+
+Áp cho mọi nguồn file:
+
+1. Một lần import tương ứng một mục đích, nêu rõ lấy gì. Không xin đồng ý trọn gói.
+2. Cắt lát trước khi nạp: chỉ giữ entry trong phạm vi Đà Lạt và các chuyến đi xa, bỏ phần còn lại.
+3. Chỉ lưu feature dẫn xuất (`visited`, `pace`, `dwell`). Dump thô bị xóa sau khi trích, trong thời hạn công bố cho người dùng.
+4. Hiện cho người dùng thấy đã trích ra gì và cho xóa từng mục.
+
+Địa điểm mang tính routine như nhà, trường học, nơi làm việc hoặc nhu cầu hằng ngày được tách khỏi hành vi leisure trước khi dùng cho cá nhân hóa.
 
 ---
 
@@ -374,6 +359,14 @@ travel tolerance     medium
 crowd tolerance      low
 ```
 
+Behavioral Defaults cũng lưu ba tham số dẫn dắt của mục 3.3, ghi lại sau mỗi phiên:
+
+```text
+guidance         medium-high
+effort_budget    4 lượt
+control          medium
+```
+
 Behavioral Defaults chỉ giúp giảm input ban đầu. Người dùng luôn có thể thay đổi chúng cho từng chuyến.
 
 ---
@@ -414,6 +407,8 @@ mà còn có thể xác định:
 > Người dùng có thể muốn khám phá điều gì tiếp theo?
 
 Điều này giúp tránh việc personalization chỉ liên tục đề xuất những trải nghiệm giống lịch sử trước đó.
+
+Ở MVP, Recent Interests chủ yếu đến từ tín hiệu trong ứng dụng (compare, critique, lý do bỏ) chứ không từ import bên ngoài, nên Exploration Gap bắt đầu hẹp và mở rộng dần theo số phiên.
 
 ---
 
@@ -910,7 +905,7 @@ Người dùng luôn có thể sửa hoặc override inference của hệ thốn
 
 Không phải người dùng nào cũng diễn đạt rõ mình muốn gì.
 
-Người lần đầu đi thường cần nhiều hỗ trợ hơn trong bước này.
+Mức hỗ trợ ở bước này thay đổi theo hành vi người dùng trong phiên (mục 3.3), không theo nhóm người dùng định sẵn.
 
 Thay vì hỏi một questionnaire cố định, TripGuardian sử dụng hội thoại ngắn và chỉ hỏi khi câu trả lời có thể thay đổi kết quả.
 
@@ -951,7 +946,7 @@ Người dùng có thể sửa trực tiếp, kể cả các suy luận lấy t�
 | 1 | **Chỉ hỏi câu có giá trị thông tin cao nhất.** Mỗi lượt chọn câu mà câu trả lời làm thay đổi tập ứng viên nhiều nhất; câu nào không đổi kết quả thì bỏ. | Chọn câu hỏi để học nhanh preference của user mới trong cold start [11]; hỏi làm rõ khi yêu cầu mơ hồ, nhiều mặt hoặc thiếu [12]. |
 | 2 | **Hỏi làm rõ trước khi lập kế hoạch.** Agent phải tự nhận ra thông tin còn thiếu và hỏi trước khi gọi tool / xếp lịch, không tự đoán. | Ask-before-Plan: lập kế hoạch du lịch thất bại khi agent không phát hiện nhu cầu cần làm rõ [13]. |
 | 3 | **Constraint phải rõ trước khi lập kế hoạch.** Ràng buộc cứng (ngân sách, thời gian, thể chất) phải được biết hoặc đánh dấu `unknown` trước khi tìm địa điểm, đúng thứ tự xử lý ở mục 7; không có nghĩa là luôn hỏi chúng đầu tiên (`docs/TRIP_UNDERSTANDING.md` §5). | TravelPlanner tách hard constraint lấy từ yêu cầu user với commonsense constraint; agent LLM thường bỏ sót ràng buộc [14]. |
-| 4 | **Hỏi về cách dùng, không hỏi thuộc tính.** Người lần đầu đi không biết thuộc tính nào quan trọng; hỏi "chuyến này để làm gì / đi với ai" dễ trả lời hơn "thích loại POI nào". | Usage-related questions dễ trả lời kể cả với người thiếu kiến thức domain [8]. |
+| 4 | **Hỏi về cách dùng, không hỏi thuộc tính.** Người chưa rành điểm đến không biết thuộc tính nào quan trọng; hỏi "chuyến này để làm gì / đi với ai" dễ trả lời hơn "thích loại POI nào". | Usage-related questions dễ trả lời kể cả với người thiếu kiến thức domain [8]. |
 | 5 | **Có gợi ý + cho nhập tự do.** Mỗi câu có lựa chọn sẵn (guidance cao) nhưng không khóa input. | Phương thức elicitation có guidance cao cho kết quả khớp hơn guidance thấp [9]. |
 | 6 | **`Không chắc` là câu trả lời hợp lệ nhưng không phải điểm dừng.** Ghi `unknown`, không suy thành không thích; sau đó khai thác gián tiếp qua đề xuất + phản hồi (compare, critique) thay vì hỏi dồn. | Lựa chọn "không ý kiến" dễ thành lối tắt giảm công sức trả lời [16]; critiquing học preference từ phản hồi trên đề xuất cụ thể [17]; CRS kết hợp hỏi và đề xuất [24]. |
 | 7 | **Làm rõ từ chủ quan.** "Chill", "yên tĩnh", "đẹp" mang nghĩa khác nhau với từng người; hỏi lại nghĩa trước khi dùng làm tiêu chí. | Thuộc tính chủ quan là thách thức riêng của conversational recommendation [10]. |
@@ -967,14 +962,14 @@ Ngân hàng câu hỏi nhóm A–I, cách chọn câu tiếp theo, điều kiệ
 
 Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi theo người dùng là **mức hướng dẫn, dạng câu hỏi và độ sâu**. Các nghiên cứu cho thấy nhóm người dùng khác nhau hợp với cách elicitation khác nhau: người mới hưởng lợi từ danh sách phổ biến/gợi ý sẵn, người am hiểu hài lòng hơn khi được nêu tiêu chí trực tiếp [25]; người dùng CRS tách thành nhiều nhóm có sở thích kiểu hội thoại khác nhau, chịu ảnh hưởng của mức muốn tự kiểm soát [26]; động cơ du lịch đổi theo kinh nghiệm [20].
 
-Điều chỉnh dựa trên hai trục ở mục 3.3 và tín hiệu user tự thể hiện trong hội thoại:
+Điều chỉnh dựa trên hai trục ở mục 3.1 và tín hiệu user tự thể hiện trong hội thoại:
 
 | Tín hiệu | Cách hỏi | Căn cứ |
 | -------- | -------- | ------ |
-| Lần đầu đi (Nhóm A) | Hỏi theo cách dùng (nhóm G), luôn có chip gợi ý, cho "xem gợi ý trước" sớm; hạn chế hỏi thuộc tính. | [8], [25] |
-| Đã từng đi (Nhóm B) | Được hỏi thẳng tiêu chí; ưu tiên nhóm H (đã đi đâu, muốn mới hay quen). | [20], [25] |
+| Trả lời ngắn, chưa nêu được tiêu chí, chủ yếu bấm chip | Hỏi theo cách dùng (nhóm G), luôn có chip gợi ý, cho "xem gợi ý trước" sớm; hạn chế hỏi thuộc tính. | [8], [25] |
+| Tự nêu tiêu chí, gọi tên khu vực cụ thể, nhắc chuyến trước | Được hỏi thẳng tiêu chí; ưu tiên nhóm H (đã đi đâu, muốn mới hay quen). | [20], [25] |
 | Starting state: chưa có ý tưởng | Nhiều câu mở + gợi ý hơn. | [15] |
-| Starting state: có địa điểm đã lưu / lịch sơ bộ | Bắt đầu từ xác nhận anchors (nhóm E) và constraint; ít câu hỏi sở thích. | mục 3.3 |
+| Starting state: có địa điểm đã lưu / lịch sơ bộ | Bắt đầu từ xác nhận anchors (nhóm E) và constraint; ít câu hỏi sở thích. | mục 3.2 |
 | User trả lời dài, tự nêu tiêu chí (muốn kiểm soát) | Lựa chọn chi tiết hơn, cho chỉnh từng tiêu chí. | [26] |
 | User trả lời cụt, nhiều `Không chắc` | Ít câu hơn, chuyển sớm sang đề xuất rồi critique. | [16], [17], [26] |
 
@@ -1049,6 +1044,10 @@ Giờ mở cửa, thời gian, tuyến đường, ngân sách và constraint ph�
 
 User Profile là prior, chỉ được dùng sau khi đã kiểm tra constraint. Context của chuyến hiện tại luôn được ưu tiên hơn hành vi lịch sử.
 
+### 9. Xin dữ liệu theo mục đích
+
+Mỗi lần xin dữ liệu gắn với một mục đích và một ích lợi người dùng thấy được ngay. Không xin trọn gói ở cửa vào, không chặn người dùng để chờ dữ liệu.
+
 ---
 
 # 15. Ví dụ
@@ -1059,7 +1058,7 @@ Người dùng:
 
 TripGuardian:
 
-1. nhận diện người dùng là **first-time visitor**;
+1. nhận diện trạng thái bắt đầu: **có địa điểm đã lưu**;
 2. đọc danh sách đã lưu;
 3. chuẩn hóa các địa điểm;
 4. loại hoặc cảnh báo các nơi không phù hợp constraint;
@@ -1126,7 +1125,7 @@ Tương tự, model không ghi fact về địa điểm. Model trích observatio
 ## Trong phạm vi
 
 * Đà Lạt;
-* first-time và returning visitor;
+* người tự lên kế hoạch chuyến tự túc 2–4 ngày, cá nhân / cặp đôi / nhóm nhỏ;
 * trip context;
 * preference discovery;
 * nhập saved places;
@@ -1147,6 +1146,8 @@ Tương tự, model không ghi fact về địa điểm. Model trích observatio
 * mạng xã hội du lịch;
 * collaboration phức tạp cho nhóm lớn;
 * bao phủ toàn Việt Nam;
+* import Google Maps Timeline và file dữ liệu TikTok;
+* suy đoán đặc điểm nhân khẩu học của người dùng;
 * cam kết mọi thông tin đều real-time;
 * để LLM tự tạo dữ kiện còn thiếu.
 

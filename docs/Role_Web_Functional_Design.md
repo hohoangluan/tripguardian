@@ -45,11 +45,12 @@ Admin **không** gõ giá trị mới cho fact của địa điểm: dữ liệu
 
 ## 2. User Web — các màn hình
 
-Luồng bắt đầu khác nhau theo kinh nghiệm và trạng thái bắt đầu (`docs/TRIP_UNDERSTANDING.md` §2). Cách hiển thị giá trị chưa chắc chắn, fact, signal, estimate: `docs/UX_Design_Brief.md` §4.
+Luồng bắt đầu khác nhau theo trạng thái bắt đầu (`docs/Project_Context.md` §3.2). Cách hiển thị giá trị chưa chắc chắn, fact, signal, estimate: `docs/UX_Design_Brief.md` §4.
 
 ### 2.1 Vào ứng dụng
 
-- Hỏi "Đã đến Đà Lạt chưa?" (lần đầu / đã từng), rồi "Bạn đang có gì?" (chưa có gì / địa điểm đã lưu / nơi bắt buộc đến / một lịch trình).
+- Một ô nhập tự do: người dùng gõ hoặc dán link đã lưu, danh sách, lịch có sẵn, hoặc chỉ một câu. Hệ thống tự phân loại trạng thái bắt đầu, không hỏi.
+- Lối tắt khi chưa biết gõ gì: "Chưa có gì" / "Địa điểm đã lưu" / "Nơi bắt buộc đến" / "Một lịch trình".
 - Người dùng quay lại có hồ sơ: đề xuất "Theo gu quen thuộc" hoặc "Lần này khác".
 
 ### 2.2 Thiết lập chuyến đi
@@ -191,7 +192,7 @@ Vài con số để phát hiện vấn đề nhanh; không cần nhiều biểu 
 Để debug, đánh giá pilot, tìm chỗ người dùng bỏ dở. Không hiển thị dữ liệu cá nhân không cần thiết.
 
 ```text
-Trip #1028 · lần đầu · 3 ngày · bắt đầu từ địa điểm đã lưu
+Trip #1028 · 3 ngày · bắt đầu từ địa điểm đã lưu
 15 nhập → 12 đã xác minh → 3 bị lọc → 8 shortlist → 6 được chọn → 1 xung đột → 5 cuối cùng → khả thi sau điều chỉnh
 ```
 
