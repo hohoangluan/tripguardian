@@ -31,28 +31,42 @@ def intervals_for(place: Place, ctx: DayCtx) -> list[tuple[int, int]]:
 
 
 def pin_window(place: Place, ctx: DayCtx) -> tuple[int, int]:
-    """(earliest start, latest start) for a place known for a timed feature. A sun-based pin on a day with no known
-    sun is ignored rather than guessed."""
-    lo, hi = 0, DAY_MINUTES
+    """(earliest start, latest start) for a place known for a timed feature. One timed feature is reason enough to be
+    there: a place known for both sunrise and sunset is pinned to one of them, not to their (empty) overlap. The pin
+    taken is the first one the place's own opening hours can host for a visit of this pace, preferring one inside the
+    day; a pin the place itself can never host (live music after closing time) does not pin it at all. A sun-based
+    pin on a day with no known sun is ignored rather than guessed."""
+    wins = []
     for fid in place.pins:
         pin = ctx.cfg.pins[fid]
         if pin["anchor"] == "clock":
-            a, b = pin["from"], pin["to"]
-        elif ctx.sun is None:
-            continue
-        else:
+            wins.append((pin["from"], pin["to"]))
+        elif ctx.sun is not None:
             base = ctx.sun[0] if pin["anchor"] == "sunrise" else ctx.sun[1]
-            a, b = base + pin["from_min"], base + pin["to_min"]
-        lo, hi = max(lo, a), min(hi, b)
-    return lo, hi
+            wins.append((base + pin["from_min"], base + pin["to_min"]))
+    visit = min(place.visit[ctx.cfg.visit_key[ctx.pace]], place.visit["short"])
+    open_ = intervals_for(place, ctx)
+    hosted = [(a, b) for a, b in wins if any(max(a, o) <= b and max(a, o) + visit <= c for o, c in open_)]
+    in_day = [(a, b) for a, b in hosted if max(a, ctx.day.start) <= b and max(a, ctx.day.start) + visit <= ctx.day.end]
+    return (in_day or hosted or [(0, DAY_MINUTES)])[0]
 
 
 def _meal_slots(order: list[str], ctx: DayCtx) -> tuple[dict, list[str]]:
     """Meal places take the day's meal windows in order; the windows left over get a free block."""
     names = list(ctx.cfg.meal_windows)[: ctx.cfg.meals_per_day]
     reachable = [n for n in names if ctx.cfg.meal_windows[n][1] >= ctx.day.start]    # a window already over is not claimed
-    meal_ids = [pid for pid in order if ctx.places[pid].kind == "meal"]
-    claimed = dict(zip(meal_ids, reachable))
+    claimed: dict = {}
+    for pid in (p for p in order if ctx.places[p].kind == "meal"):
+        p = ctx.places[pid]
+        lo, hi = pin_window(p, ctx)                     # a dinner place known for evening music takes dinner
+        need = min(p.visit[ctx.cfg.visit_key[ctx.pace]], p.visit["short"])
+        # a meal window the place can host: open then (an afternoon-only place never takes lunch) and at its pin
+        fits = [n for n in reachable if n not in claimed.values()
+                and any(max(lo, o, ctx.cfg.meal_windows[n][0]) <= min(hi, ctx.cfg.meal_windows[n][1], c - need)
+                        for o, c in intervals_for(p, ctx))]
+        if fits:
+            claimed[pid] = fits[0]
+        # no window fits: the place is visited like any other stop, the meals stay free blocks
     return claimed, [n for n in names if n not in claimed.values()]
 
 
@@ -75,7 +89,9 @@ def _breaks(t: int, active: int, items: list, free: list, served: set, notes: li
     return t, active
 
 
-def simulate(order: list[str], ctx: DayCtx) -> DayResult:
+def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
+    """shrink=False keeps every visit at the pace's length: robustness asks whether the day survives a delay as
+    planned, not whether it survives by cutting visits short."""
     cfg, day, travel = ctx.cfg, ctx.day, ctx.travel
     claimed, free = _meal_slots(order, ctx)
     t, here, active = day.start, day.start_node, 0
@@ -105,10 +121,14 @@ def simulate(order: list[str], ctx: DayCtx) -> DayResult:
             served.add(claimed[pid])
         pin_lo = pin_window(p, ctx)[0]
         start, why = None, "opening"
+        shortest = min(visit, p.visit["short"]) if shrink else visit
         for o, c in intervals_for(p, ctx):
             s = max(t, o, lo)
-            if s <= hi and s + visit <= c:
-                start = s
+            # The visit is an estimate range: when the pace's length does not fit the opening block or what is
+            # left of the day, it shrinks toward the short estimate, never below it.
+            room = min(c, day.end) - s
+            if s <= hi and room >= shortest:
+                start, visit = s, min(visit, room)
                 why = "opening" if s == o and o > max(t, lo) else "meal" if pid in claimed and s == lo > pin_lo else "pin"
                 break
         if start is None:

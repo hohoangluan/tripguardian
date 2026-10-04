@@ -34,7 +34,7 @@ def _can_start(p, ctx: DayCtx) -> bool:
     """Whether the place can be visited at all inside this day: open that weekday, long enough within the day's window,
     and at the time of day its feature needs (a restaurant that opens at 18:00 on a day that ends at 15:00, a
     live-music bar on a day that ends before dark). A sunrise place can pull a later day's start forward."""
-    need = p.visit[ctx.cfg.visit_key[ctx.pace]]
+    need = min(p.visit[ctx.cfg.visit_key[ctx.pace]], p.visit["short"])   # a visit may shrink to its short estimate
     lo, hi = pin_window(p, ctx)
     floor = lo if 0 < lo < ctx.day.start and ctx.day.index > 0 else ctx.day.start
     w = windows_on(p.hours, ctx.day.weekday)

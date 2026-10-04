@@ -20,7 +20,6 @@ def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, a
              budget_vnd: int | None, max_leg_min: int | None) -> list[Violation]:
     out: list[Violation] = []
     visited: dict = {}
-    dup_groups: dict = {}
     for cx, r in zip(ctxs, results):
         d = cx.day
         items = sorted(r.items, key=lambda i: (i.start, i.end))
@@ -53,9 +52,6 @@ def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, a
             if p.id in visited:
                 out.append(Violation("duplicate", d.index, p.id, 0, False, "the place is scheduled twice"))
             visited[p.id] = d.index
-            if p.dup_group is not None and dup_groups.setdefault(p.dup_group, p.id) != p.id:
-                out.append(Violation("duplicate", d.index, p.id, 0, False,
-                                     f"near duplicate of {dup_groups[p.dup_group]}"))
             spend += p.cost_vnd or 0
             for hf in hard_filters:
                 if hf["op"] == "ne" and hf["feature"] not in p.relaxed \

@@ -1,6 +1,6 @@
 import json
 
-from plan_fixtures import CFG, all_days, decision, fake_matrix, fixed_sun, no_geocode, rec
+from plan_fixtures import CENTRE, CFG, all_days, decision, fake_matrix, fixed_sun, no_geocode, prepared, rec, spot
 
 from live import Unavailable
 from planning import build_plan, render_text
@@ -201,3 +201,17 @@ def test_an_evening_only_place_goes_on_the_long_day_and_the_rest_fills_the_short
     assert plan["ok"], plan["violations"]
     day1, day2 = visits(plan)
     assert "c0" in day1 and day2
+
+
+def test_two_places_that_both_want_the_evening_share_a_day_by_giving_up_one_pin():
+    from plan_fixtures import day_ctx
+
+    from planning.build import _unpin
+    from planning.route import order_day
+    from planning.validate import validate
+    music = {"live_music": "present"}                    # both want 18:00-20:00 on a day open until 21:00
+    cx = day_ctx([rec("m1", 1, 1, features=music, visit=(60, 120, 150)), rec("m2", 1, 1, features=music, visit=(60, 120, 150))])
+    r = order_day(["m1", "m2"], cx)
+    assert validate([cx], [r], [], set(), None, None)    # as pinned, the day cannot hold both
+    cx2, r2, dropped = _unpin(cx, r, ["m1", "m2"], [], None, None)
+    assert len(dropped) == 1 and validate([cx2], [r2], [], set(), None, None) == []

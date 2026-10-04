@@ -37,7 +37,7 @@ def test_a_place_closed_that_weekday_is_a_violation_and_an_unknown_weekday_does_
 
 
 def test_a_visit_that_would_end_after_closing_is_a_violation():
-    late = rec("a", 1, 1, hours=all_days("08:00", "08:30"), visit=(30, 60, 90))
+    late = rec("a", 1, 1, hours=all_days("08:00", "08:20"), visit=(30, 60, 90))     # shorter than even the short visit
     assert [v.kind for v in simulate(["a"], day_ctx([late])).violations] == ["hours"]
 
 
@@ -63,7 +63,7 @@ def test_a_sunset_place_is_held_until_the_sun_is_about_to_set():
 
 
 def test_a_dawn_place_is_pinned_to_sunrise_and_missing_it_is_a_violation():
-    cx = day_ctx([rec("a", 1, 1, features={"cloud_hunting": "present"})], sun=(360, 1050), start=480)
+    cx = day_ctx([rec("a", 1, 1, hours=None, features={"cloud_hunting": "present"})], sun=(360, 1050), start=480)
     assert pin_window(cx.places["a"], cx) == (330, 420)
     assert [v.kind for v in simulate(["a"], cx).violations] == ["hours"]      # the day opens at 08:00, too late
 
@@ -159,3 +159,66 @@ def test_a_rainy_day_gets_a_longer_buffer_and_a_missing_forecast_changes_nothing
         return next(i.end - i.start for i in r.items if i.kind == "buffer")
 
     assert (size(0.8), size(0.6), size(0.3), size(None)) == (30, 30, 20, 20)
+
+
+def test_a_place_with_several_timed_features_needs_one_of_them_not_all():
+    # sunrise 05:30-07:00 and sunset 16:15-17:10 never overlap: one reason to be there is enough
+    both = rec("a", 1, 1, hours=None, features={"cloud_hunting": "present", "sunset_view": "present"})
+    cx = day_ctx([both], sun=(360, 1050), start_node="h", extra_nodes=["h"])
+    assert pin_window(cx.places["a"], cx) == (975, 1030)           # the one that fits inside the day
+    assert simulate(["a"], cx).violations == ()
+
+
+def test_a_timed_feature_the_opening_hours_cannot_host_does_not_pin_the_place():
+    # live music 18:00-20:00 at a cafe that closes at 18:30 with a 45-minute shortest visit: visit it like any other
+    cafe = rec("c", 1, 1, hours=all_days("07:00", "18:30"), visit=(45, 75, 150), features={"live_music": "present"})
+    cx = day_ctx([cafe], pace="slow", start_node="h", extra_nodes=["h"])
+    assert pin_window(cx.places["c"], cx) == (0, 1440)
+    assert simulate(["c"], cx).violations == ()
+
+
+def test_a_timed_visit_shrinks_to_end_before_closing():
+    # live music from 18:00, cafe closes at 19:00: the slow 150-minute visit becomes 60 minutes at the music
+    cafe = rec("c", 1, 1, hours=all_days("07:00", "19:00"), visit=(45, 75, 150), features={"live_music": "present"})
+    cx = day_ctx([cafe], pace="slow", start_node="h", extra_nodes=["h"])
+    v = next(i for i in simulate(["c"], cx).items if i.kind == "visit")
+    assert (v.start, v.end) == (1080, 1140)
+
+
+def test_a_meal_place_known_for_evening_music_takes_the_dinner_window():
+    lau = rec("m", 1, 1, usable=("meal", "backup"), hours=all_days("11:00", "23:30"), features={"live_music": "present"})
+    cx = day_ctx([lau], start_node="h", extra_nodes=["h"])
+    r = simulate(["m"], cx)
+    assert r.violations == () and next(i.start for i in r.items if i.kind == "visit") >= 1080
+
+
+def test_a_visit_longer_than_an_opening_block_shrinks_to_fit_but_never_below_its_short_estimate():
+    # open in two blocks with a lunch break; the slow-pace visit (240) fits neither, its range does
+    split = {d: [["07:30", "11:30"], ["13:30", "17:00"]] for d in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")}
+    cx = day_ctx([rec("p", 1, 1, hours=split, visit=(60, 120, 240))], pace="slow", start_node="h", extra_nodes=["h"])
+    r = simulate(["p"], cx)
+    v = next(i for i in r.items if i.kind == "visit")
+    assert r.violations == () and 60 <= v.end - v.start < 240 and v.end <= 690
+    too_short = {d: [["10:00", "10:30"]] for d in split}
+    cx = day_ctx([rec("q", 1, 1, hours=too_short, visit=(60, 120, 240))], pace="slow", start_node="h", extra_nodes=["h"])
+    assert [x.kind for x in simulate(["q"], cx).violations] == ["hours"]
+
+
+def test_a_visit_estimated_longer_than_the_day_is_cut_to_the_day():
+    camp = rec("c", 1, 1, hours=None, visit=(180, 360, 1080))
+    cx = day_ctx([camp], pace="slow")
+    r = simulate(["c"], cx)
+    v = next(i for i in r.items if i.kind == "visit")
+    assert r.violations == () and v.end <= cx.day.end and v.end - v.start >= 180
+
+
+def test_a_meal_place_that_opens_in_the_afternoon_takes_dinner_not_lunch():
+    late = rec("m", 1, 1, usable=("meal", "backup"), hours=all_days("15:00", "22:00"))
+    r = simulate(["m"], day_ctx([late], start_node="h", extra_nodes=["h"]))
+    assert r.violations == () and next(i.start for i in r.items if i.kind == "visit") >= 1080
+
+
+def test_a_meal_place_no_meal_window_can_host_is_visited_like_any_place():
+    tea = rec("t", 1, 1, usable=("meal", "backup"), hours=all_days("14:00", "17:00"))
+    r = simulate(["t"], day_ctx([tea], start_node="h", extra_nodes=["h"]))
+    assert r.violations == ()

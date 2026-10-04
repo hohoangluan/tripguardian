@@ -96,11 +96,11 @@ def test_a_relaxed_filter_and_a_place_with_no_evidence_do_not_fail():
     assert run(relaxed, result(visit("a", 600, 660)), hard=hard) == []
 
 
-def test_the_same_place_twice_and_two_near_duplicates_fail():
+def test_the_same_place_twice_fails_but_two_near_duplicates_the_user_kept_pass():
+    # near duplicate = the same kind of place (PLACE_DECISION §9.1): a hint to keep one, never a reason to refuse
     cx = day_ctx([rec("a", 1, 1, dup=7), rec("b", 1, 1, dup=7)])
     assert kinds(run(cx, result(visit("a", 600, 660), visit("a", 700, 760)))) == ["duplicate"]
-    v = run(cx, result(visit("a", 600, 660), visit("b", 700, 760)))
-    assert kinds(v) == ["duplicate"] and v[0].place_id == "b"
+    assert run(cx, result(visit("a", 600, 660), visit("b", 700, 760))) == []
 
 
 def test_a_non_physical_hard_filter_is_not_marked_physical():

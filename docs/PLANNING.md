@@ -138,16 +138,16 @@ class CSS riêng): best-effort, kiểm lại trước khi tin.
 
 - Mỗi ngày mở và kết ở chỗ ở; ngày đầu mở ở `entry_point`, ngày cuối kết ở `exit_point`.
 - n ≤ `exact_n` (7) nơi mỗi ngày → **vét cạn permutation** có cắt tỉa theo giờ mở (≤ 5040) → tối ưu thật. n lớn hơn → nearest-neighbour + 2-opt + or-opt. Cả hai tất định.
-- Buổi: `pins` (`config/planning.yaml`: `sunset_view`, `cloud_hunting`, `live_music`) + `sun_times` → hoàng hôn / đêm ghim cuối ngày; sương / bình minh ghim đầu ngày.
-- Bữa ăn: `meals_per_day`. Có quán ăn trong `confirmed` → chèn vào khung trưa / tối. Không có → chừa khoảng trống "ăn trưa (tự chọn)", không thêm địa điểm.
+- Buổi: `pins` (`config/planning.yaml`: `sunset_view`, `cloud_hunting`, `live_music`) + `sun_times` → hoàng hôn / đêm ghim cuối ngày; sương / bình minh ghim đầu ngày. Một nơi có nhiều tính năng theo giờ chỉ cần **một** (ưu tiên khung nằm trong ngày), không lấy giao. Khung mà giờ mở cửa của chính nơi đó không chứa nổi (nhạc 18:00 ở quán đóng 18:30) thì không ghim. Ngày nào vẫn hỏng vì hai nơi cùng muốn một buổi → bỏ ghim của nơi xếp muộn nhất trước, tới khi ngày đạt, kèm cảnh báo `pin_dropped`; nơi đó vẫn được ghé, chỉ không đúng giờ đẹp nhất.
+- Bữa ăn: `meals_per_day`. Có quán ăn trong `confirmed` → chèn vào khung trưa / tối **mà quán đó mở cửa và hợp với buổi của nó** (quán chỉ mở chiều nhận bữa tối); không khung nào hợp thì ghé như một điểm thường. Không có quán → chừa khoảng trống "ăn trưa (tự chọn)", không thêm địa điểm.
 
 ### ⓓ Giờ, tham quan, đệm, nghỉ — `schedule.py`
 
-Visit theo pace: thong thả → `long`, cân bằng → `typical`, đi nhiều nơi → `min`. Đến sớm → `wait`; quá giờ đóng → vi phạm. Đệm = `buffer_min[pace]` + phụ phí theo độ không chắc (mưa, chặng dài, giờ `UNCERTAIN`). Nghỉ chèn theo pace, và chặn "đi liên tục quá `max_consecutive_min` mà không nghỉ".
+Visit theo pace: thong thả → `long`, cân bằng → `typical`, đi nhiều nơi → `min`. Thời lượng là một khoảng ước tính: mức của pace không vừa ca mở cửa hoặc phần còn lại của ngày thì rút dần về mức `short`, không thấp hơn. Kiểm tra độ vững (`robustness.py`) không rút, để "trễ 15 phút" vẫn đo đúng. Đến sớm → `wait`; quá giờ đóng → vi phạm. Đệm = `buffer_min[pace]` + phụ phí theo độ không chắc (mưa, chặng dài, giờ `UNCERTAIN`). Nghỉ chèn theo pace, và chặn "đi liên tục quá `max_consecutive_min` mà không nghỉ".
 
 ### ⓔ Kiểm tra cuối — `validate.py`
 
-Nơi **duy nhất** kết luận đạt / không đạt, và kết luận từ chính dòng thời gian cuối cùng. Tám kiểm tra: ngày đi · giờ mở cửa · chồng lấn · thời gian di chuyển · anchor · ngân sách (gồm tiền phòng khi đã biết giá) · hard constraint · địa điểm trùng. Trả `ok` + danh sách vi phạm, mỗi vi phạm có `physical: bool` và cái giá đã tính của từng cách sửa. Không phương án nào hợp lệ → trả về tầng Place Decision kèm nơi gây lỗi (`docs/PLACE_DECISION.md` §14, dòng "Planning báo không xếp được").
+Nơi **duy nhất** kết luận đạt / không đạt, và kết luận từ chính dòng thời gian cuối cùng. Tám kiểm tra: ngày đi · giờ mở cửa · chồng lấn · thời gian di chuyển · anchor · ngân sách (gồm tiền phòng khi đã biết giá) · hard constraint · địa điểm trùng (cùng **một** nơi xếp hai lần). Hai nơi "gần trùng" (cùng kiểu, `PLACE_DECISION.md` §9.1) mà người dùng vẫn giữ là lựa chọn của họ: chỉ cảnh báo `near_duplicate`, không chặn. Trả `ok` + danh sách vi phạm, mỗi vi phạm có `physical: bool` và cái giá đã tính của từng cách sửa. Không phương án nào hợp lệ → trả về tầng Place Decision kèm nơi gây lỗi (`docs/PLACE_DECISION.md` §14, dòng "Planning báo không xếp được").
 
 ### ⓕ Độ vững — `robustness.py`
 

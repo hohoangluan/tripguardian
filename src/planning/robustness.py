@@ -40,7 +40,7 @@ def lost_places(order: tuple, cx: DayCtx) -> list[str]:
     """The stops of one day that no longer fit when the day runs as cx says."""
     if not order:
         return []
-    r = simulate(list(order), cx)
+    r = simulate(list(order), cx, shrink=False)
     bad = {v.place_id for v in r.violations if v.kind == "hours"}
     end_node = cx.day.end_node
     for it in r.items:

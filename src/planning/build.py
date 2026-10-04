@@ -35,6 +35,8 @@ WARNING_TEXT = {
     "meal_missed": "Ngày {day}: quá khung giờ {meal}, chưa xếp bữa.",
     "hours_vary": "{name}: giờ mở cửa khác nhau theo thứ, chưa biết ngày đi nên dùng khung giờ chung các ngày mở.",
     "early_start": "Ngày {day}: bắt đầu sớm lúc {start} để kịp {name}.",
+    "pin_dropped": "Ngày {day}: không xếp kịp {name} vào đúng giờ đẹp nhất (hoàng hôn / bình minh / nhạc), vẫn ghé nơi này lúc khác trong ngày.",
+    "near_duplicate": "{a} và {b} cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn.",
 }
 
 
@@ -98,6 +100,12 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
 
     placed, unplaced = pl.build_places(decision, by_id, cfg)
     by_place = {p.id: p for p in placed}
+    # Near duplicates (the same kind of place, PLACE_DECISION §9.1) the user kept anyway: say so, never refuse.
+    seen: dict = {}
+    for p in placed:
+        if p.dup_group is not None and p.dup_group in seen:
+            warnings.append(_warn("near_duplicate", a=seen[p.dup_group], b=p.name))
+        seen.setdefault(p.dup_group, p.name)
     for p in placed:
         if p.hours is None:
             warnings.append(_warn("hours_unknown", name=p.name))
@@ -170,21 +178,43 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
             ctxs[k] = replace(cx, day=replace(cx.day, start=start))
             warnings.append(_warn("early_start", day=cx.day.index + 1, start=fmt(start),
                                   name=trip.by_place[pid].name))
+    tc = trip.decision["trip_context"]
+    hard, budget = tc.get("hard_filters") or [], tc["context"].get("budget_vnd")
+    max_leg = (tc.get("pace") or {}).get("max_leg_min")
     results = []
-    for day_ids, cx in zip(per_day, ctxs):
+    for k, (day_ids, cx) in enumerate(zip(per_day, ctxs)):
         key = (cx.day.index, cx.day.start_node, cx.day.end_node, tuple(sorted(day_ids)))
         if key not in trip.routes:      # the order inside a day does not depend on the day-split weights
             trip.routes[key] = order_day(day_ids, cx)
-        results.append(trip.routes[key])
+        r = trip.routes[key]
+        if validate([cx], [r], hard, set(), budget, max_leg):
+            cx, r, dropped = _unpin(cx, r, day_ids, hard, budget, max_leg)
+            ctxs[k] = cx
+            warnings += [_warn("pin_dropped", day=cx.day.index + 1, name=cx.places[i].name) for i in dropped]
+        results.append(r)
     for cx, r in zip(ctxs, results):
         for note in r.notes:
             code, _, meal = note.partition(":")
             warnings.append(_warn(code, day=cx.day.index + 1, meal=MEAL_NAME.get(meal, meal)))
-    tc = trip.decision["trip_context"]
     anchors = {c["id"] for c in trip.decision["confirmed"] if c.get("role") == "anchor"}
-    violations = validate(ctxs, results, tc.get("hard_filters") or [], anchors, tc["context"].get("budget_vnd"),
-                          (tc.get("pace") or {}).get("max_leg_min"))
+    violations = validate(ctxs, results, hard, anchors, budget, max_leg)
     return Schedule(per_day, results, ctxs, violations, warnings)
+
+
+def _unpin(cx: DayCtx, r, day_ids: list, hard: list, budget, max_leg):
+    """A day that fails because places want the same time of day (two bars that both want 18:00, a sunset spot after
+    an evening show): give up the time of day of the latest one first, until the day passes. The visit stays; only
+    the "be there at sunset / for the music" wish is dropped, and the caller says so. Nothing helps: unchanged."""
+    first = {it.place_id: it.start for it in r.items if it.kind == "visit"}
+    pinned = sorted((i for i in day_ids if cx.places[i].pins), key=lambda i: -first.get(i, 0))
+    tried, dropped = cx, []
+    for pid in pinned:
+        tried = replace(tried, places={**tried.places, pid: replace(tried.places[pid], pins=())})
+        dropped.append(pid)
+        out = order_day(day_ids, tried)
+        if not validate([tried], [out], hard, set(), budget, max_leg):
+            return tried, out, dropped
+    return cx, r, []
 
 
 def with_home(trip: Trip, home_id: str | None) -> Trip:
