@@ -41,6 +41,7 @@ Mục tiêu: clone code, tải gói dữ liệu, chạy được cả hệ thố
 git clone https://github.com/hohoangluan/tripguardian && cd tripguardian
 python -m venv .venv && source .venv/Scripts/activate   # Linux/macOS: .venv/bin/activate
 pip install -e ".[dev]"                                 # thêm .[asr] chỉ khi chạy ASR; chunkformer: pip install --no-deps
+python -m playwright install chromium                    # browser headless cho test parser và crawl
 cd web && npm install && cd ..
 cp .env.example .env                                     # điền key: docs/LLM_PROVIDER.md
 ```
