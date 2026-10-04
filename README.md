@@ -70,7 +70,7 @@ Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-
 | Planning | 8768 | `python -m planning serve` |
 | Trang review / gán nhãn | 8765 | `python -m corpus review` |
 
-Log ở `logs/run/<tên>.log`. Web đọc địa điểm từ `web/public/data/snapshot.json` (trong gói Drive); sinh lại bằng `python web/scripts/export_snapshot.py` sau khi aggregate.
+Log ở `logs/run/<tên>.log`. Web đọc địa điểm từ `web/public/data/snapshot.json` (trong gói Drive); sinh lại bằng `python web/scripts/export_snapshot.py` sau khi aggregate. Ảnh bìa (ảnh Maps / frame clip không có người) nằm ở `web/public/data/covers.json`, sinh bằng `python web/scripts/pick_covers.py` (YOLO, chạy GPU khoảng 1 giờ; `--resume` chạy tiếp chỗ dừng).
 
 ## Xây dữ liệu và chạy từng bước
 

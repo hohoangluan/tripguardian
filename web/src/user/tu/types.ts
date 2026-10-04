@@ -70,6 +70,8 @@ export interface Understanding {
   unknowns: string[]
   unmapped: { target: string; phrase: string }[]
   safety_pending: boolean
+  matching: number // places passing the hard limits now (a fact, not a forecast)
+  total: number
 }
 
 export interface Turn {

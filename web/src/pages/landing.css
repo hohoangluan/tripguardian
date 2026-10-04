@@ -1,0 +1,947 @@
+/* ==========================================================================
+   Landing — white and soft rose over the 3D world (docs/UI_SPEC_LANDING.md).
+   Every word on the 3D sits on a soft white scrim: rose has less contrast than the old pine.
+   ========================================================================== */
+
+.landing {
+  position: relative;
+  z-index: 1;
+  color: var(--ink);
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+.btn--big {
+  min-height: 58px;
+  padding: 0 46px;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+}
+
+/* soft white halo behind any text on the 3D */
+.scrim {
+  position: relative;
+}
+
+.scrim::before {
+  content: '';
+  position: absolute;
+  inset: -30px -60px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 249, 248, 0.92), rgba(255, 249, 248, 0.6) 60%, rgba(255, 249, 248, 0));
+  pointer-events: none;
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  pointer-events: auto;
+  padding: 12px clamp(16px, 4vw, 48px);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #f3e1e4;
+}
+
+.topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.topbar__nav > button:not(.btn) {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.topbar__nav > button:not(.btn):hover {
+  color: var(--pine);
+}
+
+/* ---------- 0 · hero ---------- */
+
+.hero {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  align-content: start;
+  padding: 18vh 16px 0;
+  text-align: center;
+}
+
+.hero .scrim {
+  display: grid;
+  justify-items: center;
+  gap: 30px;
+}
+
+.hero__title {
+  margin: 0;
+  font: 800 clamp(2.6rem, 6.4vw, 6.2rem) / 0.98 var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+}
+
+.hero__line {
+  display: block;
+}
+
+.hero__line--ask {
+  color: var(--rose-deep);
+}
+
+.hero__down {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  translate: -50% 0;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--rose-deep);
+  rotate: 180deg;
+  cursor: pointer;
+  animation: hbob 2.4s ease-in-out infinite;
+}
+
+@keyframes hbob {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* ---------- the story: one sticky stage, six screens ---------- */
+
+.st-story {
+  position: relative;
+  height: 600vh;
+}
+
+.st-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+}
+
+.st-scene {
+  position: absolute;
+  inset: 70px clamp(16px, 5vw, 80px) 70px;
+  display: grid;
+}
+
+.st-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 80px);
+}
+
+.st-head {
+  align-self: center;
+}
+
+.st-head--bottom {
+  align-self: end;
+  justify-self: center;
+  margin-bottom: 6vh;
+  text-align: center;
+}
+
+.st-head--top {
+  grid-column: 1 / -1;
+  align-self: start;
+  justify-self: center;
+  text-align: center;
+}
+
+.st-step {
+  margin: 0 0 12px;
+  font: 700 0.95rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+
+.st-head h2,
+.st-cta h2 {
+  margin: 0;
+  font: 800 clamp(2.4rem, 5vw, 4.8rem) / 0.98 var(--display);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.st-lead {
+  margin-top: 16px;
+  max-width: 34ch;
+  font-size: clamp(1.05rem, 1.5vw, 1.3rem);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.st-head--bottom .st-lead {
+  margin-inline: auto;
+}
+
+/* 1 · N -> 5 */
+.st-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin: 0;
+  font: 700 clamp(4rem, 10vw, 9rem) / 1 var(--mono);
+  letter-spacing: -0.02em;
+}
+
+.st-count__from {
+  color: var(--rose-deep);
+}
+
+.st-count__to {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  color: var(--pine);
+}
+
+.st-count__to svg {
+  color: var(--ink);
+}
+
+/* 2 · understanding: stamps and dashed wishes land in two zones */
+.mini-ticket {
+  justify-self: center;
+  width: min(420px, 100%);
+  padding: 24px 26px 26px;
+  border: 1.5px solid var(--rose-deep);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 30px 60px -36px rgba(107, 53, 80, 0.5);
+}
+
+.mini-ticket h3 {
+  margin: 0;
+  font: 800 2rem/1 var(--display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pine);
+}
+
+.mini-ticket > .mono {
+  margin: 6px 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1.5px dashed var(--daquy);
+  text-transform: uppercase;
+}
+
+.mt-k {
+  margin: 12px 0 8px;
+  font: 800 0.86rem/1 var(--display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+
+.mt-zone {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 46px;
+  padding-bottom: 12px;
+  border-bottom: 1.5px dashed var(--daquy);
+}
+
+.mt-zone:last-child {
+  border-bottom: 0;
+}
+
+.mt-stamp {
+  padding: 7px 10px;
+  border: 2px solid var(--pine);
+  border-radius: 4px;
+  font: 700 0.8rem/1.1 var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pine);
+}
+
+.mt-wish {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 6px 10px;
+  border: 1.5px dashed var(--rose-deep);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.mt-wish i {
+  font-style: normal;
+  color: var(--rose-deep);
+}
+
+.mt-wish small {
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--lake);
+}
+
+/* 3 · evidence: one claim, real clips */
+.st-row--ev {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+.ev {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) 120px auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.ev-card {
+  padding: 24px 26px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 30px 60px -36px rgba(107, 53, 80, 0.5);
+}
+
+.ev-place {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.ev-card h3 {
+  margin: 4px 0 6px;
+  font: 800 1.9rem/1.05 var(--display);
+  color: var(--ink);
+}
+
+.ev-n {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.ev-bar {
+  height: 14px;
+  margin: 12px 0 14px;
+  border-radius: 999px;
+  background: #fceef1;
+  overflow: hidden;
+}
+
+.ev-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rose-deep);
+}
+
+.ev-card q {
+  display: block;
+  margin: 6px 0;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.ev-conf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font: 400 0.9rem/1 var(--mono);
+}
+
+.ev-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ev-bars i {
+  width: 5px;
+  background: #f9e3e8;
+  border-radius: 1px;
+}
+
+.ev-bars i:nth-child(1) {
+  height: 7px;
+}
+
+.ev-bars i:nth-child(2) {
+  height: 11px;
+}
+
+.ev-bars i:nth-child(3) {
+  height: 15px;
+}
+
+.ev-bars i.on {
+  background: var(--rose-deep);
+}
+
+.ev-lines {
+  width: 120px;
+  height: 300px;
+}
+
+.ev-lines path {
+  fill: none;
+  stroke: var(--rose-deep);
+  stroke-width: 1.5;
+}
+
+.ev-clips {
+  display: grid;
+  gap: 10px;
+}
+
+.ev-clip {
+  position: relative;
+  display: block;
+  width: 190px;
+  height: 108px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 16px 30px -20px rgba(58, 43, 50, 0.6);
+}
+
+.ev-clip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ev-clip span {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(42, 28, 34, 0.66);
+  color: #fff;
+  font-size: 0.74rem;
+  text-decoration: none;
+}
+
+/* 4 · feasibility: the meter overflows, a fix shrinks it */
+.fz-mini {
+  justify-self: center;
+  width: min(460px, 100%);
+  padding: 24px 26px;
+  border-left: 6px solid var(--rose-deep);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 30px 60px -36px rgba(107, 53, 80, 0.5);
+}
+
+.mm-title {
+  margin: 0;
+  font: 800 1.5rem/1.1 var(--display);
+  text-transform: uppercase;
+}
+
+.mm-rule {
+  margin: 4px 0 14px;
+  color: #9a5d0e;
+  font-weight: 600;
+}
+
+.mm-meter {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: #fceef1;
+}
+
+.mm-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 86%; /* the end state: reduced motion shows the plan after the fix */
+  max-width: 100%;
+  border-radius: inherit;
+  background: var(--rose-deep);
+}
+
+.mm-over {
+  opacity: 0;
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  right: -14%;
+  width: 14%;
+  border-radius: 0 999px 999px 0;
+  background: repeating-linear-gradient(-45deg, #a8660f 0 6px, #c98a2e 6px 12px);
+}
+
+.mm-mark {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  right: 0;
+  width: 2px;
+  background: var(--ink);
+}
+
+.mm-legend {
+  margin: 10px 0 14px;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.mm-fix {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 10px;
+  border-top: 1px solid #f3e1e4;
+  border-radius: 8px;
+}
+
+.mm-fix small {
+  color: var(--ink-soft);
+}
+
+.mm-fix--on {
+  background: #fceef1;
+}
+
+.mm-fix--on .mm-radio {
+  background: var(--rose-deep);
+}
+
+.mm-radio {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--rose-deep);
+}
+
+.mm-note {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+/* 5 · itinerary */
+.tl-mini {
+  justify-self: center;
+  width: min(480px, 100%);
+  margin: 0;
+  padding: 24px 26px;
+  list-style: none;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 30px 60px -36px rgba(107, 53, 80, 0.5);
+}
+
+.tl-mini li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.tl-mini__n {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--rose-deep);
+  color: #fff;
+  font: 700 0.95rem/1 var(--mono);
+}
+
+.tl-mini p {
+  margin: 4px 0 6px;
+  font-size: 1.08rem;
+}
+
+.tl-mini b {
+  margin-right: 6px;
+}
+
+.tl-mini small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+}
+
+.tl-mini li.tl-mini__note {
+  display: block;
+  padding: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.place-label[data-phase='name'] .place-label__time {
+  display: none;
+}
+
+.tl-mini__leg {
+  background: #fceef1;
+}
+
+.tl-mini__warn {
+  background: #fbf0df;
+  color: #9a5d0e;
+  font-weight: 600;
+}
+
+/* 6 · CTA over the risen sun */
+.st-cta {
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.st-cta h2 em {
+  display: block;
+  font-style: normal;
+  color: var(--rose-deep);
+}
+
+.st-cta small {
+  font-size: 1rem;
+}
+
+.st-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  translate: -50% 0;
+  display: flex;
+  gap: 12px;
+}
+
+.st-dots button {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1.5px solid var(--rose-deep);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.st-dots button.is-on {
+  background: var(--rose-deep);
+}
+
+/* labels the 3D pins carry */
+.place-label {
+  display: grid;
+  gap: 1px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 16px -8px rgba(58, 43, 50, 0.5);
+  white-space: nowrap;
+}
+
+.place-label__time {
+  font: 700 0.68rem/1 var(--mono);
+  color: var(--rose-deep);
+}
+
+.place-label__name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+/* ---------- after the story: white paper ---------- */
+
+.outro {
+  position: relative;
+  z-index: 2;
+  background: var(--mist);
+}
+
+.o-head {
+  text-align: center;
+  margin: 0 auto 30px;
+}
+
+.o-step {
+  margin: 0 0 8px;
+  font: 700 0.95rem/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+
+.o-head h2,
+.faq h2,
+.soon-band h2,
+.close h2 {
+  margin: 0;
+  font: 800 clamp(2.2rem, 4.6vw, 4.2rem) / 1 var(--display);
+  text-transform: uppercase;
+  color: var(--pine);
+}
+
+.o-head p:not(.o-step) {
+  margin-top: 12px;
+  font-size: 1.15rem;
+}
+
+/* real photos, full bleed, original colours */
+.mosaic {
+  padding: 90px 0 60px;
+}
+
+.mosaic__row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mosaic__tile {
+  position: relative;
+  margin: 0;
+  height: clamp(300px, 34vw, 520px);
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.mosaic__tile:nth-child(even) {
+  margin-top: 36px;
+}
+
+.mosaic__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mosaic__tile figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  gap: 2px;
+  padding: 40px 14px 14px;
+  background: linear-gradient(transparent, rgba(42, 28, 34, 0.78));
+  color: #fff;
+}
+
+.mosaic__tile b {
+  font: 800 1.15rem/1.15 var(--display);
+}
+
+.mosaic__tile small {
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+
+.demo {
+  padding: 60px clamp(16px, 5vw, 80px);
+  text-align: center;
+}
+
+.device {
+  margin: 0 auto;
+  width: min(320px, 80vw);
+  border-radius: 32px;
+  overflow: hidden;
+  border: 8px solid var(--ink);
+  box-shadow: 0 40px 80px -50px rgba(58, 43, 50, 0.7);
+}
+
+.device video {
+  display: block;
+  width: 100%;
+}
+
+.faq {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 50px clamp(16px, 5vw, 40px) 60px;
+  text-align: center;
+}
+
+.faq__list {
+  display: grid;
+  gap: 12px;
+  margin-top: 26px;
+  text-align: left;
+}
+
+.faq details {
+  padding: 0 24px;
+  border: 1px solid #f3e1e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 22px -18px rgba(107, 53, 80, 0.4);
+}
+
+.faq summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 0;
+  font: 700 1.2rem/1.2 var(--sans);
+  list-style: none;
+  cursor: pointer;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary::after {
+  content: '+';
+  font-size: 1.6rem;
+  font-weight: 300;
+  color: var(--rose-deep);
+}
+
+.faq details[open] summary::after {
+  content: '−';
+}
+
+.faq details p {
+  margin: -6px 0 18px;
+  color: var(--ink-soft);
+}
+
+.soon-band {
+  padding: 50px clamp(16px, 5vw, 80px) 56px;
+  background: #fceef1;
+  text-align: center;
+}
+
+.soon-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  max-width: 1340px;
+  margin: 26px auto 0;
+  text-align: left;
+}
+
+.soon-cards article {
+  display: flex;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #f3e1e4;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.soon-cards svg {
+  flex: none;
+  color: var(--rose-deep);
+  stroke-width: 1.2;
+}
+
+.soon-cards b {
+  font: 800 1.25rem/1.2 var(--display);
+}
+
+.soon-cards p {
+  margin: 4px 0 10px;
+  color: var(--ink-soft);
+}
+
+.soon-cards span {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #fceef1;
+  color: var(--pine);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.close {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  padding: 70px 16px 80px;
+  text-align: center;
+}
+
+.close p {
+  color: var(--ink-soft);
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 26px clamp(16px, 5vw, 80px);
+  background: var(--pine);
+  color: #fff;
+}
+
+.foot .wordmark {
+  color: #fff;
+}
+
+.foot small {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ---------- phones: no 3D, the same scene as a still ---------- */
+
+@media (max-width: 900px) {
+  .st-row,
+  .ev {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 20px;
+  }
+
+  .ev-lines {
+    display: none;
+  }
+
+  .ev-clips {
+    grid-auto-flow: column;
+  }
+
+  .ev-clip {
+    width: 100%;
+  }
+
+  .mosaic__row,
+  .soon-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mosaic__tile:nth-child(even) {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__down {
+    animation: none;
+  }
+}

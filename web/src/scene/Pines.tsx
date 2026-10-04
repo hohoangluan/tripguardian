@@ -53,7 +53,7 @@ export function Pines() {
       s.set(k, k * (0.9 + rand() * 0.5), k)
       m.compose(p, q, s)
       mesh.setMatrixAt(n, m)
-      c.setHSL(0.42 + rand() * 0.05, 0.28 + rand() * 0.12, 0.13 + rand() * 0.07)
+      c.setHSL(0.9 + rand() * 0.06, 0.1 + rand() * 0.12, 0.22 + rand() * 0.1) // plum-grey pines
       mesh.setColorAt(n, c)
       n++
     }

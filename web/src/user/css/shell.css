@@ -1,0 +1,200 @@
+/* ---------- top bar: stepper inside the flow, nav outside it, never both ---------- */
+
+.ubar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--bar-h);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 0 var(--pad);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.ubar__mark {
+  justify-self: start;
+  font: 800 1.45rem/1 var(--display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--plum);
+  text-decoration: none;
+}
+
+.ubar__me {
+  justify-self: end;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--blush);
+  color: var(--plum);
+  cursor: pointer;
+}
+
+.ubar__me:hover {
+  border-color: var(--rose-deep);
+}
+
+.usteps ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.usteps li {
+  display: flex;
+  align-items: center;
+}
+
+.usteps li + li::before {
+  content: '';
+  width: 26px;
+  height: 1.5px;
+  margin: 0 6px;
+  background: var(--rose);
+}
+
+.usteps button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font: 500 0.95rem/1 var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.usteps button:hover {
+  background: var(--blush);
+}
+
+.usteps .is-now button {
+  background: var(--rose);
+  color: var(--plum);
+  font-weight: 700;
+}
+
+.usteps .is-done button {
+  color: var(--ink);
+}
+
+.usteps__tick {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--rose-deep);
+  color: #fff;
+}
+
+.unav {
+  display: flex;
+  gap: 4px;
+  height: 100%;
+}
+
+.unav a {
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  border-bottom: 3px solid transparent;
+  color: var(--ink-2);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.unav a:hover {
+  color: var(--plum);
+}
+
+.unav a.is-on {
+  color: var(--plum);
+  font-weight: 700;
+  border-bottom-color: var(--rose-deep);
+}
+
+.uapp--bare .ubar {
+  grid-template-columns: 1fr;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+@media (max-width: 900px) {
+  .ubar {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+  }
+
+  .ubar__mark {
+    font-size: 1.1rem;
+  }
+
+  .usteps {
+    justify-self: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+
+  .usteps li + li::before {
+    width: 8px;
+    margin: 0 2px;
+  }
+
+  .usteps button {
+    padding: 0 9px;
+    font-size: 0.82rem;
+  }
+
+  .usteps .is-next button,
+  .usteps .is-done button {
+    font-size: 0;
+    gap: 0;
+    padding: 0 6px;
+  }
+
+  .usteps .is-next button::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--line-2);
+  }
+
+  .unav a {
+    padding: 0 8px;
+    font-size: 0.86rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .ubar {
+    padding: 0 12px;
+  }
+
+  .ubar__mark {
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+  }
+
+  .usteps .is-now button {
+    padding: 0 10px;
+    font-size: 0.78rem;
+  }
+}

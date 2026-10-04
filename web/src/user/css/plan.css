@@ -1,0 +1,509 @@
+/* ---------- Lịch trình (UI spec §4 Trang 8) ---------- */
+
+.plan-page {
+  max-width: 1440px;
+  padding-bottom: 80px;
+}
+
+.plan-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px 40px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.plan-head .uhead {
+  margin: 0;
+}
+
+.vtabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.vtabs button {
+  appearance: none;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font: 600 1rem/1 var(--sans);
+  cursor: pointer;
+}
+
+.vtabs button:hover {
+  border-color: var(--rose-deep);
+}
+
+.vtabs button.is-on {
+  background: var(--rose);
+  border-color: var(--rose);
+  color: var(--plum);
+  font-weight: 800;
+}
+
+.plan-sum {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 14px 24px;
+}
+
+.plan-sum > div {
+  display: grid;
+  gap: 4px;
+  padding: 0 18px;
+}
+
+.plan-sum > div:first-child {
+  padding-left: 0;
+}
+
+.plan-sum > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.plan-sum span:not(.robust) {
+  color: var(--ink-3);
+  font-size: 0.86rem;
+}
+
+.plan-sum b {
+  font-size: 1.15rem;
+}
+
+.plan-sum b.unsure {
+  font: 600 0.98rem/1.35 var(--sans);
+}
+
+.plan-why {
+  margin: 8px 2px 0;
+}
+
+.plan-trade {
+  margin: 12px 0 18px;
+}
+
+.plan-trade summary {
+  color: var(--slate);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trade {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  background: var(--card);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--sh);
+}
+
+.trade th,
+.trade td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.trade thead th {
+  color: var(--ink-3);
+  font-weight: 500;
+  font-size: 0.86rem;
+}
+
+.trade tr.is-on {
+  background: var(--blush);
+}
+
+.robust {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font: 700 0.8rem/1.3 var(--sans);
+}
+
+.robust--ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.robust--mid {
+  background: var(--blush);
+  color: var(--plum);
+}
+
+.robust--thin {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3.4fr) minmax(0, 3fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.dtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.dtabs button {
+  appearance: none;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dtabs b {
+  font: 800 1.1rem/1 var(--display);
+}
+
+.dtabs small {
+  color: var(--ink-3);
+}
+
+.dtabs .mono {
+  font-size: 0.74rem;
+  color: var(--ink-2);
+}
+
+.dtabs button.is-on {
+  background: var(--rose);
+  border-color: var(--rose);
+  color: var(--plum);
+}
+
+.dtabs button.is-on small,
+.dtabs button.is-on .mono {
+  color: var(--plum-2);
+}
+
+/* the day: numbered stops on a rose rail, legs between them */
+.tl {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 40px;
+}
+
+.tl::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--rose);
+}
+
+.tl__item {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.tl__n {
+  position: absolute;
+  left: -40px;
+  top: 14px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--rose-deep);
+  color: #fff;
+  font: 700 0.86rem/1 var(--mono);
+  box-shadow: 0 0 0 4px var(--bg);
+}
+
+.tl__item--soft .tl__n {
+  background: var(--card);
+  color: var(--rose-deep);
+  border: 2px solid var(--rose);
+}
+
+.tl__card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 14px;
+  padding: 14px 14px 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--sh);
+}
+
+.tl__item--soft .tl__card {
+  grid-template-columns: 1fr;
+  background: var(--blush);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.tl__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 1.05rem;
+}
+
+.tl__head .mono {
+  font-size: 0.96rem;
+}
+
+.tl__head .mono:last-child {
+  color: var(--ink-3);
+  font-size: 0.86rem;
+}
+
+.tl__name {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--plum);
+  font: 700 1.05rem/1.25 var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+button.tl__name:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tl__note {
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.tl__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.tl__flag svg {
+  color: var(--amber);
+}
+
+.tl__img {
+  height: 112px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--blush);
+  color: var(--rose-deep);
+}
+
+.tl__img .cover {
+  height: 100%;
+}
+
+.tl__img .lineart {
+  width: 100%;
+  height: 100%;
+}
+
+.tl__leg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 12px;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
+.tl__leg svg {
+  color: var(--rose-deep);
+}
+
+.plan-map {
+  position: sticky;
+  top: calc(var(--bar-h) + 16px);
+}
+
+.plan-map__none {
+  display: grid;
+  place-items: center;
+  height: 300px;
+  color: var(--ink-3);
+}
+
+.plan-map__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.92rem;
+}
+
+.plan-map__foot .link {
+  font-family: var(--sans);
+  font-size: 0.86rem;
+}
+
+.plan-aside {
+  display: grid;
+  gap: 18px;
+}
+
+.plan-side {
+  margin: 0 !important;
+  padding: 20px;
+}
+
+.plan-side .utitle {
+  margin-bottom: 12px;
+  font-size: 1.35rem;
+}
+
+.lodging {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.lodging button {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lodging button.is-on {
+  background: var(--plum);
+  border-color: var(--plum);
+  color: #fff;
+}
+
+.lodging .mono {
+  font-size: 0.82rem;
+}
+
+.backups {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.backups li {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+.plan-back {
+  margin-top: 22px;
+}
+
+/* bottom bar: talk to the plan, see what changed, commit */
+.plan-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 12px var(--pad);
+  background: var(--plum);
+}
+
+.plan-bar input {
+  border-radius: 999px !important;
+  border: 0 !important;
+}
+
+.plan-bar__diff {
+  justify-self: start;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--blush);
+  color: var(--plum);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.plan-bar .btn {
+  min-height: 50px;
+  padding: 0 26px;
+}
+
+@media (max-width: 1240px) {
+  .plan-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .plan-aside {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 800px) {
+  .plan-grid,
+  .plan-aside,
+  .plan-sum {
+    grid-template-columns: 1fr;
+  }
+
+  .tl__card {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-sum > div,
+  .plan-sum > div + div {
+    padding: 6px 0;
+    border-left: 0;
+  }
+
+  .plan-bar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .plan-bar__diff {
+    display: none;
+  }
+}

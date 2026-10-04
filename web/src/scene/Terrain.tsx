@@ -3,11 +3,11 @@ import * as THREE from 'three'
 import { heightAt, LAKE, TERRAIN, WATER_Y } from './heightfield'
 
 const BANDS: [number, THREE.Color][] = [
-  [WATER_Y + 0.2, new THREE.Color('#7f8b5e')], // shore
-  [1.5, new THREE.Color('#5d7a4b')], // meadow
-  [5, new THREE.Color('#2b4a3f')], // pine slope
-  [11, new THREE.Color('#1e3a34')], // deep forest
-  [18, new THREE.Color('#4d6b66')], // misty crest
+  [WATER_Y + 0.2, new THREE.Color('#e8cfc6')], // shore
+  [1.5, new THREE.Color('#dcb6ae')], // meadow
+  [5, new THREE.Color('#b98c92')], // pine slope
+  [11, new THREE.Color('#7e5a68')], // deep forest
+  [18, new THREE.Color('#c9a7ae')], // misty crest
 ]
 
 function colorFor(h: number, out: THREE.Color) {
@@ -53,7 +53,7 @@ export function Terrain() {
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position={[LAKE.x, WATER_Y, LAKE.z]}>
         <circleGeometry args={[LAKE.r * 2.2, 64]} />
-        <meshStandardMaterial color="#2f5d6b" roughness={0.12} metalness={0.25} />
+        <meshStandardMaterial color="#f3dde0" roughness={0.12} metalness={0.25} />
       </mesh>
     </group>
   )

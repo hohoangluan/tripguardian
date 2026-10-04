@@ -17,10 +17,12 @@ export function App() {
   const surface = surfaceOf(path)
   if (surface !== 'admin') story.mode = surface
   // Mounted on the first landing visit, then kept: /app-only visitors never load it.
-  const [worldOn, setWorldOn] = useState(surface === 'landing')
+  // Phones never run the 3D (UI_SPEC_LANDING §4): .world shows a still of the same scene instead.
+  const [wide] = useState(() => matchMedia('(min-width: 901px)').matches)
+  const [worldOn, setWorldOn] = useState(surface === 'landing' && wide)
   useEffect(() => {
-    if (surface === 'landing') setWorldOn(true)
-  }, [surface])
+    if (surface === 'landing' && wide) setWorldOn(true)
+  }, [surface, wide])
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
@@ -59,10 +61,12 @@ export function App() {
 
   return (
     <>
-      {worldOn && (
+      {worldOn ? (
         <Suspense fallback={<div className="world" />}>
           <World active={surface === 'landing'} />
         </Suspense>
+      ) : (
+        surface === 'landing' && <div className="world" aria-hidden="true" />
       )}
       <div className="veil" aria-hidden="true" />
       {surface === 'landing' ? <Landing onStart={() => dive('/app')} /> : <UserApp path={path} onHome={() => dive('/')} />}

@@ -1,7 +1,7 @@
 import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { STATUS_LABEL } from '../data/labels'
-import type { Confidence } from '../data/store'
+import { coversOf, type Confidence } from '../data/store'
 import type { Status, Video } from '../data/types'
 import { story } from '../scene/story'
 
@@ -55,33 +55,56 @@ export function Icon({ name, size = 18, className }: { name: keyof typeof PATHS 
 
 // ---------- data-quality vocabulary (UX brief §4) ----------
 
-export function StatusTag({ status, why }: { status: Status; why?: string }) {
+// Opens on hover for a mouse and on click for everyone else (UI spec §9.1).
+function useTip() {
   const [open, setOpen] = useState(false)
+  return {
+    open,
+    props: {
+      onMouseEnter: () => setOpen(true),
+      onMouseLeave: () => setOpen(false),
+      onClick: () => setOpen((o) => !o),
+      onBlur: () => setOpen(false),
+      'aria-expanded': open,
+    },
+  }
+}
+
+export function StatusTag({ status, why }: { status: Status; why?: string }) {
+  const tip = useTip()
   if (status === 'VERIFIED') return null
   return (
     <span className={`status status--${status.toLowerCase()}`}>
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <button type="button" {...tip.props}>
         {STATUS_LABEL[status]}
       </button>
-      {open && why && <span className="status__why">{why}</span>}
+      {tip.open && why && (
+        <span className="tip" role="tooltip">
+          {why}
+        </span>
+      )}
     </span>
   )
 }
 
 export function ConfidenceTag({ level, reason }: { level: Confidence; reason: string }) {
-  const [open, setOpen] = useState(false)
+  const tip = useTip()
   const bars = level === 'Cao' ? 3 : level === 'Trung bình' ? 2 : 1
   return (
     <span className="conf">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="conf__btn">
+      <button type="button" className="conf__btn" {...tip.props}>
         <span className="conf__bars" aria-hidden="true">
           {[1, 2, 3].map((i) => (
             <i key={i} className={i <= bars ? 'on' : ''} />
           ))}
         </span>
-        Độ tin cậy {level.toLowerCase()}
+        Tin cậy: {level}
       </button>
-      {open && <span className="conf__why">{reason}</span>}
+      {tip.open && (
+        <span className="tip" role="tooltip">
+          {reason}
+        </span>
+      )}
     </span>
   )
 }
@@ -172,21 +195,22 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
 // without a local file they fall back to TikTok's embed. The creator is always credited.
 const clipSrc = (id: string, file: string) => `/media/tiktok/${id}/${file}`
 
-export function Clip({ video }: { video: Video }) {
+// `poster` is a frame already checked for people (web/scripts/pick_covers.py); without one the tile stays plain.
+export function Clip({ video, poster: still = null }: { video: Video; poster?: string | null }) {
   const [mode, setMode] = useState<'idle' | 'local' | 'embed'>('idle')
-  const [poster, setPoster] = useState(true)
+  const [poster, setPoster] = useState(!!still)
   return (
     <figure className="clip">
       {mode === 'idle' && (
         <button type="button" className="clip__frame clip__frame--idle" onClick={() => setMode('local')} aria-label={`Phát clip${video.handle ? ` của @${video.handle}` : ''}`}>
-          {poster && <img src={clipSrc(video.id, 'frames/f2.jpg')} alt="" loading="lazy" decoding="async" onError={() => setPoster(false)} />}
+          {poster && still && <img src={still} alt="" loading="lazy" decoding="async" onError={() => setPoster(false)} />}
           <span className="clip__play">
             <Icon name="play" size={22} />
           </span>
         </button>
       )}
       {mode === 'local' && (
-        <video className="clip__frame" src={clipSrc(video.id, 'video.mp4')} poster={poster ? clipSrc(video.id, 'frames/f2.jpg') : undefined} controls autoPlay playsInline onError={() => setMode('embed')} />
+        <video className="clip__frame" src={clipSrc(video.id, 'video.mp4')} poster={poster && still ? still : undefined} controls autoPlay playsInline onError={() => setMode('embed')} />
       )}
       {mode === 'embed' && (
         <iframe className="clip__frame" src={`https://www.tiktok.com/embed/v2/${video.id}?lang=vi-VN`} title="Clip TikTok" allow="encrypted-media; fullscreen" allowFullScreen loading="lazy" />
@@ -201,17 +225,30 @@ export function Clip({ video }: { video: Video }) {
   )
 }
 
-// Cover for a place card: a frame from a real clip of that place, credited.
-// Not every clip has a local copy, so walk the list until one loads.
-export function ClipCover({ videos }: { videos: Video[] }) {
-  const [i, setI] = useState(0)
-  const v = videos[i]
-  if (!v || i > 5) return null
+// A place's own photo, credited, never tinted. Covers come from web/scripts/pick_covers.py: Google Maps photos
+// or clip frames with no person filling the frame. If none loads, the caller's fallback shows.
+export function PlaceCover({ id, index = 0, fallback = null }: { id: string; index?: number; fallback?: ReactNode }) {
+  const [bad, setBad] = useState<string[]>([])
+  const c = coversOf(id).filter((x) => !bad.includes(x.src))[index]
+  if (!c) return <>{fallback}</>
   return (
     <span className="cover">
-      <img key={v.id} src={clipSrc(v.id, 'frames/f2.jpg')} alt="" loading="lazy" decoding="async" onError={() => setI(i + 1)} />
-      {v.handle && <small>@{v.handle}</small>}
+      <img src={c.src} alt="" loading="lazy" decoding="async" onError={() => setBad((b) => [...b, c.src])} />
+      <small>{c.kind === 'gmaps' ? 'Ảnh: Google Maps' : c.credit}</small>
     </span>
+  )
+}
+
+// Several covers side by side: wide enough for a banner without blowing one photo up.
+export function CoverStrip({ id, max = 4, fallback = null }: { id: string; max?: number; fallback?: ReactNode }) {
+  const n = Math.min(max, coversOf(id).length)
+  if (!n) return <>{fallback}</>
+  return (
+    <div className="strip" style={{ ['--n' as string]: n }}>
+      {Array.from({ length: n }, (_, i) => (
+        <PlaceCover key={i} id={id} index={i} />
+      ))}
+    </div>
   )
 }
 
@@ -222,8 +259,4 @@ export function GoogleMap({ src, title, height = 220 }: { src: string; title: st
       <span className="gmap__src">Bản đồ Google</span>
     </div>
   )
-}
-
-export function SectionArt({ section }: { section: 'sight' | 'nature' | 'food' | 'shop' }) {
-  return <img className="art" src={`/img/cat-${section}.webp`} alt="" loading="lazy" decoding="async" />
 }

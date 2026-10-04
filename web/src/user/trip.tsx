@@ -14,6 +14,7 @@ export interface Pref {
 export interface TripState {
   experience: 'first' | 'returning' | null
   startWith: string | null
+  startText: string | null // what the user typed on the start page; the first turn of Trip Understanding
   startDate: string
   days: number
   who: Who[]
@@ -47,6 +48,7 @@ const today = () => {
 export const initialTrip: TripState = {
   experience: null,
   startWith: null,
+  startText: null,
   startDate: today(),
   days: 3,
   who: [],
@@ -152,6 +154,23 @@ export function useTrip() {
   const c = useContext(Ctx)
   if (!c) throw new Error('useTrip outside TripProvider')
   return c
+}
+
+// The four steps of the flow (top bar stepper, home progress).
+export const STEPS = [
+  { path: '/app/understand', label: 'Hiểu chuyến đi' },
+  { path: '/app/shortlist', label: 'Chọn nơi' },
+  { path: '/app/feasibility', label: 'Khả thi' },
+  { path: '/app/plan', label: 'Lịch trình' },
+] as const
+
+// A trip exists once the understanding step has handed something on.
+export const hasTrip = (t: TripState) => !!(t.decisionId || t.planningId || t.searchInput)
+
+// The step a trip stopped on: where "Đi tiếp" and "Chuyến đi" lead.
+export function stepOf(t: TripState) {
+  const i = t.planningId ? 3 : t.decisionId ? (t.selected.length ? 2 : 1) : 0
+  return { index: i, ...STEPS[i] }
 }
 
 export const WHO_LABEL: Record<Who, string> = {

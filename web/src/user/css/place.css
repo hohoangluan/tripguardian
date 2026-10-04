@@ -1,0 +1,318 @@
+/* ---------- Chi tiết địa điểm (UI spec §4 Trang 5) ---------- */
+
+.pd-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 0.92rem;
+}
+
+.pd-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.pd-head h1 {
+  font: 800 clamp(2.4rem, 4.6vw, 4rem) / 0.96 var(--display);
+  text-transform: uppercase;
+  color: var(--plum);
+}
+
+.pd-head p {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 1.05rem;
+  color: var(--ink-2);
+}
+
+.pd-head__act {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* a real clip frame, wide and untinted */
+.pd-banner {
+  height: clamp(200px, 22vw, 320px);
+  margin: 0 calc(var(--pad) * -1) 28px;
+  overflow: hidden;
+  background: var(--blush);
+  color: var(--rose-deep);
+}
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 1), minmax(0, 1fr));
+  gap: 4px;
+  height: 100%;
+}
+
+.strip .cover {
+  height: 100%;
+}
+
+.pd-banner .lineart {
+  width: 100%;
+  height: 100%;
+}
+
+.pd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.pd-facts .utitle {
+  margin-bottom: 14px;
+}
+
+.facts {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+  font-size: 0.95rem;
+}
+
+.facts th,
+.facts td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.facts > tbody > tr > th {
+  width: 26%;
+  padding-left: 0;
+  font-weight: 600;
+}
+
+.facts td.source {
+  width: 30%;
+  padding-right: 0;
+  text-align: right;
+}
+
+.pd-week {
+  font-size: 0.84rem;
+}
+
+.pd-hours {
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.pd-hours th,
+.pd-hours td {
+  padding: 3px 14px 3px 0;
+  border: 0;
+  font-weight: 400;
+}
+
+.pd-hours .is-today {
+  color: var(--plum);
+  font-weight: 700;
+}
+
+.pd-maps {
+  display: inline-block;
+  margin-top: 12px;
+}
+
+/* lived experience: a blush sheet beside the white facts */
+.pd-voices {
+  padding: 22px 24px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--blush);
+}
+
+.pd-voices .utitle {
+  margin-bottom: 14px;
+}
+
+.pd-voices__body {
+  display: grid;
+  gap: 18px;
+}
+
+.pd-clips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-2);
+}
+
+.pd-clips .hint {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+}
+
+.sig {
+  position: relative;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.sig:last-child {
+  border-bottom: 0;
+}
+
+.sig__head {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--plum);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sig__name {
+  font: 700 1.12rem/1.2 var(--display);
+}
+
+.sig--neg .sig__name {
+  color: var(--amber-ink);
+}
+
+.sig__n {
+  margin-top: 3px;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}
+
+.sig__bar {
+  height: 7px;
+  margin: 6px 0 2px;
+  border-radius: 999px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.sig__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rose-deep);
+}
+
+.sig--neg .sig__bar i {
+  background: var(--amber);
+}
+
+.sig__ctx {
+  margin-top: 4px;
+  color: var(--ink-3);
+  font-size: 0.82rem;
+}
+
+.sig .status {
+  margin: 4px 0 0;
+}
+
+.quotes {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.quotes li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 0.88rem;
+}
+
+.quotes q {
+  font-style: italic;
+}
+
+.quotes small {
+  color: var(--ink-3);
+  font-size: 0.76rem;
+}
+
+.pd-more {
+  margin-top: 10px;
+}
+
+.pd-more summary {
+  color: var(--slate);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.pd-small {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.pd-small .ucard {
+  margin: 0 !important;
+}
+
+.pd-small .utitle {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
+.sig--compact {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border: 0;
+}
+
+.sig--compact.sig--neg span {
+  color: var(--amber-ink);
+}
+
+.sig--compact small {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+}
+
+.pd-who .chip {
+  cursor: default;
+  background: var(--blush);
+  border-color: var(--rose);
+}
+
+.pd-who .chip.is-no {
+  background: var(--card);
+  border-color: var(--line-2);
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+@media (max-width: 1100px) {
+  .pd-grid,
+  .pd-small {
+    grid-template-columns: 1fr;
+  }
+}

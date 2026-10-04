@@ -28,3 +28,6 @@ tripguardian-data-*.zip
 # Captured real pages (real reviewers, TikTok users): shared in the Drive data zip, not in the public repo
 tests/fixtures/gmaps/
 tests/fixtures/tiktok/
+
+# model weights fetched by scripts (web/scripts/pick_covers.py)
+/.cache/

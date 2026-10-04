@@ -1,0 +1,857 @@
+/* ---------- Hiểu chuyến đi: the asking column + the ticket (UI spec §4 Trang 3) ---------- */
+
+.tu {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 56px;
+  align-items: start;
+  max-width: var(--wrap);
+}
+
+.tu--full {
+  grid-template-columns: minmax(0, 42fr) minmax(0, 55fr);
+  gap: 3%;
+}
+
+.tu__ask {
+  min-height: calc(100vh - var(--bar-h) - 140px);
+}
+
+.tu__bar {
+  display: none;
+}
+
+/* top row: intent · turn number ··· what is true right now */
+
+.ask__top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rose);
+}
+
+.ask__intent {
+  padding: 6px 12px 5px;
+  border-radius: 6px;
+  background: var(--rose);
+  color: var(--plum);
+  font: 800 0.86rem/1 var(--display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ask__n {
+  padding-left: 16px;
+  border-left: 1px solid var(--line-2);
+  font: 400 0.98rem/1 var(--mono);
+  color: var(--ink-2);
+}
+
+.ask__count {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 0.95rem;
+}
+
+.ask__count b {
+  font: 700 1.55rem/1 var(--mono);
+  color: var(--plum);
+}
+
+.ask__bar {
+  width: 150px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--blush-2);
+  overflow: hidden;
+}
+
+.ask__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rose-deep);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ask__skipall {
+  font-size: 0.9rem;
+}
+
+.ask__remark {
+  margin: 18px 0 0;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--rose);
+  color: var(--ink-2);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.ask__remark.is-live {
+  color: var(--ink-3);
+  animation: upulse 1.4s ease-in-out infinite;
+}
+
+@keyframes upulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.ask__idle {
+  margin-top: 40px;
+  font-size: 1.1rem;
+  color: var(--ink-2);
+}
+
+/* a question, one turn */
+
+.q__text {
+  margin: 34px 0 10px;
+  font: 800 clamp(2rem, 3.3vw, 3.1rem) / 1.02 var(--display);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--plum);
+  text-wrap: balance;
+}
+
+.q__text + .q__why,
+.q__text + .q__more {
+  margin-top: 14px;
+}
+
+.q--small .q__text {
+  margin-top: 0;
+  font-size: 1.45rem;
+  line-height: 1.12;
+}
+
+.q__more {
+  max-width: 64ch;
+  margin-bottom: 8px;
+  font-size: 1.12rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.q__why {
+  color: var(--slate);
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.q__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin: 26px 0 8px;
+}
+
+.qcard {
+  appearance: none;
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 92px;
+  padding: 20px 22px;
+  border: 1.5px solid var(--rose);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.qcard b {
+  font: 700 1.35rem/1.15 var(--display);
+  letter-spacing: 0.01em;
+  color: var(--plum);
+}
+
+.qcard span {
+  color: var(--ink-3);
+  font-size: 0.9rem;
+}
+
+.qcard kbd {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font: 400 0.7rem/1 var(--mono);
+  color: var(--ink-3);
+}
+
+.qcard:hover:not(:disabled) {
+  border-color: var(--rose-deep);
+  transform: translateY(-1px);
+  box-shadow: var(--sh);
+}
+
+.qcard.is-on {
+  border: 2px solid var(--rose-deep);
+  background: var(--blush);
+  box-shadow: var(--sh);
+}
+
+.qcard:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* "Chưa chắc" is always there, smaller and quieter than the real choices. */
+.qcard--unsure {
+  min-height: 0;
+  align-self: center;
+  padding: 12px 16px;
+  border: 1px dashed var(--line-2);
+  background: transparent;
+}
+
+.qcard--unsure b {
+  font: 600 1rem/1.2 var(--sans);
+  color: var(--ink-2);
+}
+
+.qcard--unsure span {
+  font-size: 0.8rem;
+}
+
+.q__rows {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0 8px;
+}
+
+.q__row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.q__row--plain {
+  grid-template-columns: 1fr;
+}
+
+.q__go {
+  display: flex;
+  gap: 12px;
+  margin: 26px 0 8px;
+}
+
+.q__go .btn {
+  min-width: 200px;
+  min-height: 52px;
+  font-size: 1.05rem;
+}
+
+.q__rowlabel {
+  font: 700 0.78rem/1.2 var(--display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.q__rows .chip--unsure {
+  justify-self: start;
+  border-style: dashed;
+  color: var(--ink-3);
+  font-size: 0.85rem;
+  min-height: 32px;
+}
+
+.q__date {
+  max-width: 260px;
+  margin: 12px 0;
+}
+
+.q__done {
+  margin-top: 10px;
+}
+
+.q__input {
+  margin-top: 22px;
+}
+
+.q__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.q__foot p {
+  color: var(--slate);
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+/* several turns of one intent, together in one white card */
+
+.ask__chain {
+  margin-top: 26px;
+  border: 1.5px solid var(--rose);
+  border-radius: var(--r);
+  background: var(--card);
+  overflow: hidden;
+  box-shadow: var(--sh);
+}
+
+.ask__done {
+  display: grid;
+  grid-template-columns: minmax(0, auto) auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 15px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ask__done .link {
+  justify-self: end;
+}
+
+.ask__q {
+  font-weight: 500;
+}
+
+.ask__a {
+  padding: 5px 12px;
+  border-radius: 7px;
+  background: var(--rose);
+  color: var(--plum);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.ask__live {
+  padding: 24px;
+  background: var(--blush);
+}
+
+.ask__live .qcard {
+  min-height: 84px;
+}
+
+.picker {
+  position: relative;
+  margin: 10px 0;
+}
+
+.picker__list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--sh-lift);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.picker__list button {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker__list button:hover {
+  background: var(--blush);
+}
+
+.picker__list small {
+  color: var(--ink-3);
+}
+
+/* ---------- the ticket ---------- */
+
+.tu__ticket {
+  position: sticky;
+  top: calc(var(--bar-h) + 18px);
+}
+
+.ticket,
+.fticket {
+  position: relative;
+  border: 1.5px solid var(--rose-deep);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--sh);
+}
+
+/* punched notches on both edges where the head tears off, like a ticket */
+.ticket__head::before,
+.ticket__head::after,
+.fticket__head::before,
+.fticket__head::after {
+  content: '';
+  position: absolute;
+  bottom: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--rose-deep);
+  z-index: 2;
+}
+
+.ticket__head::before,
+.fticket__head::before {
+  left: -13px;
+}
+
+.ticket__head::after,
+.fticket__head::after {
+  right: -13px;
+}
+
+.ticket {
+  max-height: calc(100vh - var(--bar-h) - 36px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.ticket__head {
+  position: relative;
+  padding: 24px 24px 18px;
+  border-bottom: 1.5px dashed var(--rose);
+}
+
+.ticket__head h2 {
+  font: 800 2.2rem/1 var(--display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--plum);
+}
+
+.ticket__head p {
+  margin-top: 8px;
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.tsec {
+  padding: 16px 24px;
+  border-bottom: 1.5px dashed var(--rose);
+}
+
+.tsec h3 {
+  margin-bottom: 10px;
+  font: 800 0.92rem/1 var(--display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+
+.trow {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.94rem;
+}
+
+.trow > span {
+  color: var(--ink-3);
+}
+
+.trow > b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.trow--asking {
+  padding: 14px 24px;
+  background: var(--blush);
+  border-bottom: 1.5px dashed var(--rose);
+}
+
+.trow--asking > span {
+  font: 800 0.92rem/1.3 var(--display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rose-deep);
+}
+
+.trow--asking > b {
+  font-weight: 400;
+}
+
+.tanchor,
+.topen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.94rem;
+}
+
+.tanchor svg {
+  color: var(--rose-deep);
+  flex: none;
+}
+
+.tanchor small {
+  color: var(--amber-ink);
+}
+
+.tanchor.is-open svg,
+.topen svg {
+  color: var(--amber);
+  flex: none;
+}
+
+.topen__more {
+  margin-top: 4px;
+  font-size: 0.86rem;
+}
+
+.topen span {
+  flex: 1;
+  color: var(--amber-ink);
+}
+
+.tstamps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.twishes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.ticket__foot,
+.fticket__foot {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 16px 24px 20px;
+}
+
+.ticket__foot .mono,
+.fticket__foot .mono {
+  color: var(--ink-3);
+  font-size: 0.86rem;
+}
+
+.ticket__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--card);
+}
+
+.ticket__foot .btn {
+  justify-self: end;
+}
+
+.ticket__foot .link {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.is-preview {
+  animation: tglow 1.2s ease-in-out infinite;
+}
+
+@keyframes tglow {
+  50% {
+    background-color: var(--blush-2);
+  }
+}
+
+.ticket.is-busy,
+.fticket.is-busy {
+  cursor: progress;
+}
+
+/* ---------- Xem đầy đủ: 55% panel, scrolls; header and footer stay put ---------- */
+
+.fticket {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--bar-h) - 36px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.fticket__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 26px 16px;
+  background: var(--card);
+  border-bottom: 1.5px dashed var(--rose);
+}
+
+.fticket__head h2 {
+  font: 800 1.3rem/1 var(--display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--plum);
+}
+
+.fticket__head p {
+  margin: 6px 0 4px;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+}
+
+.fticket__close {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fticket__close kbd {
+  font: 400 0.7rem/1 var(--mono);
+  color: var(--ink-3);
+}
+
+.fticket__body {
+  padding: 4px 26px 10px;
+}
+
+.frow,
+.fgroup {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+  gap: 8px 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.frow__k {
+  font: 800 0.86rem/1.3 var(--display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.frow__v {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.frow__v > b {
+  font-weight: 600;
+}
+
+.frow__act {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.frow__chain {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--blush);
+  font-size: 0.88rem;
+}
+
+.frow__chain li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.frow__chain li:last-child {
+  border-bottom: 0;
+}
+
+.frow__chain .mono {
+  color: var(--ink-3);
+}
+
+.frow__rule {
+  display: block !important;
+  color: var(--slate);
+  font-size: 0.8rem;
+}
+
+.frow--asking {
+  margin: 0 -26px;
+  padding-inline: 26px;
+  background: var(--blush);
+}
+
+.frow--asking .frow__k {
+  color: var(--rose-deep);
+}
+
+.frow--asking .frow__chain {
+  background: var(--card);
+}
+
+.frow.is-editing {
+  background: linear-gradient(90deg, transparent, var(--blush) 30%, transparent);
+}
+
+.frow__edit {
+  margin-top: 10px;
+}
+
+.frow__pair,
+.frow__stack {
+  display: grid;
+  gap: 10px;
+}
+
+.frow__pair input {
+  max-width: 220px;
+}
+
+.frow__times {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.frow__times .field > span {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.fgroup ul {
+  grid-column: 2 / -1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.fgroup li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fgroup li > span:not(.stamp):not(.fgroup__cost) {
+  flex: 1;
+}
+
+.fgroup li svg {
+  color: var(--rose-deep);
+  flex: none;
+}
+
+.fgroup li.topen svg {
+  color: var(--amber);
+}
+
+.fgroup__cost {
+  flex: 1;
+  color: var(--ink-2);
+  font-size: 0.84rem;
+}
+
+.fgroup .twishes,
+.fgroup > p {
+  grid-column: 2 / -1;
+}
+
+.fticket__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  grid-template-columns: auto 1fr auto;
+  background: var(--card);
+  border-top: 1.5px dashed var(--rose);
+}
+
+.fticket__foot .btn {
+  justify-self: center;
+  min-width: 220px;
+}
+
+/* ---------- narrower: the ticket becomes a bar that opens a sheet ---------- */
+
+@media (max-width: 1100px) {
+  .tu,
+  .tu--full {
+    grid-template-columns: 1fr;
+  }
+
+  .tu__ticket {
+    display: none;
+  }
+
+  .tu__bar {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 18px;
+    border: 1.5px solid var(--rose-deep);
+    border-radius: 14px;
+    background: var(--card);
+    color: var(--plum);
+    font-weight: 700;
+    box-shadow: var(--sh-lift);
+    cursor: pointer;
+  }
+
+  .sheet .fticket {
+    border: 0;
+    box-shadow: none;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sheet .fticket::before,
+  .sheet .fticket::after {
+    display: none;
+  }
+
+  .q__row {
+    grid-template-columns: 1fr;
+  }
+
+  .ask__count {
+    margin-left: 0;
+    width: 100%;
+  }
+}

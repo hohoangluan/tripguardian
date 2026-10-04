@@ -43,7 +43,7 @@ export function Mist({ scene }: { scene: { p: number } }) {
       group.current.position.z = Math.cos(t * 0.03) * 3
     }
     if (material.current) {
-      material.current.opacity = 0.42 * (1 - scene.p * 0.75) + story.dive * 0.4
+      material.current.opacity = story.reducedMotion ? 0 : 0.42 * (1 - scene.p * 0.75) + story.dive * 0.4
     }
   })
 
@@ -57,7 +57,7 @@ export function Mist({ scene }: { scene: { p: number } }) {
           sizeAttenuation
           transparent
           depthWrite={false}
-          color="#eef3f3"
+          color="#fcedec"
         />
       </points>
     </group>

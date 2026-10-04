@@ -8,37 +8,32 @@ import { DecisionProvider, useDecision } from './pd/decision'
 import { PlanningProvider } from './planning/planning'
 import { Compare } from './screens/Compare'
 import { CurateBar } from './screens/Curate'
+import { Explore } from './screens/Explore'
 import { Feasibility } from './screens/Feasibility'
 import { Feedback } from './screens/Feedback'
+import { Home } from './screens/Home'
 import { Itinerary } from './screens/Itinerary'
 import { PlaceDetail } from './screens/PlaceDetail'
 import { Profile } from './screens/Profile'
 import { Shortlist } from './screens/Shortlist'
 import { Understand } from './screens/Understand'
 import { initialOf, useAccount } from './account'
-import { TripProvider } from './trip'
-import './user.css'
+import { hasTrip, STEPS, stepOf, TripProvider, useTrip } from './trip'
+import './css/base.css'
+import './css/shell.css'
+import './css/understand.css'
+import './css/shortlist.css'
+import './css/place.css'
+import './css/check.css'
+import './css/plan.css'
+import './css/pages.css'
 
-const STEPS = [
-  { path: '/app/understand', label: 'Hiểu chuyến đi' },
-  { path: '/app/shortlist', label: 'Chọn nơi' },
-  { path: '/app/feasibility', label: 'Khả thi' },
-  { path: '/app/plan', label: 'Lịch trình' },
+const NAV = [
+  { path: '/app', label: 'Trang chủ' },
+  { path: '/app/trip', label: 'Chuyến đi' },
+  { path: '/app/explore', label: 'Khám phá' },
+  { path: '/app/profile', label: 'Hồ sơ' },
 ]
-
-// Poster illustration behind each screen's title (public/img/poster-*.webp).
-const POSTER: Record<string, string> = {
-  '/app': 'start',
-  '/app/login': 'start',
-  '/app/understand': 'discover',
-  '/app/shortlist': 'shortlist',
-  '/app/place': 'shortlist',
-  '/app/compare': 'shortlist',
-  '/app/feasibility': 'feasibility',
-  '/app/plan': 'plan',
-  '/app/profile': 'profile',
-  '/app/feedback': 'plan',
-}
 
 export function UserApp({ path, onHome }: { path: string; onHome: () => void }) {
   return (
@@ -53,24 +48,47 @@ export function UserApp({ path, onHome }: { path: string; onHome: () => void }) 
 function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   const { snap, error } = useSnapshot()
   const account = useAccount()
+  const { trip } = useTrip()
   const { view } = useDecision()
-  const base = '/' + path.split('?')[0].split('/').filter(Boolean).slice(0, 2).join('/')
+  const clean = path.split('?')[0]
+  const base = '/' + clean.split('/').filter(Boolean).slice(0, 2).join('/')
+  const returning = hasTrip(trip)
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
   }, [base])
 
-  const stepIndex = STEPS.findIndex((s) => base === s.path || (s.path === '/app/shortlist' && ['/app/place', '/app/compare'].includes(base)))
+  // "Chuyến đi" in the outer nav resumes the trip at the step it stopped on.
+  useEffect(() => {
+    if (base === '/app/trip') navigate(returning ? stepOf(trip).path : '/app/start', { replace: true })
+  }, [base, returning, trip])
+
+  const step = STEPS.findIndex((s) => base === s.path || (s.path === '/app/shortlist' && ['/app/place', '/app/compare'].includes(base)))
   const showCurate = ['/app/shortlist', '/app/place', '/app/compare'].includes(base) && (view?.selected.length ?? 0) > 0
 
   let screen
+  let mode: 'bare' | 'flow' | 'nav' = 'flow'
   let m: Record<string, string> | null
-  // First visit: sign in, sign up or go on as a guest; then the two start questions.
-  if (path.split('?')[0] === '/app') screen = account ? <Start onHome={onHome} onDone={() => navigate('/app/understand')} /> : <Auth onHome={onHome} onDone={() => {}} />
-  else if (base === '/app/login') screen = <Auth onHome={onHome} onDone={() => navigate('/app/profile', { replace: true })} />
-  else if (!snap)
+  if (!account && (clean === '/app' || base === '/app/start' || base === '/app/login')) {
+    // First visit: sign in, sign up or go on as a guest. Nothing behind it is locked.
+    screen = <Auth onHome={onHome} onDone={() => navigate(base === '/app/login' ? '/app/profile' : '/app', { replace: true })} />
+    mode = 'bare'
+  } else if (base === '/app/login') {
+    screen = <Auth onHome={onHome} onDone={() => navigate('/app/profile', { replace: true })} />
+    mode = 'bare'
+  } else if (clean === '/app' && returning) {
+    screen = <Home />
+    mode = 'nav'
+  } else if (clean === '/app' || base === '/app/start') screen = <Start onHome={onHome} onDone={() => navigate('/app/understand')} />
+  else if (base === '/app/profile') {
+    screen = <Profile />
+    mode = 'nav'
+  } else if (base === '/app/explore') {
+    screen = <Explore />
+    mode = 'nav'
+  } else if (!snap)
     screen = (
-      <div className="loading" role="status">
+      <div className={`loading${error ? ' loading--error' : ''}`} role="status">
         {error ? `Không tải được dữ liệu địa điểm (${error}). Chạy scripts/export_snapshot.py rồi tải lại.` : 'Đang tải dữ liệu Đà Lạt'}
       </div>
     )
@@ -85,51 +103,73 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
         <Itinerary />
       </PlanningProvider>
     )
-  else if (base === '/app/profile') screen = <Profile />
   else if (base === '/app/feedback') screen = <Feedback />
-  else screen = <div className="loading">Không có trang này.</div>
+  else screen = <div className="loading loading--error">Không có trang này.</div>
 
-  const poster = POSTER[base] ?? 'shortlist'
+  const finished = base === '/app/feedback'
 
   return (
-    <div className={`uapp${base === '/app' || base === '/app/login' ? ' uapp--start' : ''}`}>
-      <div className="uposter" aria-hidden="true">
-        <img src={`/img/poster-${poster}.webp`} alt="" key={poster} decoding="async" />
-      </div>
+    <div className={`uapp uapp--${mode}`}>
       <header className="ubar">
         <a
-          className="wordmark"
+          className="ubar__mark"
           href="/"
           onClick={(e) => {
             e.preventDefault()
-            onHome()
+            if (mode === 'bare') onHome()
+            else navigate('/app')
           }}
         >
           TripGuardian
         </a>
-        {stepIndex >= 0 && (
-          <nav className="usteps" aria-label="Tiến trình" style={{ ['--done' as string]: (stepIndex + 1) / STEPS.length }}>
-            <p className="usteps__now" aria-hidden="true">
-              <span>
-                Bước {stepIndex + 1}/{STEPS.length}
-              </span>{' '}
-              {STEPS[stepIndex].label}
-            </p>
+        {mode === 'flow' && (
+          <nav className="usteps" aria-label="Bốn bước lập chuyến">
             <ol>
-              {STEPS.map((s, i) => (
-                <li key={s.path} className={i === stepIndex ? 'is-active' : i < stepIndex ? 'is-done' : ''}>
-                  <button type="button" onClick={() => navigate(s.path)} aria-current={i === stepIndex ? 'step' : undefined}>
-                    <span className="usteps__n">{i < stepIndex ? <Icon name="check" size={12} /> : i + 1}</span>
-                    <span className="usteps__label">{s.label}</span>
-                  </button>
-                </li>
-              ))}
+              {STEPS.map((s, i) => {
+                const state = finished || i < step ? 'done' : i === step ? 'now' : 'next'
+                return (
+                  <li key={s.path} className={`is-${state}`}>
+                    <button type="button" onClick={() => navigate(s.path)} aria-current={state === 'now' ? 'step' : undefined}>
+                      {state === 'done' && (
+                        <span className="usteps__tick" aria-hidden="true">
+                          <Icon name="check" size={11} />
+                        </span>
+                      )}
+                      {s.label}
+                      {state === 'done' && <span className="visually-hidden"> (đã xong)</span>}
+                    </button>
+                  </li>
+                )
+              })}
             </ol>
           </nav>
         )}
-        <button type="button" className="iconbtn" aria-label="Hồ sơ của bạn" onClick={() => navigate('/app/profile')}>
-          {initialOf(account) ? <span className="iconbtn__initial">{initialOf(account)}</span> : <Icon name="user" />}
-        </button>
+        {mode === 'nav' && (
+          <nav className="unav" aria-label="Điều hướng">
+            {NAV.map((n) => {
+              const on = n.path === '/app' ? clean === '/app' : base === n.path
+              return (
+                <a
+                  key={n.path}
+                  href={n.path}
+                  className={on ? 'is-on' : ''}
+                  aria-current={on ? 'page' : undefined}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    navigate(n.path)
+                  }}
+                >
+                  {n.label}
+                </a>
+              )
+            })}
+          </nav>
+        )}
+        {mode !== 'bare' && (
+          <button type="button" className="ubar__me" aria-label="Hồ sơ của bạn" onClick={() => navigate('/app/profile')}>
+            {initialOf(account) ? <span className="iconbtn__initial">{initialOf(account)}</span> : <Icon name="user" />}
+          </button>
+        )}
       </header>
       <main className={`umain${showCurate ? ' has-curate' : ''}`}>{screen}</main>
       {showCurate && <CurateBar />}

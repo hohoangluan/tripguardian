@@ -4,6 +4,7 @@ import { fmtDuration } from '../../data/store'
 import { navigate } from '../../router'
 import { story } from '../../scene/story'
 import { Icon, Page } from '../../ui/bits'
+import { LineArt } from '../../ui/LineArt'
 import { confirm } from '../pd/api'
 import { useDecision } from '../pd/decision'
 import { createPlanning } from '../planning/api'
@@ -11,10 +12,10 @@ import type { Feasibility as F } from '../pd/types'
 import { useTrip } from '../trip'
 
 const HEAD: Record<F['status'], { title: string; tone: 'ok' | 'warn' | 'bad' }> = {
-  feasible: { title: 'Đi kịp. Sẵn sàng xếp lịch.', tone: 'ok' },
-  partial: { title: 'Gần được rồi, còn vài chỗ cần bạn chọn cách sửa.', tone: 'warn' },
-  infeasible: { title: 'Kế hoạch này quá sức so với thời gian có.', tone: 'bad' },
-  unknown: { title: 'Chưa biết chuyến đi mấy ngày nên chưa kiểm được thời gian.', tone: 'warn' },
+  feasible: { title: 'Đi kịp, sẵn sàng xếp lịch', tone: 'ok' },
+  partial: { title: 'Đi được, nhưng còn chỗ cần sửa', tone: 'warn' },
+  infeasible: { title: 'Quá sức so với thời gian có', tone: 'bad' },
+  unknown: { title: 'Chưa biết đi mấy ngày nên chưa kiểm được giờ', tone: 'warn' },
 }
 
 export function Feasibility() {
@@ -34,17 +35,17 @@ export function Feasibility() {
   useLayoutEffect(() => {
     if (story.reducedMotion || !list.current) return
     const ctx = gsap.context(() => {
-      gsap.from('.conflict', { opacity: 0, x: -24, rotateY: -12, duration: 0.6, stagger: 0.08, ease: 'power3.out' })
+      gsap.from('.conflict', { opacity: 0, y: 16, duration: 0.5, stagger: 0.08, ease: 'power3.out' })
     }, list)
     return () => ctx.revert()
   }, [nConflicts])
 
-  if (!view) return <div className="loading">{error ?? 'Đang tải'}</div>
+  if (!view) return <div className={`loading${error ? ' loading--error' : ''}`}>{error ?? 'Đang kiểm tra'}</div>
   if (!view.selected.length)
     return (
       <Page className="page--narrow">
         <div className="empty">
-          <img src="/img/empty.webp" alt="" />
+          <LineArt variant="spot" />
           <p>Chưa có nơi nào được chọn để kiểm tra.</p>
           <button className="btn" onClick={() => navigate('/app/shortlist')}>
             Chọn địa điểm
@@ -55,7 +56,7 @@ export function Feasibility() {
 
   const f = view.feasibility
   const t = f.totals
-  const head = f.status === 'feasible' && f.warnings.length ? { title: `Đi kịp, nếu ${f.warnings.length} điều chưa chắc dưới đây đúng như dự kiến.`, tone: 'ok' as const } : HEAD[f.status]
+  const head = f.status === 'feasible' && f.warnings.length ? { title: `Đi kịp, nếu ${f.warnings.length} điều dưới đây đúng`, tone: 'ok' as const } : HEAD[f.status]
   const confirmable = f.status === 'feasible' || f.status === 'unknown'
 
   const go = async () => {
@@ -82,15 +83,18 @@ export function Feasibility() {
     }
   }
 
+  const pct = (t.needed / Math.max(1, t.available)) * 100
+  const step = `Kiểm tra khả thi · ${t.places} nơi`
   return (
-    <Page className="page--narrow">
-      <header className={`verdict-head verdict-head--${head.tone}`}>
+    <Page className="page--mid">
+      <header className={`fz-head is-${head.tone}`}>
+        <span className="uhead__kicker">{step}</span>
         <h1>{head.title}</h1>
         {f.known_days && (
           <>
-            <div className="meter" aria-label={`Cần ${fmtDuration(t.needed)} trên ${fmtDuration(t.available)}`}>
-              <div className="meter__fill" style={{ width: `${Math.min(100, (t.needed / Math.max(1, t.available)) * 100)}%` }} />
-              {t.needed > t.available && <div className="meter__over" style={{ width: `${Math.min(40, ((t.needed - t.available) / Math.max(1, t.available)) * 100)}%` }} />}
+            <div className="meter" role="img" aria-label={`Cần ${fmtDuration(t.needed)} trên ${fmtDuration(t.available)}`}>
+              <div className="meter__fill" style={{ width: `${Math.min(100, pct)}%` }} />
+              {t.needed > t.available && <div className="meter__over" style={{ left: `${(100 * t.available) / t.needed}%`, width: `${100 - (100 * t.available) / t.needed}%` }} />}
             </div>
             <p className="meter__legend">
               Cần khoảng {fmtDuration(t.needed)} cho {t.places} nơi, chuyến đi có {fmtDuration(t.available)}. Thời gian di chuyển là ước tính.
@@ -99,60 +103,68 @@ export function Feasibility() {
         )}
       </header>
 
-      {f.warnings.length > 0 && (
-        <section className="block">
-          <h2 className="block__title">
-            <Icon name="info" size={16} /> Kiểm tra trước khi đi
-          </h2>
-          <ul className="checks">
-            {f.warnings.map((w) => (
-              <li key={w}>{w}</li>
+      {f.conflicts.length > 0 && (
+        <section className="fz-sec">
+          <h2 className="utitle">Xung đột</h2>
+          <div className="fz-conflicts" ref={list}>
+            {f.conflicts.map((c) => (
+              <article key={c.id} className={`conflict${c.physical ? ' conflict--hard' : ' conflict--rule'}`}>
+                <h3>{c.title}</h3>
+                <p className="conflict__rule">{c.rule}</p>
+                <p className="conflict__kind">{c.physical ? 'Không đi kịp thật sự: chỉ có cách đổi lựa chọn.' : 'Quy tắc của bạn: bạn có thể nới nếu muốn.'}</p>
+                <ul className="fixes">
+                  {c.fixes.map((x) => (
+                    <li key={x.label}>
+                      <button className="fix" disabled={busy} onClick={() => (x.action ? act(x.action) : navigate('/app/understand'))}>
+                        <span className="fix__radio" aria-hidden="true" />
+                        <span>
+                          <b>{x.label}</b> {x.effect && <small>— {x.effect}</small>}
+                        </span>
+                        {x.action?.type === 'relax' && <Icon name="lock" size={16} />}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </article>
             ))}
-          </ul>
+          </div>
         </section>
       )}
 
-      <div className="conflicts" ref={list}>
-        {f.conflicts.map((c) => (
-          <article key={c.id} className={`conflict${c.physical ? ' conflict--hard' : ' conflict--rule'}`}>
-            <p className="conflict__what">
-              <Icon name={c.physical ? 'alert' : 'lock'} size={16} /> {c.title}
-            </p>
-            <p>{c.rule}</p>
-            <p className="conflict__kind">{c.physical ? 'Giới hạn thật: không đi kịp. Chỉ có cách đổi lựa chọn.' : 'Quy tắc của bạn: bạn có thể nới nếu muốn.'}</p>
-            <div className="fixes">
-              {c.fixes.map((x) => (
-                <button key={x.label} className="fix" disabled={busy} onClick={() => (x.action ? act(x.action) : navigate('/app/understand'))}>
-                  <b>{x.label}</b>
-                  <small>{x.effect}</small>
-                </button>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {view.wishlist.length > 0 && (
-        <section className="block">
-          <h2 className="block__title">Để dành cho dịp khác</h2>
-          <ul className="checks">
-            {view.wishlist.map((w) => (
-              <li key={w.id}>
-                <b>{w.name}</b>: {w.reason}
+      {f.warnings.length > 0 && (
+        <section className="fz-sec">
+          <h2 className="utitle">Kiểm tra trước khi đi</h2>
+          <ul className="checks ucard">
+            {f.warnings.map((w) => (
+              <li key={w}>
+                <Icon name="alert" size={16} /> {w}
               </li>
             ))}
           </ul>
         </section>
       )}
 
+      {view.wishlist.length > 0 && (
+        <section className="fz-sec">
+          <h2 className="utitle">Để dành cho dịp khác</h2>
+          <div className="saved">
+            {view.wishlist.map((w) => (
+              <button key={w.id} className="chip" title={w.reason} onClick={() => navigate(`/app/place/${encodeURIComponent(w.id)}`)}>
+                {w.name}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {(msg || error) && (
-        <p className="notice" role="alert">
-          {msg ?? error}
+        <p className="notice notice--bad" role="alert">
+          <Icon name="alert" size={16} /> {msg ?? error}
         </p>
       )}
       <div className="pfoot">
         <button className="link" onClick={() => navigate('/app/shortlist')}>
-          Sửa danh sách
+          Quay lại chọn lại
         </button>
         {/* No button turns a plan that cannot be done into a "feasible" one (UX brief §3.6). */}
         <button className="btn" disabled={!confirmable || sending} onClick={go}>

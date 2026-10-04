@@ -1,6 +1,7 @@
 import gsap from 'gsap'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { story } from '../scene/story'
+import { LineArt } from '../ui/LineArt'
 import { continueAsGuest, PROVIDER_LABEL, signIn, signInWith, signUp, type AuthError, type Provider } from '../user/account'
 
 type Social = Exclude<Provider, 'email'>
@@ -12,7 +13,6 @@ export function Auth({ onDone, onHome }: { onDone: () => void; onHome: () => voi
   const card = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [busy, setBusy] = useState<Social | null>(null)
-  const [withEmail, setWithEmail] = useState(false)
   const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -69,11 +69,22 @@ export function Auth({ onDone, onHome }: { onDone: () => void; onHome: () => voi
 
   return (
     <div className="auth">
+      <p className="auth__tag">Trợ lý giúp bạn quyết định, không phải máy tạo lịch trình.</p>
       <div className="auth__card" ref={card}>
-        <header className="auth__in">
-          <h1>Bắt đầu chuyến Đà Lạt</h1>
-          <p>Đăng nhập để lưu chuyến đi và mở lại trên máy khác.</p>
-        </header>
+        <button
+          className="btn btn--wide auth__guest auth__in"
+          onClick={() => {
+            continueAsGuest()
+            onDone()
+          }}
+        >
+          Dùng thử, không cần tài khoản
+        </button>
+        <small className="auth__guestnote auth__in">Chuyến đi lưu trên trình duyệt này. Tạo tài khoản sau cũng được.</small>
+
+        <div className="auth__or auth__in">
+          <span>hoặc</span>
+        </div>
 
         <div className="auth__social auth__in">
           <SocialButton p="google" busy={busy} onClick={social} wide />
@@ -84,87 +95,66 @@ export function Auth({ onDone, onHome }: { onDone: () => void; onHome: () => voi
           </div>
         </div>
 
-        {!withEmail ? (
-          <button className="auth__email-toggle auth__in" onClick={() => setWithEmail(true)}>
-            Dùng email và mật khẩu
+        <form className="auth__form auth__in" onSubmit={submit} noValidate>
+          {mode === 'signup' && (
+            <label className="field">
+              <span>Tên của bạn</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" aria-invalid={error?.field === 'name'} />
+              {fieldError('name')}
+            </label>
+          )}
+          <label className="field">
+            <span>Email</span>
+            <input type="email" inputMode="email" placeholder="ban@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" aria-invalid={error?.field === 'email'} />
+            {fieldError('email')}
+          </label>
+          <label className="field">
+            <span>Mật khẩu</span>
+            <span className="auth__pass">
+              <input
+                type={show ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                aria-invalid={error?.field === 'password'}
+              />
+              <button type="button" className="link" onClick={() => setShow((s) => !s)}>
+                {show ? 'Ẩn' : 'Hiện'}
+              </button>
+            </span>
+            {mode === 'signup' && !fieldError('password') && <small className="hint">Ít nhất 8 ký tự.</small>}
+            {fieldError('password')}
+          </label>
+          {mode === 'login' && (
+            <p className="auth__forgot">
+              {forgot ? (
+                <span role="status">Bản thử chưa gửi được email đặt lại mật khẩu.</span>
+              ) : (
+                <button type="button" className="link" onClick={() => setForgot(true)}>
+                  Quên mật khẩu?
+                </button>
+              )}
+            </p>
+          )}
+          <button className="btn btn--ghost btn--wide" type="submit">
+            {mode === 'login' ? 'Đăng nhập bằng email' : 'Tạo tài khoản'}
           </button>
-        ) : (
-          <form className="auth__form" onSubmit={submit} noValidate>
-            <div className="seg auth__tabs" role="tablist" aria-label="Đăng nhập hoặc đăng ký">
-              {(['login', 'signup'] as const).map((m) => (
-                <button key={m} type="button" role="tab" aria-selected={mode === m} aria-checked={mode === m} onClick={() => switchMode(m)}>
-                  {m === 'login' ? 'Đăng nhập' : 'Đăng ký'}
-                </button>
-              ))}
-            </div>
-            {mode === 'signup' && (
-              <label className="field">
-                <span>Tên của bạn</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" aria-invalid={error?.field === 'name'} />
-                {fieldError('name')}
-              </label>
-            )}
-            <label className="field">
-              <span>Email</span>
-              <input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" aria-invalid={error?.field === 'email'} />
-              {fieldError('email')}
-            </label>
-            <label className="field">
-              <span>Mật khẩu</span>
-              <span className="auth__pass">
-                <input
-                  type={show ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  aria-invalid={error?.field === 'password'}
-                />
-                <button type="button" className="link" onClick={() => setShow((s) => !s)}>
-                  {show ? 'Ẩn' : 'Hiện'}
-                </button>
-              </span>
-              {mode === 'signup' && !fieldError('password') && <small className="auth__hint">Ít nhất 8 ký tự.</small>}
-              {fieldError('password')}
-            </label>
-            {mode === 'login' && (
-              <p className="auth__forgot">
-                {forgot ? (
-                  <span role="status">Bản thử chưa gửi được email đặt lại mật khẩu.</span>
-                ) : (
-                  <button type="button" className="link" onClick={() => setForgot(true)}>
-                    Quên mật khẩu?
-                  </button>
-                )}
-              </p>
-            )}
-            <button className="btn" type="submit">
-              {mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
+          <p className="auth__switch">
+            {mode === 'login' ? 'Chưa có tài khoản? ' : 'Đã có tài khoản? '}
+            <button type="button" className="link" onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}>
+              {mode === 'login' ? 'Tạo tài khoản' : 'Đăng nhập'}
             </button>
-          </form>
-        )}
-
-        <div className="auth__or auth__in">
-          <span>hoặc</span>
-        </div>
-
-        <button
-          className="auth__guest auth__in"
-          onClick={() => {
-            continueAsGuest()
-            onDone()
-          }}
-        >
-          <b>Dùng thử, không cần tài khoản</b>
-          <small>Chuyến đi lưu trên trình duyệt này. Tạo tài khoản sau cũng được.</small>
-        </button>
+          </p>
+        </form>
 
         <footer className="auth__foot auth__in">
-          <p>Bản thử: đăng nhập được mô phỏng ngay trên trình duyệt, chưa gửi dữ liệu nào đi đâu.</p>
+          <p>Bản thử: đăng nhập được mô phỏng trên trình duyệt, chưa gửi dữ liệu nào đi đâu.</p>
           <button className="link" onClick={onHome}>
             Về trang giới thiệu
           </button>
         </footer>
       </div>
+      <LineArt variant="lake" className="auth__art" seed={21} />
     </div>
   )
 }

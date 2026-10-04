@@ -5,7 +5,10 @@ let cache: Promise<Snapshot> | null = null
 let ready: Snapshot | null = null
 
 export function loadSnapshot() {
-  cache ??= fetch('/data/snapshot.json')
+  cache ??= fetch('/data/covers.json')
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((c) => (covers = c), () => {})
+    .then(() => fetch('/data/snapshot.json'))
     .then((r) => {
       if (!r.ok) throw new Error(`snapshot ${r.status}`)
       return r.json() as Promise<Snapshot>
@@ -20,6 +23,18 @@ export function loadSnapshot() {
 
 let byId = new Map<string, Place>()
 export const placeById = (id: string) => byId.get(id)
+
+// Cover images picked offline by web/scripts/pick_covers.py: Maps photos or clip frames without people in them.
+export interface Cover {
+  src: string
+  credit: string
+  kind: 'gmaps' | 'tiktok'
+  w: number
+  h: number
+  url?: string
+}
+let covers: Record<string, Cover[]> = {}
+export const coversOf = (id: string): Cover[] => covers[id] ?? []
 
 export function useSnapshot() {
   const [snap, setSnap] = useState<Snapshot | null>(ready)

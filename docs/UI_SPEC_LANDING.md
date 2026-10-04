@@ -76,7 +76,7 @@ Những thứ **bỏ khỏi landing cũ**: đoạn mô tả dài ở mỗi beat,
 
 ## 5. Ràng buộc nội dung
 
-- Ảnh địa điểm trên landing là **frame clip thật** của chính nơi đó (`data/tiktok/videos/<id>/frames/`), luôn kèm `@creator` và link về clip gốc. Không ảnh stock, không ảnh AI vẽ nơi có thật.
+- Ảnh địa điểm trên landing là **ảnh thật của chính nơi đó** (ảnh Google Maps hoặc frame clip trong `data/tiktok/videos/<id>/frames/`), luôn ghi nguồn (`Ảnh: Google Maps` / `@creator`, clip có link gốc), **không có người chiếm đáng kể khung hình** (`web/scripts/pick_covers.py`). Không ảnh stock, không ảnh AI vẽ nơi có thật.
 - Video demo (`web/public/media/demo.mp4`) quay từ app **cũ** (giấy kem + xanh thông). Sau khi app restyle sang trắng hồng, **phải quay lại** bằng `web/scripts/record_demo.mjs`, nếu không landing hồng mà video xanh.
 - Số trên landing lấy từ build thật. Nếu không có số đối chứng (ví dụ "độ chính xác mẫu kiểm") thì **bỏ ô đó**, không điền số đẹp.
 

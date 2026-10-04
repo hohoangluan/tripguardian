@@ -3,7 +3,7 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { smooth, story } from './story'
 
-// One camera stop per landing section; section i sits at progress i / 5.
+// One camera stop per landing screen (hero, five beats, CTA); screen i sits at progress i / 6.
 const POS = [
   [0, 15, 42],
   [6, 15, 26],
@@ -11,6 +11,7 @@ const POS = [
   [13, 21, 6],
   [10, 34, 8],
   [-2, 46, 12],
+  [-4, 16, 34],
 ].map((v) => new THREE.Vector3(...v))
 const LOOK = [
   [0, 7, -20],
@@ -19,13 +20,16 @@ const LOOK = [
   [2, 0, -14],
   [4, 0, -15],
   [3, 0, -14],
+  [24, 10, -120],
 ].map((v) => new THREE.Vector3(...v))
 
 const posCurve = new THREE.CatmullRomCurve3(POS, false, 'centripetal')
 const lookCurve = new THREE.CatmullRomCurve3(LOOK, false, 'centripetal')
 
-const MIST = new THREE.Color('#d5dee0')
-const CLEAR = new THREE.Color('#bcd5df')
+const MIST = new THREE.Color('#f6e7e6')
+const CLEAR = new THREE.Color('#fdf3f1')
+// The one daquy yellow on the whole landing: the sun disk (UI_SPEC_LANDING §2).
+const SUN = '#f2b31b'
 
 export function Director({ scene }: { scene: { p: number } }) {
   const { camera, scene: three, size } = useThree()
@@ -33,6 +37,7 @@ export function Director({ scene }: { scene: { p: number } }) {
   const angle = useRef(0)
   const shift = useRef(0)
   const sun = useRef<THREE.DirectionalLight>(null)
+  const disk = useRef<THREE.Mesh>(null)
   const tmp = useMemo(() => ({ pos: new THREE.Vector3(), tgt: new THREE.Vector3(), col: new THREE.Color() }), [])
 
   const fog = useMemo(() => new THREE.FogExp2(MIST.getHex(), 0.05), [])
@@ -77,16 +82,25 @@ export function Director({ scene }: { scene: { p: number } }) {
     pc.setViewOffset(size.width, size.height, -size.width * shift.current, 0, size.width, size.height)
 
     const clear = smooth(p)
-    fog.density = THREE.MathUtils.lerp(0.036, 0.0065, clear) + story.dive * 0.2
+    fog.density = THREE.MathUtils.lerp(0.03, 0.0065, clear) + story.dive * 0.2
     col.copy(MIST).lerp(CLEAR, clear)
     fog.color.copy(col)
     if (sun.current) sun.current.intensity = 0.9 + clear * 1.6
+    // The sun rises over the whole scroll and faces the camera.
+    if (disk.current) {
+      disk.current.position.y = 16 + smooth(p) * 14
+      disk.current.lookAt(camera.position)
+    }
   })
 
   return (
     <>
-      <hemisphereLight args={['#eef4f4', '#1e3a34', 1.4]} />
-      <directionalLight ref={sun} position={[-30, 40, 10]} color="#ffe3ad" intensity={1} />
+      <hemisphereLight args={['#fff9f8', '#6b3550', 1.4]} />
+      <directionalLight ref={sun} position={[-30, 40, 10]} color="#ffd9ce" intensity={1} />
+      <mesh ref={disk} position={[34, 6, -140]}>
+        <circleGeometry args={[7, 48]} />
+        <meshBasicMaterial color={SUN} toneMapped={false} fog={false} />
+      </mesh>
     </>
   )
 }

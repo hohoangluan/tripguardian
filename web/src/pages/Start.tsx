@@ -1,110 +1,89 @@
-import gsap from 'gsap'
-import { useLayoutEffect, useRef, useState } from 'react'
-import { story } from '../scene/story'
-import { useTrip } from '../user/trip'
+import { useState } from 'react'
+import { Icon } from '../ui/bits'
+import { hasTrip, useTrip } from '../user/trip'
 
-// Role_Web_Functional_Design.md §2.1: two questions, each skippable.
-const QUESTIONS = [
-  {
-    key: 'experience',
-    title: 'Bạn đã đến Đà Lạt chưa?',
-    note: 'Lần đầu thì mình dẫn từng bước. Đã từng đến thì mình bỏ qua phần cơ bản.',
-    options: [
-      { value: 'first', label: 'Đây là lần đầu' },
-      { value: 'returning', label: 'Đã từng đến' },
-    ],
-  },
-  {
-    key: 'startWith',
-    title: 'Bạn đang có gì trong tay?',
-    note: 'Mình bắt đầu từ chỗ bạn đang đứng, không bắt bạn làm lại.',
-    options: [
-      { value: 'nothing', label: 'Chưa có ý tưởng gì' },
-      { value: 'saved', label: 'Vài địa điểm đã lưu' },
-      { value: 'must', label: 'Một nơi nhất định phải đến' },
-      { value: 'itinerary', label: 'Một lịch trình có sẵn' },
-    ],
-  },
+// UI spec §4 Trang 2. One free box is the strongest thing on the page: type or paste anything (a TikTok / Maps
+// link, saved places, a plan, one sentence). Four big cards for someone who does not know what to type.
+// No "have you been to Đà Lạt" question: the starting state is read from what the user gives.
+const STARTS = [
+  { value: 'nothing', label: 'Chưa có ý tưởng gì', note: 'Gợi ý từ đầu theo sở thích và thời gian của bạn.', icon: 'spark' },
+  { value: 'saved', label: 'Vài địa điểm đã lưu', note: 'Bạn có sẵn vài nơi, mình giúp sắp cho hợp lý.', icon: 'flag' },
+  { value: 'must', label: 'Một nơi nhất định phải đến', note: 'Xây chuyến đi quanh nơi không thể bỏ qua.', icon: 'pin' },
+  { value: 'itinerary', label: 'Một lịch trình có sẵn', note: 'Mình kiểm tra, chỉ ra chỗ vướng và cách sửa.', icon: 'route' },
 ] as const
 
 export function Start({ onHome, onDone }: { onHome: () => void; onDone: () => void }) {
   const { trip, dispatch } = useTrip()
-  const [step, setStep] = useState(0)
-  const card = useRef<HTMLDivElement>(null)
-  const dir = useRef(1)
-
-  useLayoutEffect(() => {
-    story.appStep = step
-    const el = card.current
-    if (story.reducedMotion || !el) return
-    // Reverted on cleanup so a re-run never starts from a half-faded state.
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        el,
-        { rotateY: 55 * dir.current, z: -260, opacity: 0, transformOrigin: dir.current > 0 ? '0% 50%' : '100% 50%' },
-        { rotateY: 0, z: 0, opacity: 1, duration: 0.9, ease: 'power3.out' },
-      )
-      gsap.from('.choice', { y: 14, opacity: 0, duration: 0.5, stagger: 0.06, delay: 0.25, ease: 'power2.out' })
-    }, el)
-    return () => ctx.revert()
-  }, [step])
-
-  const move = (next: number, answer?: string | null) => {
-    dir.current = next > step ? 1 : -1
-    const commit = () => {
-      if (answer !== undefined) dispatch({ type: 'set', patch: { [QUESTIONS[step].key]: answer } })
-      if (next >= QUESTIONS.length) onDone()
-      else setStep(next)
-    }
-    if (story.reducedMotion || !card.current) return commit()
-    gsap.to(card.current, {
-      rotateY: -55 * dir.current,
-      z: -260,
-      opacity: 0,
-      duration: 0.45,
-      ease: 'power2.in',
-      transformOrigin: dir.current > 0 ? '100% 50%' : '0% 50%',
-      onComplete: commit,
-    })
+  const [text, setText] = useState('')
+  const go = (patch: { startWith?: string | null; startText?: string | null; experience?: 'first' | 'returning' | null }) => {
+    dispatch({ type: 'set', patch })
+    onDone()
   }
-
-  const q = QUESTIONS[step]
-  const current = trip[q.key]
+  const returning = trip.experience === 'returning' || hasTrip(trip)
 
   return (
-    <div className="start">
-      <div className="start__top">
-        <span className="start__count">
-          Câu {step + 1} trên {QUESTIONS.length}
-        </span>
-      </div>
-      <div className="stage">
-        <div className="card" ref={card} key={step}>
-          <h1>{q.title}</h1>
-          <p className="card__note">{q.note}</p>
-          <div className="choices">
-            {q.options.map((o) => (
-              <button key={o.value} className={`choice${current === o.value ? ' is-picked' : ''}`} onClick={() => move(step + 1, o.value)}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <div className="card__foot">
-            {step > 0 ? (
-              <button className="link" onClick={() => move(step - 1)}>
-                Quay lại
-              </button>
-            ) : (
-              <button className="link" onClick={onHome}>
-                Về trang giới thiệu
-              </button>
-            )}
-            <button className="link" onClick={() => move(step + 1, null)}>
-              Chưa chắc, bỏ qua
-            </button>
-          </div>
+    <div className="start2">
+      <header className="uhead uhead--center">
+        <h1>Chuyến Đà Lạt của bạn đang thế nào?</h1>
+        <p>Gõ tự nhiên, hoặc dán link TikTok, Google Maps, danh sách đã lưu. Mình bắt đầu từ chỗ bạn đang đứng.</p>
+      </header>
+
+      <form
+        className="start2__box"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (text.trim()) go({ startText: text.trim(), startWith: null })
+        }}
+      >
+        <textarea
+          rows={3}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (text.trim()) go({ startText: text.trim(), startWith: null })
+            }
+          }}
+          placeholder="Ví dụ: 3 ngày cuối tháng 11, đi với người yêu, xe máy. Muốn đồi chè Cầu Đất và vài quán cà phê view đồi."
+          aria-label="Kể về chuyến đi"
+        />
+        <div className="start2__row">
+          <span className="hint">Enter để bắt đầu · Shift+Enter xuống dòng</span>
+          <button className="btn" disabled={!text.trim()}>
+            Bắt đầu <Icon name="arrow-right" size={16} />
+          </button>
         </div>
+      </form>
+
+      <p className="start2__or">
+        <span>chưa biết gõ gì? chọn một</span>
+      </p>
+      <div className="start2__cards">
+        {STARTS.map((s) => (
+          <button key={s.value} className="start2__card" onClick={() => go({ startWith: s.value, startText: null })}>
+            <Icon name={s.icon} size={30} />
+            <b>{s.label}</b>
+            <span>{s.note}</span>
+          </button>
+        ))}
       </div>
+
+      {returning && (
+        <div className="start2__back">
+          <span>Bạn đã đi Đà Lạt với mình trước đây</span>
+          <button className="chip" onClick={() => go({ experience: 'returning', startWith: 'nothing', startText: null })}>
+            Theo gu quen thuộc
+          </button>
+          <button className="chip" onClick={() => go({ experience: 'first', startWith: 'nothing', startText: null })}>
+            Lần này khác
+          </button>
+        </div>
+      )}
+
+      <button className="link start2__home" onClick={onHome}>
+        Về trang giới thiệu
+      </button>
     </div>
   )
 }

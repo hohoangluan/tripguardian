@@ -1,18 +1,21 @@
 import gsap from 'gsap'
-import { useRef, useState, type FormEvent, type PointerEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { placeById, signal } from '../../data/store'
 import type { Place } from '../../data/types'
 import { navigate } from '../../router'
 import { story } from '../../scene/story'
-import { Chip, ClipCover, ConfidenceTag, Icon, Page, SectionArt, Sheet } from '../../ui/bits'
+import { ConfidenceTag, Icon, Page, PlaceCover, Sheet } from '../../ui/bits'
+import { LineArt } from '../../ui/LineArt'
 import { whyNot } from '../pd/api'
 import { useDecision } from '../pd/decision'
 import type { Card, Claim, DropReason, WhyNot } from '../pd/types'
 import { searchPlaces } from '../tu/api'
+import { area } from '../search'
 import { DROP_LABEL, useTrip } from '../trip'
 
-const ART: Record<string, 'sight' | 'nature' | 'food' | 'shop'> = { anchors: 'sight', nature: 'nature', sights: 'sight', chill: 'food', meal: 'food' }
 export const CONF = { high: 'Cao', medium: 'Trung bình', low: 'Thấp' } as const
+
+const placeLink = (id: string) => `/app/place/${encodeURIComponent(id)}`
 
 export function Shortlist() {
   const { trip } = useTrip()
@@ -25,48 +28,43 @@ export function Shortlist() {
     return (
       <Page className="page--narrow">
         <div className="empty">
-          <img src="/img/empty.webp" alt="" />
-          <p>{error ?? 'Chưa có gợi ý. Bắt đầu từ bước hiểu chuyến đi.'}</p>
+          <LineArt variant="spot" />
+          <p>{error ?? 'Chưa có gợi ý. Bắt đầu từ bước hiểu chuyến đi, chỉ vài câu thôi.'}</p>
           <button className="btn" onClick={() => navigate('/app/understand')}>
             Hiểu chuyến đi
           </button>
         </div>
       </Page>
     )
-  if (!view)
-    return (
-      <div className="loading" role="status">
-        {error ?? 'Đang chuẩn bị gợi ý'}
-      </div>
-    )
+  if (!view) return <div className={`loading${error ? ' loading--error' : ''}`}>{error ?? 'Đang chuẩn bị gợi ý'}</div>
 
   const anchors = view.groups.find((g) => g.id === 'anchors')
   const groups = view.groups.filter((g) => g.id !== 'anchors')
   const current = groups.find((g) => g.id === tab) ?? groups[0]
-  const toggleCompare = (id: string) =>
-    setCompare((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= 2 ? [c[1], id] : [...c, id]))
+  const toggleCompare = (id: string) => setCompare((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= 3 ? [c[1], c[2], id] : [...c, id]))
   const cardProps = { comparing: compare, onCompare: toggleCompare, onDrop: setDropping }
+  const pairs = similarPairs(current?.cards ?? [])
+  const total = view.groups.reduce((n, g) => n + g.cards.length, 0)
 
   return (
-    <Page className="page--wide">
-      <header className="phead phead--split">
-        <div>
-          <h1>Gợi ý cho chuyến của bạn</h1>
-          <p>Một tập nhỏ đáng cân nhắc, kèm lý do và cái giá phải đánh đổi. Bạn chốt, mình không chọn thay.</p>
-        </div>
+    <Page>
+      <header className="uhead">
+        <h1>Gợi ý cho chuyến của bạn</h1>
+        <p>Một tập nhỏ đáng cân nhắc, kèm lý do và cái giá phải đánh đổi. Bạn chốt, mình không chọn thay.</p>
       </header>
 
       {error && (
-        <p className="notice" role="alert">
+        <p className="notice notice--bad" role="alert">
           <Icon name="alert" size={16} /> {error}
         </p>
       )}
-      <Question />
 
-      {anchors && (
-        <section className="block">
-          <h2 className="block__title">{anchors.label}</h2>
-          <div className="cards">
+      {anchors && anchors.cards.length > 0 && (
+        <section className="usection sl-anchors">
+          <h2 className="utitle">
+            Nhất định đến <small>{anchors.cards.length} nơi bạn đã chốt</small>
+          </h2>
+          <div className="pcards">
             {anchors.cards.map((c) => (
               <PlaceCard key={c.id} c={c} {...cardProps} />
             ))}
@@ -74,43 +72,73 @@ export function Shortlist() {
         </section>
       )}
 
-      <div className="tabs" role="tablist" aria-label="Nhóm địa điểm">
+      <div className="sl-tabs" role="tablist" aria-label="Nhóm địa điểm">
         {groups.map((g) => (
-          <button key={g.id} role="tab" aria-selected={current?.id === g.id} className={current?.id === g.id ? 'is-on' : ''} onClick={() => setTab(g.id)}>
-            <SectionArt section={ART[g.id] ?? 'sight'} />
-            <span className="tabs__label">{g.label}</span>
-            <span className="tabs__n">{g.cards.length}</span>
+          <button
+            key={g.id}
+            role="tab"
+            aria-selected={current?.id === g.id}
+            className={current?.id === g.id ? 'is-on' : ''}
+            onClick={() => setTab(g.id)}
+            onKeyDown={(e) => {
+              const i = groups.indexOf(g)
+              const n = e.key === 'ArrowRight' ? groups[i + 1] : e.key === 'ArrowLeft' ? groups[i - 1] : null
+              if (n) setTab(n.id)
+            }}
+          >
+            {g.label} <span className="mono">{g.cards.length}</span>
           </button>
         ))}
       </div>
 
-      {view.excluded.by_rule.map((r) => (
-        <div className="notice" key={r.rule}>
-          <Icon name="lock" size={16} />
-          <span>
-            {r.label} đã loại {r.count} nơi.
-          </span>
-        </div>
-      ))}
+      <Question />
 
-      {current ? (
-        <div className="cards">
+      {current && current.cards.length > 0 ? (
+        <div className="pcards" role="tabpanel">
           {current.cards.map((c) => (
             <PlaceCard key={c.id} c={c} {...cardProps} />
           ))}
         </div>
       ) : (
         <div className="empty">
-          <img src="/img/empty.webp" alt="" />
-          <p>Chưa có nơi nào qua được điều kiện của bạn.</p>
+          <LineArt variant="spot" />
+          <p>{total ? 'Nhóm này chưa có nơi nào qua được điều kiện của bạn.' : 'Mọi nơi đều bị một giới hạn của bạn loại. Nới một giới hạn để xem thêm?'}</p>
+          <button className="btn btn--ghost" onClick={() => navigate('/app/understand')}>
+            Xem lại giới hạn
+          </button>
         </div>
       )}
 
+      {pairs.map(([a, b]) => (
+        <p className="sl-pair" key={a.id + b.id}>
+          <span>
+            <b>{a.name}</b> và <b>{b.name}</b> khá giống nhau, có lẽ bạn chỉ cần một.
+          </span>
+          <button className="btn btn--small btn--ghost" onClick={() => navigate(`/app/compare/${a.id},${b.id}`)}>
+            So sánh
+          </button>
+        </p>
+      ))}
+
+      {view.excluded.by_rule.map((r) => (
+        <div className="notice notice--rule" key={r.rule}>
+          <Icon name="lock" size={16} />
+          <span>
+            {r.label} đã loại {r.count} nơi.
+          </span>
+          <button className="link" onClick={() => navigate('/app/understand')}>
+            Xem giới hạn này
+          </button>
+        </div>
+      ))}
+
       {view.unverified.count > 0 && (
-        <details className="extra" open={view.unverified.open}>
-          <summary>{view.unverified.count} nơi chưa xác minh được điều kiện của bạn</summary>
-          <p className="block__hint">Chưa đủ bằng chứng để nói các nơi này hợp với điều kiện bạn đặt. Tự kiểm tra trước nếu muốn chọn.</p>
-          <div className="cards">
+        <details className="sl-extra" open={view.unverified.open}>
+          <summary>
+            <Icon name="info" size={16} /> {view.unverified.count} nơi chưa xác minh được điều kiện của bạn
+          </summary>
+          <p className="hint">Chưa đủ bằng chứng để nói các nơi này hợp với điều kiện bạn đặt. Tự kiểm tra trước nếu muốn chọn.</p>
+          <div className="pcards">
             {view.unverified.cards.map((c) => (
               <PlaceCard key={c.id} c={c} {...cardProps} />
             ))}
@@ -118,13 +146,20 @@ export function Shortlist() {
         </details>
       )}
 
-      {view.unmapped.length > 0 && <p className="notice notice--soft">Chưa kiểm được trong dữ liệu: {view.unmapped.join(', ')}.</p>}
-      <WhyNotBox />
-      <Chat />
+      {view.unmapped.length > 0 && (
+        <p className="notice notice--soft">
+          <Icon name="info" size={16} /> Chưa kiểm được bằng dữ liệu: {view.unmapped.join(', ')}. Mình chỉ nêu trong lời giải thích, không dùng để chọn.
+        </p>
+      )}
 
-      {compare.length === 2 && (
-        <button className="fab" onClick={() => navigate(`/app/compare/${compare.join(',')}`)}>
-          <Icon name="compare" /> So sánh 2 nơi
+      <div className="sl-talk">
+        <Chat />
+        <WhyNotBox />
+      </div>
+
+      {compare.length >= 2 && (
+        <button className="sl-fab" onClick={() => navigate(`/app/compare/${compare.join(',')}`)}>
+          <Icon name="compare" /> So sánh {compare.length} nơi
         </button>
       )}
 
@@ -132,18 +167,20 @@ export function Shortlist() {
         {dropping && (
           <div className="dropwhy">
             <h2>Bỏ {dropping.name}?</h2>
-            <p className="block__hint">Cho mình biết lý do để gợi ý sau sát hơn. Không bắt buộc.</p>
+            <p className="hint">Cho mình biết lý do để gợi ý sau sát hơn. Không bắt buộc.</p>
             <div className="chips">
               {(Object.keys(DROP_LABEL) as DropReason[]).map((r) => (
-                <Chip
+                <button
                   key={r}
+                  type="button"
+                  className="chip"
                   onClick={() => {
                     act({ type: 'drop', place_id: dropping.id, reason: r })
                     setDropping(null)
                   }}
                 >
                   {DROP_LABEL[r]}
-                </Chip>
+                </button>
               ))}
             </div>
             <button
@@ -163,20 +200,39 @@ export function Shortlist() {
   )
 }
 
-// The one question the rules opened (pattern, free time, rethink); the user answers with a chip.
+// Places in the same tab that name each other as alternatives: shown as a pair, not twice.
+function similarPairs(cards: Card[]) {
+  const ids = new Map(cards.map((c) => [c.id, c]))
+  const seen = new Set<string>()
+  const out: [Card, Card][] = []
+  for (const c of cards)
+    for (const a of c.alternatives) {
+      const other = ids.get(a.id)
+      const key = [c.id, a.id].sort().join()
+      if (other && !seen.has(key)) {
+        seen.add(key)
+        out.push([c, other])
+      }
+    }
+  return out.slice(0, 3)
+}
+
+// The one question the rules opened (pattern, free time, rethink): one line, skippable.
 function Question() {
   const { view, act, busy } = useDecision()
   const q = view?.pending
   if (!q) return null
   return (
-    <section className="followup" aria-live="polite">
-      <p className="bubble bubble--q">{q.text}</p>
-      <p className="block__hint">{q.reason}</p>
+    <section className="sl-ask" aria-live="polite">
+      <div>
+        <h2>{q.text}</h2>
+        <p className="q__why">Vì sao hỏi: {q.reason}</p>
+      </div>
       <div className="chips">
         {q.chips.map((c) => (
-          <Chip key={c.id} onClick={() => !busy && act({ type: 'answer', qid: q.qid, chip: c.id })}>
+          <button key={c.id} type="button" className="chip" disabled={busy} onClick={() => act({ type: 'answer', qid: q.qid, chip: c.id })}>
             {c.label}
-          </Chip>
+          </button>
         ))}
       </div>
     </section>
@@ -196,20 +252,18 @@ function Chat() {
     await say(t, setReply)
   }
   return (
-    <section className="pdchat">
+    <section className="sl-chat">
       <form onSubmit={send}>
-        <label className="pdchat__label" htmlFor="pdchat">
-          Nói với mình, ví dụ “quán này xa quá” hay “muốn chỗ ít người hơn”
+        <label className="sl-label" htmlFor="pdchat">
+          Nói với mình
         </label>
-        <div className="pdchat__row">
-          <input id="pdchat" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="Gõ ở đây" />
-          <button className="btn btn--small" disabled={busy || !text.trim()}>
-            Gửi
-          </button>
+        <div className="lineinput">
+          <input id="pdchat" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="ví dụ: quán này xa quá, hay: muốn chỗ ít người hơn" />
+          <kbd>Enter để gửi</kbd>
         </div>
       </form>
       {reply !== null && (
-        <p className="bubble bubble--a" aria-live="polite">
+        <p className="ask__remark" aria-live="polite">
           {reply || '…'}
         </p>
       )}
@@ -236,15 +290,19 @@ function WhyNotBox() {
     }
   }
   return (
-    <details className="extra whynot">
-      <summary>Vì sao không thấy một nơi?</summary>
-      <form onSubmit={ask} className="pdchat__row">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tên địa điểm" aria-label="Tên địa điểm" />
-        <button className="btn btn--small btn--ghost">Tra</button>
+    <section className="sl-whynot">
+      <form onSubmit={ask}>
+        <label className="sl-label" htmlFor="whynot">
+          Vì sao không thấy một nơi?
+        </label>
+        <div className="lineinput">
+          <input id="whynot" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tên địa điểm" />
+          <button className="link">Tra</button>
+        </div>
       </form>
-      {msg && <p className="block__hint">{msg}</p>}
+      {msg && <p className="hint">{msg}</p>}
       {res && (
-        <div>
+        <div className="sl-whynot__res">
           <b>{res.name ?? q}</b>
           <ul>
             {res.reasons.map((r) => (
@@ -253,157 +311,160 @@ function WhyNotBox() {
           </ul>
         </div>
       )}
-    </details>
+    </section>
   )
 }
 
 export function PlaceCard({ c, comparing, onCompare, onDrop }: { c: Card; comparing: string[]; onCompare: (id: string) => void; onDrop: (c: Card) => void }) {
   const { act, busy } = useDecision()
-  const ref = useRef<HTMLElement>(null)
   const p = placeById(c.id) // clips and evidence quotes come from the snapshot when it has this place
-
-  // A soft 3D tilt under the pointer; off for touch and reduced motion.
-  const tilt = (e: PointerEvent) => {
-    if (e.pointerType !== 'mouse' || story.reducedMotion || !ref.current) return
-    const r = ref.current.getBoundingClientRect()
-    const x = (e.clientX - r.left) / r.width - 0.5
-    const y = (e.clientY - r.top) / r.height - 0.5
-    gsap.to(ref.current, { rotateY: x * 7, rotateX: -y * 7, duration: 0.4, ease: 'power2.out' })
-  }
-  const untilt = () => ref.current && gsap.to(ref.current, { rotateX: 0, rotateY: 0, duration: 0.6, ease: 'power3.out' })
   const add = (e: React.MouseEvent) => {
     act({ type: 'select', place_id: c.id })
     flyToTray(e.currentTarget as HTMLElement)
   }
   const notes = [...c.failed.map((t) => `Không hợp điều kiện của bạn: ${t}`), ...c.unverified, ...c.warnings]
+  const low = c.confidence.level === 'low'
+  const states = [c.chosen && 'is-chosen', c.locked && 'is-locked', comparing.includes(c.id) && 'is-comparing', c.status === 'unverified' && 'is-unverified', low && 'is-low']
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <article ref={ref} className={`pcard${c.chosen ? ' is-chosen' : ''}`} onPointerMove={tilt} onPointerLeave={untilt}>
-      {p && p.videos.length > 0 && <ClipCover videos={p.videos} />}
-      <header className="pcard__head">
-        <button className="pcard__name" onClick={() => navigate(`/app/place/${encodeURIComponent(c.id)}`)}>
-          {c.name}
-        </button>
-        <span className="pcard__meta">{c.category}</span>
-        {c.suggested && <span className="pcard__keep">Gợi ý thêm</span>}
+    <article className={`pcard ${states}`}>
+      <button className="pcard__cover" onClick={() => navigate(placeLink(c.id))} aria-label={`Xem chi tiết ${c.name}`}>
+        <PlaceCover id={c.id} fallback={<LineArt variant="spot" seed={c.name.length} />} />
         {c.locked && (
-          <span className="pcard__lock" title="Đã khóa">
-            <Icon name="lock" size={14} />
+          <span className="pcard__flag">
+            <Icon name="lock" size={13} /> Đã khóa
           </span>
         )}
+        {c.chosen && !c.locked && (
+          <span className="pcard__flag">
+            <Icon name="check" size={13} /> Đã chọn
+          </span>
+        )}
+      </button>
+
+      <header className="pcard__head">
+        <h3>
+          <a
+            href={placeLink(c.id)}
+            onClick={(e) => {
+              e.preventDefault()
+              navigate(placeLink(c.id))
+            }}
+          >
+            {c.name}
+          </a>
+        </h3>
+        <p>{[c.category, p ? area(p) : null].filter(Boolean).join(' · ')}</p>
+        {c.suggested && <span className="pcard__tag">Gợi ý thêm</span>}
       </header>
 
-      {c.why.length > 0 && (
-        <ul className="pcard__why" aria-label="Vì sao phù hợp">
-          {c.why.map((w) => (
-            <ClaimRow key={w.text} claim={w} place={p} icon="check" />
-          ))}
-        </ul>
-      )}
-      {c.tradeoffs.length > 0 && (
-        <ul className="pcard__cost" aria-label="Đánh đổi">
-          {c.tradeoffs.map((w) => (
-            <ClaimRow key={w.text} claim={w} place={p} icon="alert" />
-          ))}
-        </ul>
-      )}
-      {notes.map((t) => (
-        <p key={t} className="pcard__basic">
-          {t}
-        </p>
-      ))}
-      {c.depends_on_unknown && <p className="pcard__basic">{c.depends_on_unknown}</p>}
+      <div className="pcard__two">
+        <div>
+          <h4>Vì sao phù hợp</h4>
+          {c.why.length ? (
+            <ul className="pcard__why">
+              {c.why.map((w) => (
+                <ClaimRow key={w.text} claim={w} place={p} tone="why" />
+              ))}
+            </ul>
+          ) : (
+            <p className="unknown">Chưa có lý do rõ</p>
+          )}
+        </div>
+        <div>
+          <h4>Đánh đổi</h4>
+          {c.tradeoffs.length || notes.length || c.depends_on_unknown ? (
+            <ul className="pcard__cost">
+              {c.tradeoffs.map((w) => (
+                <ClaimRow key={w.text} claim={w} place={p} tone="cost" />
+              ))}
+              {[...notes, ...(c.depends_on_unknown ? [c.depends_on_unknown] : [])].map((t) => (
+                <li key={t}>
+                  <Icon name="alert" size={14} /> <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="unknown">Chưa thấy điều gì đáng ngại</p>
+          )}
+        </div>
+      </div>
 
       <div className="pcard__facts">
-        {c.visit && (
-          <span title="Ước tính">
-            <Icon name="clock" size={14} /> {c.visit.short}–{c.visit.long} phút
+        {c.visit ? (
+          <span className="mono" title="Ước tính">
+            <Icon name="clock" size={15} /> {c.visit.short}–{c.visit.long} phút
           </span>
+        ) : (
+          <span className="unknown">Chưa có thời lượng</span>
         )}
-        {c.location.minutes !== null && (
-          <span title="Ước tính">
-            <Icon name="route" size={14} /> ≈{c.location.minutes} phút từ {c.location.center}
-          </span>
-        )}
-        {c.price && <span>{c.price}</span>}
+        <ConfidenceTag level={CONF[c.confidence.level]} reason={c.confidence.reason + (c.declined ? ' Có dấu hiệu xuống cấp gần đây.' : '')} />
       </div>
-      <ConfidenceTag level={CONF[c.confidence.level]} reason={c.confidence.reason + (c.declined ? ' Có dấu hiệu xuống cấp gần đây.' : '')} />
-
-      {c.alternatives.length > 0 && (
-        <p className="pcard__alts">
-          Nơi tương tự:{' '}
-          {c.alternatives.map((a) => (
-            <button
-              key={a.id}
-              className="link"
-              disabled={busy}
-              title={c.chosen ? `Đổi sang ${a.name}` : `Xem ${a.name}`}
-              onClick={() => (c.chosen ? act({ type: 'swap', place_id: c.id, with_id: a.id }) : navigate(`/app/place/${encodeURIComponent(a.id)}`))}
-            >
-              {a.name}
-            </button>
-          ))}
+      {c.location.minutes !== null && (
+        <p className="pcard__where mono">
+          <Icon name="route" size={14} /> ≈{c.location.minutes} phút từ {c.location.center}
+          {c.price ? ` · ${c.price}` : ''}
         </p>
       )}
-
-      <div className="pcard__tools">
-        <button className={`tbtn${c.locked ? ' is-on' : ''}`} aria-pressed={c.locked} title="Khóa: không bao giờ bị bỏ tự động" disabled={busy} onClick={() => act({ type: c.locked ? 'unlock' : 'lock', place_id: c.id })}>
-          <Icon name={c.locked ? 'lock' : 'unlock'} size={15} /> {c.locked ? 'Đã khóa' : 'Khóa'}
-        </button>
-        <button className={`tbtn${comparing.includes(c.id) ? ' is-on' : ''}`} aria-pressed={comparing.includes(c.id)} onClick={() => onCompare(c.id)}>
-          <Icon name="compare" size={15} /> So sánh
-        </button>
-        {!c.chosen && (
-          <button className="tbtn" onClick={() => onDrop(c)}>
-            <Icon name="x" size={15} /> Bỏ qua
-          </button>
-        )}
-      </div>
 
       <footer className="pcard__actions">
         {c.chosen ? (
-          <button className="btn btn--small btn--chosen" disabled={busy} onClick={() => onDrop(c)}>
-            <Icon name="check" size={16} /> Đã chọn
+          <button className="btn btn--small btn--chosen" disabled={busy} onClick={() => onDrop(c)} title="Bỏ khỏi danh sách đã chọn">
+            <Icon name="check" size={15} /> Đã chọn
           </button>
         ) : (
           <button className="btn btn--small" disabled={busy} onClick={add}>
-            <Icon name="plus" size={16} /> Thêm vào chuyến
+            <Icon name="plus" size={15} /> Thêm
           </button>
         )}
-        {p && (
-          <button className="pcard__more" onClick={() => navigate(`/app/place/${encodeURIComponent(c.id)}`)}>
-            Bằng chứng <Icon name="next" size={15} />
+        <span className="pcard__links">
+          {!c.chosen && (
+            <button className="link" onClick={() => onDrop(c)}>
+              Bỏ
+            </button>
+          )}
+          <button className="link" aria-pressed={c.locked} disabled={busy} title="Khóa: không bao giờ bị bỏ tự động" onClick={() => act({ type: c.locked ? 'unlock' : 'lock', place_id: c.id })}>
+            {c.locked ? 'Mở khóa' : 'Khóa'}
           </button>
-        )}
+          <button className="link" aria-pressed={comparing.includes(c.id)} onClick={() => onCompare(c.id)}>
+            {comparing.includes(c.id) ? 'Bỏ so sánh' : 'So sánh'}
+          </button>
+          <button className="link" onClick={() => navigate(placeLink(c.id))}>
+            Chi tiết
+          </button>
+        </span>
       </footer>
     </article>
   )
 }
 
 // Each claim opens its own evidence when the snapshot has it: sample size, agreement, one quote (UX brief §3.3).
-function ClaimRow({ claim, place, icon }: { claim: Claim; place: Place | undefined; icon: string }) {
+function ClaimRow({ claim, place, tone }: { claim: Claim; place: Place | undefined; tone: 'why' | 'cost' }) {
   const [open, setOpen] = useState(false)
   const s = claim.sid && place ? signal(place, claim.sid) : undefined
+  const icon = <Icon name={tone === 'why' ? 'check' : 'alert'} size={14} />
   if (!s || !place)
     return (
       <li>
-        <Icon name={icon} size={14} /> <span>{claim.text}</span>
+        {icon} <span>{claim.text}</span>
       </li>
     )
   return (
     <li className="claim">
-      <Icon name={icon} size={14} />
+      {icon}
       <span>
         <button className="claim__btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {claim.text}
         </button>
         {open && (
           <span className="claim__ev">
-            <small>
-              {s.n} người nhắc, {Math.round(s.agreement * 100)}% đồng ý{s.freshnessDays !== null ? `, mới nhất ${s.freshnessDays} ngày trước` : ''}
+            <small className="mono">
+              {Math.round(s.agreement * 100)}% trong {s.n} người nhắc{s.freshnessDays !== null ? ` · mới nhất ${s.freshnessDays} ngày trước` : ''}
             </small>
             {s.quotes[0] && <q>{s.quotes[0].text}</q>}
-            <button className="link" onClick={() => navigate(`/app/place/${encodeURIComponent(place.id)}`)}>
+            <button className="link" onClick={() => navigate(placeLink(place.id))}>
               Xem đủ bằng chứng
             </button>
           </span>
@@ -413,7 +474,7 @@ function ClaimRow({ claim, place, icon }: { claim: Claim; place: Place | undefin
   )
 }
 
-// A yellow diamond arcs from the button into the curation bar.
+// A small rose diamond arcs from the button into the curation bar.
 export function flyToTray(from: HTMLElement) {
   if (story.reducedMotion) return
   const target = document.querySelector('.curate__count')
