@@ -541,6 +541,37 @@
 }
 
 /* 5 · itinerary */
+.st-link {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.st-link path {
+  fill: none;
+  stroke: var(--rose-deep);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+  transition: opacity 0.3s ease;
+  animation: stlink 1.2s linear infinite;
+}
+
+@keyframes stlink {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-link path {
+    animation: none;
+  }
+}
+
 .tl-mini {
   justify-self: center;
   width: min(480px, 100%);
@@ -944,4 +975,9 @@
   .hero__down {
     animation: none;
   }
+}
+
+.st-scene--4 .st-row {
+  position: relative;
+  z-index: 1;
 }

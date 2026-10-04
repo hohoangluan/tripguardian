@@ -312,6 +312,7 @@ function Stage({ index, total, evidence, onStart }: { index: number; total: numb
         </div>
       )}
 
+      {index === 4 && <PinLink />}
       {index === 4 && (
         <div className="st-row">
           <header className="st-head scrim">
@@ -356,6 +357,36 @@ function Stage({ index, total, evidence, onStart }: { index: number; total: numb
         </div>
       )}
     </div>
+  )
+}
+
+// Beat 5: a line from pin 2 on the hills to row 2 of the day card, so the map and the timeline read as one thing.
+function PinLink() {
+  const path = useRef<SVGPathElement>(null)
+  useEffect(() => {
+    let raf = 0
+    const draw = () => {
+      const p = story.pins[1]
+      const row = document.querySelector<HTMLElement>('.tl-mini li:nth-child(2) .tl-mini__n')
+      const el = path.current
+      if (el && p && row) {
+        const r = row.getBoundingClientRect()
+        const card = row.closest('.tl-mini')?.getBoundingClientRect() ?? r
+        const x2 = card.left - 4 // meets the card's edge level with row 2
+        const y2 = r.top + r.height / 2
+        const mx = (p.x + x2) / 2
+        el.setAttribute('d', `M${p.x} ${p.y} C ${mx} ${p.y}, ${mx} ${y2}, ${x2} ${y2}`)
+        el.style.opacity = p.on ? '1' : '0'
+      }
+      raf = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  return (
+    <svg className="st-link" aria-hidden="true">
+      <path ref={path} />
+    </svg>
   )
 }
 

@@ -9,6 +9,7 @@ export const story = {
   appStep: 0, // screen index on /app, rotates the orbit
   appScene: 0.2, // scene progress the /app background settles on (pins, route)
   pointer: { x: 0, y: 0 }, // -1..1, for subtle parallax
+  pins: [] as { x: number; y: number; on: boolean }[], // screen position of each chosen pin, written every frame
   reducedMotion:
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches,

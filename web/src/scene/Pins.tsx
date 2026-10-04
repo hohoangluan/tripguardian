@@ -30,7 +30,7 @@ export function Pins({ scene }: { scene: { p: number } }) {
     [],
   )
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera, size: view }) => {
     const p = scene.p
     const t = story.reducedMotion ? 0 : clock.elapsedTime
     // Hero: dozens of faint pins on the hills. Beat 1 (842 -> 5): they light up together, then all but five go out.
@@ -61,6 +61,14 @@ export function Pins({ scene }: { scene: { p: number } }) {
     })
     im.instanceMatrix.needsUpdate = true
     if (im.instanceColor) im.instanceColor.needsUpdate = true
+
+    // Where each chosen pin sits on screen: the landing draws its pin -> timeline line from it.
+    CHOSEN.forEach((_, i) => {
+      v.copy(pins[i].ground)
+      v.y += 1.2
+      v.project(camera)
+      story.pins[i] = { x: ((v.x + 1) / 2) * view.width, y: ((1 - v.y) / 2) * view.height, on: v.z < 1 && Math.abs(v.x) < 1 && Math.abs(v.y) < 1 }
+    })
 
     // Light columns mark the shortlist; labels arrive with the itinerary.
     // Landing labels name demo places; never show them behind the real app.
