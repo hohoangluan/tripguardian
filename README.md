@@ -46,12 +46,12 @@ cd web && npm install && cd ..
 cp .env.example .env                                     # điền key: docs/LLM_PROVIDER.md
 ```
 
-1. **Dữ liệu.** Tải `tripguardian-data-<ngày>.zip` từ Drive của nhóm, giải nén **tại thư mục gốc repo**: `python -m zipfile -e tripguardian-data-<ngày>.zip .`. Gói trả về `data/` và `web/public/data/snapshot.json` đúng chỗ. Gói không có `video.mp4` của TikTok (chỉ bước ASR khi crawl cần); bản `--no-photos` không có ảnh Maps, khi đó `/admin/labels` không hiện ảnh.
+1. **Dữ liệu.** Tải `tripguardian-data-<ngày>.zip` mới nhất từ [Drive của nhóm](https://drive.google.com/drive/folders/1LeEgIdoioyCAM64WV3VLGeKYA-X5yEGT?usp=sharing), giải nén **tại thư mục gốc repo**: `python -m zipfile -e tripguardian-data-<ngày>.zip .` — gói trả về `data/` đúng chỗ. Gói không có `video.mp4` của TikTok (chỉ bước ASR khi crawl cần); bản `--no-photos` không có ảnh Maps, khi đó `/admin/labels` không hiện ảnh. `web/public/data/snapshot.json` (dữ liệu web hiển thị) nằm sẵn trong git.
 2. **Key.** Trip Understanding, chọn câu hỏi và mọi phase cần model gọi API UIT, chỉ trả lời trong mạng campus; key và endpoint ở `.env`. Lỗi chứng chỉ `llm.uit.edu.vn`: tạo CA bundle một lần mỗi máy — `docs/LLM_PROVIDER.md` §Chứng chỉ TLS.
 3. **OSRM** (thời gian di chuyển cho Planning): `bash scripts/osrm_setup.sh` một lần mỗi máy — tải OSM Việt Nam, dựng chỉ mục vào `osrm-data/`, mở `127.0.0.1:5000`. Lần sau chỉ cần chạy lại container (dòng `docker run ... -p 127.0.0.1:5000:5000` cuối script). Không có OSRM thì Planning ước lượng thô và gắn cảnh báo. Endpoint và TTL ở `config/live.yaml`; `LIVE_CONTACT` trong `.env` là liên hệ gửi kèm request.
 4. **Chỉ khi crawl:** đăng nhập tài khoản phụ một lần mỗi máy, `python -m corpus login tiktok`, `python -m corpus login gmaps` (profile lưu ở `.browser/`, đã gitignore). Chạy dịch vụ và Planning lodging không cần đăng nhập.
 
-Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-photos]` (cái gì bị bỏ và vì sao: docstring của script), rồi đưa zip lên Drive. Sửa `data/` xong mà web cần thấy: `python web/scripts/export_snapshot.py` trước khi đóng gói.
+Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-photos] [--out <thư mục>]` (cái gì bị bỏ và vì sao: docstring của script), rồi đưa zip lên Drive. Sửa `data/` xong mà web cần thấy: `python web/scripts/export_snapshot.py` rồi commit `snapshot.json`.
 
 ## Chạy
 
@@ -68,7 +68,7 @@ Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-
 | Planning | 8768 | `python -m planning serve` |
 | Trang review / gán nhãn | 8765 | `python -m corpus review` |
 
-Log ở `logs/run/<tên>.log`. Web cần `web/public/data/snapshot.json` để hiển thị địa điểm: `python web/scripts/export_snapshot.py` sau khi aggregate.
+Log ở `logs/run/<tên>.log`. Web đọc địa điểm từ `web/public/data/snapshot.json` (trong git); sinh lại bằng `python web/scripts/export_snapshot.py` sau khi aggregate.
 
 ## Xây dữ liệu và chạy từng bước
 
