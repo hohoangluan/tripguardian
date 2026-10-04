@@ -1,14 +1,14 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
   pause_s: [5, 10]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
-  tabs: 2  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
+  tabs: 4  # max parallel video tabs; the working level is found automatically (data/tiktok/throttle.json)
            # measured empirically on this account (2026-10-02): tab 3 got blocked immediately, twice in a row;
            # tab 2 held clean. 8 also caused a MemoryError on this machine (low free RAM) well before TikTok's
            # own limit mattered — 2 is both the fast-and-stable tab count and safely under the RAM ceiling.
   tabs_start: 2  # first run only
-  cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
-  max_cooldown_s: 900
-  downloads: 4  # parallel mp4 downloads (no browser tab needed)
+  cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks (user reloads the captcha by hand)
+  max_cooldown_s: 10
+  downloads: 8  # parallel mp4 downloads (no browser tab needed, not subject to the tab-block limit above)
   max_videos_per_query: 30
   max_comments_per_video: 200  # comments + replies, in TikTok's order; null = all (slow)
   videos_per_place: 10  # place_search: top search results per Maps place; place_filter keeps those about the place
