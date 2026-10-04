@@ -25,5 +25,5 @@ say "observe new pairs"
 observe
 python -m corpus aggregate --city dalat >> "$LOG" 2>&1
 python -m corpus serving --city dalat >> "$LOG" 2>&1
-python -m corpus evaluate --city dalat >> "$LOG" 2>&1
+python -m decision evaluate >> "$LOG" 2>&1
 say "TIKTOK_NOW_DONE"

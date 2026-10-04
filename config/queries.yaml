@@ -23,7 +23,7 @@ tiktok:
                         # at 1 until it's confirmed to hold clean again; raise once a session runs block-free.
   place_search_tabs_start: 1  # first run only
   place_search_pause_s: [5, 10]  # wait per search tab
-  queries:  # groups from docs/specs/CORPUS_SPEC.md §1
+  queries:  # groups from docs/CORPUS.md §1
     general: ["{city} có gì chơi", "review du lịch {city}"]
     category: ["quán cà phê {city}", "quán ăn ngon {city}", "chợ đêm {city}"]
     experience: ["săn mây {city}", "view rừng thông {city}", "vườn hoa {city}"]

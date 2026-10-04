@@ -39,5 +39,5 @@ for i in 1 2 3 4 5 6 7 8; do  # a lost network fails places with APIConnectionEr
 done
 python -m corpus aggregate --city dalat >> "$LOG" 2>&1
 python -m corpus serving --city dalat >> "$LOG" 2>&1
-python -m corpus evaluate --city dalat >> "$LOG" 2>&1
+python -m decision evaluate >> "$LOG" 2>&1
 say "RERUN_DONE"
