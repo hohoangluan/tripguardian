@@ -58,6 +58,12 @@ def test_view_marks_inferred_and_counts_coverage(catalog, cfg):
     assert v["hard"][0]["coverage"]["passed"] == 1
     assert {r["key"] for r in v["soft"]} >= {"noise=quiet"} and v["unmapped"][0]["phrase"] == "nhạc nhẹ"
     assert v["safety_pending"] is False
+    assert 0 <= v["matching"] <= v["total"] == len(catalog.places)
+
+
+def test_view_matching_drops_when_a_hard_limit_excludes(catalog, cfg):
+    s = up(TripState(), "hard", {"feature": "steep_or_stairs", "op": "ne", "value": "present"}, "add")
+    assert view(s, catalog, cfg)["matching"] < view(TripState(), catalog, cfg)["matching"] == len(catalog.places)
 
 
 def test_context_carries_budget_and_experience():

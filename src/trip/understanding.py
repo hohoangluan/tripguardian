@@ -3,7 +3,7 @@
 from dataclasses import asdict
 
 from .catalog import Catalog
-from .coverage import coverage
+from .coverage import admissible, coverage
 from .settings import Settings
 from .state import SoftKey, TripState, pending_signals, unknown_fields
 from .values import jsonable
@@ -23,6 +23,7 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
             value["name"] = catalog.by_id[f.value.place_id].name
         return {"target": target, "value": value, "mark": f.source in MARKED, "confidence": f.confidence}
 
+    places = catalog.places if catalog is not None else ()
     hard = []
     open_policy = False
     for h in state.hard:
@@ -49,4 +50,7 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
         "unknowns": unknown_fields(state),
         "unmapped": [{"target": f"unmapped:{i}", "phrase": u.phrase} for i, u in enumerate(state.unmapped)],
         "safety_pending": bool(pending_signals(state)) or open_policy,
+        # How many places pass the hard limits right now: a fact about the current state, never a forecast.
+        "matching": sum(1 for c in places if admissible(c, state.hard)),
+        "total": len(places),
     }
