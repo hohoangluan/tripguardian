@@ -30,15 +30,15 @@ tiktok:
     constraint: ["{city} ngày mưa", "{city} ít đi bộ"]
     trend: ["{city} mới mở"]
 gmaps:
-  pause_s: [0.5, 1]
+  pause_s: [0.2, 0.5]  # wait between pages / per place tab
   search_tabs: 12  # max parallel search tabs (tiles); working level saved in data/gmaps/search_throttle.json
   search_tabs_start: 2  # first run only
   min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
   same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
   tabs: 10  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
   tabs_start: 3  # first run only
-  cooldown_s: 60  # first cooldown after a block; doubles on back-to-back blocks
-  max_cooldown_s: 900
+  cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks
+  max_cooldown_s: 10
   max_reviews_per_place: 200  # newest first, under the age limit; enough for signals, gaps filled on demand (spec)
   max_review_age_months: 11  # only reviews under a year old (Maps says "một năm trước" for 12-23 months); older are stale
   min_reviews_per_place: 40  # the newest 40 are kept even past the age limit: quiet places need evidence too

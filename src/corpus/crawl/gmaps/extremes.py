@@ -44,7 +44,7 @@ async def scrape_sorted(ctx: BrowserContext, url: str, position: int, n: int) ->
         await sort.first.click()
         await page.locator(f'[role="menuitemradio"][data-index="{position}"]').click()
         await page.wait_for_function(_CHANGED_JS, timeout=10000)  # raises when the sort did not apply
-        await page.wait_for_timeout(1500)
+        await page.wait_for_timeout(500)
         await page.wait_for_selector(REVIEW_DIV, timeout=20000)
         pane = page.locator("div.m6QErb.DxyBCb").first
         complete, detached = False, 0
