@@ -98,18 +98,68 @@ Frame: (1) ô nhập + thẻ chip · (2) bốn thẻ bấm lớn · (3) biến t
 
 ### Trang 3 — Hiểu chuyến đi (`/app/understand`) — trang khó nhất
 
-Cảm giác phải là **hội thoại ngắn, không phải biểu mẫu**: một câu mỗi lượt, chip gợi ý, ô nhập tự do, luôn có *"Chưa chắc"* và *"Bỏ qua, gợi ý trước đi"*.
+Chốt 2026-10-04 sau 24 bản thử. Ảnh: `docs/design/desktop/v3-rose-photo/02-understand-k-ask.png`, `…-k-chain.png`, `…-k-expanded.png`. Các bản đã loại nằm ở `docs/design/desktop/_archive/understand-iterations/` — đọc trước khi đề xuất lại một hướng cũ.
 
-Mục bắt buộc:
-1. **Luồng hỏi** — bong bóng câu hỏi + chip trả lời + ô tự do. Có trạng thái "đang nghĩ".
-2. **Panel "Mình đang hiểu"** — cập nhật trực tiếp khi người dùng trả lời, gồm: *Mục đích · Chuyến đi* (ngày, số người và là ai, phương tiện) · *Nơi muốn đến* · *Sở thích* · *Nhịp độ*. Trên desktop là **cột bên dính**, luôn thấy khi cuộn (mobile: sheet kéo lên, vòng sau). **Đây là nơi sản phẩm có cảm giác thông minh — dồn công vào nó.**
-3. **Giới hạn cứng vs sở thích mềm phải trông khác nhau**: giới hạn cứng (ngân sách, thời gian di chuyển tối đa mỗi chặng, tránh đường dốc, phải xong trước mấy giờ, loại hoạt động không muốn) là **quy tắc** — khối nền đặc, có khóa; sở thích mềm là **thiên hướng** — chip viền đứt, bỏ được.
-4. **Nhãn "từ hồ sơ của bạn"** trên mọi thứ điền sẵn từ lịch sử, sửa được bằng một chạm. Phải đọc như suy đoán, không như cài đặt.
-5. **Nhập địa điểm đã lưu / lịch trình có sẵn** — ba trạng thái phân biệt tức thì: **đã khớp ✓** · **cần bạn chọn** (2–3 ứng viên, mỗi cái có tên, khu vực, ảnh hoặc ghim bản đồ) · **không tìm thấy** (giữ dạng "chưa xác minh" hoặc xóa). Gộp trùng ("Túi Mơ To" và "Tiệm Túi Mơ To" là một nơi). Nhãn: bắt buộc đến / đã lưu / đã đi / tránh / chưa rõ. **Không bao giờ đoán match.**
-6. **Chỗ ở** (không bắt buộc): người dùng đã có thì nhập, tra như mục 5. Hệ thống **không gợi ý chỗ ở**; nó chỉ quyết định điểm bắt đầu / kết thúc lộ trình.
-7. **Tóm tắt chuyến đi** cuối luồng: thông tin cơ bản, nơi bắt buộc đến, giới hạn cứng, sở thích (có nhãn nguồn), **điều còn chưa biết**. Sửa được trước khi bắt đầu tìm.
+Hai cột: **trái là cuộc hỏi, phải là vé**. Không bong bóng chat, không avatar, không nút gửi, không chấm "đang gõ". Lượt đã trả lời **co thành một dòng** kèm chip đáp án và nút `Sửa`.
 
-Frame: (1) luồng hỏi + panel bên · (2) panel đã đầy, sau 5–6 lượt trả lời · (3) nhập địa điểm, ba trạng thái cùng khung · (4) tóm tắt chuyến đi · (5) đang đặt giới hạn cứng.
+#### A. Agent quyết, giao diện không được đoán thay
+
+Ý định hỏi, số câu mỗi ý định, và thứ tự các ý định **do agent quyết lúc chạy**. Vì vậy màn hình **không bao giờ** hiện:
+
+- `câu 2 / 3` hay bất kỳ phân số nào của số câu
+- thanh tiến độ chia đoạn theo số câu
+- câu hỏi kế tiếp dạng chữ ma
+- `4 / 8 ý định` hay tổng số ý định
+- danh sách ý định sắp hỏi
+
+Chỉ được hiện **số thứ tự lượt hiện tại** (`câu 3`) và **những gì đã xảy ra**.
+
+#### B. Cột trái — hai chế độ hỏi
+
+| Chế độ | Khi nào | Hình dạng |
+|---|---|---|
+| **Một lượt** | ý định một câu là đủ | Câu hỏi + lựa chọn + ô nhập, không thẻ bao |
+| **Nhiều lượt** | agent cần khai thác thêm | **Cả chuỗi nằm trong một thẻ trắng**: lượt xong co thành dòng có chip đáp án + `Sửa`, lượt đang hỏi nền blush, **không có chỗ trống cho lượt chưa tới** |
+
+Mục bắt buộc, theo thứ tự:
+1. **Hàng đầu, gom một dòng**: chip nhãn ý định (`BUỔI TỐI`) · gạch đứng · `câu N` · đẩy sang phải: `Có 128 nơi đang hợp với nhu cầu của bạn` + thanh mảnh. Chế độ nhiều lượt thêm `Bỏ qua phần này` ở cuối hàng. **Con số là sự thật hiện tại**, không phải dự đoán "sẽ lọc còn bao nhiêu".
+2. **Câu hỏi** — chữ hoa hẹp, cỡ vừa, không khung, không avatar.
+3. **`Vì sao hỏi`** — một dòng nhỏ màu xanh mực **ngay dưới câu hỏi**, không phải thẻ riêng. Nói câu này đổi cái gì, và nói rõ bỏ qua được.
+4. **Lựa chọn** — thẻ trắng bo 16px viền hồng, mỗi thẻ một nhãn đậm + một dòng mô tả cho rõ nghĩa. Luôn có `Chưa chắc` và thẻ này **nhỏ, nhạt hơn** các thẻ kia.
+5. **Ô nhập tự do** — **một đường kẻ**, không hộp bo, không nút gửi; gợi ý `Enter để gửi` ở cuối dòng.
+6. **Hàng cuối** — `Bỏ qua câu này` bên trái; bên phải một dòng nhỏ nói đúng cách agent chạy: *"Mình hỏi tiếp tuỳ câu trả lời của bạn."* (một lượt) hoặc *"Mình hỏi thêm nếu còn chưa rõ, xong sẽ gộp thành một dòng trên vé."* (nhiều lượt).
+
+**Khoảng trống nửa dưới cột trái là có chủ ý** — chỗ cho các lượt tới mọc xuống. Không lấp bằng nội dung trang trí.
+
+#### C. Cột phải — vé
+
+Vé thon (~300px), chạy hết chiều cao. Chỉ ghi **cái đã có**; không liệt kê thứ chưa hỏi.
+
+- **Một ý định = một dòng**, không phải một dòng mỗi câu hỏi. Ba trạng thái dòng: **đã chốt** (nhãn + giá trị) · **đang hỏi** (nền blush, chữ `đang hỏi`, không phân số) · dòng chưa có thì **không xuất hiện**.
+- **Dòng đã ghi nhận: nhãn trái, giá trị phải, không gạch ngang.** Dấu `—` chỉ có một nghĩa duy nhất: chỗ này chưa có gì.
+- **Giới hạn cứng = con dấu mực thẳng** (không nghiêng — đây là chỗ phải đọc kỹ và sửa). **Sở thích mềm = chip viền đứt** có ×, mỗi chip có nhãn nguồn riêng (`từ hồ sơ của bạn · 12 lần lưu`).
+- **`CÒN CHƯA RÕ`** — danh sách **động do agent tự đánh dấu**, có thể rỗng; mỗi dòng có nút `Trả lời`.
+- Chân vé: `đã ghi N mục` (đếm cái đang có, **không phải phân số**) · nút `BẮT ĐẦU TÌM` dạng cuống vé · `Xem đầy đủ`.
+
+Đã thử và **loại**: treo sở thích ra ngoài vé bằng móc và dây (`_archive/understand-iterations/02-understand-m-*.png`, `…-l-*.png`) — bỏ vì khi chưa có dữ liệu hồ sơ thì chỗ đó khuyết một mảng.
+
+#### D. `Xem đầy đủ` — màn soát lại và sửa
+
+Panel chiếm **55% bên phải**, cột hỏi hẹp còn ~42% nhưng **vẫn trả lời được, không bị làm mờ, không bị che**. Thanh trên không bao giờ bị đè. Đóng bằng `Thu gọn` hoặc `Esc`.
+
+- **Panel cuộn dọc được.** Nội dung **không được thu nhỏ chữ để nhét vừa một màn** — cỡ chữ giữ như các màn khác, dài quá thì cuộn. Header của panel (`VÉ CHUYẾN NÀY`, `Thu gọn`) **dính trên** khi cuộn; chân panel (`BẮT ĐẦU TÌM`, `Đặt lại toàn bộ`) **dính dưới**.
+- Mỗi dòng có **nguồn** (`bạn trả lời ở câu 2`, `kết luận từ 3 câu hỏi`) và nút `Sửa` nhảy về đúng chỗ đó.
+- **Dòng kết luận mở ra được**, bên dưới là **chuỗi câu đã hỏi** để ra kết luận đó, mỗi câu con có `Sửa` riêng, chốt bằng dòng *"Chỉ dòng kết luận được dùng để gợi ý."* Dòng đang hỏi cũng mở được, câu chưa trả lời để `…`.
+- Giới hạn cứng kèm **cái giá** (`đang loại 6 nơi`) và hai nút `Nới` · `Bỏ`.
+- Sở thích kèm **mức tin cậy** và nguồn riêng từng chip.
+
+#### E. Những mục khác của trang này
+
+1. **Nhập địa điểm đã lưu / lịch trình có sẵn** — ba trạng thái phân biệt tức thì: **đã khớp ✓** · **cần bạn chọn** (2–3 ứng viên, mỗi cái có tên, khu vực, ảnh hoặc ghim bản đồ) · **không tìm thấy** (giữ dạng "chưa xác minh" hoặc xóa). Gộp trùng ("Túi Mơ To" và "Tiệm Túi Mơ To" là một nơi). Nhãn: bắt buộc đến / đã lưu / đã đi / tránh / chưa rõ. **Không bao giờ đoán match.**
+2. **Chỗ ở** (không bắt buộc): người dùng đã có thì nhập, tra như mục 1. Hệ thống **không gợi ý chỗ ở**; nó chỉ quyết định điểm bắt đầu / kết thúc lộ trình.
+3. **Nhãn "từ hồ sơ của bạn"** trên mọi thứ suy ra từ lịch sử, sửa được bằng một chạm, đọc như suy đoán chứ không như cài đặt.
+
+Frame: (1) một lượt · (2) nhiều lượt · (3) `Xem đầy đủ` có dòng kết luận đã mở · (4) nhập địa điểm, ba trạng thái cùng khung · (5) vé khi chưa có sở thích nào.
 
 ### Trang 4 — Gợi ý / Shortlist (`/app/shortlist`)
 
@@ -272,22 +322,25 @@ Thông tin thực tế (chính thức / Google) và bằng chứng trải nghi�
 
 | Vai trò | Giá trị | Dùng ở đâu |
 |---|---|---|
-| Nền trang | `#FFF7F6` | ngoài thẻ |
+| Nền trang | `#FFF9F8` | ngoài thẻ |
 | Bề mặt | `#FFFFFF` | thẻ, panel, top bar |
-| Mực | `#3B2630` | chữ chính |
-| Hồng chính | `#E4607F` | nút chính, tab đang chọn, gạch chân, pin bản đồ, thanh tỉ lệ |
-| Hồng nhạt | `#FDE6EA` | khối mềm, bong bóng câu hỏi, rãnh meter |
-| Mận đậm | `#6E2B45` | **khối quy tắc cứng**, thanh dính đáy, footer |
-| Hổ phách | `#B06A12` | **chỉ** đánh đổi và cảnh báo |
-| Xanh mực | `#47638A` | link, dòng nguồn dữ liệu |
+| Mực | `#3A2B32` | chữ chính |
+| Hồng phấn | `#EFB8C4` | nút chính, tab/chip đang chọn, thanh tỉ lệ — **chữ mận** trên nó |
+| Hồng đậm | `#C97890` | pin bản đồ, tuyến, viền thẻ đã chọn, focus — chỉ nét, không chữ |
+| Hồng nhạt | `#FCEEF1` | khối mềm, bằng chứng trải nghiệm, bong bóng câu hỏi |
+| Mận | `#6B3550` | **khối quy tắc cứng**, thanh dính đáy, footer |
+| Hổ phách | `#A8660F` | **chỉ** đánh đổi và cảnh báo |
+| Xanh mực | `#4A6488` | link, dòng nguồn dữ liệu |
 
-- Chữ trắng **chỉ** trên nền hồng / mận / hổ phách. Không bao giờ chữ hồng trên nền trắng.
+Dịu lại từ `#E4607F` (2026-10-04): hồng chính cũ gắt và điệu. Ảnh dựng thử trong `v3-rose-photo/` vẫn mang hồng cũ — lấy bố cục, không lấy độ đậm.
+
+- Chữ trắng **chỉ** trên nền mận / hổ phách; trên hồng phấn dùng chữ mận. Không bao giờ chữ hồng trên nền trắng.
 - Phong cách: editorial nhẹ, nhiều trắng, hairline hồng nhạt 1px, bo 16px, bóng rất nhẹ, minh hoạ **nét mảnh** tô hồng phấn. Không gradient tràn, không emoji.
 - Chữ: display hẹp chữ hoa cho tiêu đề và nút · sans hình học cho nội dung · **mono cho giờ, thời lượng, giá, cỡ mẫu**.
-- Ảnh bìa địa điểm là **frame clip thật** của chính nơi đó, kèm `@creator`. Ảnh thật giữ nguyên màu — không nhuộm hồng.
+- Ảnh bìa địa điểm là **ảnh thật của chính nơi đó**: ảnh Google Maps hoặc frame clip TikTok, luôn ghi nguồn (`Ảnh: Google Maps` / `@creator`). **Không dùng ảnh có người** chiếm đáng kể khung hình (chọn offline bằng `web/scripts/pick_covers.py`). Ảnh thật giữ nguyên màu — không nhuộm hồng.
 - Dã quỳ `#F2B31B` **không dùng trong app**; nó chỉ còn một chỗ duy nhất là mặt trời trong 3D của landing (`docs/UI_SPEC_LANDING.md`).
 
-**Chưa áp vào code:** `web/src/user/user.css` hiện là giấy kem + xanh thông. Chuyển sang bảng trên là một lần restyle thật, và video demo của landing phải quay lại sau đó.
+**Đã áp vào code** (`styles.css` `:root`, `user/user.css`). Video demo của landing vẫn phải quay lại.
 
 Ảnh dựng thử cả 10 màn app: `docs/design/desktop/v3-rose-photo/` (`01-shortlist` … `14-home`). Đó là bản dựng ý tưởng để duyệt bố cục và màu, **không phải asset dùng được**.
 
