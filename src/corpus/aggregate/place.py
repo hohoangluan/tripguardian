@@ -9,10 +9,18 @@ trend of the newer half of the dated evidence against the older half. A value de
 (Maps attributes) is served without a person when no other source contradicts it; a contradiction makes it uncertain.
 `mention_rate` = people who named the feature / the place's `voices` (authors whose words were read): a value
 named by 1 of 200 reviewers is weak evidence even at agreement 1.0.
-Measured quality (docs/CORPUS.md §6): `quality` = the gold-label precision of the top value (review.label_stats);
-`servable` = the value may be served by itself: declared by an authoritative source, or its precision passed the label
-gate, or a person accepted it; a person's `disable` (decisions.jsonl kind feature_review, id "<fid>#<feature>") makes
-the feature `disabled` and never servable, `accept` clears needs_review, `report` / `refresh` set it.
+Labels (a person's, else the Judge model's, corpus.review) are applied first: an observation labelled wrong is
+left out. Measured quality (docs/CORPUS.md §6): `quality` = the label precision of the top value
+(review.label_stats); `checked` counts the top value's authors whose claims were labelled correct; `servable` = the
+value may be served by itself: declared by an authoritative source, its precision passed the label gate, every
+author of it was checked correct, or a person accepted it. Only a value that widens a choice (`verify: always`, not a
+caution value) with unchecked authors `needs_review` (not served); a conflict with an authoritative source is served
+uncertain. A person's `disable` (decisions.jsonl kind feature_review, id "<fid>#<feature>") makes the feature
+`disabled` and never servable, `accept` clears needs_review, `report` / `refresh` set it.
+Who speaks: a business about itself (author "<source>:owner:...", its Maps photos and its TikTok account) only
+counts for what it can show or state as the operator (OWNER_FEATURES, effort only as "present"), never for quality,
+crowd or suitability; Maps photos whose poster could not be read share one voice per place. Two Maps entries the
+Judge found to be one place (corpus.judge.merges) are aggregated as the canonical one; the other gets no file.
 `estimates` (estimates.py): category group, visit time range and entry fee in VND, each with its source.
 Place facts (popular times, price, hours, closure, tickets) pass through as `operation`, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
 """
@@ -24,7 +32,8 @@ from datetime import date
 from ..crawl.common.files import data_dir, now, safe_name, write_json
 from ..observe import CONTEXT_KEYS
 from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
-from ..review import decisions, label_stats
+from ..judge import merges
+from ..review import decisions, label_key, label_stats, label_verdicts
 from .estimates import estimates
 
 AGREEMENT_MIN = 0.6
@@ -49,8 +58,32 @@ SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "gmaps_a
                "gmaps_photo": "photo"}
 
 
+# what a business's own photos and videos can show, or what it states as the operator; never quality, crowd,
+# noise, cleanliness or suitability (effort features only as "present": a business admitting stairs or a rough road)
+OWNER_FEATURES = {"scenic_view", "cloud_hunting", "sunset_view", "photo_spot", "nature", "flower_garden",
+                  "heritage_architecture", "cozy_decor", "live_music", "adventure_activity", "hiking", "animals",
+                  "local_specialty_food", "hands_on_workshop", "pick_your_own", "cultural_show", "camping",
+                  "tasting_available", "costume_rental", "setting", "outdoor_seating", "spacious", "small_space",
+                  "parking", "entry_fee", "booking_needed", "vegetarian_options", "cash_only"}
+
+
 def _who(o: dict) -> str:
+    if not o.get("author") and o["source_type"] == "gmaps_photo":
+        return f"gmaps:anon:{o['place_fid']}"  # poster not read: one voice for all such photos of the place
     return o.get("author") or o["id"]
+
+
+def owner(o: dict) -> bool:
+    return ":owner:" in (o.get("author") or "")
+
+
+def usable(o: dict, feat: Feature, verdicts: dict[str, str]) -> bool:
+    """Not labelled wrong, and not a business vouching for itself beyond what it can show."""
+    if verdicts.get(label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"])) == "wrong":
+        return False
+    if owner(o):
+        return o["feature"] in OWNER_FEATURES or (feat.group == "effort" and o["value"] == "present")
+    return True
 
 
 def _num(x: float):
@@ -104,7 +137,8 @@ def trend(obs: list[dict], top_value: str) -> dict:
     return res
 
 
-def feature_signal(feat: Feature, obs: list[dict], as_of: date, voices: int = 0) -> dict:
+def feature_signal(feat: Feature, obs: list[dict], as_of: date, voices: int = 0,
+                   verdicts: dict[str, str] | None = None) -> dict:
     unique = list({(_who(o), o["value"], tuple(o["context"][k] for k in CONTEXT_KEYS)): o for o in obs}.values())
     dist, n = votes(unique), authors(unique)
     t = top(dist, feat.values)
@@ -122,13 +156,17 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date, voices: int = 0)
     declared = {o["value"] for o in unique if o["source_type"] in AUTHORITATIVE}
     conflict = bool(declared) and bool({o["value"] for o in people} - declared or len(declared) > 1)
     authority = next(iter(declared)) if len(declared) == 1 and not conflict else None
-    voters = len({_who(o) for o in unique if o["value"] == t})
-    if conflict:
-        needs_review = True  # a declared value someone disputes goes to a person, whatever the feature
-    elif authority:
-        needs_review = False
+    voters = {_who(o) for o in unique if o["value"] == t}
+    verdicts = verdicts or {}
+    checked = {_who(o) for o in unique if o["value"] == t and o["source_type"] not in AUTHORITATIVE
+               and verdicts.get(label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"])) == "correct"}
+    people_t = {_who(o) for o in unique if o["value"] == t and o["source_type"] not in AUTHORITATIVE}
+    all_checked = bool(people_t) and checked >= people_t
+    if authority or conflict:
+        needs_review = False  # declared and undisputed, or disputed: served uncertain with both sides kept
     else:
-        needs_review = feat.verify == "always" and (t not in feat.caution_values or voters < 2)
+        needs_review = (feat.verify == "always" and t not in feat.caution_values and not all_checked) or (
+            feat.verify == "always" and t in feat.caution_values and len(voters) < 2 and not all_checked)
     return {
         "n": n, "distribution": dist, "top_value": t,
         "status": "uncertain" if conflict or agreement < AGREEMENT_MIN else "signal",
@@ -141,6 +179,7 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date, voices: int = 0)
                        "source_types": sorted({SOURCE_KIND.get(o["source_type"], o["source_type"]) for o in unique})},
         "trend": trend(people, t),
         "needs_review": needs_review,
+        "checked": {"authors": len(checked), "of": len(people_t), "all": all_checked},
         "observation_ids": [o["id"] for o in obs],
     }
 
@@ -195,25 +234,28 @@ def judge(sig: dict, quality: dict | None, decision: str | None) -> dict:
     if decision == "disable":
         sig["status"], sig["servable"] = "disabled", False
     else:
-        sig["servable"] = bool(sig["authority"] or decision == "accept" or (quality and quality["gate"]))
+        sig["servable"] = bool(sig["authority"] or decision == "accept" or (quality and quality["gate"])
+                               or (sig.get("checked") or {}).get("all"))
     return sig
 
 
 def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = None,
-                    reviewed: dict[str, str] | None = None) -> dict:
-    """quality: (feature, value) -> label stats row; reviewed: feature -> a person's latest feature_review decision."""
+                    reviewed: dict[str, str] | None = None, verdicts: dict[str, str] | None = None) -> dict:
+    """quality: (feature, value) -> label stats row; reviewed: feature -> a person's latest feature_review decision;
+    verdicts: label content key -> latest label (person over Judge)."""
+    verdicts = verdicts or {}
     as_of = max(date.fromisoformat(f["as_of"]) for f in files)
     by_feature = collections.defaultdict(list)
     for f in files:
         for o in f["observations"]:
-            if ont.valid(o["feature"], o["value"]):
+            if ont.valid(o["feature"], o["value"]) and usable(o, ont.features[o["feature"]], verdicts):
                 by_feature[o["feature"]].append(o)
     voices = sum(f.get("voices") or 0 for f in files)
     quality, reviewed = quality or {}, reviewed or {}
     features = {}
     for fid in ont.features:
         if fid in by_feature:
-            sig = feature_signal(ont.features[fid], by_feature[fid], as_of, voices)
+            sig = feature_signal(ont.features[fid], by_feature[fid], as_of, voices, verdicts)
             features[fid] = judge(sig, quality.get((fid, sig["top_value"])), reviewed.get(fid))
     ratings = [r for f in files for r in f.get("ratings", [])]
     proposed = collections.defaultdict(list)
@@ -232,6 +274,7 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
                 identity.setdefault(k, v)
     return {
         "place_fid": files[0]["place_fid"],
+        "merged": sorted({f["place_fid"] for f in files} - {files[0]["place_fid"]}),
         "place_name": next((f["place_name"] for f in files if f.get("place_name")), None),
         "as_of": as_of.isoformat(), "ontology_version": ont.version, "identity": identity, "voices": voices,
         "features": features, "coverage": coverage(features, ont),
@@ -251,11 +294,15 @@ def run(city: str) -> dict:
     ont = load_ontology()
     root = data_dir()
     files, inputs, stale = collections.defaultdict(list), collections.defaultdict(list), 0
+    canonical = merges()
     for p in sorted([*root.glob("*/observations/*.json"), *root.glob("*/photo_observations/*.json")]):
         f = json.loads(p.read_text(encoding="utf-8"))
         stale += f.get("ontology_version") != ont.version
-        files[f["place_fid"]].append(f)
-        inputs[f["place_fid"]].append(p.relative_to(root).as_posix())
+        fid = canonical.get(f["place_fid"], f["place_fid"])
+        files[fid].append(f)
+        inputs[fid].append(p.relative_to(root).as_posix())
+    for fid in files:  # the canonical entry's own files first: its name, place facts and identity win
+        files[fid].sort(key=lambda f: f["place_fid"] != fid)
     status = collections.Counter()
     out = root / "intel" / "places"
     quality = {(r["feature"], r["value"]): {k: r[k] for k in ("precision", "lower", "correct", "wrong", "gate")}
@@ -265,8 +312,12 @@ def run(city: str) -> dict:
         place_fid, _, feature = item.partition("#")
         if d != "undo":
             reviewed[place_fid][feature] = d
+    verdicts = label_verdicts()
     for fid, fs in files.items():
-        intel = aggregate_place(fs, ont, quality, reviewed.get(fid))
+        if fs[0]["place_fid"] != fid:  # only a merged entry's files: the canonical one has no evidence of its own
+            fs = [{**fs[0], "place_fid": fid, "observations": [], "place": {}, "place_facts": {}, "voices": 0,
+                   "ratings": [], "proposed": []}] + fs
+        intel = aggregate_place(fs, ont, quality, reviewed.get(fid), verdicts)
         status.update(f"{k}={v}" for k, v in intel["coverage"].items())
         write_json(out / f"{safe_name(fid)}.json", {**intel, "inputs": inputs[fid], "built_at": now(),
                                                     "observation_versions": sorted({f.get("ontology_version") for f in fs})})

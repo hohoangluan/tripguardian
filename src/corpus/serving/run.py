@@ -5,6 +5,7 @@ import json
 from datetime import date
 
 from ..crawl.common.files import data_dir, now, write_json
+from ..review import decisions
 from .groups import areas, near_duplicate_groups
 from .record import SERVED, build
 
@@ -14,8 +15,10 @@ def run(city: str) -> dict:
     root = data_dir()
     built = date.today()
     records, disabled = [], collections.Counter()
+    judged = decisions("place_status")
     for p in sorted((root / "intel" / "places").glob("*.json")):
-        rec = build(json.loads(p.read_text(encoding="utf-8")), built)
+        intel = json.loads(p.read_text(encoding="utf-8"))
+        rec = build(intel, built, judged.get(intel["place_fid"]))
         if rec["status"] == "DISABLED":
             disabled[rec["status_reason"]] += 1
             continue
@@ -30,7 +33,8 @@ def run(city: str) -> dict:
     status = collections.Counter(f["status"] for r in records for g in ("experience", "environment", "service",
                                                                          "effort", "suitability")
                                  for f in r.get(g, {}).values())
-    summary = {"at": now(), "places": len(records), "disabled": dict(disabled), "areas": len(set(area.values())),
+    summary = {"at": now(), "places": len(records), "disabled": dict(disabled),
+               "uncertain_places": sum(r["status"] == "UNCERTAIN" for r in records), "areas": len(set(area.values())),
                "near_duplicate_groups": len(groups), "in_groups": len(of), "feature_status": dict(status),
                "usable_as": dict(collections.Counter(u for r in records for u in r["usable_as"]))}
     write_json(root / "serving" / "places.json", {"built_at": now(), "summary": summary, "records": records})

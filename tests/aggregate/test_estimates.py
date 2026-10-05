@@ -38,3 +38,22 @@ def test_visit_minutes_reviews_win_only_with_enough_agreeing_authors():
     got = visit_minutes("Quán cà phê", {**weak, "n": 3})
     assert (got["short"], got["long"], got["source"]) == (180, 300, "reviews")
     assert estimates("Nhà hàng", {}, [])["usable_as_default"] == ["meal", "anchor", "backup"]
+
+
+def test_ticket_amounts_only_next_to_a_ticket_word():
+    from corpus.aggregate.estimates import ticket_amounts
+    assert ticket_amounts("giá 700 nghìn đồng/người") == []  # a service price, no ticket word
+    assert ticket_amounts("chụp hình 500k/nhóm") == []
+    assert ticket_amounts("dâu 400k/kg, vé vào cổng 50k") == [50000]
+    assert ticket_amounts("Giá vé là 160.000 đồng, trẻ em 80.000") == [160000]
+
+
+def test_entry_fee_prefers_recent_quotes():
+    from corpus.aggregate.estimates import entry_fee
+
+    def ob(i, quote, day):
+        return {"id": f"x{i}", "feature": "entry_fee", "value": "paid", "author": f"a{i}", "observed_at": day,
+                "span": {"quote": quote}}
+    obs = [ob(1, "vé 20k", "2019-05-01"), ob(2, "vé 50k", "2026-05-01"), ob(3, "giá vé 60k", "2026-08-01")]
+    fee = entry_fee(obs)
+    assert (fee["min_vnd"], fee["max_vnd"], fee["n"]) == (50000, 60000, 2)

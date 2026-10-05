@@ -29,7 +29,7 @@ from .details import day_type, details_pairs
 from .gate import BadAnswer, gate, norm
 from .place_rules import (AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times,
                           parse_price, parse_tickets)
-from .prep import batches, keep_for_llm, observed_at, stars
+from .prep import batches, clean_text, is_junk, keep_for_llm, observed_at, stars
 
 DETAILS_EXTRACTOR = "details_rule@v2"
 RELEVANT_FILE = "reviews_relevant.json"  # written by corpus.crawl.gmaps.relevant
@@ -188,6 +188,23 @@ def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
     h.update(json.loads((place_dir / "place.json").read_text(encoding="utf-8"))["fetched_at"].encode())
     h.update(json.dumps(sorted(bad_ids)).encode())  # qc run after observe changes what goes to the model
     return h.hexdigest()[:16]
+
+
+def prune(doc: dict, reviews: list[dict], bad_ids: set[str]) -> dict:
+    """An observation file without the evidence of reviews qc flagged since it was built: their observations,
+    star ratings, proposed features and voices go; attributes (not a review) stay."""
+    gone = {r["review_id"] for r in reviews if r["review_id"] in bad_ids} - set(doc.get("qc_dropped") or [])
+    authors = {r.get("author_hash") for r in reviews if r["review_id"] in gone} - {None}
+    spoke = {r.get("author_hash") or r["review_id"] for r in reviews if r["review_id"] in gone
+             and (r.get("details") or not is_junk(clean_text(r.get("text"))))}
+    return {**doc,
+            "observations": [o for o in doc["observations"]
+                             if o["source_type"] == "gmaps_attribute" or o["source_id"] not in gone],
+            "ratings": [r for r in doc.get("ratings", []) if r.get("author") not in authors],
+            "proposed": [x for x in doc.get("proposed", []) if x.get("source_id") not in gone],
+            "voices": max(0, (doc.get("voices") or 0) - len(spoke)),
+            "qc_dropped": sorted(bad_ids),
+            "stats": {**doc.get("stats", {}), "qc_dropped": len(bad_ids)}}
 
 
 def bad_review_ids(qc_file: Path) -> set[str]:
@@ -355,6 +372,12 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
             old = json.loads(target.read_text(encoding="utf-8"))
             if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, *key):
                 return "cached"
+            before = set(old.get("qc_dropped") or [])
+            if (before <= bad_ids and (old.get("prompt_hash"), old.get("ontology_version")) == key
+                    and old.get("input_hash") == input_hash(d, before)):
+                # same reviews, only new qc flags: their evidence leaves without asking the model again
+                write_json(target, {**prune(old, load_reviews(d), bad_ids), "input_hash": h, "built_at": now()})
+                return "pruned"
         try:
             async with in_flight:
                 res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name))
@@ -365,7 +388,7 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
             target.unlink(missing_ok=True)  # an older file would describe reviews that changed
             return "failed"
         write_json(target, {**res, "input_hash": h, "prompt_hash": key[0], "ontology_version": key[1],
-                            "model": model, "built_at": now()})
+                            "model": model, "built_at": now(), "qc_dropped": sorted(bad_ids)})
         return "done"
 
     status = collections.Counter(await asyncio.gather(*(one(d) for d in dirs)))

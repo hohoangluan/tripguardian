@@ -7,6 +7,7 @@ filter.
 
 import re
 import statistics
+from datetime import date, timedelta
 from functools import cache
 
 import yaml
@@ -44,17 +45,40 @@ def amounts_vnd(text: str) -> list[int]:
     return out
 
 
+TICKET = re.compile(r"vé|vào cổng|vào cửa|phí vào|phí tham quan|tham quan|cổng|ticket|entrance|admission|entry", re.I)
+NOT_TICKET = re.compile(r"chụp|quay phim|gửi xe|giữ xe|đậu xe|thuê|massage|gội|/\s*kg|\d\s*kg", re.I)
+CLAUSE = re.compile(r"[;\n]|[,.](?=\s)| - ")  # "160.000" and "50,000" stay whole
+RECENT_DAYS = 730  # prices change: when enough recent quotes exist, older ones are left out
+RECENT_MIN = 2
+
+
+def ticket_amounts(quote: str) -> list[int]:
+    """Amounts said next to a ticket word, clause by clause; a clause about photos, parking, rentals, a massage or
+    food by weight is not an entry price."""
+    out = []
+    for clause in CLAUSE.split(quote or ""):
+        if TICKET.search(clause) and not NOT_TICKET.search(clause):
+            out += amounts_vnd(clause)
+    return out
+
+
 def entry_fee(observations: list[dict], ticket_usd: float | None = None) -> dict | None:
-    """Ticket price from the entry_fee paid quotes (the highest amount of each quote: adults pay the most) or, without
-    any, from the Maps ticket box (place_facts tickets, US$)."""
-    by_author = {}
+    """Ticket price from the entry_fee paid quotes (per author the highest ticket amount: adults pay the most), the
+    last RECENT_DAYS only when RECENT_MIN authors said it then, or, without any, from the Maps ticket box (US$)."""
+    found = {}
     for o in observations:
         if o["feature"] == "entry_fee" and o["value"] == "paid":
-            found = amounts_vnd(o["span"]["quote"])
-            if found:
-                by_author[o.get("author") or o["id"]] = max(found)
-    if by_author:
-        xs = sorted(by_author.values())
+            xs = ticket_amounts(o["span"]["quote"])
+            if xs:
+                who = o.get("author") or o["id"]
+                found[who] = max(found.get(who, (0, ""))[0], max(xs)), max(found.get(who, (0, ""))[1], o.get("observed_at") or "")
+    if found:
+        newest = max(d for _, d in found.values())
+        if newest:
+            cut = (date.fromisoformat(newest) - timedelta(days=RECENT_DAYS)).isoformat()
+            recent = {w: v for w, v in found.items() if v[1] >= cut}
+            found = recent if len(recent) >= RECENT_MIN else found
+        xs = sorted(v for v, _ in found.values())
         return {"min_vnd": xs[0], "typical_vnd": int(statistics.median(xs)), "max_vnd": xs[-1], "n": len(xs),
                 "source": "reviews"}
     if ticket_usd:

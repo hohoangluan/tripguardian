@@ -39,9 +39,17 @@ def _file():
     return data_dir() / "review" / "labels.jsonl"
 
 
+def _judge_file():
+    """Labels the Judge model wrote (corpus.judge): same records plus `by`; a person's label on the same claim wins."""
+    return data_dir() / "review" / "judge_labels.jsonl"
+
+
+def _read(f) -> list[dict]:
+    return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines() if l.strip()] if f.exists() else []
+
+
 def _all() -> list[dict]:
-    f = _file()
-    return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
+    return _read(_judge_file()) + _read(_file())  # people last: the latest label per claim wins
 
 
 def _norm(text: str) -> str:
@@ -88,7 +96,7 @@ def migrate() -> int:
     """Write the content key and quote into label records that lack them, resolved through the current observation
     files. Run before observe is re-run (afterwards the ids may point at other content). Returns records changed."""
     by_id = {r[1]: r for r in _rows()}
-    recs, changed = _all(), 0
+    recs, changed = _read(_file()), 0  # people's file only; Judge labels always carry their key
     for rec in recs:
         row = by_id.get(rec["id"])
         if "key" not in rec and row:
@@ -249,6 +257,51 @@ def label(id: str, label_: str, note: str = "") -> dict:
            "quote": row[4].split("|", 3)[3], "label": label_, "note": note}
     append_jsonl(_file(), rec)
     return rec
+
+
+def judge_label(obs: dict, place_stem: str, source: str, label_: str, note: str, by: str, ph: str = "") -> dict:
+    """A label written by the Judge model for one observation (obs: an observation record); ph = its prompt hash."""
+    if label_ not in LABELS:
+        raise ValueError(f"label must be one of {LABELS}")
+    k = key(obs["source_id"], obs["feature"], obs["value"], obs["span"]["quote"])
+    rec = {"at": now(), "id": obs["id"], "key": k, "place": place_stem, "source": source, "feature": obs["feature"],
+           "value": obs["value"], "quote": k.split("|", 3)[3], "label": label_, "note": note, "by": by, "ph": ph}
+    append_jsonl(_judge_file(), rec)
+    return rec
+
+
+def verdicts() -> dict[str, str]:
+    """content key -> latest label (person over Judge): what aggregate drops (wrong) and counts as checked."""
+    return {k: rec["label"] for k, rec in latest().items()}
+
+
+def evidence(stem: str, o: dict, source: str) -> dict:
+    """What the Judge reads for one observation: the passage around the quote (review text, transcript segments or
+    caption, a photo's description), its date and rating, and the picture file for photos and frames."""
+    out = {"text": "", "date": o.get("observed_at"), "rating": None, "image": None}
+    if source == "gmaps":
+        r = _reviews(stem).get(o["source_id"]) or {}
+        text = " ".join((r.get("text") or "").split())
+        at = text.casefold().find(" ".join(o["span"]["quote"].split()).casefold()[:40])
+        lo = max(0, (at if at >= 0 else 0) - PASSAGE_CHARS // 2)
+        out.update(text=text[lo: lo + PASSAGE_CHARS], rating=r.get("rating"))
+    elif source == "gmaps_photo":
+        out.update(text=f"photo, described by the small model as: {o['span']['quote']}",
+                   image=photo_path(stem, o["span"]["field"]))
+    else:
+        vf = data_dir() / "tiktok" / "videos" / o["source_id"] / "video.json"
+        v = json.loads(vf.read_text(encoding="utf-8")) if vf.exists() else {"video_id": o["source_id"]}
+        text, card = _video_card(v, o)
+        if o["source_type"] == "tiktok_frame":
+            n = card["frame"].rsplit("=", 1)[1] if card.get("frame") else "1"
+            out.update(text=f"video frame, described by the small model as: {o['span']['quote']}. Caption: {text}",
+                       image=frame_path(o["source_id"], int(n)))
+        else:
+            out["text"] = f"TikTok {o['source_type'][7:]}: {text}"
+    return out
+
+
+PASSAGE_CHARS = 1500  # review text the Judge sees around a quote
 
 
 def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:

@@ -92,3 +92,12 @@ def test_run_writes_served_records_only(tmp_path, monkeypatch):
     assert summary["places"] == 1 and summary["disabled"] == {"closure_temporary": 1}
     doc = json.loads((tmp_path / "serving" / "places.json").read_text(encoding="utf-8"))
     assert [r["id"] for r in doc["records"]] == ["A"] and doc["records"][0]["identity"]["area"] == "area-1"
+
+
+def test_place_status_from_maps_closure_then_judge():
+    from corpus.serving.record import place_status
+    assert place_status("permanent", "open") == ("DISABLED", "closure_permanent")
+    assert place_status(None, "closed") == ("DISABLED", "judge_closed")
+    assert place_status(None, "changed") == ("DISABLED", "judge_changed")
+    assert place_status(None, "unclear") == ("UNCERTAIN", "closure_reported")
+    assert place_status(None, None) == ("VERIFIED", None)

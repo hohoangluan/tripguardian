@@ -187,7 +187,7 @@ def test_attribute_agreeing_with_reviews_is_trusted():
 
 def test_attribute_contradicted_by_a_review_is_uncertain():
     k = aggregate_place([f([attr(1, "kids", "suitable"), o(2, "kids", "unsuitable", "a")])], ONT)["features"]["kids"]
-    assert k["status"] == "uncertain" and k["needs_review"] is True
+    assert k["status"] == "uncertain" and k["needs_review"] is False  # served uncertain, both sides kept
     assert k["distribution"] == {"suitable": 1, "unsuitable": 1}
 
 
@@ -230,20 +230,20 @@ def test_identity_and_hours_pass_through_first_non_null():
     assert res["operation"]["hours"] == {"mon": [["07:00", "21:00"]]} and res["operation"]["closure"] == "temporary"
 
 
-def test_conflict_needs_review_for_any_feature_and_has_no_authority():
+def test_conflict_is_uncertain_for_any_feature_and_has_no_authority():
     s = aggregate_place([f([attr(1, "outdoor_seating", "present"), attr(2, "laptop_friendly", "present"),
                             o(3, "kids", "unsuitable", "a"), attr(4, "kids", "suitable")])], ONT)["features"]
     k = s["kids"]
-    assert k["status"] == "uncertain" and k["needs_review"] is True and k["authority"] is None
+    assert k["status"] == "uncertain" and k["needs_review"] is False and k["authority"] is None
     assert s["outdoor_seating"]["confidence"]["source_types"] == ["provider"]
 
 
-def test_conflict_on_sampled_feature_needs_review():
+def test_conflict_on_sampled_feature_is_uncertain():
     ont = load()
-    # parking is sampled; an attribute-like authority on it contradicted by a review must still go to a person
+    # parking is sampled; an attribute-like authority on it contradicted by a review is served uncertain, unauthorised
     obs = [{**attr(1, "parking", "easy")}, o(2, "parking", "hard", "a")]
     p = aggregate_place([f(obs)], ont)["features"]["parking"]
-    assert p["status"] == "uncertain" and p["needs_review"] is True
+    assert p["status"] == "uncertain" and p["needs_review"] is False and p["authority"] is None
 
 
 def test_attribute_does_not_set_freshness_or_trend():
@@ -281,3 +281,35 @@ def test_run_reads_feature_review_decisions(tmp_path, monkeypatch):
     run("dalat")
     intel = json.loads((tmp_path / "intel" / "places" / "F.json").read_text(encoding="utf-8"))
     assert intel["features"]["kids"]["status"] == "signal" and intel["features"]["kids"]["review_decision"] is None
+
+
+def _key(ob):
+    from corpus.review import label_key
+    return label_key(ob["source_id"], ob["feature"], ob["value"], ob["span"]["quote"])
+
+
+def test_wrong_label_drops_evidence_and_all_checked_makes_servable():
+    good, bad = o(1, "steep_or_stairs", "present", "a"), o(2, "steep_or_stairs", "present", "b")
+    s = aggregate_place([f([good, bad])], ONT, verdicts={_key(good): "correct", _key(bad): "wrong"})["features"]
+    st = s["steep_or_stairs"]
+    assert st["n"] == 1 and st["checked"] == {"authors": 1, "of": 1, "all": True} and st["servable"] is True
+
+
+def test_unchecked_value_that_widens_choice_waits_and_checked_one_is_served():
+    k = o(1, "kids", "suitable", "a")
+    assert aggregate_place([f([k])], ONT)["features"]["kids"]["needs_review"] is True
+    s = aggregate_place([f([k])], ONT, verdicts={_key(k): "correct"})["features"]["kids"]
+    assert s["needs_review"] is False and s["servable"] is True
+
+
+def test_owner_counts_only_for_what_it_can_show():
+    own = [o(1, "food_quality", "good", "tiktok:owner:x"), o(2, "scenic_view", "present", "tiktok:owner:x"),
+           o(3, "steep_or_stairs", "absent", "tiktok:owner:x"), o(4, "steep_or_stairs", "present", "gmaps:owner:x")]
+    s = aggregate_place([f(own)], ONT)["features"]
+    assert "food_quality" not in s and "scenic_view" in s
+    assert s["steep_or_stairs"]["distribution"] == {"present": 1}
+
+
+def test_photos_without_poster_share_one_voice():
+    ph = [{**o(i, "scenic_view", "present", None), "source_type": "gmaps_photo"} for i in range(3)]
+    assert aggregate_place([f(ph)], ONT)["features"]["scenic_view"]["n"] == 1

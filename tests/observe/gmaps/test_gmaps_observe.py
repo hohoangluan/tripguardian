@@ -187,14 +187,17 @@ def test_error_without_message_is_logged_and_run_finishes(tmp_path, monkeypatch)
     assert (tmp_path / "gmaps" / "observe_summary.json").exists()
 
 
-def test_qc_run_after_observe_redoes_the_place(tmp_path, monkeypatch):
+def test_qc_run_after_observe_prunes_flagged_evidence_without_asking_again(tmp_path, monkeypatch):
     calls, out = setup(tmp_path, monkeypatch, REVIEWS)
     asyncio.run(extract.run("dalat"))
     assert "Liên hệ" in calls[0]["reviews"]
     (tmp_path / "gmaps" / "qc").mkdir(parents=True)
     (tmp_path / "gmaps" / "qc" / f"{DIR}.json").write_text(json.dumps(QC), encoding="utf-8")
-    asyncio.run(extract.run("dalat"))
-    assert len(calls) == 2 and "Liên hệ" not in calls[1]["reviews"]
+    summary = asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert len(calls) == 1 and summary["status"] == {"pruned": 1}
+    assert all(o["source_id"] != "R4" for o in res["observations"]) and res["qc_dropped"] == ["R4"]
+    assert asyncio.run(extract.run("dalat"))["status"] == {"cached": 1}
 
 
 def test_failed_rerun_removes_the_outdated_file(tmp_path, monkeypatch):

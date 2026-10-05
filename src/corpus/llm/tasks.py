@@ -7,11 +7,13 @@ import asyncio
 import base64
 import hashlib
 import json
-from dataclasses import dataclass
+import re
+import time
+from dataclasses import dataclass, replace
 
 import openai
 
-from .roles import AGENT, EXTRACTOR, JUDGE, Role
+from .roles import AGENT, EXTRACTOR, JUDGE, JUDGE_STRONG, Role
 
 ATTEMPTS = 4  # per call: a broken JSON answer or a busy / unreachable server is tried again
 RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each time
@@ -19,6 +21,78 @@ RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each t
 
 class BadBody(Exception):
     """The server answered with text that is not a chat completion; retried like a busy server."""
+
+
+class OutOfQuota(Exception):
+    """Every model of a pool is resting after a usage-limit answer."""
+
+
+_REST: dict[str, float] = {}  # model -> monotonic time it may be asked again (after a usage-limit answer)
+QUOTA_REST_S = 600.0  # when the server does not say how long
+
+
+def _quota_rest(e: Exception) -> float | None:
+    """Seconds to rest a model after this error, or None when it is not a usage limit. 9router answers an exhausted
+    upstream account with 503 or 429 and "usage limit ... (reset after 19m 38s)" or an exhausted-quota message."""
+    text = str(e)
+    if not re.search(r"usage limit|quota|exhausted|resource_exhausted|reset after", text, re.I):
+        return None
+    m = re.search(r"reset after (?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?", text)
+    if m and any(m.groups()):
+        h, mi, se = (int(x or 0) for x in m.groups())
+        return h * 3600 + mi * 60 + se + 5
+    return QUOTA_REST_S
+
+
+def pick(models: str) -> str:
+    """First model of a comma-separated pool that is not resting."""
+    now_ = time.monotonic()
+    for m in (x.strip() for x in models.split(",") if x.strip()):
+        if _REST.get(m, 0) <= now_:
+            return m
+    raise OutOfQuota(models)
+
+
+class SchemaError(ValueError):
+    """The answer is JSON but not of the task's schema; retried like broken JSON."""
+
+
+def validate(value, schema: dict, path: str = "$") -> None:
+    """The subset of JSON schema the tasks use: type, enum, properties, required, items."""
+    t = schema.get("type")
+    kinds = {"object": dict, "array": list, "string": str, "boolean": bool, "integer": int, "number": (int, float)}
+    if t in kinds and (not isinstance(value, kinds[t]) or (t in ("integer", "number") and isinstance(value, bool))):
+        raise SchemaError(f"{path}: expected {t}")
+    if "enum" in schema and value not in schema["enum"]:
+        raise SchemaError(f"{path}: {value!r} not in {schema['enum']}")
+    if t == "object":
+        for k in schema.get("required", []):
+            if k not in value:
+                raise SchemaError(f"{path}: missing {k}")
+        for k, sub in schema.get("properties", {}).items():
+            if k in value and value[k] is not None:
+                validate(value[k], sub, f"{path}.{k}")
+    if t == "array":
+        for i, x in enumerate(value):
+            validate(x, schema.get("items", {}), f"{path}[{i}]")
+
+
+def parse_answer(text: str) -> dict:
+    """The JSON object of an answer: the whole text, else the last object in it (a model that thinks or wraps the JSON
+    in prose or a code fence)."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    dec = json.JSONDecoder()
+    for at in [i for i, c in enumerate(text) if c == "{"][::-1]:
+        try:
+            obj, _ = dec.raw_decode(text[at:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+    raise json.JSONDecodeError("no JSON object in the answer", text[:200], 0)
 
 
 @dataclass(frozen=True)
@@ -41,34 +115,61 @@ class Task:
     async def ask(self, client, model: str, images: list[bytes] = (), **fields) -> dict:
         """images: JPEG bytes sent after the prompt, in order (the model reads images, docs/LLM_PROVIDER.md)."""
         content = self.render(**fields)
+        if not self.role.guided:
+            content += ("\n\nAnswer with exactly one JSON object and nothing else. It must match this JSON schema:\n"
+                        + json.dumps(self.schema, ensure_ascii=False))
         if images:
             content = [{"type": "text", "text": content}] + [
                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(b).decode()}}
                 for b in images]
-        for attempt in range(1, ATTEMPTS + 1):
+        attempt = 0
+        while attempt < ATTEMPTS:
+            attempt += 1
+            current = pick(model)  # model may be a pool "a,b,c": a model out of quota rests, the next one answers
             try:
-                r = await client.chat.completions.create(
-                    model=model, messages=[{"role": "user", "content": content}],
-                    temperature=self.temperature, max_tokens=self.max_tokens,
-                    response_format={"type": "json_schema", "json_schema": {"name": self.name, "schema": self.schema,
-                                                                            "strict": True}})
-                if isinstance(r, str):  # a busy or down server can answer with a plain body, not a completion
-                    raise BadBody(r[:200])
-                return json.loads(r.choices[0].message.content)
+                if self.role.guided:
+                    r = await client.chat.completions.create(
+                        model=current, messages=[{"role": "user", "content": content}],
+                        temperature=self.temperature, max_tokens=self.max_tokens,
+                        response_format={"type": "json_schema", "json_schema": {
+                            "name": self.name, "schema": self.schema, "strict": True}})
+                    if isinstance(r, str):  # a busy or down server can answer with a plain body, not a completion
+                        raise BadBody(r[:200])
+                    text = r.choices[0].message.content or ""
+                else:  # proxies (9router) stream some upstreams whatever is asked: always read a stream
+                    text = ""
+                    s = await client.chat.completions.create(
+                        model=current, messages=[{"role": "user", "content": content}],
+                        temperature=self.temperature, max_tokens=self.max_tokens, stream=True)
+                    async for chunk in s:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            text += chunk.choices[0].delta.content
+                answer = parse_answer(text)
+                validate(answer, self.schema)
+                if "," in model:
+                    answer["_model"] = current  # which model of the pool answered
+                return answer
             except BadBody:
                 if attempt == ATTEMPTS:
                     raise
                 await asyncio.sleep(RETRY_S * 2 ** (attempt - 1))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, SchemaError):
                 # guided decoding now and then loops on whitespace until max_tokens cuts the JSON; a new call is fine
                 if attempt == ATTEMPTS:
                     raise
             except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError,
-                    openai.InternalServerError):  # a passing 500 from the server
+                    openai.InternalServerError) as e:  # a passing 500 from the server
+                rest = _quota_rest(e)
+                if rest is not None:  # this model's account is spent: rest it, the pool's next model goes on
+                    _REST[current] = time.monotonic() + rest
+                    if "," in model:
+                        attempt -= 1  # not this call's fault; pick() raises OutOfQuota when all rest
+                        continue
                 # the key's 40 concurrent calls are shared with other runs; wait for a free slot
                 if attempt == ATTEMPTS:
                     raise
                 await asyncio.sleep(RETRY_S * 2 ** (attempt - 1))
+        raise OutOfQuota(model)  # the last attempts all hit spent accounts
 
     async def stream(self, client, model: str, **fields):
         """Text deltas of one streamed call. No retry: a live turn falls back instead of waiting."""
@@ -803,3 +904,147 @@ Claim, with what the photo was said to show: {claim}
 - insufficient: anything else: it could be somewhere else, it does not clearly show it, or it needs a guess.
 Give a one-sentence reason.""",
 )
+
+
+REVIEW_QC = Task(
+    name="review_qc",
+    role=EXTRACTOR,
+    max_tokens=1500,
+    schema={
+        "type": "object",
+        "properties": {"bad": {"type": "array", "items": {"type": "object", "properties": {
+            "ref": {"type": "string"},
+            "problem": {"type": "string", "enum": ["owner_reply", "spam", "not_a_review"]},
+            "reason": {"type": "string"}},
+            "required": ["ref", "problem", "reason"], "additionalProperties": False}}},
+        "required": ["bad"],
+        "additionalProperties": False,
+    },
+    # Every review of a place, in batches (corpus.crawl.gmaps.qc). A flagged review gives no evidence at all, so only
+    # clear cases are flagged; short, generic or one-sided praise is still a visitor's review.
+    prompt="""You screen Google Maps reviews of one place in {city}, Vietnam, before they become evidence for a travel
+product. List ONLY the reviews that are clearly one of these (most reviews are fine; leave them out):
+- owner_reply: written by the business or its staff (thanks customers in the shop's name, answers a complaint,
+  advertises its own menu or prices as "we").
+- spam: advertising another business, promo codes, links or phone numbers asking for contact, text unrelated to any
+  place, gibberish, or a review written in exchange for a reward ("đánh giá để được tặng", "đồ uống được tặng để đổi
+  lấy đánh giá", "review nhận quà").
+- not_a_review: a question, a reply to another person, about a different place, or the writer clearly never used or
+  visited this place ("chưa tới nhưng ...").
+A real visit told oddly (machine-translated, wrong currency, very short, off-topic remarks) is still a review: keep it
+out of the list. Give a reason of a few words. Answer {{"bad": []}} when none.
+
+Place: {name} ({category})
+Reviews:
+{reviews}""",
+)
+
+AUDIT_SCHEMA = {
+    "type": "object",
+    "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
+        "ref": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["correct", "wrong", "unsure"]},
+        "reason": {"type": "string"}},
+        "required": ["ref", "verdict", "reason"], "additionalProperties": False}}},
+    "required": ["items"],
+    "additionalProperties": False,
+}
+
+# The Judge in place of a person (docs/CORPUS.md §6): it reads what a small model claimed about one feature of one
+# place next to the source, and says whether each claim holds for this place in the ontology's sense. Its verdicts are
+# labels (corpus.review.labels, by = judge model): wrong claims leave the evidence, and they measure precision.
+_AUDIT_PROMPT = """You audit a travel database about {city}, Vietnam, built from Google Maps reviews and photos and
+TikTok videos. A small model read each source below and claimed that a place has a value of a feature. Decide for
+every item, from its own source only, whether the claim is true FOR THAT PLACE in the sense the feature defines.
+
+Places:
+{places}
+
+Features (definition; what each value claims):
+{features}
+
+Verdicts:
+- correct: the source clearly says (or the picture clearly shows) that this place has this value, as defined.
+- wrong: the words are negated, sarcastic, hypothetical, an exception ("free for kids under 1m"), about another place,
+  the city, the road network or traffic in general, the writer's own action or choice instead of a property of the
+  place ("mình đặt bàn trước", "mình đi bộ khám phá thành phố"), a different feature, too weak for the definition
+  (a 20 m walk is not a long walk; a steep road you drive up is not stairs you climb), or the picture does not show it
+  or does not show this place.
+- unsure: the source is not enough to tell.
+Accept clear paraphrases and direct implications, not only the definition's words: "hợp nhóm bạn, gia đình" or "đi
+đoàn thoải mái" is suitable for groups; "nhiều bậc thang, không hợp người khó di chuyển" is unsuitable for wheelchairs;
+a child happily doing the place's activity there is suitable for kids; a review that bought an entry or tour ticket
+proves it is paid. Judge each item on its own source. Reason: at most 15 words.
+
+Items:
+{items}"""
+
+OBS_AUDIT = Task(name="obs_audit", role=JUDGE, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT, parallel=32)
+# values that widen a choice (suitable for elderly / kids / wheelchair ...): a wrong "yes" can hurt someone
+OBS_AUDIT_STRONG = Task(name="obs_audit", role=JUDGE_STRONG, max_tokens=12000, schema=AUDIT_SCHEMA,
+                        prompt=_AUDIT_PROMPT, parallel=8)
+
+PLACE_STATUS = Task(
+    name="place_status",
+    role=JUDGE,
+    max_tokens=1500,
+    parallel=16,
+    schema={
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["open", "closed", "changed", "unclear"]},
+            "since": {"type": "string"},
+            "reason": {"type": "string"},
+        },
+        "required": ["status", "since", "reason"],
+        "additionalProperties": False,
+    },
+    prompt="""Is this place in {city}, Vietnam, still operating as described, as of {today}? Reviewers reported it
+closed or changed. Weigh the dates: a later review describing a normal visit outweighs an older closure report;
+a report about one part (a closed zone, a removed bridge, renovation) is not a closure of the place.
+Judge the place as a visitor uses it: a sight, hill, lake or area people still visit is open even if a business on it
+(a factory, a shop, a ticket booth) stopped.
+- open: visitors can go there now and have the experience its reviews describe.
+- closed: it stopped operating (for good or for an open-ended time) and nothing later shows a normal visit.
+- changed: the address now hosts a different business or a different kind of place (e.g. restaurant became a cafe).
+- unclear: the evidence does not settle it.
+since: the month it closed or changed (YYYY-MM) when stated, else "". Reason: one sentence.
+
+Place: {name} ({category}), {address}
+Google Maps at crawl time: status "{maps_status}", hours: {hours}
+Closure / change reports:
+{reports}
+Newest reviews (date, stars, text):
+{reviews}""",
+)
+
+SAME_PLACE = Task(
+    name="same_place",
+    role=JUDGE,
+    max_tokens=800,
+    parallel=16,
+    schema={
+        "type": "object",
+        "properties": {
+            "relation": {"type": "string", "enum": ["same_place", "part_of", "branch", "different"]},
+            "reason": {"type": "string"},
+        },
+        "required": ["relation", "reason"],
+        "additionalProperties": False,
+    },
+    prompt="""Two Google Maps entries near each other in {city}, Vietnam. Do they describe the same real place?
+- same_place: one place listed twice (same business or sight; names, address and reviews describe one visit).
+- part_of: one is a part, gate, zone, stall or service inside the other (a cafe inside a park, a boat dock on a lake).
+- branch: two outlets of one brand or two separate businesses with similar names.
+- different: unrelated places.
+Reason: one sentence.
+
+A: {a}
+B: {b}
+Distance between pins: {meters} m""",
+)
+
+
+# a second, stronger opinion before a place leaves serving or two places become one (corpus.judge status / dedup)
+PLACE_STATUS_STRONG = replace(PLACE_STATUS, role=JUDGE_STRONG, parallel=8)
+SAME_PLACE_STRONG = replace(SAME_PLACE, role=JUDGE_STRONG, parallel=8)

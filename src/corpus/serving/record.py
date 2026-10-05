@@ -1,8 +1,10 @@
 """Serving record of one place (docs/PLACE_DECISION.md §2.2, docs/CORPUS.md §5-6) from its intel file.
 
 Status per aspect: VERIFIED | UNCERTAIN | OUTDATED are served, NEEDS_REVIEW | DISABLED never appear. A feature is
-VERIFIED only when its value may be served by itself (intel `servable`: authority, label gate or a person) and fresh;
-an unmeasured, conflicting or weakly agreed value is UNCERTAIN, with the reason. Estimates (visit time, entry fee,
+VERIFIED only when its value may be served by itself (intel `servable`: authority, label gate, every author checked
+by the Judge or a person) and fresh; an unmeasured, conflicting or weakly agreed value is UNCERTAIN, with the reason.
+A place the Judge found closed or turned into another business (decisions kind place_status) is DISABLED; one whose
+closure reports it could not settle is served UNCERTAIN (`closure_reported`). Estimates (visit time, entry fee,
 category effort hint) say so and never decide a hard filter. `check` is the fail-closed test Place Decision runs.
 """
 
@@ -37,7 +39,7 @@ def feature_status(sig: dict) -> tuple[str, str | None]:
     if sig.get("status") == "disabled":
         return "DISABLED", "person_disabled"
     if sig.get("needs_review"):
-        return "NEEDS_REVIEW", "needs_person"
+        return "NEEDS_REVIEW", "unchecked"  # a value that widens a choice, not yet checked
     if sig.get("status") == "uncertain":
         return "UNCERTAIN", "conflict" if sig.get("authority") is None and len(sig["distribution"]) > 1 else "low_agreement"
     if not sig.get("servable"):
@@ -65,8 +67,20 @@ def _fact(value, as_of: date, built: date, key: str) -> dict | None:
             "as_of": as_of.isoformat()}
 
 
-def build(intel: dict, built: date | None = None) -> dict:
-    """One serving record. Place `status` DISABLED (closed for good or for now) keeps the record out of serving."""
+def place_status(closure: str | None, judged: str | None) -> tuple[str, str | None]:
+    """(status, reason) of the place: Maps' own closure, else the Judge's place_status verdict."""
+    if closure:
+        return "DISABLED", f"closure_{closure}"
+    if judged in ("closed", "changed"):
+        return "DISABLED", f"judge_{judged}"
+    if judged == "unclear":
+        return "UNCERTAIN", "closure_reported"
+    return "VERIFIED", None
+
+
+def build(intel: dict, built: date | None = None, judged: str | None = None) -> dict:
+    """One serving record. Place `status` DISABLED (closed for good or for now) keeps the record out of serving;
+    judged: the Judge's place_status verdict for this place, if it was reported closed."""
     ont = load_ontology()
     built = built or date.today()
     as_of = date.fromisoformat(intel["as_of"])
@@ -77,10 +91,11 @@ def build(intel: dict, built: date | None = None) -> dict:
     coverage = intel.get("coverage") or {}
     usable = [u for u in est.get("usable_as_default") or [] if u != "experience" or coverage.get("experience") != "NONE"]
     price = op.get("price_range")
+    status, reason = place_status(closure, judged)
     return {
         "id": intel["place_fid"],
-        "status": "DISABLED" if closure else "VERIFIED",
-        "status_reason": f"closure_{closure}" if closure else None,
+        "status": status,
+        "status_reason": reason,
         "identity": {"name": intel.get("place_name"), "kind": "POI", "category": ident.get("category"),
                      "category_group": est.get("category_group"), "lat": ident.get("lat"), "lng": ident.get("lng"),
                      "address": ident.get("address"), "area": None},

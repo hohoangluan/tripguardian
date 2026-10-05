@@ -18,6 +18,9 @@ ACTIONS = {
     # a served value that needs a person (intel needs_review); id = "<fid>#<feature>", note = the report kind;
     # "undo" takes the item back to open. Written by the Admin Web.
     "feature_review": ("accept", "disable", "report", "refresh", "undo"),
+    # written by the Judge model (corpus.judge), note = JSON {reason, model, ...}; a person's later decision wins
+    "place_status": ("open", "closed", "changed", "unclear"),  # id = fid of a place reported closed / changed
+    "place_merge": ("same_place", "part_of", "branch", "different"),  # id = "<fid>|<fid>", note.canonical
 }
 
 

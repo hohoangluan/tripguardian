@@ -42,11 +42,35 @@ def test_run_writes_one_result_per_place_and_skips_checked(tmp_path, monkeypatch
         return {"tourism_relevant": True, "relevance_reason": "waterfall", "in_city": True, "category_ok": True,
                 "bad_reviews": [], "field_issues": [], "verdict": "ok"}
 
+    class Client:
+        def with_options(self, **kw):
+            return self
+
+    async def screen(client, model, place, reviews, city, sem):
+        return []
+
     monkeypatch.setattr(qc, "judge", judge)
-    monkeypatch.setattr(qc, "_client", lambda: (None, "gemma-test"))
+    monkeypatch.setattr(qc, "screen", screen)
+    monkeypatch.setattr(type(qc.PLACE_QC.role), "client", lambda self: (Client(), "gemma-test"))
     summary = asyncio.run(qc.run("dalat"))
     out = json.loads((tmp_path / "gmaps" / "qc" / "0x1_0x2.json").read_text(encoding="utf-8"))
     assert out["checks"] == [] and out["llm"]["verdict"] == "ok" and out["model"] == "gemma-test"
     assert out["fetched_at"] == PLACE["fetched_at"] and summary["places"] == 1 and summary["verdict"] == {"ok": 1}
     asyncio.run(qc.run("dalat"))
     assert calls == ["0x1:0x2"]  # unchanged place is not judged again
+
+
+def test_screen_reads_every_review_with_text_and_maps_refs(monkeypatch):
+    seen = []
+
+    async def ask(task, client, model, **kw):
+        seen.append(kw["reviews"])
+        return {"bad": [{"ref": "r2", "problem": "spam", "reason": "reward"}, {"ref": "r9", "problem": "spam",
+                                                                                 "reason": "unknown ref"}]}
+
+    monkeypatch.setattr(qc, "_ask", ask)
+    reviews = [{"review_id": "A", "text": "Quán đẹp, đồ uống ngon lắm nha"}, {"review_id": "B", "text": "ok"},
+               {"review_id": "C", "text": "Đánh giá để được tặng một ly nước"}]
+    out = asyncio.run(qc.screen(None, "m", {"name": "P"}, reviews, "Đà Lạt", asyncio.Semaphore(2)))
+    assert out == [{"review_id": "C", "problem": "spam", "reason": "reward"}]
+    assert "ok" not in seen[0] and len(seen) == 1  # texts under MIN_TEXT are not sent

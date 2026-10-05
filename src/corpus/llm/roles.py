@@ -19,6 +19,7 @@ class Role:
     key_env: str
     base_url_env: str
     model_env: str
+    guided: bool = True  # the server honours response_format json_schema; False: the schema goes in the prompt
 
     def client(self) -> tuple[AsyncOpenAI, str]:
         load_dotenv(ROOT / ".env")
@@ -34,7 +35,13 @@ EXTRACTOR = Role(
 JUDGE = Role(
     name="judge",
     purpose="low-volume checks that gate what gets published",
-    key_env="JUDGE_API_KEY", base_url_env="JUDGE_BASE_URL", model_env="JUDGE_MODEL",
+    key_env="JUDGE_API_KEY", base_url_env="JUDGE_BASE_URL", model_env="JUDGE_MODEL", guided=False,
+)
+
+JUDGE_STRONG = Role(
+    name="judge_strong",
+    purpose="the Judge's hardest calls: values that widen choices (suitable for elderly, kids, wheelchair)",
+    key_env="JUDGE_API_KEY", base_url_env="JUDGE_BASE_URL", model_env="JUDGE_STRONG_MODEL", guided=False,
 )
 
 AGENT = Role(
