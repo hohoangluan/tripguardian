@@ -336,12 +336,12 @@ def test_official_site_wins_for_hours_and_entry_fee_and_keeps_the_conflict():
     maps = {**f([o(1, "entry_fee", "paid", "a")]), "place_facts": {
         "hours": {"mon": [["07:00", "17:00"]], "tue": [["07:00", "17:00"]]}, "tickets": {"usd": 2.0}}}
     site = {**f([o(2, "entry_fee", "paid", "official:F", source_type="official_page")]), "source": "official",
-            "place_facts": {"hours": {"mon": [["08:00", "18:00"]]}, "tickets_vnd": {"adult": [100000, 150000],
+            "place_facts": {"hours": {"mon": [["08:00", "18:00"]]}, "tickets_vnd": {"adult": [100000, 150000, 799000],
                                                                                     "child": [50000]}}}
     res = aggregate_place([maps, site], ONT)
     op = res["operation"]
     assert op["hours"] == {"mon": [["08:00", "18:00"]], "tue": [["07:00", "17:00"]]}
     assert op["hours_source"] == "official" and op["hours_conflict"] == {"mon": [["07:00", "17:00"]]}
-    assert res["estimates"]["entry_fee"] == {"min_vnd": 50000, "typical_vnd": 150000, "max_vnd": 150000, "n": 2,
+    assert res["estimates"]["entry_fee"] == {"min_vnd": 50000, "typical_vnd": 150000, "max_vnd": 799000, "n": 3,
                                              "source": "official"}
     assert res["features"]["entry_fee"]["authority"] == "paid"  # the site declares it, no review says otherwise

@@ -8,28 +8,13 @@ filter.
 import re
 import statistics
 from datetime import date, timedelta
-from functools import cache
 
-import yaml
-
-from ..crawl.common.files import ROOT
-
-PATH = ROOT / "config" / "category_defaults.yaml"
+from ..categories import defaults, group
 
 # 150k, 150.000đ, 160.000 đồng, 50 nghìn, 120.000 vnd; a bare number is no price
 _VND = re.compile(r"(\d{1,3}(?:[.,]\d{3})+|\d{1,4})\s*(k\b|nghìn|ngàn|n\b|đ|đồng|vnđ|vnd|000)", re.I)
 VND_MIN, VND_MAX = 5_000, 5_000_000
 
-
-@cache
-def defaults() -> dict:
-    return yaml.safe_load(PATH.read_text(encoding="utf-8"))
-
-
-def group(category: str | None) -> dict:
-    c = (category or "").casefold()
-    groups = defaults()["groups"]
-    return next((g for g in groups if any(m in c for m in g["match"])), groups[-1])
 
 
 def amounts_vnd(text: str) -> list[int]:
@@ -64,13 +49,13 @@ def ticket_amounts(quote: str) -> list[int]:
 
 def entry_fee(observations: list[dict], ticket_usd: float | None = None,
               official: dict | None = None) -> dict | None:
-    """Ticket price from the place's own website (official: {adult: [...], child: [...]} VND; typical = the highest
-    adult ticket, min = the lowest ticket of anyone), else from the entry_fee paid quotes (per author the highest ticket amount: adults pay the most), the
+    """Ticket price from the place's own website (official: {adult: [...], child: [...]} VND; typical = the median
+    adult ticket, as sites also list combos and tours; min = the lowest ticket of anyone), else from the entry_fee paid quotes (per author the highest ticket amount: adults pay the most), the
     last RECENT_DAYS only when RECENT_MIN authors said it then, or, without any, from the Maps ticket box (US$)."""
     adult = (official or {}).get("adult") or []
     if adult:
         every = adult + ((official or {}).get("child") or [])
-        return {"min_vnd": min(every), "typical_vnd": max(adult), "max_vnd": max(adult), "n": len(adult),
+        return {"min_vnd": min(every), "typical_vnd": int(statistics.median_low(adult)), "max_vnd": max(adult), "n": len(adult),
                 "source": "official"}
     found = {}
     for o in observations:

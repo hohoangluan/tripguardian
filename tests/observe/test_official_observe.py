@@ -53,3 +53,10 @@ def test_official_site_skips_social_and_resellers():
     links = [["/gia-ve", "Giá vé"], ["https://other.com/gia-ve", "Giá vé"], ["/blog/post-1", "Tin"],
              ["/lien-he#map", "Liên hệ"], ["/menu.pdf", "Bảng giá"]]
     assert pick_links("https://x.vn/", links, 4) == ["https://x.vn/gia-ve", "https://x.vn/lien-he"]
+
+
+def test_prices_only_for_places_that_sell_entry():
+    assert off.gate(fact("ticket", "Trẻ 90–120cm 75.000đ / em", 75000, "child"), PAGE, None, tickets=False)         == "no_entry_ticket_category"
+    week = ["mon"]
+    assert off.gate(fact("hours", "Giờ mở cửa 08:00 – 18:00", open_="08:00", close="18:00", days=week), PAGE, None,
+                    tickets=False) is None

@@ -11,13 +11,12 @@ its reviews `sample = keywords` (they count only for effort and facts, docs/CORP
 
 import asyncio
 import json
-from functools import cache
 
-import yaml
 from playwright.async_api import BrowserContext, Page
 
 from ..common.browser import LoginRequired, open_profile, pause
-from ..common.files import ROOT, data_dir, load_config, log_error, now, safe_name, write_json
+from ...categories import group
+from ..common.files import data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, count, parse_reviews
 from .page import ensure_login, more, open_page
@@ -34,14 +33,8 @@ _MARK_JS = """(label) => { const l = [...document.querySelectorAll('[id]')].find
   if (i) i.setAttribute('data-tg-review-search', '1'); return !!i; }"""
 
 
-@cache
-def _groups() -> list[dict]:
-    return yaml.safe_load((ROOT / "config" / "category_defaults.yaml").read_text(encoding="utf-8"))["groups"]
-
-
 def category_group(category: str | None) -> str:
-    c = (category or "").casefold()
-    return next((g["id"] for g in _groups() if any(m in c for m in g["match"])), _groups()[-1]["id"])
+    return group(category)["id"]
 
 
 def wanted(place: dict, n_kept: int, groups: set[str]) -> bool:

@@ -2,7 +2,7 @@
 
 The Extractor (corpus.llm.OFFICIAL_OBSERVE) reads the page text in chunks and names entry ticket prices and opening
 hours with a quote; code keeps a fact only when its quote is in the page and its amount / times are in its quote
-(gate). A site several listed places share (one operator's site) only gives facts whose quote stands near a
+(gate); prices count only for places of a category group that sells entry (TICKET_GROUPS). A site several listed places share (one operator's site) only gives facts whose quote stands near a
 distinctive word of the place's name. Output, in the shared observation format: `entry_fee` paid / free
 (source_type `official_page`, one authoritative author `official:<fid>`, docs/CORPUS.md §5) and `place_facts`:
 `hours` ({day: [[open, close], ...]} for the days the site names; ranges that overlap one another are a conflict and
@@ -20,12 +20,16 @@ from urllib.parse import urlparse
 
 import openai
 
+from ...categories import group
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
 from ...llm import OFFICIAL_OBSERVE, OutOfQuota
 from ...ontology import UNKNOWN, load as load_ontology
 from .. import observation
 
 CHUNK_CHARS = 6000
+GATE_VERSION = "official_gate@v2"  # in the input hash: a changed gate reads the pages again
+# groups whose places sell entry tickets; elsewhere a site's prices are menus, rentals, tours or services
+TICKET_GROUPS = {"nature", "garden_farm", "attraction", "amusement", "museum", "religious", "camping", "other"}
 NEAR = 500  # chars around a quote that must name the place on a shared site
 SOURCE_TYPE = "official_page"
 WANT = re.compile(r"\d\s*(?:k|đ|đồng|vnđ|vnd|nghìn|ngàn|000)\b|\d{1,2}\s*(?:h|giờ|:)\s*\d{0,2}|vé|giá|miễn phí|free|"
@@ -92,10 +96,12 @@ def near_name(text: str, quote: str, words: set[str]) -> bool:
     return bool(words) and any(re.search(rf"\b{w}\b", window) for w in words)
 
 
-def gate(fact: dict, text: str, words: set[str] | None) -> str | None:
+def gate(fact: dict, text: str, words: set[str] | None, tickets: bool = True) -> str | None:
     """None when the fact stands, else why it is dropped. words: the place's distinctive name words, required near the
-    quote on a shared site (None = the site is this place's own)."""
+    quote on a shared site (None = the site is this place's own); tickets: the place's category group sells entry."""
     q = fact["quote"].strip()
+    if fact["kind"] in ("ticket", "free") and not tickets:
+        return "no_entry_ticket_category"
     if not q or norm(q) not in norm(text):
         return "quote_not_in_page"
     if words is not None and not near_name(text, q, words):
@@ -173,7 +179,7 @@ async def run(city: str, limit: int | None = None) -> dict:
     todo = []
     for doc in files:
         h = hashlib.sha256(json.dumps([doc["fetched_at"], [p["text"] for p in doc["pages"]],
-                                       OFFICIAL_OBSERVE.prompt_hash, ont.version]).encode()).hexdigest()[:16]
+                                       OFFICIAL_OBSERVE.prompt_hash, ont.version, GATE_VERSION]).encode()).hexdigest()[:16]
         target = out / f"{safe_name(doc['fid'])}.json"
         if target.exists() and json.loads(target.read_text(encoding="utf-8")).get("input_hash") == h:
             continue
@@ -218,7 +224,7 @@ async def run(city: str, limit: int | None = None) -> dict:
         kept, mine = [], collections.Counter()
         for (url, text), ans in zip(parts, answers):
             for f in ans["facts"]:
-                why = gate(f, text, words)
+                why = gate(f, text, words, group(place.get("category"))["id"] in TICKET_GROUPS)
                 if why:
                     mine[why] += 1
                 else:
