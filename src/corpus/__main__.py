@@ -13,7 +13,7 @@ import asyncio
 from .crawl.common import browser
 from .aggregate import run as aggregate_run
 from .serving import run as serving_run
-from . import judge
+from . import build, judge
 from .review import server as review_server
 from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, search as gmaps_search
 from .observe import gmaps as gmaps_observe
@@ -77,6 +77,10 @@ def main() -> None:
     rp.add_argument("--port", type=int, default=8765)
     sub.add_parser("aggregate", help="every source's observations -> data/intel/places/").add_argument("--city", default="dalat")
     sub.add_parser("serving", help="intel -> data/serving/places.json for Place Decision").add_argument("--city", default="dalat")
+    bp = sub.add_parser("build", help="incremental build: qc -> observe -> judge -> aggregate -> serving")
+    bp.add_argument("--city", default="dalat")
+    bp.add_argument("--every", type=float, help="repeat the build every N minutes (while crawls add data)")
+    bp.add_argument("--skip", nargs="*", default=[], help='steps to leave out, e.g. "tiktok" or "gmaps qc"')
     jp = sub.add_parser("judge", help="the Judge model labels claims, place status, duplicate places")
     jp.add_argument("phase", choices=[*judge.PHASES, "all"])
     jp.add_argument("--city", default="dalat")
@@ -104,6 +108,8 @@ def main() -> None:
             aggregate_run(args.city)
         elif args.cmd == "serving":
             serving_run(args.city)
+        elif args.cmd == "build":
+            build.run(args.city, args.every, set(args.skip))
         elif args.cmd == "judge":
             for name in ("dedup", "status", "audit") if args.phase == "all" else (args.phase,):
                 fn = judge.PHASES[name]
