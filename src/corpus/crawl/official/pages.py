@@ -20,7 +20,8 @@ from ..common.files import data_dir, load_config, log_error, now, safe_name, wri
 
 MAX_PAGES = 5
 TEXT_CHARS = 40000  # per page; longer text is cut and the page marked `cut`
-PARALLEL = 6
+PARALLEL = 4
+ROUNDS = 4  # the browser can die mid-run (low memory): sites it took down are retried in a new browser
 REFRESH_DAYS = 90
 NOT_OFFICIAL = ("facebook.", "fb.com", "fb.me", "instagram.", "tiktok.", "youtube.", "youtu.be", "zalo.", "linktr.ee",
                 "booking.com", "agoda.", "klook.", "traveloka.", "trip.com", "kkday.", "tripadvisor.", "google.",
@@ -106,21 +107,33 @@ async def run(city: str, headed: bool = False, limit: int | None = None) -> dict
             todo.append(place)
     todo = todo[:limit]
     print(f"official pages {city}: {len(todo)} sites to fetch", flush=True)
-    sem, done = asyncio.Semaphore(PARALLEL), 0
-    async with open_sessions(headed) as new_session:
-        async def one(place):
-            nonlocal done
-            async with sem:
-                try:
-                    pages = await fetch_site(new_session, place["website"])
-                except Exception as e:
-                    log_error(root, safe_name(place["fid"]), "pages", e)
-                    return
-            write_json(root / "pages" / f"{safe_name(place['fid'])}.json",
-                       {"fid": place["fid"], "name": place.get("name"), "website": place["website"],
-                        "fetched_at": now(), "pages": pages})
-            done += 1
+    done, total = 0, len(todo)
+    for _ in range(ROUNDS):
+        if not todo:
+            break
+        sem, again = asyncio.Semaphore(PARALLEL), []
+        async with open_sessions(headed) as new_session:
+            async def one(place):
+                nonlocal done
+                async with sem:
+                    try:
+                        pages = await fetch_site(new_session, place["website"])
+                    except Exception as e:
+                        if type(e).__name__ == "TargetClosedError":  # the browser went down, not this site
+                            again.append(place)
+                        else:
+                            log_error(root, safe_name(place["fid"]), "pages", e)
+                        return
+                write_json(root / "pages" / f"{safe_name(place['fid'])}.json",
+                           {"fid": place["fid"], "name": place.get("name"), "website": place["website"],
+                            "fetched_at": now(), "pages": pages})
+                done += 1
 
-        await asyncio.gather(*(one(p) for p in todo))
-    print(f"official pages {city}: {done}/{len(todo)} saved, the rest in data/official/errors.jsonl", flush=True)
-    return {"sites": len(todo), "saved": done}
+            await asyncio.gather(*(one(p) for p in todo))
+        if again:
+            print(f"official pages {city}: browser closed, {len(again)} sites again in a new browser", flush=True)
+        todo = again
+    for place in todo:
+        log_error(root, safe_name(place["fid"]), "pages", RuntimeError("browser closed on every try"))
+    print(f"official pages {city}: {done}/{total} saved, the rest in data/official/errors.jsonl", flush=True)
+    return {"sites": total, "saved": done}
