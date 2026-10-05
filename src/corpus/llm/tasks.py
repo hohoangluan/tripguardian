@@ -29,12 +29,15 @@ class OutOfQuota(Exception):
 
 _REST: dict[str, float] = {}  # model -> monotonic time it may be asked again (after a usage-limit answer)
 QUOTA_REST_S = 600.0  # when the server does not say how long
+UNSUPPORTED_REST_S = 60.0  # 9router rotates accounts; one may not offer the model
 
 
 def _quota_rest(e: Exception) -> float | None:
     """Seconds to rest a model after this error, or None when it is not a usage limit. 9router answers an exhausted
     upstream account with 503 or 429 and "usage limit ... (reset after 19m 38s)" or an exhausted-quota message."""
     text = str(e)
+    if re.search(r"model is not supported when using", text, re.I):
+        return UNSUPPORTED_REST_S  # the proxy picked an account without this model; the next pick may have it
     if not re.search(r"usage limit|quota|exhausted|resource_exhausted|reset after", text, re.I):
         return None
     m = re.search(r"reset after (?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?", text)
@@ -158,7 +161,9 @@ class Task:
                 if attempt == ATTEMPTS:
                     raise
             except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError,
-                    openai.InternalServerError) as e:  # a passing 500 from the server
+                    openai.InternalServerError, openai.BadRequestError) as e:  # a passing 500 from the server
+                if isinstance(e, openai.BadRequestError) and _quota_rest(e) is None:
+                    raise  # a real bad request: retrying cannot fix it
                 rest = _quota_rest(e)
                 if rest is not None:  # this model's account is spent: rest it, the pool's next model goes on
                     _REST[current] = time.monotonic() + rest

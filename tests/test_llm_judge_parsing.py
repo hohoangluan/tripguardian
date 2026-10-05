@@ -59,3 +59,12 @@ def test_pool_rests_a_spent_model_and_asks_the_next(monkeypatch):
     tasks._REST["b"] = tasks._REST["a"]
     with pytest.raises(tasks.OutOfQuota):
         tasks.pick("a,b")
+
+
+def test_unsupported_model_on_one_account_rests_briefly():
+    req = httpx.Request("POST", "http://x")
+    e = openai.BadRequestError("[400]: The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT "
+                               "account.", response=httpx.Response(400, request=req), body=None)
+    assert tasks._quota_rest(e) == tasks.UNSUPPORTED_REST_S
+    plain = openai.BadRequestError("bad field", response=httpx.Response(400, request=req), body=None)
+    assert tasks._quota_rest(plain) is None
