@@ -61,7 +61,8 @@ async def search(page: Page, word: str, n: int) -> tuple[list[dict], bool]:
         if k >= n or await page.evaluate(LIST_END_JS):
             complete = True
             break
-        await page.locator(REVIEW_DIV).last.scroll_into_view_if_needed(timeout=5000)
+        # the pane, not the last review: Maps replaces review nodes while loading, and waiting for a replaced node to
+        # scroll timed out and cut the tab count as if Google blocked us
         await pane.evaluate("e => e.scrollTo(0, e.scrollHeight)")
         if not await more(page, REVIEW_DIV, k, timeout=15000):
             complete = await page.evaluate(LIST_END_JS)
