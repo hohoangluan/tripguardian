@@ -6,10 +6,15 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 |---|---|---|---|
 | ASR | `corpus` (TikTok) | ChunkFormer trên GPU local; ASR2 PhoWhisper-medium | Local |
 | Extractor | `corpus` (observe, filter, qc, kiểm span) | Gemma 4 trên UIT API (miễn phí, nhận ảnh) | Trực tiếp trong mạng UIT |
-| Judge | `corpus` (audit, match mơ hồ) | Gemma 4 trên UIT API (cùng model với Extractor) | Trực tiếp trong mạng UIT |
+| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | pool `cx/gpt-5.6-sol`, `ag/claude-opus-4-6-thinking`, `ag/gemini-3.1-pro-low`, `ag/claude-sonnet-4-6` | 9router local |
+| Judge mạnh | giá trị cho phép, quyết định đóng cửa / gộp nơi | pool `cx/gpt-6-astra`, `ag/claude-opus-4-6-thinking`, `cx/gpt-5.6-sol` | 9router local |
 | Agent | `trip`, `decision`, `planning` (mỗi lượt gõ chữ) | Gemma 4 trên UIT API | Trực tiếp trong mạng UIT |
 
-Judge và Extractor dùng chung model, tách vai trò bằng prompt chuyên biệt riêng cho từng vai trò; Judge bật thinking. Vì chung model nên lỗi hai bên không hoàn toàn độc lập: nếu nhãn review cho thấy Judge bỏ sót lỗi của Extractor, chuyển Judge sang họ model khác (chỉ đổi config, ví dụ `qwen3.8-27b` tại `https://llm.uit.edu.vn/qwen/v1`).
+Judge khác họ model với Extractor (GPT / Claude / Gemini so với Gemma) nên lỗi hai bên độc lập.
+
+## 9router (Judge)
+
+Proxy local tương thích OpenAI (`http://localhost:20128/v1`) tới tài khoản Codex (`cx/…`) và Antigravity (`ag/…`); người dùng tự bật. Proxy bỏ qua `response_format`, và upstream `ag/` luôn trả stream, nên vai trò Judge có `guided = False` (`roles.py`): `Task.ask` ghép JSON schema vào cuối prompt, đọc câu trả lời dạng stream, lấy object JSON cuối cùng (`parse_answer`) rồi validate (`validate`). `*_MODEL` là một pool cách nhau bằng dấu phẩy: model trả "usage limit" / "Unavailable … (reset after Xm Ys)" được nghỉ đúng thời gian đó (không nói thì 10 phút), model kế tiếp trả lời; câu trả lời ghi `_model` là model đã trả lời. Cả pool nghỉ → `OutOfQuota`, các phase `judge` và `qc` chờ 2 phút rồi thử lại, không lỗi. Quota Codex và Antigravity tính theo cửa sổ cuốn chiếu: call lớn chạy song song nhiều có thể đốt hết cửa sổ, nên `OBS_AUDIT` chạy 8 call đồng thời, ≤ 8 nhận định mỗi call. `cx/gpt-5.4-mini` và `cx/gpt-5.3-codex-spark` không dùng được với tài khoản ChatGPT.
 
 ## UIT API
 
@@ -35,7 +40,7 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 |---|---|
 | `LLM_API_KEY` | Key UIT API (Extractor) |
 | `EXTRACTOR_BASE_URL`, `EXTRACTOR_MODEL` | Endpoint và model của Extractor |
-| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL` | Key, endpoint và model của Judge (hiện = UIT Gemma) |
+| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_STRONG_MODEL` | Key, endpoint (9router) và pool model của Judge và Judge mạnh |
 | `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_MODEL` | Key, endpoint và model của Agent — ba server online (`trip`, `decision`, `planning`) đọc biến này; thiếu thì mọi lượt gõ chữ chạy bằng `policy.py` từ khóa, không lỗi |
 | `DATA_DIR` | Gốc dữ liệu thô (mặc định `data`) |
 | `LIVE_CONTACT` | Liên hệ gửi trong User-Agent của request live context (Nominatim yêu cầu) |
@@ -44,7 +49,7 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
-Mọi model được gọi trực tiếp: UIT trong mạng campus, ASR trên GPU local.
+Extractor gọi UIT trong mạng campus, ASR trên GPU local, Judge qua 9router local.
 
 Vai trò Agent khác ba vai trò kia ở chỗ nó chạy **trong một phiên người dùng**, nên có ngân sách thời gian: chờ token đầu `first_token_s` giây, cả call `total_s` giây (`config/trip.yaml`, `config/decision.yaml`, `config/planning.yaml`), quá thì trả lời bằng `policy.py`. Một call mỗi lượt, output là JSON có schema, `guard.py` chặn mọi tên / số không có trong kết quả tool của phiên.
 

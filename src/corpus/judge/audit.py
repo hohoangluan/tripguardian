@@ -32,7 +32,7 @@ RISKY_GROUPS = {"effort", "suitability"}
 SAMPLE = 30  # per (feature, value, source) for features that are not risky
 GATE_LOWER = 0.8  # same bar as the label gate (corpus.review.labels)
 GATE_MIN_N = 20  # labelled items before a stratum can be judged from its sample
-CHUNK, CHUNK_IMAGES = 12, 4  # items per call
+CHUNK, CHUNK_IMAGES = 8, 4  # items per call
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
 MAX_ROUNDS = 5
 QUOTA_WAIT_S = 120
@@ -128,6 +128,7 @@ async def ask(task, client, model, **kw) -> dict:
         try:
             return await task.ask(client, model, **kw)
         except OutOfQuota:
+            print(f"  waiting for quota {now()}", flush=True)
             await asyncio.sleep(QUOTA_WAIT_S)  # accounts reset on their own; the run just waits
         except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError):
             tries += 1

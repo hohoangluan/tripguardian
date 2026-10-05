@@ -979,7 +979,7 @@ proves it is paid. Judge each item on its own source. Reason: at most 15 words.
 Items:
 {items}"""
 
-OBS_AUDIT = Task(name="obs_audit", role=JUDGE, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT, parallel=32)
+OBS_AUDIT = Task(name="obs_audit", role=JUDGE, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT, parallel=8)
 # values that widen a choice (suitable for elderly / kids / wheelchair ...): a wrong "yes" can hurt someone
 OBS_AUDIT_STRONG = Task(name="obs_audit", role=JUDGE_STRONG, max_tokens=12000, schema=AUDIT_SCHEMA,
                         prompt=_AUDIT_PROMPT, parallel=8)
