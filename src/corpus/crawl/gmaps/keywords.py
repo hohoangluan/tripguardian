@@ -17,7 +17,7 @@ import yaml
 from playwright.async_api import BrowserContext, Page
 
 from ..common.browser import LoginRequired, open_profile, pause
-from ..common.files import ROOT, data_dir, load_config, log_error, now, write_json
+from ..common.files import ROOT, data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, count, parse_reviews
 from .page import ensure_login, more, open_page
@@ -129,9 +129,11 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
     c, root = cfg["gmaps"], data_dir() / "gmaps"
     words, n = c.get("review_keywords", []), c.get("keyword_reviews_per_word", 20)
     groups = set(c.get("keyword_groups", []))
+    listed = root / "list" / f"{city}.json"
+    keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]} if listed.exists() else None
     todo = []
     for f in sorted((root / "places").glob("*/place.json")):
-        if (f.parent / FILE).exists():
+        if (f.parent / FILE).exists() or (keep is not None and f.parent.name not in keep):
             continue
         place = json.loads(f.read_text(encoding="utf-8"))
         kept = json.loads((f.parent / "reviews.json").read_text(encoding="utf-8"))
