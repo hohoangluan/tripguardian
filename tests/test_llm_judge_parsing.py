@@ -11,6 +11,9 @@ from corpus.llm import tasks
 def test_parse_answer_takes_the_last_object_around_prose():
     assert tasks.parse_answer('Sure.\n```json\n{"a": 1}\n```') == {"a": 1}
     assert tasks.parse_answer('{"x": 0} then {"items": []}') == {"items": []}
+    fenced = '```json\n{"items": [{"ref": "i1"}, {"ref": "i2"}]}\n```'
+    assert tasks.parse_answer(fenced) == {"items": [{"ref": "i1"}, {"ref": "i2"}]}  # not its last item
+    assert tasks.parse_answer('thinking {not json} ```json\n{"a": {"b": 1}}\n```') == {"a": {"b": 1}}
     with pytest.raises(json.JSONDecodeError):
         tasks.parse_answer("no json here")
 

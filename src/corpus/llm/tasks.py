@@ -81,21 +81,26 @@ def validate(value, schema: dict, path: str = "$") -> None:
 
 
 def parse_answer(text: str) -> dict:
-    """The JSON object of an answer: the whole text, else the last object in it (a model that thinks or wraps the JSON
-    in prose or a code fence)."""
+    """The JSON object of an answer: the whole text, else the last outermost object in it (a model that thinks or
+    wraps the JSON in prose or a code fence). Outermost: an object nested in an earlier one is not a candidate, so a
+    fenced {"items": [{...}, {...}]} is not cut down to its last item."""
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    dec = json.JSONDecoder()
-    for at in [i for i, c in enumerate(text) if c == "{"][::-1]:
+    dec, found, at = json.JSONDecoder(), None, text.find("{")
+    while at >= 0:
         try:
-            obj, _ = dec.raw_decode(text[at:])
+            obj, end = dec.raw_decode(text, at)
         except json.JSONDecodeError:
+            at = text.find("{", at + 1)
             continue
         if isinstance(obj, dict):
-            return obj
-    raise json.JSONDecodeError("no JSON object in the answer", text[:200], 0)
+            found = obj
+        at = text.find("{", end)
+    if found is None:
+        raise json.JSONDecodeError("no JSON object in the answer", text[:200], 0)
+    return found
 
 
 @dataclass(frozen=True)

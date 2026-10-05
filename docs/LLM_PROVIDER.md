@@ -6,15 +6,15 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 |---|---|---|---|
 | ASR | `corpus` (TikTok) | ChunkFormer trên GPU local; ASR2 PhoWhisper-medium | Local |
 | Extractor | `corpus` (observe, filter, qc, kiểm span) | Gemma 4 trên UIT API (miễn phí, nhận ảnh) | Trực tiếp trong mạng UIT |
-| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | pool `cx/gpt-5.6-sol`, `ag/claude-opus-4-6-thinking`, `ag/gemini-3.1-pro-low`, `ag/claude-sonnet-4-6` | 9router local |
-| Judge mạnh | giá trị cho phép, quyết định đóng cửa / gộp nơi | pool `cx/gpt-6-astra`, `ag/claude-opus-4-6-thinking`, `cx/gpt-5.6-sol` | 9router local |
+| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | `cx/gpt-5.6-sol` | 9router local |
+| Judge mạnh | giá trị cho phép, quyết định đóng cửa / gộp nơi | pool `cx/gpt-6-astra`, `cx/gpt-5.6-sol` | 9router local |
 | Agent | `trip`, `decision`, `planning` (mỗi lượt gõ chữ) | Gemma 4 trên UIT API | Trực tiếp trong mạng UIT |
 
 Judge khác họ model với Extractor (GPT / Claude / Gemini so với Gemma) nên lỗi hai bên độc lập.
 
 ## 9router (Judge)
 
-Proxy local tương thích OpenAI (`http://localhost:20128/v1`) tới tài khoản Codex (`cx/…`) và Antigravity (`ag/…`); người dùng tự bật. Proxy bỏ qua `response_format`, và upstream `ag/` luôn trả stream, nên vai trò Judge có `guided = False` (`roles.py`): `Task.ask` ghép JSON schema vào cuối prompt, đọc câu trả lời dạng stream, lấy object JSON cuối cùng (`parse_answer`) rồi validate (`validate`). `*_MODEL` là một pool cách nhau bằng dấu phẩy: model trả "usage limit" / "Unavailable … (reset after Xm Ys)" được nghỉ đúng thời gian đó (không nói thì 10 phút), model kế tiếp trả lời; câu trả lời ghi `_model` là model đã trả lời. Cả pool nghỉ → `OutOfQuota`, các phase `judge` và `qc` chờ 2 phút rồi thử lại, không lỗi. Quota Codex và Antigravity tính theo cửa sổ cuốn chiếu: call lớn chạy song song nhiều có thể đốt hết cửa sổ, nên `OBS_AUDIT` chạy 8 call đồng thời, ≤ 8 nhận định mỗi call. `cx/gpt-5.4-mini` và `cx/gpt-5.3-codex-spark` không dùng được với tài khoản ChatGPT.
+Proxy local tương thích OpenAI (`http://localhost:20128/v1`) tới tài khoản Codex (`cx/…`) và Antigravity (`ag/…`); bật bằng lệnh `9router` trong terminal. `ag/` chỉ dùng để sinh ảnh, không làm Judge: quota Claude bên `ag/` cạn sau vài phút (nghỉ ~5 giờ) và chưa được đo chất lượng chấm; `cx/gpt-5.6-terra` cũng không dùng (chung quota với sol, sai gấp ~5 lần trên 161 nhận định chấm lại 2026-10-05). Proxy bỏ qua `response_format`, và upstream `ag/` luôn trả stream, nên vai trò Judge có `guided = False` (`roles.py`): `Task.ask` ghép JSON schema vào cuối prompt, đọc câu trả lời dạng stream, lấy object JSON ngoài cùng cuối cùng (`parse_answer`; object lồng bên trong không tính, để khối ```json {"items": [...]} ``` không bị cắt còn item cuối) rồi validate (`validate`). `*_MODEL` là một pool cách nhau bằng dấu phẩy: model trả "usage limit" / "Unavailable … (reset after Xm Ys)" được nghỉ đúng thời gian đó (không nói thì 10 phút), model kế tiếp trả lời; câu trả lời ghi `_model` là model đã trả lời. Cả pool nghỉ → `OutOfQuota`, các phase `judge` và `qc` chờ 2 phút rồi thử lại, không lỗi. Quota Codex và Antigravity tính theo cửa sổ cuốn chiếu: call lớn chạy song song nhiều có thể đốt hết cửa sổ, nên `OBS_AUDIT` chạy 8 call đồng thời, ≤ 16 nhận định chữ (≤ 4 ảnh) mỗi call. `cx/gpt-5.4-mini` và `cx/gpt-5.3-codex-spark` không dùng được với tài khoản ChatGPT.
 
 ## UIT API
 
