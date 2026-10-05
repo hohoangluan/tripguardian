@@ -82,9 +82,9 @@ def owner(o: dict) -> bool:
 
 
 def usable(o: dict, feat: Feature, verdicts: dict[str, str]) -> bool:
-    """Not labelled wrong, not a targeted sample (lowest / highest rated, keyword hits) speaking to an opinion whose
+    """Not labelled wrong (or unsure on a second look), not a targeted sample (lowest / highest rated, keyword hits) speaking to an opinion whose
     share it would skew, and not a business vouching for itself beyond what it can show."""
-    if verdicts.get(label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"])) == "wrong":
+    if verdicts.get(label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"])) in ("wrong", "unsure_again"):
         return False
     if o.get("sample") in TARGETED and not targeted_ok(feat):
         return False

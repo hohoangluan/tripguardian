@@ -168,8 +168,8 @@ async def guarded(coro, what: str):
         return "error"
 
 
-async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: dict) -> collections.Counter:
-    is_strong = strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
+async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1) -> collections.Counter:
+    is_strong = look > 1 or strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
     task = OBS_AUDIT_STRONG if is_strong else OBS_AUDIT
     client, model = clients[task.role.name]
     places, feats = {}, {}
@@ -207,9 +207,40 @@ async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: d
     for it in ans["items"]:
         if it["ref"] in refs:
             source, st, o = refs.pop(it["ref"])
-            judge_label(o, st, source, it["verdict"], it["reason"][:300], by, task.prompt_hash)
+            judge_label(o, st, source, it["verdict"], it["reason"][:300], by, task.prompt_hash, look)
             got[it["verdict"]] += 1
     got["missing"] += len(refs)
+    return got
+
+
+def unsure_rows(rows: list[tuple], records: dict[str, dict]) -> list[tuple]:
+    """Rows whose latest label is a first-look Judge "unsure" (a person's unsure stands)."""
+    out = []
+    for r in rows:
+        rec = records.get(label_key(r[3]["source_id"], r[3]["feature"], r[3]["value"], r[3]["span"]["quote"]))
+        if rec and rec["label"] == "unsure" and rec.get("by", "").startswith("judge:") and rec.get("look", 1) == 1:
+            out.append(r)
+    return list({label_key(r[3]["source_id"], r[3]["feature"], r[3]["value"], r[3]["span"]["quote"]): r
+                 for r in out}.values())
+
+
+async def second_look(ont, name: str, clients: dict, sems: dict) -> collections.Counter:
+    """The strong Judge reads again every claim the first Judge was unsure of; still unsure there = not enough
+    evidence, and aggregate drops it like a wrong one (review.labels.verdicts)."""
+    todo = unsure_rows(load_rows(ont), label_records())
+    parts = chunks(todo, ont)
+    print(f"judge audit {name}: second look, {len(todo)} unsure claims in {len(parts)} calls", flush=True)
+    got = collections.Counter()
+
+    async def one(c):
+        try:
+            return await audit_chunk(c, ont, name, clients, sems, look=2)
+        except Exception as e:  # its claims keep the first look's unsure; asked again next run
+            print(f"  error second look {c[0][1]}: {type(e).__name__}: {str(e)[:200]}", flush=True)
+            return collections.Counter(error=1)
+
+    for g in await asyncio.gather(*(one(c) for c in parts)):
+        got.update(g)
     return got
 
 
@@ -250,6 +281,7 @@ async def run(city: str, limit: int | None = None) -> dict:
         labelled = this["correct"] + this["wrong"] + this["unsure"]
         if limit is not None or not labelled or rounds >= MAX_ROUNDS:
             break
-    summary = {"at": now(), "rounds": rounds, "labels": dict(total)}
+    second = await second_look(ont, name, clients, sems) if limit is None else collections.Counter()
+    summary = {"at": now(), "rounds": rounds, "labels": dict(total), "second_look": dict(second)}
     print(f"judge audit {city}: {json.dumps(summary, ensure_ascii=False)}")
     return summary

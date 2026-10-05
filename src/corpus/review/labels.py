@@ -264,20 +264,26 @@ def label(id: str, label_: str, note: str = "") -> dict:
     return rec
 
 
-def judge_label(obs: dict, place_stem: str, source: str, label_: str, note: str, by: str, ph: str = "") -> dict:
-    """A label written by the Judge model for one observation (obs: an observation record); ph = its prompt hash."""
+def judge_label(obs: dict, place_stem: str, source: str, label_: str, note: str, by: str, ph: str = "",
+                look: int = 1) -> dict:
+    """A label written by the Judge model for one observation (obs: an observation record); ph = its prompt hash;
+    look 2 = the strong Judge's second look at a claim the first Judge was unsure of."""
     if label_ not in LABELS:
         raise ValueError(f"label must be one of {LABELS}")
     k = key(obs["source_id"], obs["feature"], obs["value"], obs["span"]["quote"])
     rec = {"at": now(), "id": obs["id"], "key": k, "place": place_stem, "source": source, "feature": obs["feature"],
            "value": obs["value"], "quote": k.split("|", 3)[3], "label": label_, "note": note, "by": by, "ph": ph}
+    if look > 1:
+        rec["look"] = look
     append_jsonl(_judge_file(), rec)
     return rec
 
 
 def verdicts() -> dict[str, str]:
-    """content key -> latest label (person over Judge): what aggregate drops (wrong) and counts as checked."""
-    return {k: rec["label"] for k, rec in latest().items()}
+    """content key -> latest label (person over Judge): what aggregate drops (wrong, unsure_again) and counts as
+    checked. unsure_again: the strong Judge's second look was still unsure, so the source is not enough evidence."""
+    return {k: "unsure_again" if rec["label"] == "unsure" and rec.get("look", 1) > 1 else rec["label"]
+            for k, rec in latest().items()}
 
 
 def evidence(stem: str, o: dict, source: str) -> dict:

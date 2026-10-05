@@ -116,3 +116,25 @@ def test_status_reopens_a_judge_verdict_whose_reports_are_gone(tmp_path, monkeyp
                         lambda self: (type("C", (), {"with_options": lambda s, **k: s})(), "m"))
     summary = asyncio.run(st.run("dalat"))
     assert decided == [("A", "open")] and summary["status"] == {"open": 1}
+
+
+def test_second_look_takes_only_first_look_judge_unsure():
+    from corpus.review import label_key
+    rows = [_row(i, "food_quality", "good") for i in range(4)]
+    keys = [label_key(r[3]["source_id"], "food_quality", "good", r[3]["span"]["quote"]) for r in rows]
+    records = {keys[0]: {"label": "unsure", "by": "judge:cx/gpt-5.6-sol"},
+               keys[1]: {"label": "unsure", "by": "judge:cx/gpt-6-astra", "look": 2},
+               keys[2]: {"label": "unsure"},  # a person's unsure stands
+               keys[3]: {"label": "wrong", "by": "judge:cx/gpt-5.6-sol"}}
+    assert [r[3]["id"] for r in audit.unsure_rows(rows + rows[:1], records)] == ["x0"]
+
+
+def test_aggregate_drops_a_claim_still_unsure_on_the_second_look():
+    from corpus.aggregate.place import usable
+    from corpus.review import label_key
+    o = _row(1, "food_quality", "good")[3]
+    k = label_key(o["source_id"], "food_quality", "good", o["span"]["quote"])
+    feat = ONT.features["food_quality"]
+    assert usable(o, feat, {k: "unsure"})
+    assert not usable(o, feat, {k: "unsure_again"})
+    assert not usable(o, feat, {k: "wrong"})
