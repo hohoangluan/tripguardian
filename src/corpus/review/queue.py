@@ -82,8 +82,8 @@ def _gmaps() -> list[dict]:
                     flags.append(f"verdict {llm['verdict']}")
                 if not llm["tourism_relevant"]:
                     flags.append(f"không dành cho du khách: {llm['relevance_reason']}")
-                if not llm["in_city"]:
-                    flags.append("không thuộc thành phố")
+                # in_city is not a flag: a place inside the city's `area` but outside its limits (Nam Ban, K'rèn,
+                # đèo Ngoạn Mục) is a normal place, suggested and planned like any other
             if flags:
                 items.append({**base, "kind": "place_qc", "status": llm["verdict"] if llm else "error", "why": "; ".join(flags),
                               "details": {**info, "kiểm tra": qc.get("checks", []),

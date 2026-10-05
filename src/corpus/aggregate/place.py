@@ -9,6 +9,9 @@ trend of the newer half of the dated evidence against the older half. A value de
 (Maps attributes) is served without a person when no other source contradicts it; a contradiction makes it uncertain.
 `mention_rate` = people who named the feature / the place's `voices` (authors whose words were read): a value
 named by 1 of 200 reviewers is weak evidence even at agreement 1.0.
+Targeted samples (observation `sample`: Maps' lowest / highest rated reviews, keyword hits; corpus.observe.TARGETED)
+count only for effort and facts of the place (corpus.observe.targeted_ok), with their authors (`voices_targeted`)
+added to those features' mention-rate denominator; never for opinions, and their stars never for rating_trend.
 Labels (a person's, else the Judge model's, corpus.review) are applied first: an observation labelled wrong is
 left out. Measured quality (docs/CORPUS.md §6): `quality` = the label precision of the top value
 (review.label_stats); `checked` counts the top value's authors whose claims were labelled correct; `servable` = the
@@ -30,7 +33,7 @@ import json
 from datetime import date
 
 from ..crawl.common.files import data_dir, now, safe_name, write_json
-from ..observe import CONTEXT_KEYS
+from ..observe import CONTEXT_KEYS, TARGETED, targeted_ok
 from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
 from ..judge import merges
 from ..review import decisions, label_key, label_stats, label_verdicts
@@ -78,8 +81,11 @@ def owner(o: dict) -> bool:
 
 
 def usable(o: dict, feat: Feature, verdicts: dict[str, str]) -> bool:
-    """Not labelled wrong, and not a business vouching for itself beyond what it can show."""
+    """Not labelled wrong, not a targeted sample (lowest / highest rated, keyword hits) speaking to an opinion whose
+    share it would skew, and not a business vouching for itself beyond what it can show."""
     if verdicts.get(label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"])) == "wrong":
+        return False
+    if o.get("sample") in TARGETED and not targeted_ok(feat):
         return False
     if owner(o):
         return o["feature"] in OWNER_FEATURES or (feat.group == "effort" and o["value"] == "present")
@@ -251,13 +257,16 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
             if ont.valid(o["feature"], o["value"]) and usable(o, ont.features[o["feature"]], verdicts):
                 by_feature[o["feature"]].append(o)
     voices = sum(f.get("voices") or 0 for f in files)
+    voices_targeted = sum(f.get("voices_targeted") or 0 for f in files)  # count only where targeted samples count
     quality, reviewed = quality or {}, reviewed or {}
     features = {}
     for fid in ont.features:
         if fid in by_feature:
-            sig = feature_signal(ont.features[fid], by_feature[fid], as_of, voices, verdicts)
+            feat = ont.features[fid]
+            sig = feature_signal(feat, by_feature[fid], as_of,
+                                 voices + voices_targeted if targeted_ok(feat) else voices, verdicts)
             features[fid] = judge(sig, quality.get((fid, sig["top_value"])), reviewed.get(fid))
-    ratings = [r for f in files for r in f.get("ratings", [])]
+    ratings = [r for f in files for r in f.get("ratings", []) if r.get("sample") not in TARGETED]
     proposed = collections.defaultdict(list)
     for f in files:
         for p in f.get("proposed", []):
@@ -277,6 +286,7 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
         "merged": sorted({f["place_fid"] for f in files} - {files[0]["place_fid"]}),
         "place_name": next((f["place_name"] for f in files if f.get("place_name")), None),
         "as_of": as_of.isoformat(), "ontology_version": ont.version, "identity": identity, "voices": voices,
+        "voices_targeted": voices_targeted,
         "features": features, "coverage": coverage(features, ont),
         "operation": {"price_range": facts.get("price"), "hours": facts.get("hours"), "closure": facts.get("closure"),
                       "crowd_by_time": crowd_by_time(facts.get("popular_times")),

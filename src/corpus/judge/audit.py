@@ -1,6 +1,7 @@
 """judge audit: the Judge model labels what the Extractor claimed, in place of a person (docs/CORPUS.md §6).
 
-Which model-made observations it reads (rule-made ones from Maps details / attributes are not labelled):
+Which model-made observations it reads (rule-made ones from Maps details / attributes are not labelled, nor a
+targeted sample's opinions, which aggregate leaves out):
 - every observation of a risky feature: effort, suitability and every `check: span` feature (hard filters, values
   that warn or widen a choice);
 - a sample of `SAMPLE` observations per (feature, value, source folder) of every other feature;
@@ -21,6 +22,7 @@ import openai
 
 from ..crawl.common.files import data_dir, load_config, now
 from ..llm import OBS_AUDIT, OBS_AUDIT_STRONG, OutOfQuota
+from ..observe import TARGETED, targeted_ok
 from ..ontology import load as load_ontology
 from ..review import evidence, judge_label, label_key, label_records
 
@@ -63,7 +65,8 @@ def load_rows(ont) -> list[tuple]:
             doc = json.loads(f.read_text(encoding="utf-8"))
             head = {"place_fid": doc["place_fid"], "place_name": doc.get("place_name")}
             rows += [(source, f.stem, head, o) for o in doc["observations"]
-                     if o["source_type"] in types and ont.valid(o["feature"], o["value"])]
+                     if o["source_type"] in types and ont.valid(o["feature"], o["value"])
+                     and (o.get("sample") not in TARGETED or targeted_ok(ont.features[o["feature"]]))]
     return rows
 
 

@@ -533,3 +533,44 @@ def test_extremes_reviews_merge_by_id_and_change_the_input(tmp_path, monkeypatch
         ensure_ascii=False), encoding="utf-8")
     assert extract.input_hash(d, set()) != before
     assert [r["review_id"] for r in extract.load_reviews(d)] == ["R1", "R8", "R9"]
+
+
+def test_targeted_reviews_are_tagged_and_their_voices_kept_apart(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a", rating="4 sao")])
+    d = tmp_path / "gmaps" / "places" / DIR
+    (d / "reviews_extremes.json").write_text(json.dumps({"fetched_at": FETCHED, "lowest": {"complete": True, "reviews": [
+        review(1, "Quán có view đẹp lắm luôn nha", "a"), review(8, "Tệ, view đẹp mà phục vụ chậm", "y", rating="1 sao")]},
+        "highest": {"complete": True, "reviews": []}}, ensure_ascii=False), encoding="utf-8")
+    (d / "reviews_keywords.json").write_text(json.dumps({"fetched_at": FETCHED, "keywords": {"dốc": {
+        "complete": True, "reviews": [review(9, "Dốc lắm nhưng view đẹp", "z", rating="5 sao")]}}},
+        ensure_ascii=False), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert {o["source_id"]: o.get("sample") for o in res["observations"]} == {"R1": None, "R8": "extremes",
+                                                                             "R9": "keywords"}
+    assert [r.get("sample") for r in res["ratings"]] == [None, "extremes", "keywords"]
+    assert res["voices"] == 1 and res["voices_targeted"] == 2
+
+
+def test_cached_file_built_before_tagging_is_tagged_without_the_model(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a")])
+    d = tmp_path / "gmaps" / "places" / DIR
+    (d / "reviews_extremes.json").write_text(json.dumps({"fetched_at": FETCHED, "lowest": {"complete": True, "reviews": [
+        review(8, "Tệ, view đẹp mà phục vụ chậm", "y", rating="1 sao")]}}, ensure_ascii=False), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    untagged = {**doc, "voices": 2, "observations": [{k: v for k, v in o.items() if k != "sample"}
+                                                     for o in doc["observations"]]}
+    del untagged["voices_targeted"]
+    out.write_text(json.dumps(untagged, ensure_ascii=False), encoding="utf-8")
+
+    async def no_network():
+        raise AssertionError("tagging must not need the model")
+
+    monkeypatch.setattr(extract, "_providers", no_network)
+    summary = asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert summary["status"] == {"tagged": 1} and len(calls) == 1
+    assert [o.get("sample") for o in res["observations"]] == [None, "extremes"]
+    assert (res["voices"], res["voices_targeted"]) == (1, 1)
+    assert asyncio.run(extract.run("dalat"))["status"] == {"cached": 1}

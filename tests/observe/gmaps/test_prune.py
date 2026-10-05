@@ -1,4 +1,4 @@
-from corpus.observe.gmaps.extract import prune
+from corpus.observe.gmaps.extract import prune, tag_samples
 
 
 def test_prune_drops_flagged_reviews_evidence_keeps_attributes():
@@ -16,3 +16,16 @@ def test_prune_drops_flagged_reviews_evidence_keeps_attributes():
     assert [o["id"] for o in out["observations"]] == ["a", "c", "d"]
     assert out["ratings"] == [{"author": "h3", "stars": 4}] and out["proposed"] == []
     assert out["voices"] == 2 and out["qc_dropped"] == ["r2"]
+
+
+def test_prune_counts_from_all_voices_then_tagging_splits_again():
+    doc = {"observations": [{"id": "a", "source_type": "gmaps_review", "source_id": "r1"},
+                            {"id": "b", "source_type": "gmaps_review", "source_id": "r2"}],
+           "ratings": [], "proposed": [], "voices": 1, "voices_targeted": 2, "stats": {}}
+    reviews = [{"review_id": "r1", "author_hash": "h1", "text": "Quán đẹp lắm"},
+               {"review_id": "r2", "author_hash": "h2", "text": "Leo dốc mệt"},
+               {"review_id": "r3", "author_hash": "h3", "text": "Spam spam liên hệ ngay"}]
+    samples = {"r2": "extremes", "r3": "extremes"}
+    out = tag_samples(prune(doc, reviews, {"r3"}), reviews, samples, {"r3"})
+    assert (out["voices"], out["voices_targeted"]) == (1, 1)
+    assert [o.get("sample") for o in out["observations"]] == [None, "extremes"]

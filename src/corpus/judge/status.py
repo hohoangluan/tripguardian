@@ -5,6 +5,8 @@ A report is a `condition_change` observation whose quote says the place stopped 
 The Judge (corpus.llm.PLACE_STATUS) weighs the reports against the newest reviews and the Maps status, by date; a
 closed / changed verdict takes a place out of serving, so the strong Judge is asked too and only agreement stands
 (otherwise unclear). A place is asked again only when its reports, newest reviews or the prompt change (note.fp).
+A place the Judge marked closed / changed / unclear whose reports are all gone now (observe re-ran, or qc pruned
+the reviews) goes back to open; a person's decision is never undone.
 """
 
 import asyncio
@@ -49,13 +51,19 @@ async def run(city: str) -> dict:
     async def one(f) -> str | None:
         doc = json.loads(f.read_text(encoding="utf-8"))
         reps = reports(doc)
+        old = done.get(doc["place_fid"])
         if not reps:
+            note = json.loads((old or {}).get("note") or "{}")
+            if old and old["decision"] != "open" and "model" in note:  # the Judge's, not a person's: reports gone
+                decide("place_status", doc["place_fid"], "open", json.dumps(
+                    {"reason": "no closure report left in the observations", "model": "rule", "fp": None,
+                     "reports": []}, ensure_ascii=False))
+                return "open"
             return None
         dates = {o["source_id"]: o["observed_at"] or "" for o in doc["observations"]}
         revs = newest_reviews(f.stem, dates)
         fp = hashlib.sha256(json.dumps([[o["id"] for o in reps], [r["review_id"] for r in revs],
                                         PLACE_STATUS.prompt_hash]).encode()).hexdigest()[:12]
-        old = done.get(doc["place_fid"])
         if old and json.loads(old.get("note") or "{}").get("fp") == fp:
             return "cached"
         place = json.loads((root / "places" / f.stem / "place.json").read_text(encoding="utf-8"))

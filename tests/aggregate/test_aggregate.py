@@ -313,3 +313,19 @@ def test_owner_counts_only_for_what_it_can_show():
 def test_photos_without_poster_share_one_voice():
     ph = [{**o(i, "scenic_view", "present", None), "source_type": "gmaps_photo"} for i in range(3)]
     assert aggregate_place([f(ph)], ONT)["features"]["scenic_view"]["n"] == 1
+
+
+def test_targeted_sample_counts_for_effort_and_facts_not_opinions():
+    low = {**o(2, "service_quality", "poor", "b"), "sample": "extremes"}
+    stairs = {**o(3, "steep_or_stairs", "present", "b"), "sample": "extremes"}
+    kw = {**o(4, "long_walk", "present", "c"), "sample": "keywords"}
+    doc = {**f([o(1, "service_quality", "good", "a"), low, stairs, kw],
+               ratings=[{"author": "a", "observed_at": RECENT, "stars": 5},
+                        {"author": "b", "observed_at": RECENT, "stars": 1, "sample": "extremes"}]),
+           "voices": 4, "voices_targeted": 2}
+    res = aggregate_place([doc], ONT)
+    sq = res["features"]["service_quality"]
+    assert sq["distribution"] == {"good": 1} and sq["mention_rate"] == 0.25  # opinion: newest / relevant voices only
+    assert res["features"]["steep_or_stairs"]["mention_rate"] == round(1 / 6, 3)  # effort: all voices
+    assert res["features"]["long_walk"]["n"] == 1
+    assert res["rating_trend"]["recent_n"] + res["rating_trend"]["older_n"] == 1

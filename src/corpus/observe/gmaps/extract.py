@@ -34,6 +34,7 @@ from .prep import batches, clean_text, is_junk, keep_for_llm, observed_at, stars
 DETAILS_EXTRACTOR = "details_rule@v2"
 RELEVANT_FILE = "reviews_relevant.json"  # written by corpus.crawl.gmaps.relevant
 EXTREMES_FILE = "reviews_extremes.json"  # written by corpus.crawl.gmaps.extremes
+KEYWORDS_FILE = "reviews_keywords.json"  # written by corpus.crawl.gmaps.keywords
 PASSAGE_CHARS = 1200  # review text shown to REVIEW_VERIFY around the quote
 VERDICTS = ("supports", "contradicts", "insufficient")
 SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
@@ -164,27 +165,77 @@ def extremes_reviews(doc: dict) -> list[dict]:
     return list({r["review_id"]: r for r in rows}.values())
 
 
-def load_reviews(place_dir: Path) -> list[dict]:
-    """reviews.json (newest) + reviews_relevant.json (Maps' most relevant, any age) + reviews_extremes.json (lowest /
-    highest rated, any age) not already in it."""
+def keywords_reviews(doc: dict) -> list[dict]:
+    """Every review of a reviews_keywords.json, keyword by keyword, de-duplicated by review_id."""
+    rows = [r for k in doc.get("keywords", {}).values() for r in k.get("reviews", [])]
+    return list({r["review_id"]: r for r in rows}.values())
+
+
+# reviews picked for what they say (corpus.observe.TARGETED), after the newest + most relevant ones
+TARGETED_FILES = (("extremes", EXTREMES_FILE, extremes_reviews), ("keywords", KEYWORDS_FILE, keywords_reviews))
+
+
+def load_samples(place_dir: Path) -> tuple[list[dict], dict[str, str]]:
+    """reviews.json (newest) + reviews_relevant.json (Maps' most relevant, any age) + the targeted files (lowest /
+    highest rated, keyword hits; any age) not already in them; and review_id -> sample for the targeted ones."""
     reviews = json.loads((place_dir / "reviews.json").read_text(encoding="utf-8"))
     extra = place_dir / RELEVANT_FILE
     if extra.exists():
         seen = {r["review_id"] for r in reviews}
         reviews += [r for r in json.loads(extra.read_text(encoding="utf-8"))["reviews"] if r["review_id"] not in seen]
-    low_high = place_dir / EXTREMES_FILE
-    if low_high.exists():
-        seen = {r["review_id"] for r in reviews}
-        reviews += [r for r in extremes_reviews(json.loads(low_high.read_text(encoding="utf-8"))) if r["review_id"] not in seen]
-    return reviews
+    samples = {}
+    for sample, name, read in TARGETED_FILES:
+        if (place_dir / name).exists():
+            seen = {r["review_id"] for r in reviews}
+            more = [r for r in read(json.loads((place_dir / name).read_text(encoding="utf-8"))) if r["review_id"] not in seen]
+            reviews += more
+            samples |= {r["review_id"]: sample for r in more}
+    return reviews, samples
+
+
+def load_reviews(place_dir: Path) -> list[dict]:
+    return load_samples(place_dir)[0]
+
+
+def spoke(r: dict) -> bool:
+    """A review whose words observe reads (details or text worth a call): its author is one of the place's voices."""
+    return bool(r.get("details")) or not is_junk(clean_text(r.get("text")))
+
+
+def tag_samples(doc: dict, reviews: list[dict], samples: dict[str, str], bad_ids: set[str]) -> dict:
+    """The observation file with `sample` on the observations and star ratings of targeted reviews, and the voices
+    split: `voices` = authors of the newest / relevant reviews read, `voices_targeted` = authors only a targeted
+    review adds. Idempotent: the total of both is split again."""
+    total = (doc.get("voices") or 0) + (doc.get("voices_targeted") or 0)
+    who = lambda r: r.get("author_hash") or r["review_id"]  # noqa: E731
+    read = [r for r in reviews if r["review_id"] not in bad_ids and spoke(r)]
+    base = {who(r) for r in read if r["review_id"] not in samples}
+    extra = {who(r) for r in read if r["review_id"] in samples} - base
+    by_author = {r.get("author_hash"): samples[r["review_id"]] for r in reviews
+                 if r["review_id"] in samples and r.get("author_hash") not in base}
+    obs = []
+    for o in doc["observations"]:
+        o = {k: v for k, v in o.items() if k != "sample"}
+        if o["source_type"] != "gmaps_attribute" and o["source_id"] in samples:
+            o["sample"] = samples[o["source_id"]]
+        obs.append(o)
+    ratings = []
+    for r in doc.get("ratings", []):
+        r = {k: v for k, v in r.items() if k != "sample"}
+        if r.get("author") in by_author:
+            r["sample"] = by_author[r["author"]]
+        ratings.append(r)
+    vt = min(len(extra), total)
+    return {**doc, "observations": obs, "ratings": ratings, "voices": total - vt, "voices_targeted": vt}
 
 
 def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
     h = hashlib.sha256((place_dir / "reviews.json").read_bytes())
     if (place_dir / RELEVANT_FILE).exists():
         h.update((place_dir / RELEVANT_FILE).read_bytes())
-    if (place_dir / EXTREMES_FILE).exists():
-        h.update((place_dir / EXTREMES_FILE).read_bytes())
+    for _, name, _ in TARGETED_FILES:
+        if (place_dir / name).exists():
+            h.update((place_dir / name).read_bytes())
     h.update(json.loads((place_dir / "place.json").read_text(encoding="utf-8"))["fetched_at"].encode())
     h.update(json.dumps(sorted(bad_ids)).encode())  # qc run after observe changes what goes to the model
     return h.hexdigest()[:16]
@@ -195,14 +246,14 @@ def prune(doc: dict, reviews: list[dict], bad_ids: set[str]) -> dict:
     star ratings, proposed features and voices go; attributes (not a review) stay."""
     gone = {r["review_id"] for r in reviews if r["review_id"] in bad_ids} - set(doc.get("qc_dropped") or [])
     authors = {r.get("author_hash") for r in reviews if r["review_id"] in gone} - {None}
-    spoke = {r.get("author_hash") or r["review_id"] for r in reviews if r["review_id"] in gone
-             and (r.get("details") or not is_junk(clean_text(r.get("text"))))}
+    silenced = {r.get("author_hash") or r["review_id"] for r in reviews if r["review_id"] in gone and spoke(r)}
+    total = (doc.get("voices") or 0) + (doc.get("voices_targeted") or 0)  # tag_samples splits it again
     return {**doc,
             "observations": [o for o in doc["observations"]
                              if o["source_type"] == "gmaps_attribute" or o["source_id"] not in gone],
             "ratings": [r for r in doc.get("ratings", []) if r.get("author") not in authors],
             "proposed": [x for x in doc.get("proposed", []) if x.get("source_id") not in gone],
-            "voices": max(0, (doc.get("voices") or 0) - len(spoke)),
+            "voices": max(0, total - len(silenced)), "voices_targeted": 0,
             "qc_dropped": sorted(bad_ids),
             "stats": {**doc.get("stats", {}), "qc_dropped": len(bad_ids)}}
 
@@ -249,7 +300,7 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
     place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
     if not place.get("category") and category:
         place["category"] = category
-    reviews = load_reviews(place_dir)
+    reviews, samples = load_samples(place_dir)
     fid, fetched = place["fid"], place["fetched_at"]
     obs, proposed, ratings = [], [], []
     seq = collections.Counter()
@@ -315,7 +366,8 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
         for ref, p in prop:
             proposed.append({"place_fid": fid, "source_id": refs[ref]["review_id"],
                              "author": refs[ref].get("author_hash"), **p})
-    return {"place_fid": fid, "place_name": place.get("name"), "as_of": fetched[:10], "observations": obs,
+    return tag_samples({
+            "place_fid": fid, "place_name": place.get("name"), "as_of": fetched[:10], "observations": obs,
             "proposed": proposed, "ratings": ratings,
             "place": {k: place.get(k) for k in ("category", "lat", "lng", "address")},
             "voices": len(voices),
@@ -323,7 +375,8 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
                             "price": parse_price(place.get("price")), "hours": parse_hours(place.get("hours")),
                             "closure": parse_closure(place.get("status")),
                             "tickets": parse_tickets(place.get("tickets"))},
-            "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}}
+            "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}},
+        reviews, samples, bad_ids)
 
 
 def relevant_pending(place_dir: Path) -> bool:
@@ -355,29 +408,51 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
         dirs = [d for d in dirs if not relevant_pending(d)]
     if limit is not None:
         dirs = dirs[:limit]
-    providers = await _providers()
-    if not providers:
-        raise SystemExit("no LLM endpoint reachable (UIT needs the campus network)")
-    slots = Slots(providers)
-    in_flight = asyncio.Semaphore(sum(p[2] for p in providers))  # places in progress: they finish (and save) steadily
-    model = ",".join(sorted({p[1] for p in providers}))
-    print(f"observe {city}: endpoints {', '.join(f'{p[1]} x{p[2]}' for p in providers)}")
     key = (cache_key(ont), ont.version)
 
-    async def one(d: Path) -> str:
+    def offline(d: Path) -> str | None:
+        """cached / tagged / pruned without the model, or None when the place needs the model."""
         target = out / f"{d.name}.json"
         bad_ids = bad_review_ids(root / "qc" / f"{d.name}.json")
         h = input_hash(d, bad_ids)
         if target.exists():
             old = json.loads(target.read_text(encoding="utf-8"))
             if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, *key):
-                return "cached"
+                if "voices_targeted" in old:
+                    return "cached"
+                write_json(target, tag_samples(old, *load_samples(d), bad_ids))  # built before samples were tagged
+                return "tagged"
             before = set(old.get("qc_dropped") or [])
             if (before <= bad_ids and (old.get("prompt_hash"), old.get("ontology_version")) == key
                     and old.get("input_hash") == input_hash(d, before)):
                 # same reviews, only new qc flags: their evidence leaves without asking the model again
-                write_json(target, {**prune(old, load_reviews(d), bad_ids), "input_hash": h, "built_at": now()})
+                reviews, samples = load_samples(d)
+                write_json(target, {**tag_samples(prune(old, reviews, bad_ids), reviews, samples, bad_ids),
+                                    "input_hash": h, "built_at": now()})
                 return "pruned"
+        return None
+
+    status = collections.Counter()
+    todo = []
+    for d in dirs:
+        s = offline(d)
+        if s:
+            status[s] += 1
+        else:
+            todo.append(d)
+    if todo:  # only places that need the model need the network (UIT)
+        providers = await _providers()
+        if not providers:
+            raise SystemExit("no LLM endpoint reachable (UIT needs the campus network)")
+        slots = Slots(providers)
+        in_flight = asyncio.Semaphore(sum(p[2] for p in providers))  # places in progress: they finish (and save) steadily
+        model = ",".join(sorted({p[1] for p in providers}))
+        print(f"observe {city}: endpoints {', '.join(f'{p[1]} x{p[2]}' for p in providers)}")
+
+    async def one(d: Path) -> str:
+        target = out / f"{d.name}.json"
+        bad_ids = bad_review_ids(root / "qc" / f"{d.name}.json")
+        h = input_hash(d, bad_ids)
         try:
             async with in_flight:
                 res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name))
@@ -391,7 +466,7 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
                             "model": model, "built_at": now(), "qc_dropped": sorted(bad_ids)})
         return "done"
 
-    status = collections.Counter(await asyncio.gather(*(one(d) for d in dirs)))
+    status.update(await asyncio.gather(*(one(d) for d in todo)))
     files = [json.loads((out / f"{d.name}.json").read_text(encoding="utf-8")) for d in dirs if (out / f"{d.name}.json").exists()]
     summary = {
         "at": now(), "places": len(dirs), "status": dict(status),

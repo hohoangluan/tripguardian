@@ -84,3 +84,24 @@ def test_closure_needs_the_strong_judge(monkeypatch):
             "w": {"decision": "closed", "note": ""}}
     monkeypatch.setattr(st, "decision_records", lambda kind: recs)
     assert st.verdicts() == {"x": "closed", "y": "unclear", "z": "unclear", "w": "closed"}
+
+
+def test_status_reopens_a_judge_verdict_whose_reports_are_gone(tmp_path, monkeypatch):
+    import asyncio
+    import json
+    st = importlib.import_module("corpus.judge.status")
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    obs = tmp_path / "gmaps" / "observations"
+    obs.mkdir(parents=True)
+    for fid in ("A", "B"):
+        (obs / f"{fid}.json").write_text(json.dumps({"place_fid": fid, "observations": []}), encoding="utf-8")
+    recs = {"A": {"decision": "unclear", "note": json.dumps({"model": "m"})},
+            "B": {"decision": "closed", "note": ""}}  # a person's decision
+    decided = []
+    monkeypatch.setattr(st, "decision_records", lambda kind: recs)
+    monkeypatch.setattr(st, "decide", lambda kind, id, d, note="": decided.append((id, d)))
+    monkeypatch.setattr(st, "load_config", lambda city: ("Đà Lạt", {}))
+    monkeypatch.setattr(type(st.PLACE_STATUS.role), "client",
+                        lambda self: (type("C", (), {"with_options": lambda s, **k: s})(), "m"))
+    summary = asyncio.run(st.run("dalat"))
+    assert decided == [("A", "open")] and summary["status"] == {"open": 1}

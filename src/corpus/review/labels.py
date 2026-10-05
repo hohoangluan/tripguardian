@@ -129,6 +129,11 @@ def _reviews(stem: str) -> dict[str, dict]:
         for kind in ("lowest", "highest"):
             for r in doc.get(kind, {}).get("reviews", []):
                 out.setdefault(r["review_id"], {**r, "list": kind})
+    f = place / "reviews_keywords.json"
+    if f.exists():
+        for word, hits in json.loads(f.read_text(encoding="utf-8")).get("keywords", {}).items():
+            for r in hits.get("reviews", []):
+                out.setdefault(r["review_id"], {**r, "list": f"keyword:{word}"})
     return out
 
 

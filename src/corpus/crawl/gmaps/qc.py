@@ -23,7 +23,7 @@ SAMPLE = 12  # reviews shown to PLACE_QC per place
 BATCH, BATCH_CHARS = 25, 9000  # reviews per REVIEW_QC call
 MIN_TEXT = 15  # shorter texts carry no claim worth screening (observe skips them too)
 BUSY_WAIT_S, BUSY_TRIES = 20, 45  # shared Gemma key (HTTP 429) or a dropped campus link: wait, do not fail
-FILES = ("reviews.json", "reviews_relevant.json", "reviews_extremes.json")
+FILES = ("reviews.json", "reviews_relevant.json", "reviews_extremes.json", "reviews_keywords.json")
 
 
 def checks(place: dict, reviews: list[dict], cfg: dict) -> list[str]:
@@ -50,7 +50,8 @@ def all_reviews(place_dir) -> list[dict]:
             continue
         doc = json.loads(f.read_text(encoding="utf-8"))
         rows = doc if isinstance(doc, list) else doc.get("reviews") or [
-            r for k in ("lowest", "highest") for r in doc.get(k, {}).get("reviews", [])]
+            r for k in ("lowest", "highest") for r in doc.get(k, {}).get("reviews", [])] + [
+            r for hits in doc.get("keywords", {}).values() for r in hits.get("reviews", [])]
         for r in rows:
             out.setdefault(r["review_id"], r)
     return list(out.values())
