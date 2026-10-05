@@ -29,13 +29,14 @@ from .. import observation
 from .details import day_type, details_pairs
 from .gate import BadAnswer, gate, norm
 from .place_rules import (AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times,
-                          parse_price, parse_tickets)
+                          parse_price, parse_tickets, parse_time_spent)
 from .prep import batches, clean_text, is_junk, keep_for_llm, observed_at, stars
 
 DETAILS_EXTRACTOR = "details_rule@v2"
 RELEVANT_FILE = "reviews_relevant.json"  # written by corpus.crawl.gmaps.relevant
 EXTREMES_FILE = "reviews_extremes.json"  # written by corpus.crawl.gmaps.extremes
 KEYWORDS_FILE = "reviews_keywords.json"  # written by corpus.crawl.gmaps.keywords
+VISIT_FILE = "visit.json"  # written by corpus.crawl.gmaps.visit
 PASSAGE_CHARS = 1200  # review text shown to REVIEW_VERIFY around the quote
 VERDICTS = ("supports", "contradicts", "insufficient")
 SPAN_CHECK_VERSION = "span_check@v2"  # claim = ontology claims[value] + quote
@@ -237,6 +238,8 @@ def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
     for _, name, _ in TARGETED_FILES:
         if (place_dir / name).exists():
             h.update((place_dir / name).read_bytes())
+    if (place_dir / VISIT_FILE).exists():
+        h.update((place_dir / VISIT_FILE).read_bytes())
     h.update(json.loads((place_dir / "place.json").read_text(encoding="utf-8"))["fetched_at"].encode())
     h.update(json.dumps(sorted(bad_ids)).encode())  # qc run after observe changes what goes to the model
     return h.hexdigest()[:16]
@@ -293,6 +296,11 @@ def listed_category(item: dict) -> str | None:
     """The search list's category; Maps sometimes puts the street address there ("263 Đ. Bùi Thị Xuân")."""
     c = (item.get("category") or "").strip()
     return c if c and not c[0].isdigit() else None
+
+
+def time_spent(place_dir: Path) -> dict | None:
+    f = place_dir / VISIT_FILE
+    return parse_time_spent(json.loads(f.read_text(encoding="utf-8")).get("text")) if f.exists() else None
 
 
 def text_key(text: str) -> str:
@@ -408,7 +416,8 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
             "place_facts": {"popular_times": parse_popular_times(place.get("popular_times")),
                             "price": parse_price(place.get("price")), "hours": parse_hours(place.get("hours")),
                             "closure": parse_closure(place.get("status")),
-                            "tickets": parse_tickets(place.get("tickets"))},
+                            "tickets": parse_tickets(place.get("tickets")),
+                            "time_spent": time_spent(place_dir)},
             "read": read,
             "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "reused": len(reuse), "batches": len(parts),
                       "dropped": dict(dropped)}},

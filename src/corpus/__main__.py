@@ -15,7 +15,7 @@ from .aggregate import run as aggregate_run
 from .serving import run as serving_run
 from . import build, judge
 from .review import server as review_server
-from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, keywords as gmaps_keywords, search as gmaps_search
+from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, keywords as gmaps_keywords, visit as gmaps_visit, search as gmaps_search
 from .observe import gmaps as gmaps_observe
 from .observe.gmaps import photos as gmaps_photo_observe
 from .observe import tiktok as tiktok_observe
@@ -40,7 +40,7 @@ PHASES = {  # source -> phase -> (run, needs a browser)
     "gmaps": {"search": (gmaps_search.run, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
               "list": (gmaps_list.run, False),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "extremes": (gmaps_extremes.run, True),
-              "keywords": (gmaps_keywords.run, True),
+              "keywords": (gmaps_keywords.run, True), "visit": (gmaps_visit.run, True),
               "photos": (gmaps_photos.run, True), "qc": (gmaps_qc.run, False),
               "observe": (gmaps_observe.run, False), "photo_observe": (gmaps_photo_observe.run, False)},
     "official": {"pages": (official_pages.run, True), "observe": (official_observe.run, False)},
@@ -56,7 +56,7 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
         fn, browser_phase = PHASES[source][p]
         if browser_phase and source == "tiktok":
             out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}))
-        elif browser_phase and p in ("photos", "extremes", "keywords", "pages"):
+        elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages"):
             out = fn(city, headed, limit=limit)
         elif browser_phase:
             out = fn(city, headed)

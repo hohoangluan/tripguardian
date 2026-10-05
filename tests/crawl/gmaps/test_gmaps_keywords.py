@@ -2,15 +2,20 @@ import json
 
 from corpus.crawl.gmaps import keywords, photos
 
-GROUPS = {"nature", "attraction", "cafe"}
+SETS = [{"words": ["dốc", "đi bộ"], "groups": ["nature", "attraction"]}, {"words": ["vé"], "groups": ["nature"]},
+        {"words": ["đặt bàn"], "groups": ["restaurant"]}]
 
 
-def test_keywords_only_for_experience_places_with_reviews_left():
+def test_each_place_gets_the_words_of_its_category_group_and_only_new_ones(tmp_path):
     lake = {"category": "Hồ", "review_count": "1.234 bài đánh giá"}
     assert keywords.category_group("Thác nước") == "nature" and keywords.category_group("Nhà hàng") == "restaurant"
-    assert keywords.wanted(lake, 200, GROUPS)
-    assert not keywords.wanted(lake, 1234, GROUPS)  # crawl already kept every review
-    assert not keywords.wanted({"category": "Nhà hàng", "review_count": "900 bài đánh giá"}, 200, GROUPS)
+    assert keywords.words_for(lake, 200, SETS) == ["dốc", "đi bộ", "vé"]
+    assert keywords.words_for(lake, 1234, SETS) == []  # crawl already kept every review
+    assert keywords.words_for({"category": "Nhà hàng", "review_count": "900 bài đánh giá"}, 200, SETS) == ["đặt bàn"]
+    f = tmp_path / "reviews_keywords.json"
+    f.write_text(json.dumps({"keywords": {"dốc": {"complete": True, "reviews": []},
+                                          "đi bộ": {"complete": True, "reviews": []}}}), encoding="utf-8")
+    assert keywords.missing(f, ["dốc", "đi bộ", "vé"]) == ["vé"]
 
 
 def test_sights_want_more_photos_and_a_capped_old_file_is_fetched_again(tmp_path):

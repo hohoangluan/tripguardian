@@ -230,7 +230,8 @@ def test_attributes_and_place_facts(tmp_path, monkeypatch):
                     "2026-09-30")]
     assert res["place_facts"] == {"popular_times": {"sun": {"9": 40}},
                                   "price": {"min_vnd": 1, "max_vnd": 100000, "per": "person", "reports": 9},
-                                  "hours": {"mon": [["07:00", "21:00"]]}, "closure": "temporary", "tickets": None}
+                                  "hours": {"mon": [["07:00", "21:00"]]}, "closure": "temporary", "tickets": None,
+                                  "time_spent": None}
     assert res["place"] == {"category": "Quán cà phê", "lat": 11.9, "lng": 108.4, "address": None}
     assert res["voices"] == 0
     assert calls == []

@@ -101,3 +101,25 @@ def parse_hours(raw: list[str] | None) -> dict | None:
 
 def parse_closure(status: str | None) -> str | None:
     return CLOSURE.get((status or "").strip())
+
+
+_SPENT_NUM = re.compile(r"(\d+(?:[.,]\d+)?)\s*(giờ|tiếng|phút)?")
+
+
+def parse_time_spent(text: str | None) -> dict | None:
+    """Maps' "Mọi người thường dành 1-2,5 giờ ở đây" / "tối đa 1 giờ" / "45 phút" -> {min_minutes, max_minutes};
+    a bare number takes the unit after it ("1-2,5 giờ"); "tối đa X" -> half of X to X. None when no amount."""
+    t = (text or "").casefold()
+    if "thường dành" not in t:
+        return None
+    nums = _SPENT_NUM.findall(t.split("thường dành", 1)[1])
+    if not nums:
+        return None
+    out, unit = [], None
+    for value, u in reversed(nums):  # the unit is written once, after the last number
+        unit = u or unit or "giờ"
+        out.append(float(value.replace(",", ".")) * (1 if unit == "phút" else 60))
+    xs = sorted(round(x) for x in out)
+    if "tối đa" in t:
+        return {"min_minutes": max(1, xs[-1] // 2), "max_minutes": xs[-1]}
+    return {"min_minutes": xs[0], "max_minutes": xs[-1]}

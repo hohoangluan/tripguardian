@@ -79,3 +79,12 @@ def test_tickets_first_usd_price():
     raw = "Vé vào cửa\nThông tin về những kết quả này\nVườn Thú ZooDoo \nTrang web chính thức\n5,78 US$\nCó thể phát sinh"
     assert parse_tickets(raw) == {"usd": 5.78}
     assert parse_tickets(None) is None and parse_tickets("None") is None
+
+
+def test_time_spent_line_becomes_a_range_in_minutes():
+    from corpus.observe.gmaps.place_rules import parse_time_spent as p
+    assert p("Mọi người thường dành tối đa 1 giờ ở đây") == {"min_minutes": 30, "max_minutes": 60}
+    assert p("Mọi người thường dành 1-2,5 giờ ở đây") == {"min_minutes": 60, "max_minutes": 150}
+    assert p("Mọi người thường dành 15 phút - 1 giờ ở đây") == {"min_minutes": 15, "max_minutes": 60}
+    assert p("Mọi người thường dành 45 phút ở đây") == {"min_minutes": 45, "max_minutes": 45}
+    assert p(None) is None and p("Thường đông vào buổi tối") is None

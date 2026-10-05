@@ -1,12 +1,14 @@
-"""Phase keywords: reviews that Maps' own review search finds for effort words -> data/gmaps/places/<fid_dir>/reviews_keywords.json.
+"""Phase keywords: reviews that Maps' own review search finds for given words -> data/gmaps/places/<fid_dir>/reviews_keywords.json.
 
-Reviews rarely mention slopes, stairs, walks or the road in, and almost nobody writes "no climbing", so newest +
-relevant + extremes leave most experience places without effort evidence. The search box of the place's review
-list ("Tìm kiếm bài đánh giá") returns the reviews containing a word; each of `review_keywords` is searched and its
-first `keyword_reviews_per_word` hits kept. Only places of an experience category group (`keyword_groups`, config/
-category_defaults.yaml) that show more reviews than crawl kept are opened. A word's list is complete at n hits or
-at Maps' end-of-list signal (no hit: Maps says NO_HIT; checked on the live page 2026-10-05); observe merges the file by review_id and tags
-its reviews `sample = keywords` (they count only for effort and facts, docs/CORPUS.md §5). Written once per place.
+Reviews rarely mention slopes, stairs, walks, who a place suits, tickets or booking unprompted, so newest + relevant +
+extremes leave many filters without evidence. The search box of the place's review list ("Tìm bài đánh giá") returns
+the reviews containing a word. `keyword_sets` pairs words with category groups (config/category_defaults.yaml):
+effort and who-it-suits words for experience places, "vé" for places that sell entry, booking words for places to
+eat. A place's words are searched and the first `keyword_reviews_per_word` hits of each kept. Only places that show
+more reviews than crawl kept are opened, and only for words not searched yet (a new set adds its words to the
+existing file). A word's list is complete at n hits or at Maps' end-of-list signal (no hit: Maps says NO_HIT;
+checked on the live page 2026-10-05); observe merges the file by review_id and tags its reviews
+`sample = keywords` (they count only for effort and facts, docs/CORPUS.md §5).
 """
 
 import asyncio
@@ -36,9 +38,19 @@ def category_group(category: str | None) -> str:
     return group(category)["id"]
 
 
-def wanted(place: dict, n_kept: int, groups: set[str]) -> bool:
-    total = count(place.get("review_count")) or 0
-    return total > n_kept and category_group(place.get("category")) in groups
+def words_for(place: dict, n_kept: int, sets: list[dict]) -> list[str]:
+    """The words of every keyword set whose groups hold the place's category group; none when crawl already kept
+    every review Maps shows (a search would find nothing new)."""
+    if (count(place.get("review_count")) or 0) <= n_kept:
+        return []
+    g = category_group(place.get("category"))
+    return list(dict.fromkeys(w for s in sets if g in s["groups"] for w in s["words"]))
+
+
+def missing(path, words: list[str]) -> list[str]:
+    """Words not searched yet for this place (a file written with fewer keyword sets gets the new words only)."""
+    done = json.loads(path.read_text(encoding="utf-8")).get("keywords", {}) if path.exists() else {}
+    return [w for w in words if w not in done]
 
 
 async def search(page: Page, word: str, n: int) -> tuple[list[dict], bool]:
@@ -101,7 +113,8 @@ async def _place(ctx: BrowserContext, d, url: str, words, n: int, root, c: dict,
                 found = await scrape_keywords(ctx, url, words, n, gap)
                 if not all(v["complete"] for v in found.values()) and attempt < ATTEMPTS:
                     raise RuntimeError("keyword reviews incomplete: a list stopped loading without its end signal")
-                write_json(d / FILE, {"fetched_at": now(), "keywords": found})
+                old = json.loads((d / FILE).read_text(encoding="utf-8")) if (d / FILE).exists() else {}
+                write_json(d / FILE, {"fetched_at": now(), "keywords": {**old.get("keywords", {}), **found}})
                 throttle.success()
                 return
             except LoginRequired:
@@ -121,18 +134,18 @@ async def _place(ctx: BrowserContext, d, url: str, words, n: int, root, c: dict,
 async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
-    words, n = c.get("review_keywords", []), c.get("keyword_reviews_per_word", 20)
-    groups = set(c.get("keyword_groups", []))
+    sets, n = c.get("keyword_sets", []), c.get("keyword_reviews_per_word", 20)
     listed = root / "list" / f"{city}.json"
     keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]} if listed.exists() else None
     todo = []
     for f in sorted((root / "places").glob("*/place.json")):
-        if (f.parent / FILE).exists() or (keep is not None and f.parent.name not in keep):
+        if keep is not None and f.parent.name not in keep:
             continue
         place = json.loads(f.read_text(encoding="utf-8"))
         kept = json.loads((f.parent / "reviews.json").read_text(encoding="utf-8"))
-        if wanted(place, len(kept), groups):
-            todo.append((f.parent, place["url"]))
+        words = missing(f.parent / FILE, words_for(place, len(kept), sets))
+        if words:
+            todo.append((f.parent, place["url"], words))
     todo = todo[:limit]
     print(f"keywords {city}: {len(todo)} places left")
     throttle = Throttle(root / "keywords_throttle.json", start=c.get("keyword_tabs_start", 4), hi=c.get("keyword_tabs", 8),
@@ -141,9 +154,9 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:
-                for d, url in todo:
+                for d, url, words in todo:
                     tg.create_task(_place(ctx, d, url, words, n, root, c, throttle))
         except* LoginRequired as eg:
             raise eg.exceptions[0] from None
-    done = sum((d / FILE).exists() for d, _ in todo)
+    done = sum(not missing(d / FILE, words) for d, _, words in todo)
     print(f"keywords {city}: {done}/{len(todo)} done, the rest in errors.jsonl")

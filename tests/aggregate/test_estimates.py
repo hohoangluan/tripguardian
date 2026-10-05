@@ -57,3 +57,11 @@ def test_entry_fee_prefers_recent_quotes():
     obs = [ob(1, "vé 20k", "2019-05-01"), ob(2, "vé 50k", "2026-05-01"), ob(3, "giá vé 60k", "2026-08-01")]
     fee = entry_fee(obs)
     assert (fee["min_vnd"], fee["max_vnd"], fee["n"]) == (50000, 60000, 2)
+
+
+def test_maps_time_spent_wins_over_reviews_and_defaults():
+    from corpus.aggregate.estimates import visit_minutes
+    signal = {"n": 5, "status": "signal", "top_value": "half_day"}
+    v = visit_minutes("Thác", signal, {"min_minutes": 60, "max_minutes": 150})
+    assert v == {"short": 60, "typical": 105, "long": 150, "source": "maps_time_spent", "n": 0}
+    assert visit_minutes("Thác", signal)["source"] == "reviews"
