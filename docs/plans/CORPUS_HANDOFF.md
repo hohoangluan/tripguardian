@@ -30,10 +30,12 @@ Kiểm bằng `Get-CimInstance Win32_Process -Filter "Name='python.exe'"`. Chỉ
 
 ## Việc tiếp theo, theo thứ tự
 
-1. **Khi `gmaps_chain2.log` có `VISIT_CHECK_FAILED`:** mở một trang có biểu đồ giờ cao điểm bằng profile gmaps, tìm
-   đúng câu Maps in (regex `_LINE_JS` trong `src/corpus/crawl/gmaps/visit.py`, parser `parse_time_spent` trong
-   `src/corpus/observe/gmaps/place_rules.py`), sửa, xóa `data/gmaps/places/*/visit.json`, chạy lại
-   `python -m corpus gmaps visit`. Nếu có dòng đọc được: kiểm vài `visit.json` khớp trang thật.
+1. **`gmaps visit` không dùng được (kiểm 2026-10-05):** Maps (tài khoản này, Đà Lạt) không in dòng "Mọi người thường
+   dành … ở đây" — đã mở ZooDoo (10.717 review), spa, vườn, và thử 30 nơi: chỉ có biểu đồ giờ đông. Không chạy phase
+   này; thời gian tham quan vẫn từ review / mặc định. Gợi ý thay: tab **"Vé"** trên trang Maps có giá vé người lớn
+   (vd. ZooDoo 151.200 ₫ + giá trang chính thức) — nguồn giá vé đáng crawl.
+   Chuỗi Maps hiện tại: `logs/gmaps_chain3.sh` (headed, người giải captcha trong cửa sổ): keywords → photos →
+   extremes, dấu `GMAPS_CHAIN3_DONE`. Chuỗi 1–2 đã dừng giữa chừng vì Google đòi đăng nhập/captcha.
 2. **Khi cả hai chuỗi xong và `logs/judge_chain.log` có `JUDGE_CHAIN_DONE`:**
    `python -m corpus build --city dalat` (đầy đủ). `gmaps qc` chỉ gọi Gemma cho review mới; `gmaps observe` chỉ đọc
    review mới; Judge chỉ chấm nhận định chưa có nhãn.

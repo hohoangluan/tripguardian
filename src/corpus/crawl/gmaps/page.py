@@ -2,7 +2,7 @@
 
 from playwright.async_api import BrowserContext, Page
 
-from ..common.browser import LoginRequired, is_captcha
+from ..common.browser import LoginRequired, is_captcha, wait_for_person
 
 
 async def ensure_login(ctx: BrowserContext) -> None:
@@ -27,9 +27,12 @@ async def open_page(page: Page, url: str, selector: str, signed_in: bool = True)
     try:
         await page.wait_for_selector(selector, timeout=20000)
     except Exception:
-        if await is_captcha(page) or "sorry" in page.url:
+        if not (await is_captcha(page) or "sorry" in page.url):
+            raise
+        await wait_for_person(page, "gmaps")  # headed: a person solves it in the window (5 min); headless: stop
+        if "sorry" in page.url:
             raise LoginRequired("gmaps")
-        raise
+        await page.wait_for_selector(selector, timeout=20000)
     if signed_in:
         await check_signed_in(page)
 

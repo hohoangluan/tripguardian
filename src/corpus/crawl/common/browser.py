@@ -13,7 +13,8 @@ LOGIN_URL = {
     "tiktok": "https://www.tiktok.com/login",
     "gmaps": "https://accounts.google.com/ServiceLogin?continue=https://www.google.com/maps",
 }
-_CAPTCHA = re.compile(r"Kéo thanh trượt|Drag the slider|Verify to continue|Xác minh để tiếp tục")
+_CAPTCHA = re.compile(r"Kéo thanh trượt|Drag the slider|Verify to continue|Xác minh để tiếp tục"
+                      r"|unusual traffic|lưu lượng truy cập bất thường")  # last two: Google /sorry/ page
 
 
 _ua: dict = {}
