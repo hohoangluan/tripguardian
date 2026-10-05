@@ -25,8 +25,8 @@ Kiểm bằng `Get-CimInstance Win32_Process -Filter "Name='python.exe'"`. Chỉ
 |---|---|---|---|
 | `logs/gmaps_chain.sh`: `gmaps keywords` → `gmaps photos` → `gmaps extremes` | `logs/gmaps_chain.log` | `GMAPS_CHAIN_DONE` | Giữ profile `.browser/gmaps`; không chạy phase gmaps có trình duyệt khác cùng lúc |
 | `logs/gmaps_chain2.sh`: chờ dấu trên → `gmaps visit --limit 30` (thử) → `gmaps visit` → `gmaps keywords` (từ mới) | `logs/gmaps_chain2.log` | `GMAPS_CHAIN2_DONE` | Thử 30 nơi không đọc được dòng nào → in `VISIT_CHECK_FAILED`, bỏ qua visit toàn bộ |
-| `corpus build --skip "gmaps qc" judge tiktok` (lượt tạm) | `logs/build_interim.log` | dòng `build dalat: done` | Chạy bằng code cũ: đọc lại toàn bộ review của nơi có keywords |
-| Judge audit (session khác) | `logs/judge_chain.log` | — | Chờ quota Codex; **không dừng** tiến trình có `corpus.judge.audit` |
+| `corpus build --skip judge tiktok` (lượt tạm, code mới) | `logs/build_interim2.log` | dòng `build dalat: done` | Không gọi Judge; lượt cũ `build_interim.log` đã dừng sau khi đọc lại toàn bộ 47 nơi |
+| Judge audit (session khác, `mlai-12`) | `logs/judge_chain.log` | `JUDGE_CHAIN_DONE` | Dùng quota Codex; **không dừng** tiến trình có `corpus.judge.audit`, không chạy `build` đầy đủ hay `judge audit` trước dấu này (hai audit cùng lúc tốn gấp đôi quota, ghi nhãn trùng) |
 
 ## Việc tiếp theo, theo thứ tự
 
@@ -34,7 +34,7 @@ Kiểm bằng `Get-CimInstance Win32_Process -Filter "Name='python.exe'"`. Chỉ
    đúng câu Maps in (regex `_LINE_JS` trong `src/corpus/crawl/gmaps/visit.py`, parser `parse_time_spent` trong
    `src/corpus/observe/gmaps/place_rules.py`), sửa, xóa `data/gmaps/places/*/visit.json`, chạy lại
    `python -m corpus gmaps visit`. Nếu có dòng đọc được: kiểm vài `visit.json` khớp trang thật.
-2. **Khi cả hai chuỗi xong và quota Judge đã hồi** (audit của session kia chạy xong):
+2. **Khi cả hai chuỗi xong và `logs/judge_chain.log` có `JUDGE_CHAIN_DONE`:**
    `python -m corpus build --city dalat` (đầy đủ). `gmaps qc` chỉ gọi Gemma cho review mới; `gmaps observe` chỉ đọc
    review mới; Judge chỉ chấm nhận định chưa có nhãn.
 3. **Sau build:** đo lại khoảng trống trên nơi trải nghiệm của `data/serving/places.json` (dốc / đi bộ xa / người lớn
