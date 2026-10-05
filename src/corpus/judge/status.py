@@ -86,3 +86,16 @@ async def run(city: str) -> dict:
     summary = {"at": now(), "reported": len(got), "status": {s: got.count(s) for s in sorted(set(got))}}
     print(f"judge status {city}: {json.dumps(summary, ensure_ascii=False)}")
     return summary
+
+
+def verdicts() -> dict[str, str]:
+    """fid -> place status that may act: closed / changed only when the strong Judge agreed (or a person decided);
+    a single Judge's closed / changed counts as unclear."""
+    out = {}
+    for fid, rec in decision_records("place_status").items():
+        note = json.loads(rec.get("note") or "{}")
+        d = rec["decision"]
+        if d in ("closed", "changed") and "model" in note and (note.get("strong") or {}).get("status") != d:
+            d = "unclear"
+        out[fid] = d
+    return out

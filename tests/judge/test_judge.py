@@ -64,9 +64,23 @@ def test_dedup_candidates_need_close_pins_and_shared_name():
 
 def test_merges_resolve_chains(monkeypatch):
     import json
-    recs = {"a|b": {"decision": "same_place", "note": json.dumps({"canonical": "a"})},
-            "b|c": {"decision": "same_place", "note": json.dumps({"canonical": "b"})},
-            "d|e": {"decision": "part_of", "note": "{}"}}
+    strong = {"relation": "same_place"}
+    recs = {"a|b": {"decision": "same_place", "note": json.dumps({"canonical": "a", "model": "m", "strong": strong})},
+            "b|c": {"decision": "same_place", "note": json.dumps({"canonical": "b", "model": "m", "strong": strong})},
+            "d|e": {"decision": "part_of", "note": "{}"},
+            "f|g": {"decision": "same_place", "note": json.dumps({"canonical": "f", "model": "m"})}}
     monkeypatch.setattr(dedup_mod, "decision_records", lambda kind: recs)
     m = merges()
     assert m.get("b") == "a" and m.get("c") == "a" and "d" not in m
+    assert "g" not in m  # one Judge alone does not merge
+
+
+def test_closure_needs_the_strong_judge(monkeypatch):
+    import json
+    st = importlib.import_module("corpus.judge.status")
+    recs = {"x": {"decision": "closed", "note": json.dumps({"model": "m", "strong": {"status": "closed"}})},
+            "y": {"decision": "closed", "note": json.dumps({"model": "m"})},
+            "z": {"decision": "changed", "note": json.dumps({"model": "m", "strong": {"status": "open"}})},
+            "w": {"decision": "closed", "note": ""}}
+    monkeypatch.setattr(st, "decision_records", lambda kind: recs)
+    assert st.verdicts() == {"x": "closed", "y": "unclear", "z": "unclear", "w": "closed"}

@@ -5,7 +5,7 @@ import json
 from datetime import date
 
 from ..crawl.common.files import data_dir, now, write_json
-from ..review import decisions
+from ..judge import place_verdicts
 from .groups import areas, near_duplicate_groups
 from .record import SERVED, build
 
@@ -15,7 +15,7 @@ def run(city: str) -> dict:
     root = data_dir()
     built = date.today()
     records, disabled = [], collections.Counter()
-    judged = decisions("place_status")
+    judged = place_verdicts()
     for p in sorted((root / "intel" / "places").glob("*.json")):
         intel = json.loads(p.read_text(encoding="utf-8"))
         rec = build(intel, built, judged.get(intel["place_fid"]))

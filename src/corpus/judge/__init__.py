@@ -7,8 +7,8 @@ dedup   two Maps entries of one real place -> decisions kind place_merge (aggreg
 
 from .audit import run as audit
 from .dedup import merges, run as dedup
-from .status import run as status
+from .status import run as status, verdicts as place_verdicts
 
 PHASES = {"audit": audit, "status": status, "dedup": dedup}
 
-__all__ = ["PHASES", "audit", "dedup", "merges", "status"]
+__all__ = ["PHASES", "audit", "dedup", "merges", "place_verdicts", "status"]

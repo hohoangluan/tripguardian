@@ -110,6 +110,11 @@ async def run(city: str) -> dict:
     return summary
 
 
+def confirmed(note: dict) -> bool:
+    """A merge stands only when the strong Judge agreed (note.strong), or a person decided (no model in the note)."""
+    return "model" not in note or (note.get("strong") or {}).get("relation") == "same_place"
+
+
 def merges() -> dict[str, str]:
     """fid -> canonical fid for every Judge same_place pair (chains resolved: a=b, b=c -> all to one)."""
     parent: dict[str, str] = {}
@@ -121,10 +126,11 @@ def merges() -> dict[str, str]:
 
     canon: dict[str, str] = {}
     for pair, rec in decision_records("place_merge").items():
-        if rec["decision"] != "same_place":
+        note = json.loads(rec.get("note") or "{}")
+        if rec["decision"] != "same_place" or not confirmed(note):
             continue
         a, b = pair.split("|")
-        c = json.loads(rec.get("note") or "{}").get("canonical") or a
+        c = note.get("canonical") or a
         ra, rb = root(a), root(b)
         keep = root(c) if root(c) in (ra, rb) else ra
         for r in (ra, rb):
