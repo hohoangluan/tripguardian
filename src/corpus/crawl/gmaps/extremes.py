@@ -15,7 +15,7 @@ from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import data_dir, load_config, log_error, now, write_json
 from ..common.throttle import Throttle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, SORT_BUTTON, count, parse_reviews
-from .page import ensure_login, more, open_page
+from .page import ensure_login, more, open_page, text_only
 
 FILE = "reviews_extremes.json"
 ATTEMPTS = 2
@@ -117,6 +117,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
     throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     async with profile("gmaps", headed) as ctx:
+        await text_only(ctx)
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:

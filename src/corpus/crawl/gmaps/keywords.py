@@ -21,7 +21,7 @@ from ...categories import group
 from ..common.files import data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, count, parse_reviews
-from .page import ensure_login, more, open_page
+from .page import ensure_login, more, open_page, text_only
 
 FILE = "reviews_keywords.json"
 ATTEMPTS = 2
@@ -151,6 +151,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
     throttle = Throttle(root / "keywords_throttle.json", start=c.get("keyword_tabs_start", 4), hi=c.get("keyword_tabs", 8),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     async with profile("gmaps", headed) as ctx:
+        await text_only(ctx)
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:

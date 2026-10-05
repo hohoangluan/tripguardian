@@ -2,13 +2,25 @@
 
 from playwright.async_api import BrowserContext, Page
 
-from ..common.browser import LoginRequired, is_captcha, wait_for_person
+import asyncio
+import re
+
+from ..common.browser import LoginRequired, is_captcha
 
 
 async def ensure_login(ctx: BrowserContext) -> None:
     # Logged-out Maps is "limited view": no reviews tab, no popular times.
     if not any(c["name"] == "SID" for c in await ctx.cookies("https://www.google.com")):
         raise LoginRequired("gmaps")
+
+
+# Map tiles, photos, avatars and fonts: phases reading text only (keywords, extremes) skip them. A rendered map
+# costs ~700 MB per headless tab (2026-10-05); only matching URLs reach the handler, the rest load untouched.
+_PICTURES = re.compile(r"/maps/vt|/kh/v|googleusercontent\.com|\.(png|jpe?g|gif|webp|woff2?)(\?|$)|/maps/.*tactile")
+
+
+async def text_only(ctx: BrowserContext) -> None:
+    await ctx.route(_PICTURES, lambda route: route.abort())
 
 
 SIGN_IN_LINK = 'a[href*="accounts.google.com/ServiceLogin"]'
@@ -22,6 +34,18 @@ async def check_signed_in(page: Page) -> None:
         raise LoginRequired("gmaps")
 
 
+async def _wait_unblocked(page: Page, wait_s: int = 300) -> None:
+    """Google's block page (/sorry/, a captcha): headed, a person solves it in the window; headless stops."""
+    if getattr(page.context, "headless", False):
+        raise LoginRequired("gmaps")
+    print("gmaps: captcha in the browser window, solve it to continue (waiting %ds)..." % wait_s)
+    for _ in range(wait_s):
+        await asyncio.sleep(1)
+        if "sorry" not in page.url and not await is_captcha(page):
+            return
+    raise LoginRequired("gmaps")
+
+
 async def open_page(page: Page, url: str, selector: str, signed_in: bool = True) -> None:
     await page.goto(url, wait_until="domcontentloaded")
     try:
@@ -29,9 +53,7 @@ async def open_page(page: Page, url: str, selector: str, signed_in: bool = True)
     except Exception:
         if not (await is_captcha(page) or "sorry" in page.url):
             raise
-        await wait_for_person(page, "gmaps")  # headed: a person solves it in the window (5 min); headless: stop
-        if "sorry" in page.url:
-            raise LoginRequired("gmaps")
+        await _wait_unblocked(page)
         await page.wait_for_selector(selector, timeout=20000)
     if signed_in:
         await check_signed_in(page)

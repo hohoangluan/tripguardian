@@ -35,7 +35,7 @@ gmaps:
   search_tabs_start: 2  # first run only
   min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
   same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
-  tabs: 10  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
+  tabs: 12  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
   tabs_start: 3  # first run only
   cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 10
@@ -54,13 +54,13 @@ gmaps:
     - words: ["đặt bàn", "đặt trước"]  # booking
       groups: [restaurant, cafe, bar]
   keyword_reviews_per_word: 20  # first hits per word; merged by observe as sample "keywords" (effort / facts only)
-  keyword_tabs: 10  # 12 drew a Google captcha (2026-10-05); max parallel place tabs for keywords (own throttle file data/gmaps/keywords_throttle.json)
-  keyword_tabs_start: 8  # first run only
+  keyword_tabs: 12  # RAM: ~400 MB per tab + ~1 GB GPU process; 13 filled 15.6 GB with the rest of the machine. 12 drew a captcha headless (2026-10-05); gmaps_runner.py reopens headed for a person
+  keyword_tabs_start: 10  # first run only
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews
   photo_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum]
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
-  photo_tabs: 10  # max parallel place tabs for photos (own throttle file)
+  photo_tabs: 10  # photos render many images: 10 headed tabs took ~7.5 GB (2026-10-05)
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
     start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
     max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time
