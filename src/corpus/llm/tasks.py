@@ -974,7 +974,10 @@ Verdicts:
 Accept clear paraphrases and direct implications, not only the definition's words: "hợp nhóm bạn, gia đình" or "đi
 đoàn thoải mái" is suitable for groups; "nhiều bậc thang, không hợp người khó di chuyển" is unsuitable for wheelchairs;
 a child happily doing the place's activity there is suitable for kids; a review that bought an entry or tour ticket
-proves it is paid. Judge each item on its own source. Reason: at most 15 words.
+proves it is paid; a trip made to hunt clouds at the place supports cloud hunting even on a day without clouds.
+Stairs: a flight of about five or more steps visitors must climb (to enter, to the seats, through the site) is
+steep_or_stairs present, the same in words or in a picture; one or two steps are not.
+Judge each item on its own source. Reason: at most 15 words.
 
 Items:
 {items}"""
