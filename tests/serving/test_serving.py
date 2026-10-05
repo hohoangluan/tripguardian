@@ -101,3 +101,13 @@ def test_place_status_from_maps_closure_then_judge():
     assert place_status(None, "changed") == ("DISABLED", "judge_changed")
     assert place_status(None, "unclear") == ("UNCERTAIN", "closure_reported")
     assert place_status(None, None) == ("VERIFIED", None)
+
+
+def test_hours_that_disagree_are_uncertain_and_official_fee_is_a_fact():
+    from datetime import date
+    from corpus.serving.record import _hours
+    op = {"hours": {"mon": [["08:00", "18:00"]]}, "hours_source": "official",
+          "hours_conflict": {"mon": [["07:00", "17:00"]]}}
+    h = _hours(op, date(2026, 10, 1), date(2026, 10, 5))
+    assert h["status"] == "UNCERTAIN" and h["source"] == "official" and h["conflict"] == {"mon": [["07:00", "17:00"]]}
+    assert _hours({**op, "hours_conflict": None}, date(2026, 10, 1), date(2026, 10, 5))["status"] == "VERIFIED"

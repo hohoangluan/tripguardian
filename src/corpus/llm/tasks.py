@@ -1051,3 +1051,55 @@ Distance between pins: {meters} m""",
 # a second, stronger opinion before a place leaves serving or two places become one (corpus.judge status / dedup)
 PLACE_STATUS_STRONG = replace(PLACE_STATUS, role=JUDGE_STRONG, parallel=8)
 SAME_PLACE_STRONG = replace(SAME_PLACE, role=JUDGE_STRONG, parallel=8)
+
+_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+OFFICIAL_OBSERVE = Task(
+    name="official_observe",
+    role=EXTRACTOR,
+    max_tokens=2500,
+    parallel=16,  # pages are long
+    schema={
+        "type": "object",
+        "properties": {"facts": {"type": "array", "items": {"type": "object", "properties": {
+            "kind": {"type": "string", "enum": ["ticket", "free", "hours"]},
+            "quote": {"type": "string"},
+            "amount_vnd": {"type": "integer"},
+            "audience": {"type": "string", "enum": ["adult", "child", "other", "none"]},
+            "open": {"type": "string"},
+            "close": {"type": "string"},
+            "days": {"type": "array", "items": {"type": "string", "enum": _DAYS}}},
+            "required": ["kind", "quote", "amount_vnd", "audience", "open", "close", "days"],
+            "additionalProperties": False}}},
+        "required": ["facts"],
+        "additionalProperties": False,
+    },
+    # One chunk of a place's own website (corpus.observe.official); code checks every quote and number against the
+    # page, so a fact the page does not state word for word is dropped.
+    prompt="""You read part of the official website of a place in {city}, Vietnam, and list what it states about
+visiting THIS place: entry ticket prices and opening hours. Only what the text says; never guess.
+
+Place: {name} ({category}), {address}
+{note}
+Page: {url}
+
+Facts to return (an empty list when the text states none for this place):
+- kind "ticket": an entry ticket price. amount_vnd = the amount in VND as an integer ("50.000đ", "50k",
+  "50 nghìn" -> 50000). audience: "adult" for the normal entry ticket of an adult (or an entry ticket that names no
+  group), "child" for children, students or elderly prices, "other" for combos, games, rides, food, drinks, rentals,
+  photos, parking, spa or other services, tours and anything that is not the entry ticket. A price in another
+  currency is left out.
+- kind "free": the text says entry to this place is free for every visitor. Free for some people only (small
+  children under a height, the elderly, locals) is not "free": leave it out.
+- kind "hours": opening hours (when the place opens and closes; a last admission time, the first / last tour or
+  show time and a booking slot are not opening hours). open, close = "HH:MM" in 24 h ("7h30" -> "07:30", "5 giờ chiều" -> "17:00"); days =
+  the days they apply to (all seven for "hằng ngày", "mỗi ngày", "daily" or when no day is named). Several time
+  ranges -> one fact per range.
+Fields that do not apply: amount_vnd 0, audience "none", open "", close "", days [].
+quote = the exact words of the text that state the fact, copied character for character (no translation, no
+rewording), at most 200 characters, containing the amount or the times.
+A page about several places or branches: only facts the text gives for {name}; a branch in another city is not
+this place.
+
+Text:
+{text}""",
+)

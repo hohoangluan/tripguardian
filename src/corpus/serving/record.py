@@ -67,6 +67,16 @@ def _fact(value, as_of: date, built: date, key: str) -> dict | None:
             "as_of": as_of.isoformat()}
 
 
+def _hours(op: dict, as_of: date, built: date) -> dict | None:
+    """Hours fact; official and Maps hours that disagree on a day are UNCERTAIN with Maps' days in `conflict`."""
+    fact = _fact(op.get("hours"), as_of, built, "hours")
+    if fact:
+        fact["source"] = op.get("hours_source")
+        if op.get("hours_conflict"):
+            fact["status"], fact["conflict"] = "UNCERTAIN", op["hours_conflict"]
+    return fact
+
+
 def place_status(closure: str | None, judged: str | None) -> tuple[str, str | None]:
     """(status, reason) of the place: Maps' own closure, else the Judge's place_status verdict."""
     if closure:
@@ -100,10 +110,11 @@ def build(intel: dict, built: date | None = None, judged: str | None = None) -> 
                      "category_group": est.get("category_group"), "lat": ident.get("lat"), "lng": ident.get("lng"),
                      "address": ident.get("address"), "area": None},
         "operation": {
-            "hours": _fact(op.get("hours"), as_of, built, "hours"),
+            "hours": _hours(op, as_of, built),
             "price_per_person": _fact({k: price.get(k) for k in ("min_vnd", "max_vnd", "level") if k in price}
                                       if price else None, as_of, built, "price"),
-            "entry_fee": {**est["entry_fee"], "kind": "estimate"} if est.get("entry_fee") else None,
+            "entry_fee": {**est["entry_fee"], "kind": "fact" if est["entry_fee"]["source"] == "official" else "estimate"}
+            if est.get("entry_fee") else None,
             "visit_minutes": {**est["visit_minutes"], "kind": "estimate"} if est.get("visit_minutes") else None,
             "booking": features.get("booking_needed"),
             "crowd_by_time": op.get("crowd_by_time"),

@@ -25,7 +25,8 @@ counts for what it can show or state as the operator (OWNER_FEATURES, effort onl
 crowd or suitability; Maps photos whose poster could not be read share one voice per place. Two Maps entries the
 Judge found to be one place (corpus.judge.merges) are aggregated as the canonical one; the other gets no file.
 `estimates` (estimates.py): category group, visit time range and entry fee in VND, each with its source.
-Place facts (popular times, price, hours, closure, tickets) pass through as `operation`, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
+Place facts (popular times, price, hours, closure, tickets) pass through as `operation`; a place's own website
+(source "official") wins over Maps for hours and entry fee (merge_hours, estimates), disagreeing days kept, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
 """
 
 import collections
@@ -44,7 +45,7 @@ TREND_MIN = 5  # authors on each side
 TREND_DELTA = 0.2  # change in the share of the top value
 RATING_DELTA = 0.5  # stars
 COMPLETE_FEATURES, COMPLETE_N = 3, 3
-AUTHORITATIVE = {"gmaps_attribute"}
+AUTHORITATIVE = {"gmaps_attribute", "official_page"}
 WEEKEND = ("sat", "sun")
 DAY_ORDER = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
 
@@ -58,7 +59,7 @@ def time_of_day(hour: int) -> str:
     return "night"
 SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "gmaps_attribute": "provider", "tiktok_segment": "video",
                "tiktok_caption": "video", "tiktok_frame": "video", "tiktok_comment": "comment",
-               "gmaps_photo": "photo"}
+               "gmaps_photo": "photo", "official_page": "official"}
 
 
 # what a business's own photos and videos can show, or what it states as the operator; never quality, crowd,
@@ -221,6 +222,15 @@ def crowd_by_time(popular_times: dict | None) -> dict | None:
     return out
 
 
+def merge_hours(maps: dict | None, official: dict | None) -> dict:
+    """Official hours win for the days the site names, Maps' for the others; a day both state differently is kept in
+    `hours_conflict` (Maps' value) so the record can say the hours are not settled."""
+    if not official:
+        return {"hours": maps, "hours_source": "maps" if maps else None, "hours_conflict": None}
+    conflict = {d: v for d, v in (maps or {}).items() if d in official and official[d] != v}
+    return {"hours": {**(maps or {}), **official}, "hours_source": "official", "hours_conflict": conflict or None}
+
+
 def coverage(features: dict, ont: Ontology) -> dict:
     out = {}
     for g in ont.groups:
@@ -271,11 +281,12 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
     for f in files:
         for p in f.get("proposed", []):
             proposed[p["label"].strip().casefold()].append(p.get("author"))
-    facts = {}
+    facts, official = {}, {}
     for f in files:
         for k, v in (f.get("place_facts") or {}).items():
             if v is not None:
-                facts.setdefault(k, v)
+                (official if f.get("source") == "official" else facts).setdefault(k, v)
+    hours = merge_hours(facts.get("hours"), official.get("hours"))
     identity = {}
     for f in files:
         for k, v in (f.get("place") or {}).items():
@@ -288,11 +299,11 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
         "as_of": as_of.isoformat(), "ontology_version": ont.version, "identity": identity, "voices": voices,
         "voices_targeted": voices_targeted,
         "features": features, "coverage": coverage(features, ont),
-        "operation": {"price_range": facts.get("price"), "hours": facts.get("hours"), "closure": facts.get("closure"),
+        "operation": {"price_range": facts.get("price"), **hours, "closure": facts.get("closure"),
                       "crowd_by_time": crowd_by_time(facts.get("popular_times")),
                       "popular_times": facts.get("popular_times")},
         "estimates": estimates(identity.get("category"), features, [o for os in by_feature.values() for o in os],
-                               (facts.get("tickets") or {}).get("usd")),
+                               (facts.get("tickets") or {}).get("usd"), official.get("tickets_vnd")),
         "rating_trend": rating_trend(ratings) if ratings else None,
         "proposed_features": sorted(({"label": k, "count": len(v), "authors": len(set(v))} for k, v in proposed.items()),
                                     key=lambda x: (-x["count"], x["label"])),

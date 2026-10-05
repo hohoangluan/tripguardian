@@ -203,7 +203,8 @@ def test_crowd_by_time_and_price_from_place_facts():
 
 
 def test_no_place_facts_gives_empty_operation():
-    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "hours": None, "closure": None,
+    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "hours": None, "hours_source": None,
+                                                          "hours_conflict": None, "closure": None,
                                                           "crowd_by_time": None, "popular_times": None}
 
 
@@ -329,3 +330,18 @@ def test_targeted_sample_counts_for_effort_and_facts_not_opinions():
     assert res["features"]["steep_or_stairs"]["mention_rate"] == round(1 / 6, 3)  # effort: all voices
     assert res["features"]["long_walk"]["n"] == 1
     assert res["rating_trend"]["recent_n"] + res["rating_trend"]["older_n"] == 1
+
+
+def test_official_site_wins_for_hours_and_entry_fee_and_keeps_the_conflict():
+    maps = {**f([o(1, "entry_fee", "paid", "a")]), "place_facts": {
+        "hours": {"mon": [["07:00", "17:00"]], "tue": [["07:00", "17:00"]]}, "tickets": {"usd": 2.0}}}
+    site = {**f([o(2, "entry_fee", "paid", "official:F", source_type="official_page")]), "source": "official",
+            "place_facts": {"hours": {"mon": [["08:00", "18:00"]]}, "tickets_vnd": {"adult": [100000, 150000],
+                                                                                    "child": [50000]}}}
+    res = aggregate_place([maps, site], ONT)
+    op = res["operation"]
+    assert op["hours"] == {"mon": [["08:00", "18:00"]], "tue": [["07:00", "17:00"]]}
+    assert op["hours_source"] == "official" and op["hours_conflict"] == {"mon": [["07:00", "17:00"]]}
+    assert res["estimates"]["entry_fee"] == {"min_vnd": 50000, "typical_vnd": 150000, "max_vnd": 150000, "n": 2,
+                                             "source": "official"}
+    assert res["features"]["entry_fee"]["authority"] == "paid"  # the site declares it, no review says otherwise

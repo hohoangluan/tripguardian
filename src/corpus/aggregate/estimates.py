@@ -62,9 +62,16 @@ def ticket_amounts(quote: str) -> list[int]:
     return out
 
 
-def entry_fee(observations: list[dict], ticket_usd: float | None = None) -> dict | None:
-    """Ticket price from the entry_fee paid quotes (per author the highest ticket amount: adults pay the most), the
+def entry_fee(observations: list[dict], ticket_usd: float | None = None,
+              official: dict | None = None) -> dict | None:
+    """Ticket price from the place's own website (official: {adult: [...], child: [...]} VND; typical = the highest
+    adult ticket, min = the lowest ticket of anyone), else from the entry_fee paid quotes (per author the highest ticket amount: adults pay the most), the
     last RECENT_DAYS only when RECENT_MIN authors said it then, or, without any, from the Maps ticket box (US$)."""
+    adult = (official or {}).get("adult") or []
+    if adult:
+        every = adult + ((official or {}).get("child") or [])
+        return {"min_vnd": min(every), "typical_vnd": max(adult), "max_vnd": max(adult), "n": len(adult),
+                "source": "official"}
     found = {}
     for o in observations:
         if o["feature"] == "entry_fee" and o["value"] == "paid":
@@ -97,8 +104,9 @@ def visit_minutes(category: str | None, signal: dict | None) -> dict:
     return {"short": short, "typical": typical, "long": long, "source": "category_default", "n": 0}
 
 
-def estimates(category: str | None, features: dict, observations: list[dict], ticket_usd: float | None = None) -> dict:
+def estimates(category: str | None, features: dict, observations: list[dict], ticket_usd: float | None = None,
+              official_tickets: dict | None = None) -> dict:
     g = group(category)
     return {"category_group": g["id"], "usable_as_default": g["usable_as"], "effort_hint": g["effort_hint"],
             "visit_minutes": visit_minutes(category, features.get("visit_duration")),
-            "entry_fee": entry_fee(observations, ticket_usd)}
+            "entry_fee": entry_fee(observations, ticket_usd, official_tickets)}

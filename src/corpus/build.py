@@ -15,7 +15,7 @@ from .aggregate import run as aggregate_run
 from .serving import run as serving_run
 from . import judge
 from .crawl.gmaps import qc as gmaps_qc
-from .observe import gmaps as gmaps_observe, tiktok as tiktok_observe
+from .observe import gmaps as gmaps_observe, official as official_observe, tiktok as tiktok_observe
 from .observe.gmaps import photos as gmaps_photo_observe
 from .crawl.common.files import now
 
@@ -24,6 +24,7 @@ STEPS = (
     ("gmaps observe", lambda city: gmaps_observe.run(city)),
     ("gmaps photo_observe", lambda city: gmaps_photo_observe.run(city)),
     ("tiktok observe", lambda city: tiktok_observe.run(city)),
+    ("official observe", lambda city: official_observe.run(city)),
     ("judge dedup", lambda city: judge.PHASES["dedup"](city)),
     ("judge status", lambda city: judge.PHASES["status"](city)),
     ("judge audit", lambda city: judge.PHASES["audit"](city)),
