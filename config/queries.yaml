@@ -54,7 +54,7 @@ gmaps:
     - words: ["đặt bàn", "đặt trước"]  # booking
       groups: [restaurant, cafe, bar]
   keyword_reviews_per_word: 20  # first hits per word; merged by observe as sample "keywords" (effort / facts only)
-  keyword_tabs: 12  # max parallel place tabs for keywords (own throttle file data/gmaps/keywords_throttle.json)
+  keyword_tabs: 10  # 12 drew a Google captcha (2026-10-05); max parallel place tabs for keywords (own throttle file data/gmaps/keywords_throttle.json)
   keyword_tabs_start: 8  # first run only
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews

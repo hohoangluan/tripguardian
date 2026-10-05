@@ -45,6 +45,7 @@ async def open_profile(source: str, headed: bool = False):
             ROOT / ".browser" / source, channel="chrome", headless=not headed, locale="vi-VN",
             viewport={"width": 1280, "height": 900}, user_agent=await _user_agent(p, not headed),
             ignore_default_args=["--enable-automation"], args=["--disable-blink-features=AutomationControlled"])
+        ctx.headless = not headed
         try:
             yield ctx
         finally:
@@ -61,8 +62,10 @@ async def open_sessions(headed: bool = False):
             ignore_default_args=["--enable-automation"], args=["--disable-blink-features=AutomationControlled"])
 
         async def new_session() -> BrowserContext:
-            return await browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900},
-                                             user_agent=await _user_agent(p, not headed))
+            ctx = await browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900},
+                                            user_agent=await _user_agent(p, not headed))
+            ctx.headless = not headed
+            return ctx
 
         try:
             yield new_session
@@ -79,7 +82,8 @@ async def is_captcha(page: Page) -> bool:
 
 
 async def _is_headless(page: Page) -> bool:
-    return "HeadlessChrome" in await page.evaluate("navigator.userAgent")
+    # headless runs present a normal user agent (_user_agent), so open_profile marks its contexts instead
+    return getattr(page.context, "headless", None) or "HeadlessChrome" in await page.evaluate("navigator.userAgent")
 
 
 async def wait_for_person(page: Page, source: str, wait_s: float = 300) -> None:
