@@ -4,13 +4,16 @@ every review (corpus.llm.REVIEW_QC), one file per place.
 REVIEW_QC reads all reviews of a place (newest, most relevant and extremes, in batches) and flags owner replies,
 spam / reward-for-review and non-reviews; observe drops them (llm.bad_reviews, corpus.observe.gmaps). Results go to
 data/gmaps/qc/<fid_dir>.json and data/gmaps/qc/summary.json. A place is checked again only when its place.json was
-re-fetched, its reviews changed or a prompt changed.
+re-fetched, its reviews changed or a prompt changed. When only reviews were added (relevant / extremes / keywords) and
+place.json is the same, the place verdict stands and the Extractor screens just the reviews not screened before
+(`screened`), so the Judge is not needed.
 """
 
 import asyncio
 import collections
 import hashlib
 import json
+from datetime import UTC, datetime
 
 import openai
 
@@ -55,6 +58,23 @@ def all_reviews(place_dir) -> list[dict]:
         for r in rows:
             out.setdefault(r["review_id"], r)
     return list(out.values())
+
+
+def screened_before(place_dir, old: dict) -> set[str]:
+    """Review ids an older qc record already screened: its `screened` list, or (records written before it) every
+    review of the files that existed when it was checked."""
+    if "screened" in old:
+        return set(old["screened"])
+    out = set()
+    for name in FILES:
+        f = place_dir / name
+        if f.exists() and datetime.fromtimestamp(f.stat().st_mtime, UTC).isoformat() <= old.get("checked_at", ""):
+            doc = json.loads(f.read_text(encoding="utf-8"))
+            rows = doc if isinstance(doc, list) else doc.get("reviews") or [
+                r for k in ("lowest", "highest") for r in doc.get(k, {}).get("reviews", [])] + [
+                r for hits in doc.get("keywords", {}).values() for r in hits.get("reviews", [])]
+            out |= {r["review_id"] for r in rows}
+    return out
 
 
 def batches(reviews: list[dict]) -> list[list[dict]]:
@@ -127,23 +147,36 @@ async def run(city: str) -> dict:
         target = out / f"{p.parent.name}.json"
         reviews = all_reviews(p.parent)
         h = reviews_hash(reviews)
-        if target.exists():
-            old = json.loads(target.read_text(encoding="utf-8"))
-            if (old.get("fetched_at"), old.get("reviews_hash")) == (place["fetched_at"], h) and old.get("llm") \
-                    and "review_qc" in old:
-                return old
+        old = json.loads(target.read_text(encoding="utf-8")) if target.exists() else None
+        if old and (old.get("fetched_at"), old.get("reviews_hash")) == (place["fetched_at"], h) and old.get("llm")                 and "review_qc" in old:
+            return old
         res = {"fid": place["fid"], "name": place.get("name"), "fetched_at": place["fetched_at"], "checked_at": now(),
                "model": judge_model, "review_model": ex_model, "reviews_hash": h,
                "checks": checks(place, json.loads((p.parent / "reviews.json").read_text(encoding="utf-8")), cfg),
-               "llm": None}
+               "llm": None, "screened": sorted(r["review_id"] for r in reviews)}
+        # same place page, only more reviews (relevant / extremes / keywords): the place verdict stands and only the
+        # new reviews are screened, so this needs the Extractor alone, not the Judge
+        same_place = bool(old and old.get("fetched_at") == place["fetched_at"] and old.get("llm") and "review_qc" in old)
         try:
+            if same_place:
+                done = screened_before(p.parent, old)
+                fresh = [r for r in reviews if r["review_id"] not in done]
+                flagged = await screen(ex_client, ex_model, place, fresh, name, ex_sem)
+                res["llm"], res["model"] = dict(old["llm"]), old.get("model", judge_model)
+                kept = [b for b in old["llm"]["bad_reviews"] if b["review_id"] not in {f["review_id"] for f in flagged}]
+                res["llm"]["bad_reviews"] = flagged + kept
+                res["review_qc"] = {"reviews": len(reviews), "flagged": old["review_qc"]["flagged"] + len(flagged),
+                                    "screened_now": len(fresh)}
+                write_json(target, res)
+                return res
             async with judge_sem:
                 res["llm"] = await judge(judge_client, judge_model, place, reviews, name)
             flagged = await screen(ex_client, ex_model, place, reviews, name, ex_sem)
         except Exception as e:
             res["llm_error"] = f"{type(e).__name__}: {str(e).splitlines()[0][:300] if str(e) else ''}"
-            write_json(target, res)
-            return res
+            if not same_place:
+                write_json(target, res)  # an older complete record is kept: the next run screens again
+            return old if same_place else res
         res["review_qc"] = {"reviews": len(reviews), "flagged": len(flagged)}
         seen = {b["review_id"] for b in flagged}
         res["llm"]["bad_reviews"] = flagged + [b for b in res["llm"]["bad_reviews"] if b["review_id"] not in seen]

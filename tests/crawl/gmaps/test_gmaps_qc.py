@@ -74,3 +74,39 @@ def test_screen_reads_every_review_with_text_and_maps_refs(monkeypatch):
     out = asyncio.run(qc.screen(None, "m", {"name": "P"}, reviews, "Đà Lạt", asyncio.Semaphore(2)))
     assert out == [{"review_id": "C", "problem": "spam", "reason": "reward"}]
     assert "ok" not in seen[0] and len(seen) == 1  # texts under MIN_TEXT are not sent
+
+
+def test_added_reviews_are_screened_without_the_judge(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(qc, "load_config", lambda city: ("Đà Lạt", CFG))
+    d = tmp_path / "gmaps" / "places" / "0x1_0x2"
+    d.mkdir(parents=True)
+    (d / "place.json").write_text(json.dumps(PLACE, ensure_ascii=False), encoding="utf-8")
+    (d / "reviews.json").write_text(json.dumps(_reviews(3), ensure_ascii=False), encoding="utf-8")
+    judged, screened = [], []
+
+    async def judge(client, model, place, reviews, city):
+        judged.append(place["fid"])
+        return {"tourism_relevant": True, "relevance_reason": "", "in_city": True, "category_ok": True,
+                "bad_reviews": [], "field_issues": [], "verdict": "ok"}
+
+    async def screen(client, model, place, reviews, city, sem):
+        screened.append(sorted(r["review_id"] for r in reviews))
+        return [{"review_id": r["review_id"], "problem": "spam", "reason": ""} for r in reviews if r["review_id"] in ("r0", "k1")]
+
+    class Client:
+        def with_options(self, **kw):
+            return self
+
+    monkeypatch.setattr(qc, "judge", judge)
+    monkeypatch.setattr(qc, "screen", screen)
+    monkeypatch.setattr(type(qc.PLACE_QC.role), "client", lambda self: (Client(), "m"))
+    asyncio.run(qc.run("dalat"))
+    kw = [{"review_id": f"k{i}", "text": "Dốc lắm phải leo bộ", "rating": "4 sao"} for i in range(2)]
+    (d / "reviews_keywords.json").write_text(json.dumps({"keywords": {"dốc": {"complete": True, "reviews": kw}}},
+                                                        ensure_ascii=False), encoding="utf-8")
+    asyncio.run(qc.run("dalat"))
+    out = json.loads((tmp_path / "gmaps" / "qc" / "0x1_0x2.json").read_text(encoding="utf-8"))
+    assert judged == ["0x1:0x2"] and screened == [["r0", "r1", "r2"], ["k0", "k1"]]
+    assert sorted(b["review_id"] for b in out["llm"]["bad_reviews"]) == ["k1", "r0"]
+    assert out["review_qc"]["flagged"] == 2 and out["review_qc"]["screened_now"] == 2
