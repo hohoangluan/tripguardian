@@ -574,3 +574,32 @@ def test_cached_file_built_before_tagging_is_tagged_without_the_model(tmp_path, 
     assert [o.get("sample") for o in res["observations"]] == [None, "extremes"]
     assert (res["voices"], res["voices_targeted"]) == (1, 1)
     assert asyncio.run(extract.run("dalat"))["status"] == {"cached": 1}
+
+
+def test_added_reviews_alone_go_to_the_model_old_claims_are_kept(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a"),
+                                               review(2, "Đồ uống bình thường thôi", "b")])
+    asyncio.run(extract.run("dalat"))
+    first = json.loads(out.read_text(encoding="utf-8"))
+    d = tmp_path / "gmaps" / "places" / DIR
+    (d / "reviews_keywords.json").write_text(json.dumps({"fetched_at": FETCHED, "keywords": {"dốc": {
+        "complete": True, "reviews": [review(9, "Dốc lắm nhưng view đẹp", "z")]}}}, ensure_ascii=False),
+        encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert len(calls) == 2 and "r1: Dốc lắm" in calls[1]["reviews"] and "Quán có view" not in calls[1]["reviews"]
+    assert [o for o in res["observations"] if o["source_id"] == "R1"] == \
+        [o for o in first["observations"] if o["source_id"] == "R1"]
+    assert res["stats"]["reused"] == 2 and set(res["read"]) == {"R1", "R2", "R9"}
+
+
+def test_file_without_read_list_reuses_reviews_of_files_older_than_it(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a")])
+    asyncio.run(extract.run("dalat"))
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    del doc["read"]
+    doc["built_at"] = "2999-01-01T00:00:00+00:00"  # every review file is older than this file
+    doc["input_hash"] = "changed"
+    out.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    assert len(calls) == 1 and json.loads(out.read_text(encoding="utf-8"))["stats"]["reused"] == 1

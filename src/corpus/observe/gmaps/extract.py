@@ -17,6 +17,7 @@ import collections
 import contextlib
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import openai
@@ -294,9 +295,33 @@ def listed_category(item: dict) -> str | None:
     return c if c and not c[0].isdigit() else None
 
 
+def text_key(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def read_before(place_dir: Path, previous: dict) -> dict[str, str]:
+    """review_id -> text key of the reviews an older file already sent to the model: its `read`, or (files written
+    before it) every review of the review files that existed when it was built, with its text as it is now."""
+    if "read" in previous:
+        return previous["read"]
+    built = previous.get("built_at") or ""
+    names = ("reviews.json", RELEVANT_FILE) + tuple(name for _, name, _ in TARGETED_FILES)
+    old = [n for n in names if (place_dir / n).exists()
+           and datetime.fromtimestamp((place_dir / n).stat().st_mtime, UTC).isoformat() <= built]
+    reviews, _ = load_samples(place_dir)
+    ids = set()
+    for n in old:
+        doc = json.loads((place_dir / n).read_text(encoding="utf-8"))
+        ids |= {r["review_id"] for r in (doc if isinstance(doc, list) else doc.get("reviews") or
+                                          extremes_reviews(doc) + keywords_reviews(doc))}
+    return {r["review_id"]: text_key(clean_text(r.get("text"))) for r in reviews if r["review_id"] in ids}
+
+
 async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str],
-                        category: str | None = None) -> dict:
-    """category: used when the place page has none (the search list's category)."""
+                        category: str | None = None, previous: dict | None = None) -> dict:
+    """category: used when the place page has none (the search list's category). previous: this place's older file
+    built with the same prompts and ontology; a review it already read with the same text keeps its observations and
+    proposals (no model call, so the Judge's labels on those claims still apply); only new reviews go to the model."""
     place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
     if not place.get("category") and category:
         place["category"] = category
@@ -337,7 +362,16 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
 
     to_llm = keep_for_llm(reviews, bad_ids)
     voices |= {r.get("author_hash") or r["review_id"] for r in to_llm}
-    refs = {f"r{i}": r for i, r in enumerate(to_llm, 1)}
+    read = {r["review_id"]: text_key(r["text"]) for r in to_llm}
+    before = read_before(place_dir, previous) if previous else {}
+    reuse = {rid for rid, k in read.items() if before.get(rid) == k}
+    for r in to_llm:
+        if r["review_id"] in reuse:
+            for o in previous["observations"]:
+                if o["source_type"] == "gmaps_review" and o["source_id"] == r["review_id"]:
+                    add(r, o["feature"], o["value"], o["context"], o["span"]["quote"], "text", o["extractor"])
+    proposed += [p for p in (previous or {}).get("proposed", []) if p.get("source_id") in reuse]
+    refs = {f"r{i}": r for i, r in enumerate((r for r in to_llm if r["review_id"] not in reuse), 1)}
     parts = batches(list(refs.items()))
     async with asyncio.TaskGroup() as tg:  # the first failed batch cancels its siblings
         tasks = [tg.create_task(ask_checked(slots, city, place, ont, b)) for b in parts]
@@ -375,7 +409,9 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
                             "price": parse_price(place.get("price")), "hours": parse_hours(place.get("hours")),
                             "closure": parse_closure(place.get("status")),
                             "tickets": parse_tickets(place.get("tickets"))},
-            "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "batches": len(parts), "dropped": dict(dropped)}},
+            "read": read,
+            "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "reused": len(reuse), "batches": len(parts),
+                      "dropped": dict(dropped)}},
         reviews, samples, bad_ids)
 
 
@@ -453,9 +489,14 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
         target = out / f"{d.name}.json"
         bad_ids = bad_review_ids(root / "qc" / f"{d.name}.json")
         h = input_hash(d, bad_ids)
+        previous = None
+        if target.exists():
+            old = json.loads(target.read_text(encoding="utf-8"))
+            if (old.get("prompt_hash"), old.get("ontology_version")) == key:
+                previous = old  # same prompts and ontology: reviews it already read are not asked again
         try:
             async with in_flight:
-                res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name))
+                res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name), previous)
         except Exception as e:
             if isinstance(e, ExceptionGroup):  # from the TaskGroup: report the first real cause
                 e = e.exceptions[0]
