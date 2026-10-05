@@ -8,7 +8,7 @@ targeted sample's opinions, which aggregate leaves out):
 - then all observations of a (feature, value, source) whose sampled precision misses the gate (Wilson lower bound
   below GATE_LOWER): that stratum is checked one by one, so only claims the Judge confirmed are left.
 Calls of up to CHUNK items, a place's items together: the places, the features' definitions and claims from the
-ontology, and each item's passage (review text, transcript, caption) or picture (Maps photo, video frame). Values that widen a choice
+ontology, and each item as its own closed block with its passage (review text, transcript, caption) or picture (Maps photo, video frame). Values that widen a choice
 (`verify: always`, not a caution value) go to the strong Judge. Labels append to data/review/judge_labels.jsonl as
 they arrive (corpus.review.judge_label), so a stopped run resumes; claims already labelled are skipped.
 """
@@ -34,7 +34,7 @@ RISKY_GROUPS = {"effort", "suitability"}
 SAMPLE = 30  # per (feature, value, source) for features that are not risky
 GATE_LOWER = 0.8  # same bar as the label gate (corpus.review.labels)
 GATE_MIN_N = 20  # labelled items before a stratum can be judged from its sample
-CHUNK, CHUNK_IMAGES = 8, 4  # items per call
+CHUNK, CHUNK_IMAGES = 16, 4  # items per call; 16 text items matched 8 on a 161-claim re-ask (2026-10-05)
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
 MAX_ROUNDS = 5
 QUOTA_WAIT_S = 120
@@ -167,8 +167,10 @@ async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: d
             images.append(ev["image"].read_bytes())
             pic = f" [picture {len(images)} attached]"
         meta = ", ".join(x for x in (ev["date"] and f"date {ev['date']}", ev["rating"] and f"rating {ev['rating']}") if x)
-        lines.append(f"{ref}: {pref} {fref} {feat.id} = {o['value']}; quote \"{o['span']['quote']}\"{pic}"
-                     f"{f' ({meta})' if meta else ''}" + NL + "    source: " + ev["text"])
+        # each item a closed block with its own source, so a long call does not mix one item's words into another's
+        lines.append(f"<{ref}> place {pref} | {fref} {feat.id} = {o['value']}{f' | {meta}' if meta else ''}" + NL
+                     + f"  quote: \"{o['span']['quote']}\"{pic}" + NL
+                     + f"  source of {ref} only: {ev['text']}" + NL + f"</{ref}>")
     place_lines = []
     for st, (pref, pname) in places.items():
         info = place_info(st)
@@ -180,7 +182,7 @@ async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: d
         feat_lines.append(f"{fref} {fid}: {f.hint}. Values: {claims}")
     async with sems[task.role.name]:
         ans = await ask(task, client, model, images=images, city=city, places=NL.join(place_lines),
-                        features=NL.join(feat_lines), items=NL.join(lines))
+                        features=NL.join(feat_lines), items=(NL + NL).join(lines))
     got = collections.Counter()
     by = f"judge:{ans.get('_model', model)}"
     for it in ans["items"]:
