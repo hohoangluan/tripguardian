@@ -34,6 +34,9 @@ def address(fid: str) -> str | None:
     return json.loads(f.read_text(encoding="utf-8")).get("address") if f.exists() else None
 
 
+ROW_KEYS = ("video_id", "url", "desc", "hashtags", "author_id", "created_at")  # search row fields carried along
+
+
 def kept_videos(city: str, cap_per_place: int | None = None) -> list[dict]:
     """Search rows of the videos judged about their place, one per video, with every place and query they matched.
     cap_per_place keeps only each place's own first N "yes" videos (place_search's TikTok-relevance order, kept as
@@ -47,7 +50,7 @@ def kept_videos(city: str, cap_per_place: int | None = None) -> list[dict]:
         doc = json.loads(f.read_text(encoding="utf-8"))
         kept = [v for v in doc["videos"] if v["llm"]["relevance"] in KEEP]
         for v in kept[:cap_per_place] if cap_per_place is not None else kept:
-            r = rows.setdefault(v["video_id"], {**{k: v[k] for k in ("video_id", "url", "desc", "hashtags")},
+            r = rows.setdefault(v["video_id"], {**{k: v.get(k) for k in ROW_KEYS},
                                                 "queries": [], "places": []})
             r["queries"].append(doc["query"])
             r["places"].append(doc["fid"])
@@ -82,14 +85,14 @@ async def run(city: str) -> dict:
     async def judge(place: dict, row: dict, done: dict):
         old = done.get(row["video_id"])
         if old and old["desc"] == row["desc"]:
-            return old
+            return {**old, **{k: row.get(k) for k in ROW_KEYS}}  # rows judged before author_id was kept
         async with sem:
             try:
                 llm = await classify(client, model, place, row, name)
             except Exception:
                 errors[0] += 1
                 return None
-        return {**{k: row.get(k) for k in ("video_id", "url", "desc", "hashtags")}, "llm": llm}
+        return {**{k: row.get(k) for k in ROW_KEYS}, "llm": llm}
 
     async def one(f):
         s = json.loads(f.read_text(encoding="utf-8"))

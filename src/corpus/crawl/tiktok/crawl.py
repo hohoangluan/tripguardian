@@ -59,7 +59,7 @@ def video_doc(row: dict, item: dict, rows: list[dict], video_path: str, complete
     return {
         "video_id": row["video_id"], "video_url": row["url"], "video_path": video_path,
         "caption": item.get("desc", row.get("desc", "")), "hashtags": row.get("hashtags", []),
-        "author_id": row.get("author_id"), "created_at": item.get("createTime", row.get("created_at")),
+        "author_id": row.get("author_id") or (item.get("author") or {}).get("uniqueId"), "created_at": item.get("createTime", row.get("created_at")),
         "stats": item.get("stats") or {}, "queries": row.get("queries", []), "fetched_at": now(),
         "comments_complete": complete, "comments": top,
     }

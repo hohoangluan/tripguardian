@@ -5,7 +5,10 @@ fixed only, numbered, with times) and, when the video is about this place alone,
 observation only when the feature and value are in the ontology, a speech quote is in the segment it names, a
 caption quote is in the caption or hashtags, and a frame observation is one a picture can prove (FRAME_VALUES).
 Features with `check: span` are read again (VIDEO_VERIFY: the segments around the quote, or the frame); only
-"supports" is kept. One vote per creator: author = the video's author id. observed_at = the video's upload date.
+"supports" is kept. One vote per creator: author = the video's author id (the @handle of its URL when the search row
+had none). A video posted by the place's own account (owner_account: the handle spells the place's name) is the
+business talking: author = "tiktok:owner:<fid>", one voice for all its accounts, and aggregate keeps only what such a
+source can show (corpus.aggregate). observed_at = the video's upload date.
 A place is done again when its pairs, their transcripts, the prompts or the ontology change; a pair that fails
 leaves the place without a file this run (retried next run) and a line in data/tiktok/observe_errors.jsonl.
 """
@@ -53,6 +56,48 @@ async def ask(task, *args, **kwargs) -> dict:
             if tries == BUSY_TRIES:
                 raise
             await asyncio.sleep(BUSY_WAIT_S)
+
+
+# words too common in place names and handles to say whose account it is
+GENERIC_WORDS = {
+    "dalat", "lat", "quan", "cafe", "coffee", "caphe", "nha", "hang", "tiem", "the", "khu", "dulich", "vuon", "spa",
+    "farm", "and", "cho", "thue", "xemay", "massage", "garden", "house", "home", "homestay", "restaurant", "bar",
+    "chill", "shop", "store", "tea", "tra", "sua", "banh", "com", "nuong", "lau", "dac", "san", "official", "review",
+    "travel", "food", "foodie", "village", "valley", "land", "park", "camping", "glamping", "resort", "hotel", "beauty",
+    "dep", "hoa", "mai", "dao", "hong", "chua", "tho", "doi", "thac", "suon", "nuoc", "vat", "chay", "pho", "bun",
+    "xoi", "kem", "dau", "tay", "bakery", "cake", "green", "blue", "pink", "view", "may"}
+
+
+def _fold(text: str) -> str:
+    text = unicodedata.normalize("NFD", (text or "").lower())
+    return "".join(c for c in text if unicodedata.category(c) != "Mn").replace("đ", "d")
+
+
+def creator(v: dict) -> str | None:
+    """The video's author: the search row's author id, else the @handle in its URL."""
+    if v.get("author_id"):
+        return v["author_id"]
+    m = re.search(r"tiktok\.com/@([^/?#]+)/", v.get("video_url") or v.get("url") or "")
+    return m.group(1) if m else None
+
+
+def owner_account(handle: str | None, place_name: str) -> bool:
+    """The handle spells the place's own name (e.g. @vuondauhoanganh for "Vườn dâu Hoàng Anh"): two distinctive name
+    words, one of 6+ letters, two neighbouring words joined, or the handle starting with one. Conservative: a creator
+    who merely names the place in a caption does not match."""
+    h = re.sub(r"[^a-z0-9]", "", _fold(handle or ""))
+    toks = [t for t in re.findall(r"[a-z0-9]+", _fold(place_name)) if t not in GENERIC_WORDS and len(t) >= 3]
+    if not h or not toks:
+        return False
+    hits = [t for t in toks if t in h]
+    return (len(hits) >= 2 or any(len(t) >= 6 for t in hits)
+            or any(a + b in h for a, b in zip(toks, toks[1:]))
+            or any(len(t) >= 4 and h.startswith(t) for t in hits))
+
+
+def author_of(v: dict, place: dict) -> str:
+    handle = creator(v)
+    return f"tiktok:owner:{place['fid']}" if owner_account(handle, place.get("name") or "") else f"tiktok:{handle}"
 
 
 class BadAnswer(Exception):
@@ -157,7 +202,7 @@ async def observe_pair(client, model: str, sem: asyncio.Semaphore, city: str, v:
         out.append(observation(
             id=f"tiktok:{v['video_id']}:{n}", place_fid=place["fid"], feature=o["feature"], value=o["value"],
             context={k: o.get(k, UNKNOWN) for k in CONTEXT_KEYS}, source_type=SOURCE_TYPE[o["source"]],
-            source_id=v["video_id"], author=f"tiktok:{v.get('author_id')}", observed_at=upload_date(v), quote=o["quote"],
+            source_id=v["video_id"], author=author_of(v, place), observed_at=upload_date(v), quote=o["quote"],
             field=o["source"], extractor=f"video_observe@{VIDEO_OBSERVE.prompt_hash}", ontology_version=ont.version,
             start_s=seg["start_s"] if seg else at, end_s=seg["end_s"] if seg else at))
     return out, dropped
@@ -214,7 +259,7 @@ async def run(city: str, limit: int | None = None) -> dict:
         write_json(target, {"place_fid": fid, "place_name": places[fid].get("name"),
                             "as_of": max(v.get("fetched_at", "")[:10] for v in vids.values()) or now()[:10],
                             "observations": obs, "proposed": [], "ratings": [], "place": {}, "place_facts": {},
-                            "voices": len({v.get("author_id") for v in vids.values()}),
+                            "voices": len({author_of(v, places[fid]) for v in vids.values()}),
                             "videos": sorted(vids), "newest_video": max(dates) if dates else None,
                             "stats": {"videos": len(vids), "dropped": dict(dropped)},
                             "input_hash": h, "prompt_hash": ph, "ontology_version": key[1], "model": model,
