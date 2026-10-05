@@ -44,7 +44,12 @@ gmaps:
   min_reviews_per_place: 40  # the newest 40 are kept even past the age limit: quiet places need evidence too
   relevant_reviews_per_place: 50  # phase relevant: Maps' "most relevant" first (long, detailed), any age; merged by observe
   extreme_reviews_per_place: 30  # phase extremes: Maps' lowest- and highest-rated reviews, any age; merged by observe
+  review_keywords: ["dốc", "bậc thang", "đi bộ", "đường"]  # phase keywords: Maps' review search, effort evidence
+  keyword_reviews_per_word: 20  # first hits per word; merged by observe as sample "keywords" (effort / facts only)
+  keyword_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum, tour, golf, cafe, other]  # experience groups (config/category_defaults.yaml)
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
+  photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews
+  photo_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum]
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
   photo_tabs: 6  # max parallel place tabs for photos (own throttle file)
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list

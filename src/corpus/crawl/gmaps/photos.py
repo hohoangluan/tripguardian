@@ -8,7 +8,9 @@ marketing pictures, kept but weighed by the reader. Video tiles keep their still
 
 At most PER_AUTHOR photos per poster, from the first SCAN_FACTOR x photos_per_place tiles. Complete = enough photos,
 or the gallery ended (stopped growing after END_SCROLLS scrolls: a small gallery). A page that breaks mid-way is retried; the last try is saved with `complete: false` and logged.
-Written once per place; delete photos.json to fetch again.
+Sights (photo_groups, config/category_defaults.yaml groups) get photos_per_sight: stairs and paths show in photos more
+than in reviews. A place saved with fewer than it now wants, because it stopped at its old cap (not at the gallery's
+end), is fetched again with the new count. Otherwise written once per place; delete photos.json to fetch again.
 """
 
 import asyncio
@@ -21,6 +23,7 @@ from playwright.async_api import BrowserContext, Page
 from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import author_hash, data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
+from .keywords import category_group
 from .page import ensure_login, more, open_page
 
 FILE = "photos.json"
@@ -139,7 +142,8 @@ async def scrape_photos(ctx: BrowserContext, place: dict, d, n: int, px: int, pe
                 seen.add(t["url"])
                 last_id = await _one(page, img, place, d, t, px, per_author, last_id, out, skipped, by_author, oldest)
         complete = complete or len(out) >= n
-        return {"fetched_at": now(), "tabs": tabs, "complete": complete, "photos": out, "skipped": dict(skipped)}
+        return {"fetched_at": now(), "wanted": n, "tabs": tabs, "complete": complete, "photos": out,
+                "skipped": dict(skipped)}
     finally:
         await page.close()
         await img.close()
@@ -179,6 +183,21 @@ async def _one(page: Page, img: Page, place: dict, d, t: dict, px: int, per_auth
 
 
 
+def want(place: dict, c: dict) -> int:
+    sights = set(c.get("photo_groups", []))
+    n = c.get("photos_per_place", 20)
+    return max(n, c.get("photos_per_sight", n)) if category_group(place.get("category")) in sights else n
+
+
+def needs_fetch(f, wanted: int, default: int) -> bool:
+    """No photos.json yet, or one that stopped at a smaller cap than wanted now (a full gallery may hold more)."""
+    if not f.exists():
+        return True
+    doc = json.loads(f.read_text(encoding="utf-8"))
+    cap = doc.get("wanted", default)
+    return wanted > cap and len(doc.get("photos", [])) >= cap
+
+
 async def _place(ctx, d, place: dict, n: int, px: int, root, c: dict, throttle: Throttle) -> None:
     for attempt in range(1, ATTEMPTS + 1):
         async with throttle:
@@ -208,9 +227,11 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
     keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]} if listed.exists() else None
     todo = []
     for f in sorted((root / "places").glob("*/place.json")):
-        if (f.parent / FILE).exists() or (keep is not None and f.parent.name not in keep):
+        if keep is not None and f.parent.name not in keep:
             continue
-        todo.append((f.parent, json.loads(f.read_text(encoding="utf-8"))))
+        place = json.loads(f.read_text(encoding="utf-8"))
+        if needs_fetch(f.parent / FILE, want(place, c), n):
+            todo.append((f.parent, place))
     todo = todo[:limit] if limit is not None else todo
     print(f"photos {city}: {len(todo)} places left")
     throttle = Throttle(root / "photos_throttle.json", start=c.get("tabs_start", 1), hi=c.get("photo_tabs", 3),
@@ -220,7 +241,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
         try:
             async with asyncio.TaskGroup() as tg:
                 for d, place in todo:
-                    tg.create_task(_place(ctx, d, place, n, px, root, c, throttle))
+                    tg.create_task(_place(ctx, d, place, want(place, c), px, root, c, throttle))
         except* LoginRequired as eg:
             raise eg.exceptions[0] from None
     done = sum((d / FILE).exists() for d, _ in todo)
