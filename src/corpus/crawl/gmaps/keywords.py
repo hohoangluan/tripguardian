@@ -25,7 +25,6 @@ FILE = "reviews_keywords.json"
 ATTEMPTS = 2
 SEARCH_LABEL = "Tìm bài đánh giá"  # the review list's search box (an input labelled by this text; checked 2026-10-05)
 NO_HIT = "Không có bài đánh giá nào nhắc đến cụm từ"  # Maps' own answer when no review has the word
-_FIRST_ID_JS = f"() => document.querySelector('{REVIEW_DIV}')?.dataset.reviewId ?? null"
 BOX = "input[data-tg-review-search]"
 # the box is labelled by an element holding SEARCH_LABEL that hides once text is typed: mark the input once
 _MARK_JS = """(label) => { const l = [...document.querySelectorAll('[id]')].find(e => (e.innerText || '').trim() === label);
@@ -44,15 +43,15 @@ def wanted(place: dict, n_kept: int, groups: set[str]) -> bool:
 
 async def search(page: Page, word: str, n: int) -> tuple[list[dict], bool]:
     """First n reviews Maps finds for one word; complete = n reached or the list's end signal."""
-    before = await page.evaluate(_FIRST_ID_JS)
+    first = await page.query_selector(REVIEW_DIV)
     if not await page.locator(BOX).count():
         await page.wait_for_function(_MARK_JS, arg=SEARCH_LABEL, timeout=15000)
     box = page.locator(BOX).first
     await box.fill(word)
     await box.press("Enter")
-    # the list is replaced: a new first review, or an emptied list (no hit)
-    await page.wait_for_function(f"""(b) => {{ const f = document.querySelector('{REVIEW_DIV}');
-        return f ? f.dataset.reviewId !== b : true; }}""", arg=before, timeout=20000)
+    # Maps re-renders the list for a search: the old first review leaves the page even when the new list starts
+    # with the same review (comparing ids waited out a timeout then)
+    await page.wait_for_function("(e) => !e || !e.isConnected", arg=first, timeout=20000)
     await page.wait_for_timeout(1500)
     if await page.get_by_text(NO_HIT).count():
         return [], True
@@ -108,6 +107,7 @@ async def _place(ctx: BrowserContext, d, url: str, words, n: int, root, c: dict,
                 raise
             except Exception as e:
                 if attempt < ATTEMPTS:
+                    print(f"retry {d.name}: {type(e).__name__}: {str(e).splitlines()[0][:120]}", flush=True)
                     if type(e).__name__ == "TimeoutError":
                         throttle.blocked()
                     continue
@@ -134,7 +134,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
             todo.append((f.parent, place["url"]))
     todo = todo[:limit]
     print(f"keywords {city}: {len(todo)} places left")
-    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
+    throttle = Throttle(root / "keywords_throttle.json", start=c.get("keyword_tabs_start", 4), hi=c.get("keyword_tabs", 8),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     async with profile("gmaps", headed) as ctx:
         await ensure_login(ctx)

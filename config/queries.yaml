@@ -46,6 +46,8 @@ gmaps:
   extreme_reviews_per_place: 30  # phase extremes: Maps' lowest- and highest-rated reviews, any age; merged by observe
   review_keywords: ["dốc", "bậc thang", "đi bộ", "đường"]  # phase keywords: Maps' review search, effort evidence
   keyword_reviews_per_word: 20  # first hits per word; merged by observe as sample "keywords" (effort / facts only)
+  keyword_tabs: 8  # max parallel place tabs for keywords (own throttle file data/gmaps/keywords_throttle.json)
+  keyword_tabs_start: 4  # first run only
   keyword_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum, tour, golf, cafe, other]  # experience groups (config/category_defaults.yaml)
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews
