@@ -35,7 +35,7 @@ gmaps:
   search_tabs_start: 2  # first run only
   min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
   same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
-  tabs: 12  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
+  tabs: 10  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
   tabs_start: 3  # first run only
   cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 10
@@ -60,7 +60,7 @@ gmaps:
   photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews
   photo_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum]
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
-  photo_tabs: 10  # photos render many images: 10 headed tabs took ~7.5 GB (2026-10-05)
+  photo_tabs: 6  # photos render many images: 10 headed tabs took ~7.5 GB (2026-10-05)
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
     start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
     max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time
