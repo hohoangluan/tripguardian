@@ -8,6 +8,7 @@ age stays in published_text. Written once per place (a rerun skips it); observe 
 
 import asyncio
 import json
+import re
 
 from playwright.async_api import BrowserContext
 
@@ -26,6 +27,17 @@ _CHANGED_JS = """() => [...document.querySelectorAll('button[aria-haspopup="true
        && /xếp hạng|mới nhất/i.test(b.getAttribute('aria-label').normalize('NFC')))"""
 
 
+def stars(review: dict) -> int | None:
+    m = re.match(r"(\d)", review.get("rating") or "")
+    return int(m.group(1)) if m else None
+
+
+def in_order(reviews: list[dict], position: int) -> bool:
+    """Lowest sort = stars never go down, highest = never up (reviews without a star are skipped)."""
+    xs = [x for x in map(stars, reviews) if x is not None]
+    return xs == sorted(xs, reverse=position == SORTS["highest"])
+
+
 def wanted(place: dict) -> bool:
     return (count(place.get("review_count")) or 0) >= MIN_REVIEWS
 
@@ -41,10 +53,13 @@ async def scrape_sorted(ctx: BrowserContext, url: str, position: int, n: int) ->
         await tab.first.click()
         sort = page.locator(SORT_BUTTON)
         await sort.first.wait_for(timeout=15000)
+        await page.wait_for_selector(REVIEW_DIV, timeout=20000)
+        old = await page.locator(REVIEW_DIV).first.element_handle()  # the default ("relevant") list's first review
         await sort.first.click()
         await page.locator(f'[role="menuitemradio"][data-index="{position}"]').click()
         await page.wait_for_function(_CHANGED_JS, timeout=10000)  # raises when the sort did not apply
-        await page.wait_for_timeout(500)
+        # the sorted list replaces the old one: reading before that mixed ~10 default reviews in (8%, 2026-10-06)
+        await page.wait_for_function("(e) => !e || !e.isConnected", arg=old, timeout=15000)
         await page.wait_for_selector(REVIEW_DIV, timeout=20000)
         pane = page.locator("div.m6QErb.DxyBCb").first
         complete, detached = False, 0
@@ -69,7 +84,10 @@ async def scrape_sorted(ctx: BrowserContext, url: str, position: int, n: int) ->
             if not await page.evaluate(EXPAND_JS):
                 break
             await page.wait_for_timeout(500)
-        return (await parse_reviews(page))[:n], complete
+        reviews = (await parse_reviews(page))[:n]
+        if not in_order(reviews, position):
+            raise RuntimeError("reviews not in the sort's star order: the old list was read")
+        return reviews, complete
     finally:
         await page.close()
 
