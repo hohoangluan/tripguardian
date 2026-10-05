@@ -5,7 +5,7 @@ relevant + extremes leave most experience places without effort evidence. The se
 list ("Tìm kiếm bài đánh giá") returns the reviews containing a word; each of `review_keywords` is searched and its
 first `keyword_reviews_per_word` hits kept. Only places of an experience category group (`keyword_groups`, config/
 category_defaults.yaml) that show more reviews than crawl kept are opened. A word's list is complete at n hits or
-at Maps' end-of-list signal (an empty result is that signal too); observe merges the file by review_id and tags
+at Maps' end-of-list signal (no hit: Maps says NO_HIT; checked on the live page 2026-10-05); observe merges the file by review_id and tags
 its reviews `sample = keywords` (they count only for effort and facts, docs/CORPUS.md §5). Written once per place.
 """
 
@@ -24,9 +24,14 @@ from .page import ensure_login, more, open_page
 
 FILE = "reviews_keywords.json"
 ATTEMPTS = 2
-SEARCH_BUTTON = 'button[aria-label="Tìm kiếm bài đánh giá"]'
-SEARCH_INPUT = 'input[aria-label="Tìm kiếm bài đánh giá"]'
+SEARCH_LABEL = "Tìm bài đánh giá"  # the review list's search box (an input labelled by this text; checked 2026-10-05)
+NO_HIT = "Không có bài đánh giá nào nhắc đến cụm từ"  # Maps' own answer when no review has the word
 _FIRST_ID_JS = f"() => document.querySelector('{REVIEW_DIV}')?.dataset.reviewId ?? null"
+BOX = "input[data-tg-review-search]"
+# the box is labelled by an element holding SEARCH_LABEL that hides once text is typed: mark the input once
+_MARK_JS = """(label) => { const l = [...document.querySelectorAll('[id]')].find(e => (e.innerText || '').trim() === label);
+  const i = l && document.querySelector(`input[aria-labelledby~="${l.id}"]`);
+  if (i) i.setAttribute('data-tg-review-search', '1'); return !!i; }"""
 
 
 @cache
@@ -47,16 +52,17 @@ def wanted(place: dict, n_kept: int, groups: set[str]) -> bool:
 async def search(page: Page, word: str, n: int) -> tuple[list[dict], bool]:
     """First n reviews Maps finds for one word; complete = n reached or the list's end signal."""
     before = await page.evaluate(_FIRST_ID_JS)
-    box = page.locator(SEARCH_INPUT)
-    if not await box.count():
-        await page.locator(SEARCH_BUTTON).first.click()
-        await box.first.wait_for(timeout=10000)
-    await box.first.fill(word)
-    await box.first.press("Enter")
+    if not await page.locator(BOX).count():
+        await page.wait_for_function(_MARK_JS, arg=SEARCH_LABEL, timeout=15000)
+    box = page.locator(BOX).first
+    await box.fill(word)
+    await box.press("Enter")
     # the list is replaced: a new first review, or an emptied list (no hit)
     await page.wait_for_function(f"""(b) => {{ const f = document.querySelector('{REVIEW_DIV}');
         return f ? f.dataset.reviewId !== b : true; }}""", arg=before, timeout=20000)
     await page.wait_for_timeout(1500)
+    if await page.get_by_text(NO_HIT).count():
+        return [], True
     pane = page.locator("div.m6QErb.DxyBCb").first
     while True:
         k = await page.locator(REVIEW_DIV).count()
