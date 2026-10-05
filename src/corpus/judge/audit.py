@@ -4,9 +4,11 @@ Which model-made observations it reads (rule-made ones from Maps details / attri
 targeted sample's opinions, which aggregate leaves out):
 - every observation of a risky feature: effort, suitability and every `check: span` feature (hard filters, values
   that warn or widen a choice);
-- a sample of `SAMPLE` observations per (feature, value, source folder) of every other feature;
-- then all observations of a (feature, value, source) whose sampled precision misses the gate (Wilson lower bound
-  below GATE_LOWER): that stratum is checked one by one, so only claims the Judge confirmed are left.
+- a sample per (feature, value, source folder) of every other feature, grown step by step (SAMPLE_STEPS) while its
+  precision is undecided: a stratum stops once its Wilson lower bound reaches GATE_LOWER (it passes);
+- all observations of a stratum whose Wilson upper bound is below GATE_LOWER (it fails), or still undecided at the
+  last step: that stratum is checked one by one, so only claims the Judge confirmed are left. Sample labels count
+  there too, so growing a sample before failing costs no extra call.
 Calls of up to CHUNK items, a place's items together: the places, the features' definitions and claims from the
 ontology, and each item as its own closed block with its passage (review text, transcript, caption) or picture (Maps photo, video frame). Values that widen a choice
 (`verify: always`, not a caution value) go to the strong Judge. Labels append to data/review/judge_labels.jsonl as
@@ -31,9 +33,11 @@ SOURCES = {"gmaps": ("gmaps", "observations", {"gmaps_review"}),
            "tiktok": ("tiktok", "observations", {"tiktok_segment", "tiktok_caption", "tiktok_frame"}),
            "gmaps_photo": ("gmaps", "photo_observations", {"gmaps_photo"})}
 RISKY_GROUPS = {"effort", "suitability"}
-SAMPLE = 30  # per (feature, value, source) for features that are not risky
+# labels a stratum of a feature that is not risky grows to while undecided; a 90%-precise stratum passes by 100
+# (Wilson lower 0.826) instead of being checked in full
+SAMPLE_STEPS = (30, 60, 100)
 GATE_LOWER = 0.8  # same bar as the label gate (corpus.review.labels)
-GATE_MIN_N = 20  # labelled items before a stratum can be judged from its sample
+GATE_MIN_N = 30  # labelled items before a stratum can be judged from its sample (the label gate's min_n)
 CHUNK, CHUNK_IMAGES = 16, 4  # items per call; 16 text items matched 8 on a 161-claim re-ask (2026-10-05)
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
 MAX_ROUNDS = 5
@@ -46,6 +50,22 @@ def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:
         return 0.0
     p = correct / n
     return (p + z * z / (2 * n) - z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / (1 + z * z / n)
+
+
+def wilson_upper(correct: int, n: int, z: float = 1.96) -> float:
+    if not n:
+        return 1.0
+    p = correct / n
+    return (p + z * z / (2 * n) + z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / (1 + z * z / n)
+
+
+def verdict(correct: int, n: int, labelled: int) -> str | int:
+    """A sampled stratum's state: "pass", "fail" (check every item) or the labels to grow its sample to."""
+    if n >= GATE_MIN_N and wilson_lower(correct, n) >= GATE_LOWER:
+        return "pass"
+    if n >= GATE_MIN_N and wilson_upper(correct, n) < GATE_LOWER:
+        return "fail"
+    return next((s for s in SAMPLE_STEPS if s > labelled), "fail")
 
 
 def risky(feat) -> bool:
@@ -78,8 +98,8 @@ def current(records: dict[str, dict]) -> dict[str, str]:
 
 
 def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7) -> list[tuple]:
-    """Rows to label now: risky features in full, samples elsewhere, and in full every stratum whose labels so far
-    miss the gate. Rows already labelled (by anyone) and repeats of one claim are left out."""
+    """Rows to label now: risky features in full, samples elsewhere grown to their next step, and in full every
+    stratum that fails the gate. Rows already labelled (by anyone) and repeats of one claim are left out."""
     rng = random.Random(seed)
     strata = collections.defaultdict(list)
     for r in rows:
@@ -90,13 +110,12 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7) -> list[
                  for s, st, h, o in items}
         labels = collections.Counter(done[k] for k in keyed if k in done)
         todo = [r for k, r in keyed.items() if k not in done]
-        n = labels["correct"] + labels["wrong"]
-        failing = n >= GATE_MIN_N and wilson_lower(labels["correct"], n) < GATE_LOWER
-        if risky(ont.features[fid]) or failing:
+        state = verdict(labels["correct"], labels["correct"] + labels["wrong"], sum(labels.values()))
+        if risky(ont.features[fid]) or state == "fail":
             out += todo
-        else:
+        elif state != "pass":
             rng.shuffle(todo)
-            out += todo[:max(0, SAMPLE - sum(labels.values()))]
+            out += todo[:max(0, state - sum(labels.values()))]
     return out
 
 

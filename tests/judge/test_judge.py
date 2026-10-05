@@ -26,7 +26,7 @@ def _row(i, feature, value, source="gmaps", place="P"):
 
 
 def test_select_takes_risky_features_whole_and_samples_the_rest(monkeypatch):
-    monkeypatch.setattr(audit, "SAMPLE", 3)
+    monkeypatch.setattr(audit, "SAMPLE_STEPS", (3, 6))
     rows = [_row(i, "steep_or_stairs", "present") for i in range(10)] + [_row(100 + i, "food_quality", "good")
                                                                           for i in range(10)]
     picked = audit.select(rows, ONT, {})
@@ -34,11 +34,22 @@ def test_select_takes_risky_features_whole_and_samples_the_rest(monkeypatch):
     assert sum(r[3]["feature"] == "food_quality" for r in picked) == 3
 
 
-def test_select_pulls_a_failing_sampled_stratum_whole(monkeypatch):
+def _labelled(rows, correct: int, wrong: int) -> dict:
     from corpus.review import label_key
+    keys = [label_key(r[3]["source_id"], r[3]["feature"], r[3]["value"], r[3]["span"]["quote"]) for r in rows]
+    return {k: "correct" if i < correct else "wrong" for i, k in enumerate(keys[:correct + wrong])}
+
+
+def test_select_pulls_a_failing_sampled_stratum_whole():
     rows = [_row(i, "food_quality", "good") for i in range(40)]
-    done = {label_key(r[3]["source_id"], "food_quality", "good", r[3]["span"]["quote"]): "wrong" for r in rows[:25]}
-    assert len(audit.select(rows, ONT, done)) == 15  # 25 labelled, precision 0: the other 15 all get checked
+    assert len(audit.select(rows, ONT, _labelled(rows, 0, 30))) == 10  # precision 0: the other 10 all get checked
+
+
+def test_select_grows_an_undecided_sample_and_stops_a_passed_one():
+    rows = [_row(i, "food_quality", "good") for i in range(300)]
+    assert len(audit.select(rows, ONT, _labelled(rows, 27, 3))) == 30  # 90% on 30 is undecided: grow to 60
+    assert len(audit.select(rows, ONT, _labelled(rows, 92, 8))) == 0  # Wilson lower 0.85: passed
+    assert len(audit.select(rows, ONT, _labelled(rows, 85, 15))) == 200  # undecided at the last step: check all
 
 
 def test_chunks_keep_strong_items_apart():
