@@ -134,9 +134,10 @@ def claim_text(feat, value: str) -> str:
     return f"nơi này có: {feat.hint}"
 
 
-def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7) -> list[tuple]:
+def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: set[str] = frozenset()) -> list[tuple]:
     """Rows to label now: risky features in full, samples elsewhere grown to their next step, and in full every
-    stratum that fails the gate. Rows already labelled (by anyone) and repeats of one claim are left out."""
+    stratum that fails the gate. Rows already labelled (by anyone) and repeats of one claim are left out. Rows in
+    `must` are read whatever their stratum's state, a passing one included."""
     rng = random.Random(seed)
     strata = collections.defaultdict(list)
     for r in rows:
@@ -146,14 +147,27 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7) -> list[
         keyed = {label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"]): (s, st, h, o)
                  for s, st, h, o in items}
         labels = collections.Counter(done[k] for k in keyed if k in done)
-        todo = [r for k, r in keyed.items() if k not in done]
+        todo = [(k, r) for k, r in keyed.items() if k not in done]
         state = verdict(labels["correct"], labels["correct"] + labels["wrong"], sum(labels.values()))
         if risky(ont.features[fid]) or state == "fail":
-            out += todo
-        elif state != "pass":
-            rng.shuffle(todo)
-            out += todo[:max(0, state - sum(labels.values()))]
+            out += [r for _, r in todo]
+            continue
+        forced = [r for k, r in todo if k in must]
+        out += forced
+        if state != "pass":
+            rest = [r for k, r in todo if k not in must]
+            rng.shuffle(rest)
+            out += rest[:max(0, state - sum(labels.values()) - len(forced))]
     return out
+
+
+def pending_gemma(records: dict[str, dict], done: dict[str, str]) -> set[str]:
+    """Claims the Gemma audit called wrong or unsure, off the Gemma engine. Those labels do not stand (current), and
+    the Codex Judge reads every one of them, even where the stratum passes the gate: Gemma calls ~30% of correct
+    claims wrong (docs/CORPUS.md §6), and in a passing stratum most of its "wrong" are such false drops, so leaving
+    them unread would drop good claims on Gemma's word alone -- while a claim nobody read there is kept."""
+    return {k for k, r in records.items()
+            if k not in done and r["label"] != "correct" and "gemma" in r.get("by", "")}
 
 
 def picture(r: tuple) -> bool:
@@ -366,7 +380,10 @@ async def run(city: str, limit: int | None = None) -> dict:
     total, rounds = collections.Counter(), 0
     while True:  # a sample that misses the gate pulls its whole stratum into the next round
         rows = load_rows(ont)
-        todo = select(rows, ont, current(label_records(), local))
+        records = label_records()
+        done = current(records, local)
+        # on the Gemma engine its own labels stand, so there is nothing to force; the Codex Judge re-reads them all
+        todo = select(rows, ont, done, must=set() if local else pending_gemma(records, done))
         parts = chunks(todo, ont, size)[:limit] if limit is not None else chunks(todo, ont, size)
         if not parts:
             break
