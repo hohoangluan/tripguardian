@@ -29,7 +29,7 @@ from ...crawl.tiktok.frames import FRAMES, frames
 from ...crawl.tiktok.place_verify import evidence_pairs
 from ...llm import VIDEO_OBSERVE, VIDEO_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
-from .. import CONTEXT_KEYS, observation
+from .. import CONTEXT_KEYS, keep_stale, observation
 
 USABLE = ("ok", "fixed")  # asr_check statuses whose checked_text is speech
 FRAME_VALUES = {  # what a still picture can prove; never "absent", suitability or quality. Promo videos film empty
@@ -243,7 +243,8 @@ async def run(city: str, limit: int | None = None) -> dict:
         ph = hashlib.sha256(key[0].encode()).hexdigest()[:12]
         if target.exists():
             old = json.loads(target.read_text(encoding="utf-8"))
-            if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, ph, key[1]):
+            if old.get("input_hash") == h and (keep_stale()
+                    or (old.get("prompt_hash"), old.get("ontology_version")) == (ph, key[1])):
                 return "cached"
         obs, dropped = [], collections.Counter()
         try:

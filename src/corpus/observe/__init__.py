@@ -15,6 +15,21 @@ TARGETED_FEATURES = {"entry_fee", "booking_needed", "cash_only", "vegetarian_opt
                      "wheelchair"}  # condition_change stays out of aggregate; judge status still reads its reports
 
 
+def keep_stale() -> bool:
+    """OBSERVE_KEEP_STALE=1 (environment or .env): a changed prompt or ontology version does NOT make a place be
+    observed again -- only a place whose sources changed is. The new rules then apply to new data only, which is what
+    the user asked for when re-extracting the whole city would cost hours for a gain measured as small
+    (docs/plans/CORPUS_HANDOFF.md). Observations keep the prompt_hash and ontology_version they were made with, so a
+    file still says which rules produced it."""
+    import os
+
+    from dotenv import load_dotenv
+
+    from ..crawl.common.files import ROOT
+    load_dotenv(ROOT / ".env")
+    return os.environ.get("OBSERVE_KEEP_STALE", "").strip().lower() not in ("", "0", "false", "no")
+
+
 def targeted_ok(feature) -> bool:
     """A targeted sample's observation of this ontology feature counts: effort and facts of the place, not opinions
     (quality, service, value, crowd, who it suits) whose share it would skew."""

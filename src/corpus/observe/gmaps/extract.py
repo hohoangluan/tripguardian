@@ -25,7 +25,7 @@ import openai
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
 from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
-from .. import observation
+from .. import keep_stale, observation
 from .details import day_type, details_pairs
 from .gate import BadAnswer, gate, norm
 from .place_rules import (AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times,
@@ -462,14 +462,14 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
         h = input_hash(d, bad_ids)
         if target.exists():
             old = json.loads(target.read_text(encoding="utf-8"))
-            if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, *key):
+            fresh = keep_stale() or (old.get("prompt_hash"), old.get("ontology_version")) == key
+            if old.get("input_hash") == h and fresh:
                 if "voices_targeted" in old:
                     return "cached"
                 write_json(target, tag_samples(old, *load_samples(d), bad_ids))  # built before samples were tagged
                 return "tagged"
             before = set(old.get("qc_dropped") or [])
-            if (before <= bad_ids and (old.get("prompt_hash"), old.get("ontology_version")) == key
-                    and old.get("input_hash") == input_hash(d, before)):
+            if before <= bad_ids and fresh and old.get("input_hash") == input_hash(d, before):
                 # same reviews, only new qc flags: their evidence leaves without asking the model again
                 reviews, samples = load_samples(d)
                 write_json(target, {**tag_samples(prune(old, reviews, bad_ids), reviews, samples, bad_ids),

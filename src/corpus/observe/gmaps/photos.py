@@ -19,7 +19,7 @@ from pathlib import Path
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
 from ...llm import PHOTO_OBSERVE, PHOTO_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
-from .. import CONTEXT_KEYS, observation
+from .. import CONTEXT_KEYS, keep_stale, observation
 
 PHOTOS_FILE = "photos.json"  # written by corpus.crawl.gmaps.photos
 OUT_DIR = "photo_observations"
@@ -127,7 +127,8 @@ async def run(city: str, limit: int | None = None) -> dict:
         h = hashlib.sha256((d / PHOTOS_FILE).read_bytes()).hexdigest()[:16]
         if target.exists():
             old = json.loads(target.read_text(encoding="utf-8"))
-            if (old.get("input_hash"), old.get("prompt_hash"), old.get("ontology_version")) == (h, ph, ont.version):
+            if old.get("input_hash") == h and (keep_stale()
+                    or (old.get("prompt_hash"), old.get("ontology_version")) == (ph, ont.version)):
                 return "cached"
         try:
             res = await observe_place(client, model, sem, name, d, ont)
