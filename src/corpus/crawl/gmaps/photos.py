@@ -24,7 +24,7 @@ from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import author_hash, data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
 from .keywords import category_group
-from .page import ensure_login, more, open_page, tabs
+from .page import ensure_login, more, open_page
 
 FILE = "photos.json"
 TILE = "a[data-photo-index]"
@@ -234,7 +234,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
             todo.append((f.parent, place))
     todo = todo[:limit] if limit is not None else todo
     print(f"photos {city}: {len(todo)} places left")
-    throttle = tabs(headed, root / "photos_throttle.json", start=c.get("tabs_start", 1), hi=c.get("photo_tabs", 3),
+    throttle = Throttle(root / "photos_throttle.json", start=c.get("tabs_start", 1), hi=c.get("photo_tabs", 3),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     async with profile("gmaps", headed) as ctx:
         await ensure_login(ctx)

@@ -6,7 +6,6 @@ import asyncio
 import re
 
 from ..common.browser import LoginRequired, is_captcha
-from ..common.throttle import Throttle
 
 
 async def ensure_login(ctx: BrowserContext) -> None:
@@ -69,21 +68,3 @@ async def more(page: Page, selector: str, n: int, timeout: int = 4000) -> bool:
     except Exception:
         return False
 
-
-class FixedTabs(Throttle):
-    """Headed runs: a person watches and solves captchas, so tabs stay where the run starts (the saved limit, which
-    a memory guard may lower, else the ceiling). A timeout is retried on its own instead of halving the tabs (photos
-    once sat hours at 1 tab, 2026-10-06)."""
-
-    def __init__(self, path, start: int, hi: int, **kw):
-        super().__init__(path, start=hi, hi=hi, **kw)
-
-    def success(self) -> None:
-        pass
-
-    def blocked(self) -> None:
-        pass
-
-
-def tabs(headed: bool, path, start: int, hi: int, **kw) -> Throttle:
-    return (FixedTabs if headed else Throttle)(path, start=start, hi=hi, **kw)
