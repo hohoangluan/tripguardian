@@ -18,12 +18,13 @@ they arrive (corpus.review.judge_label), so a stopped run resumes; claims alread
 import asyncio
 import collections
 import json
+import os
 import random
 
 import openai
 
-from ..crawl.common.files import data_dir, load_config, now
-from ..llm import OBS_AUDIT, OBS_AUDIT_STRONG, OutOfQuota
+from ..crawl.common.files import ROOT, data_dir, load_config, now
+from ..llm import OBS_AUDIT, OBS_AUDIT_FIRST, OBS_AUDIT_STRONG, OutOfQuota
 from ..observe import TARGETED, targeted_ok
 from ..ontology import load as load_ontology
 from ..review import evidence, judge_label, label_key, label_records
@@ -168,10 +169,8 @@ async def guarded(coro, what: str):
         return "error"
 
 
-async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1) -> collections.Counter:
-    is_strong = look > 1 or strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
-    task = OBS_AUDIT_STRONG if is_strong else OBS_AUDIT
-    client, model = clients[task.role.name]
+def render(chunk: list[tuple], ont) -> tuple[dict, list[bytes], dict]:
+    """A call's fields (places, features, items), its pictures and ref -> (source, place stem, observation)."""
     places, feats = {}, {}
     lines, images, refs = [], [], {}
     for i, (source, st, h, o) in enumerate(chunk, 1):
@@ -199,18 +198,57 @@ async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: d
         f = ont.features[fid]
         claims = "; ".join(f"{v}: {c}" for v, c in f.claims.items()) if f.claims else ", ".join(f.values)
         feat_lines.append(f"{fref} {fid}: {f.hint}. Values: {claims}")
+    return ({"places": NL.join(place_lines), "features": NL.join(feat_lines), "items": (NL + NL).join(lines)},
+            images, refs)
+
+
+async def label_with(task, chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1,
+                     keep=None) -> tuple[collections.Counter, list[tuple]]:
+    """One call of task over chunk. Verdicts in keep (all when None) are written as labels; the rows of the other
+    verdicts and of items the answer left out are returned for another reader."""
+    client, model = clients[task.role.name]
+    fields, images, refs = render(chunk, ont)
     async with sems[task.role.name]:
-        ans = await ask(task, client, model, images=images, city=city, places=NL.join(place_lines),
-                        features=NL.join(feat_lines), items=(NL + NL).join(lines))
-    got = collections.Counter()
+        ans = await ask(task, client, model, images=images, city=city, **fields)
+    got, rest = collections.Counter(), []
     by = f"judge:{ans.get('_model', model)}"
+    row_of = {f"i{i}": r for i, r in enumerate(chunk, 1)}
     for it in ans["items"]:
-        if it["ref"] in refs:
-            source, st, o = refs.pop(it["ref"])
+        if it["ref"] not in refs:
+            continue
+        source, st, o = refs.pop(it["ref"])
+        if keep is None or it["verdict"] in keep:
             judge_label(o, st, source, it["verdict"], it["reason"][:300], by, task.prompt_hash, look)
             got[it["verdict"]] += 1
-    got["missing"] += len(refs)
+        else:
+            rest.append(row_of[it["ref"]])
+    rest += [row_of[ref] for ref in refs]
+    return got, rest
+
+
+async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1) -> collections.Counter:
+    """The Judge's labels for one chunk. With a first reader (JUDGE_FIRST_MODEL) on a plain chunk, its "correct"
+    stands and the Judge reads only what it called wrong or unsure: a wrong drops evidence, so the Judge confirms it."""
+    is_strong = look > 1 or strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
+    if is_strong:
+        got, rest = await label_with(OBS_AUDIT_STRONG, chunk, ont, city, clients, sems, look)
+    elif OBS_AUDIT_FIRST.role.name in clients:
+        got, rest = await label_with(OBS_AUDIT_FIRST, chunk, ont, city, clients, sems, look, keep={"correct"})
+        if rest:
+            more, rest = await label_with(OBS_AUDIT, rest, ont, city, clients, sems, look)
+            got.update(more)
+            got["to_judge"] += len(rest) + sum(more.values())
+    else:
+        got, rest = await label_with(OBS_AUDIT, chunk, ont, city, clients, sems, look)
+    got["missing"] += len(rest)
     return got
+
+
+def first_reader() -> str:
+    """JUDGE_FIRST_MODEL from .env, empty when the audit has no first reader."""
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+    return os.environ.get(OBS_AUDIT_FIRST.role.model_env, "").strip()
 
 
 def unsure_rows(rows: list[tuple], records: dict[str, dict]) -> list[tuple]:
@@ -247,10 +285,12 @@ async def second_look(ont, name: str, clients: dict, sems: dict) -> collections.
 async def run(city: str, limit: int | None = None) -> dict:
     name, _ = load_config(city)
     ont = load_ontology()
-    clients = {t.role.name: t.role.client() for t in (OBS_AUDIT, OBS_AUDIT_STRONG)}
+    tasks = (OBS_AUDIT, OBS_AUDIT_STRONG) + ((OBS_AUDIT_FIRST,) if first_reader() else ())
+    clients = {t.role.name: t.role.client() for t in tasks}
     clients = {k: (c.with_options(timeout=300, max_retries=0), m) for k, (c, m) in clients.items()}
     sems = {OBS_AUDIT.role.name: asyncio.Semaphore(OBS_AUDIT.parallel),
-            OBS_AUDIT_STRONG.role.name: asyncio.Semaphore(OBS_AUDIT_STRONG.parallel)}
+            OBS_AUDIT_STRONG.role.name: asyncio.Semaphore(OBS_AUDIT_STRONG.parallel),
+            OBS_AUDIT_FIRST.role.name: asyncio.Semaphore(OBS_AUDIT_FIRST.parallel)}
     total, rounds = collections.Counter(), 0
     while True:  # a sample that misses the gate pulls its whole stratum into the next round
         rows = load_rows(ont)

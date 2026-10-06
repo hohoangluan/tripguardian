@@ -38,6 +38,12 @@ JUDGE = Role(
     key_env="JUDGE_API_KEY", base_url_env="JUDGE_BASE_URL", model_env="JUDGE_MODEL", guided=False,
 )
 
+JUDGE_FIRST = Role(
+    name="judge_first",
+    purpose="optional cheaper first reader for the audit: its 'correct' stands, anything else goes to the Judge",
+    key_env="JUDGE_API_KEY", base_url_env="JUDGE_BASE_URL", model_env="JUDGE_FIRST_MODEL", guided=False,
+)
+
 JUDGE_STRONG = Role(
     name="judge_strong",
     purpose="the Judge's hardest calls: values that widen choices (suitable for elderly, kids, wheelchair)",

@@ -138,3 +138,28 @@ def test_aggregate_drops_a_claim_still_unsure_on_the_second_look():
     assert usable(o, feat, {k: "unsure"})
     assert not usable(o, feat, {k: "unsure_again"})
     assert not usable(o, feat, {k: "wrong"})
+
+
+def test_first_reader_correct_stands_and_the_judge_reads_the_rest(monkeypatch):
+    rows = [_row(i, "food_quality", "good") for i in range(3)]
+    asked, written = [], []
+
+    async def fake_ask(task, client, model, images=(), **fields):
+        asked.append((task.role.name, fields["items"].count("</i")))
+        if task.role.name == "judge_first":
+            return {"items": [{"ref": "i1", "verdict": "correct", "reason": "r"},
+                              {"ref": "i2", "verdict": "wrong", "reason": "r"}]}  # i3 left out
+        return {"items": [{"ref": "i1", "verdict": "correct", "reason": "r"},
+                          {"ref": "i2", "verdict": "wrong", "reason": "r"}]}
+
+    monkeypatch.setattr(audit, "ask", fake_ask)
+    monkeypatch.setattr(audit, "evidence", lambda st, o, source: {"text": "t", "date": None, "rating": None, "image": None})
+    monkeypatch.setattr(audit, "place_info", lambda st: {"category": "c", "address": "a"})
+    monkeypatch.setattr(audit, "judge_label", lambda o, st, source, verdict, note, by, ph, look=1: written.append((o["id"], verdict, by)))
+    import asyncio
+    clients = {n: (None, n) for n in ("judge", "judge_first", "judge_strong")}
+    sems = {n: asyncio.Semaphore(1) for n in clients}
+    got = asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", clients, sems))
+    assert asked == [("judge_first", 3), ("judge", 2)]  # the Judge reads the wrong one and the missing one
+    assert written == [("x0", "correct", "judge:judge_first"), ("x1", "correct", "judge:judge"), ("x2", "wrong", "judge:judge")]
+    assert got["correct"] == 2 and got["wrong"] == 1 and got["missing"] == 0

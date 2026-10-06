@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 
 import openai
 
-from .roles import AGENT, EXTRACTOR, JUDGE, JUDGE_STRONG, Role
+from .roles import AGENT, EXTRACTOR, JUDGE, JUDGE_FIRST, JUDGE_STRONG, Role
 
 ATTEMPTS = 4  # per call: a broken JSON answer or a busy / unreachable server is tried again
 RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each time
@@ -993,6 +993,9 @@ Items:
 {items}"""
 
 OBS_AUDIT = Task(name="obs_audit", role=JUDGE, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT, parallel=8)
+# optional first reader (JUDGE_FIRST_MODEL): its "correct" stands, wrong / unsure go to OBS_AUDIT (judge.audit)
+OBS_AUDIT_FIRST = Task(name="obs_audit", role=JUDGE_FIRST, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT,
+                       parallel=8)
 # values that widen a choice (suitable for elderly / kids / wheelchair ...): a wrong "yes" can hurt someone
 OBS_AUDIT_STRONG = Task(name="obs_audit", role=JUDGE_STRONG, max_tokens=12000, schema=AUDIT_SCHEMA,
                         prompt=_AUDIT_PROMPT, parallel=8)
