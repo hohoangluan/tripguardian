@@ -12,7 +12,8 @@ Mô tả hành vi code: `docs/CORPUS.md`. Ở đây chỉ có trạng thái và 
   - `photos`: còn ~30 nơi.
   - `keywords`: xong. 1.150/1.150 nơi cần từ khóa đã đủ mọi từ của nhóm; 0 nơi thiếu (bước 1).
 - **Judge audit:** xong bằng Gemma (2026-10-06 10:16, mục "Judge" bên dưới). Chuỗi sol cũ (`judge_chain3.sh`) đã dừng, bỏ.
-- **Build đầy đủ đang chạy** (bắt đầu 10:31): `logs/build_gemma.sh` → `logs/build_gemma.log`, xong khi có `BUILD_GEMMA_DONE`. Ước 45–90 phút (gmaps observe ~25 nơi/phút). Lỗi `RuntimeError: Event loop is closed` trong log là cảnh báo dọn client, không làm build dừng; bước hỏng thật hiện `build dalat: <bước> failed`.
+- **Build đầy đủ xong** 2026-10-06 13:22 (2 giờ 52 phút; mọi bước `ok`, dedup/status bỏ qua): `logs/build_gemma.sh` → `logs/build_gemma.log` (`BUILD_GEMMA_DONE`). Observe đọc mới 652 nơi Maps, 167 nơi ảnh, 44 nơi TikTok. Audit Gemma 1 vòng (1 giờ 49 phút): correct 15.414, wrong 11.705, unsure 4.975, ảnh-correct-chờ-sol 3.353, lỗi 4. Lỗi `RuntimeError: Event loop is closed` trong log chỉ là cảnh báo dọn client.
+- **Số đo sau build** (nơi trải nghiệm 772; trước → sau): `decision evaluate` filled_rate 0,467 → **0,767**, uncertain_in_main 38 → 4, violations 0, trip chưa đủ 16 → 7 (`elderly_views`, `wheelchair_cafe`, `group_food`, `cross_16..19`). VERIFIED: dốc/bậc 136 → 149, đi bộ xa 43 → 62, đường xấu 184 → 202, người lớn tuổi 60 → 60, **đặt chỗ 266 → 38** (Gemma loại nhầm nhiều claim booking đúng → precision tầng dưới cổng → UNCERTAIN; sol chấm lại sẽ phục hồi). Một phần mức tăng filled_rate có thể do code sau lần đo cũ, không chỉ do build này.
 
 ## Commit (local `main`, chưa push)
 
@@ -38,6 +39,20 @@ Các commit trước (`c77ef78` … `d8195aa`) xem `git log`.
 6. **Kiểm Judge** sau build: lấy ~40 nhãn Gemma `correct` (chữ) mới, đọc review gốc. Không tự ghi nhãn người.
 8. **Khi có quota Codex lại** (thử: `curl` tới `$9ROUTER_API_URL/v1/chat/completions` với `cx/gpt-6.1-sol`): xem mục "Judge" → "Khi sol có quota".
 7. **Official:** 43 site lỗi (`data/official/errors.jsonl`). Chạy lại `python -m corpus official pages` sau vài ngày.
+
+## Chất lượng corpus: việc còn lại (ưu tiên cho độ tin cậy)
+
+Đã sửa so với audit 2026-10-05 (kiểm trên dữ liệu 2026-10-06): tác giả TikTok (0/14.469 thiếu), video của chính quán gắn `owner`, ảnh không rõ người đăng = 1 phiếu/nơi, qc chạy, mẫu extremes/keywords không lệch cảm nhận, giá vé official + review gần đây, gộp/đóng cửa cần Judge mạnh.
+
+| # | Việc | Vì sao | Cần |
+|---|---|---|---|
+| 1 | Sol 6.1 chấm lại nhãn Gemma không phải `correct` (~20k, gồm ~4.300 ảnh) | Gemma lọt 11–16% claim sai (ảnh 35%), loại nhầm ~30% (vd. đặt chỗ) | Quota Codex; mục "Judge" → "Khi sol có quota" |
+| 2 | Người kiểm có lấy mẫu chính Judge: ~30 claim mỗi giá trị rủi ro (dốc/bậc, đi bộ xa, thời tiết, đặt chỗ, người già / trẻ em / xe lăn) | Gold hiện chỉ 156 claim; con số "chính xác X%" phải từ người | Người dùng, `/admin/labels`; agent không tự ghi nhãn người |
+| 3 | `judge dedup` + `judge status` cho nơi / báo cáo đóng cửa mới | Nơi đóng / trùng làm mất tin ngay | Quota sol |
+| 4 | Crawl Maps phần thiếu (extremes ~1.120 nơi, ảnh ~32, kiểm keywords) | Thiếu bằng chứng effort cho bộ lọc cứng | Mạng ổn, headed (bước 1–2 ở trên) |
+| 5 | 7 trip chưa đủ: xem thiếu feature nào (người già + view, xe lăn + cafe, nhóm ăn) | filled_rate 0,767 | Sau #1, #4 |
+| 6 | 43 website official lỗi | Giá vé / giờ chuẩn nhất | `python -m corpus official pages` |
+| 7 | Làm mới định kỳ (crawl → build) | Đóng cửa, đổi giá | Sau #1–#4 |
 
 ## Judge (2026-10-06)
 
