@@ -135,3 +135,12 @@ Mô tả hành vi: `docs/CORPUS.md` §6 (đoạn "Engine Gemma"). Code: `src/cor
 | `quality_pass.py` | build hiện tại (một bước, Gemma, keep-stale) |
 | `qwen_probe.py` | đo throughput một endpoint UIT: `[qwen|gemma] <giây> <concurrency...>`, không ghi nhãn |
 | `sol_finish.py`, `quota_switch.py` | chuỗi sol và watchdog hết quota — **đã bỏ** theo quyết định 1, giữ lại để tham khảo |
+
+### Cập nhật 2026-10-06 ~18:30 giờ VN — build xong, hai sửa đổi ở tầng aggregate
+
+- Build `quality_pass` **xong** 10:57 UTC (mọi bước `ok`). Lượt audit Gemma: correct 2.933, wrong 4.054, unsure 3.229, ảnh-correct 2.157, 4 call lỗi.
+- **Sửa cổng precision** (commit `1154e8a`): `labels.stats()` đo bằng nhãn chính xác (người, sol, astra) khi đã đủ `GATE_MIN_N` = 30, chỉ dùng nhãn Gemma khi chưa đủ; mỗi dòng có `measured_by`. Trước đó trộn nhãn Gemma (bỏ oan ~30%) làm 12 cặp feature/value, 84,6k claim rớt cổng dù nhãn chính xác cho đạt (vd. `food_quality=good` 0,95 → 0,83). VERIFIED 14.796 → 19.765. Tự đọc 36 claim mới VERIFIED: 34 đúng theo định nghĩa.
+- **Luật effort theo im lặng** (commit `0744c85`, người dùng chốt): `steep_or_stairs`, `long_walk`, `rough_road_access` — không ai nhắc ở review / video / ảnh → phục vụ `absent` (`inferred: "silence"`); ≥1 người nhắc `present` mà Judge không chấm `wrong` → `present` (`inferred: "mentioned"`); vừa có người nói có vừa có người nói không → giữ mâu thuẫn. Đã đo: ở nơi có thật chỉ 1,5–3,6% người viết nhắc tới, nên im lặng là bằng chứng yếu (nơi 63 người viết vẫn ~39% khả năng có dốc); người dùng chấp nhận và giao việc sửa sai cho feedback. `feature_review` `report` vẫn giữ lại giá trị suy ra, `disable` vẫn xóa.
+- Sau hai sửa: VERIFIED 23.004 · UNCERTAIN 6.289 · OUTDATED 2.606; `decision evaluate` filled_rate **0,967** (từ 0,767), còn 1 trip chưa đủ (`group_food`), 0 violation, 0 unknown trong danh sách chính. Sáu trip vừa đủ chỗ là nhờ giả định im lặng = không có.
+- **Còn thiếu: vòng feedback người dùng → corpus.** Feedback trong app (`far`, `crowded`, `pricey`, `visited`) chỉ chỉnh hồ sơ phiên, không ghi `feature_review`. Đã trình thiết kế cho người dùng, chờ duyệt.
+- Sửa kèm hai test cũ bị ontology làm hỏng (version ghim 7, ví dụ `claim_text`). Toàn bộ 1.102 test pass.
