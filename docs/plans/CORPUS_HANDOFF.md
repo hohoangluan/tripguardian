@@ -5,12 +5,13 @@ Mô tả hành vi code: `docs/CORPUS.md`. Ở đây chỉ có trạng thái và 
 
 ## Trạng thái hiện tại
 
-- **Đang chạy:** crawl Maps (`logs/gmaps_runner.py`, log `logs/gmaps_runner_9.log`), phase `extremes`, headed, 2 tab. Mạng đã ổn (2026-10-06 10:30 giờ VN, `google.com/maps` trả 200 trong ~2,6 s).
-- **Đang chạy song song (phiên khác):** `build_gemma.sh` (`corpus build --city dalat --skip "judge dedup" "judge status"`, log `logs/build_gemma.log`, bắt đầu 10:30 giờ VN). Build này chạy trước khi Maps xong, nên phải build lại sau khi crawl xong.
-- **Còn lại (ước lượng 2026-10-06):**
-  - `extremes` (review 1–2★ và 5★): 345 file, còn ~1.123 nơi (đã xóa 2 file không đủ đánh dấu hoàn tất, xem bước 3).
-  - `photos`: còn ~30 nơi.
-  - `keywords`: xong. 1.150/1.150 nơi cần từ khóa đã đủ mọi từ của nhóm; 0 nơi thiếu (bước 1).
+- **Đang chạy (14:35 giờ VN):** crawl Maps (`logs/gmaps_runner.py`, log `logs/gmaps_runner.log`), phase `extremes`, headed; và build `logs/quality_pass.py` → `logs/quality_pass.log` (bắt đầu 07:32 UTC, `corpus build --city dalat --skip "judge dedup" "judge status"`, `OBSERVE_KEEP_STALE=1`, audit trên Gemma). Xong khi log có `QUALITY_PASS_DONE`.
+- **Còn lại (đo 07:35 UTC 2026-10-06):**
+  - `extremes`: 778 nơi xong, còn ~690 nơi; tốc độ 5,8 nơi/phút → **~2 giờ**.
+  - `photos`: còn ~30 nơi. `keywords`: xong (1.151 nơi, 0 nơi thiếu từ).
+  - Build đang chạy: observe lại 64 nơi (xem "Phiên này" bên dưới) + nơi có review mới, rồi Gemma audit claim chưa nhãn → **~1–1,5 giờ**.
+  - Build cuối sau khi crawl xong (chỉ nơi có review mới): **~1,5–2,5 giờ**.
+  - **Corpus xong ước ~11:30–12:00 UTC (18:30–19:00 giờ VN) 2026-10-06.**
 - **Judge audit:** xong bằng Gemma (2026-10-06 10:16, mục "Judge" bên dưới). Chuỗi sol cũ (`judge_chain3.sh`) đã dừng, bỏ.
 - **Build đầy đủ xong** 2026-10-06 13:22 (2 giờ 52 phút; mọi bước `ok`, dedup/status bỏ qua): `logs/build_gemma.sh` → `logs/build_gemma.log` (`BUILD_GEMMA_DONE`). Observe đọc mới 652 nơi Maps, 167 nơi ảnh, 44 nơi TikTok. Audit Gemma 1 vòng (1 giờ 49 phút): correct 15.414, wrong 11.705, unsure 4.975, ảnh-correct-chờ-sol 3.353, lỗi 4. Lỗi `RuntimeError: Event loop is closed` trong log chỉ là cảnh báo dọn client.
 - **Số đo sau build** (nơi trải nghiệm 772; trước → sau): `decision evaluate` filled_rate 0,467 → **0,767**, uncertain_in_main 38 → 4, violations 0, trip chưa đủ 16 → 7 (`elderly_views`, `wheelchair_cafe`, `group_food`, `cross_16..19`). VERIFIED: dốc/bậc 136 → 149, đi bộ xa 43 → 62, đường xấu 184 → 202, người lớn tuổi 60 → 60, **đặt chỗ 266 → 38** (Gemma loại nhầm nhiều claim booking đúng → precision tầng dưới cổng → UNCERTAIN; sol chấm lại sẽ phục hồi). Một phần mức tăng filled_rate có thể do code sau lần đo cũ, không chỉ do build này.
@@ -46,7 +47,7 @@ Các commit trước (`c77ef78` … `d8195aa`) xem `git log`.
 
 | # | Việc | Vì sao | Cần |
 |---|---|---|---|
-| 1 | Sol 6.1 chấm lại nhãn Gemma không phải `correct` (~20k, gồm ~4.300 ảnh) | Gemma lọt 11–16% claim sai (ảnh 35%), loại nhầm ~30% (vd. đặt chỗ) | Quota Codex; mục "Judge" → "Khi sol có quota" |
+| 1 | ~~Sol 6.1 chấm lại nhãn Gemma~~ **BỎ** (người dùng 2026-10-06): sol ra khỏi corpus, giữ quota cho việc họ chỉ định | Gemma lọt 11–16% claim sai (ảnh 35%), loại nhầm ~30% — chấp nhận, bù bằng siết prompt | Xem "Vai trò hai model" |
 | 2 | Người kiểm có lấy mẫu chính Judge: ~30 claim mỗi giá trị rủi ro (dốc/bậc, đi bộ xa, thời tiết, đặt chỗ, người già / trẻ em / xe lăn) | Gold hiện chỉ 156 claim; con số "chính xác X%" phải từ người | Người dùng, `/admin/labels`; agent không tự ghi nhãn người |
 | 3 | `judge dedup` + `judge status` cho nơi / báo cáo đóng cửa mới | Nơi đóng / trùng làm mất tin ngay | Quota sol |
 | 4 | Crawl Maps phần thiếu (extremes ~1.120 nơi, ảnh ~32, kiểm keywords) | Thiếu bằng chứng effort cho bộ lọc cứng | Mạng ổn, headed (bước 1–2 ở trên) |
@@ -105,3 +106,32 @@ Mô tả hành vi: `docs/CORPUS.md` §6 (đoạn "Engine Gemma"). Code: `src/cor
 
 - Các file đã sửa chưa commit: `scripts/free_tiktok_clips.py`, `src/corpus/__main__.py`, `src/corpus/crawl/common/throttle.py` (`grow_after` 5 → 2), `src/corpus/crawl/tiktok/{comments_crawl,place_crawl}.py`, `src/corpus/observe/tiktok/extract.py`. Không phải của phiên này; giữ nguyên tới khi người dùng quyết.
 - Đẩy lên remote: chưa push, phải hỏi người dùng.
+
+## Phiên này (2026-10-06 ~14:35 giờ VN) — đang làm gì, phiên sau tiếp thế nào
+
+**Quyết định đã chốt với người dùng**
+1. **Gemma là engine duy nhất của corpus**; sol ra khỏi dây chuyền, cả chấm lẫn kiểm (mục "Vai trò hai model"). Kiểm chất lượng do trợ lý tự đọc nguồn, không gọi model, không ghi nhãn người.
+2. **Không extract lại cả thành phố** cho prompt/ontology mới. Cờ `OBSERVE_KEEP_STALE=1` (commit `1e89b95`): prompt hay `ontology_version` đổi thì một nơi **không** bị observe lại; chỉ nơi có nguồn mới. Luật mới vì vậy chỉ áp cho dữ liệu mới crawl. Mỗi file observations vẫn ghi `prompt_hash` + `ontology_version` của nó.
+3. Audit Gemma chạy `parallel=38`, các task ảnh/video `parallel=24` (commit `7734d49`, `adf3200`).
+
+**Vì sao không extract lại cả bộ** — đo trên 63 nơi đã chạy lại bằng ontology v9, đối chiếu 48,5k nhãn mạnh, tính ở mức (nơi, feature, value): claim sai bị bỏ 34% so với 21% ở feature không siết; claim đúng giữ 80% so với 88%. Precision trong mẫu 59% → 63%, nhóm đối chứng cũng tự tăng 72% → 75%. Tức **siết định nghĩa gần như không hơn mức nhiễu của việc extract lại**, vì phần lớn claim sai là "nguồn nói về quán khác" và "đọc sai ảnh", không phải lỗi định nghĩa. Riêng `setting` bị siết quá tay: chỉ 15/63 nơi còn claim `setting` → đã nới lại.
+
+**Đã sửa, chờ dữ liệu mới để phát huy** (ontology version 10, commit `3644234`, `11a4d2b`, `736b9c6`)
+- 15 feature có `claims` từng value + câu "không phải", đào từ chính quote nhãn mạnh gán `wrong`: `scenic_view`, `flower_garden`, `live_music`, `local_specialty_food`, `setting`, `outdoor_seating`, `steep_or_stairs`, `long_walk`, `booking_needed`, `condition_change`, `noise`, `crowd`, `toilet`, `laptop_friendly`, `visit_duration`.
+- `REVIEW_OBSERVE`: luật nhận dạng nơi — mô tả hay so sánh với quán khác, chi nhánh khác, khách sạn, "khu này", "ngoài kia", "trên đường tới" đều không cho observation.
+- `PHOTO_OBSERVE`: thứ được khai phải là chủ thể của ảnh; sân có mái không phải ngoài trời, ảnh mặt tiền không phải trong nhà, món ăn trên bàn không nói gì về chỗ ngồi.
+- 64 nơi từng extract bằng v9 đã bị xóa file observations để dựng lại bằng luật đã sửa (đang chạy trong build hiện tại).
+
+**Phiên sau làm tiếp**
+1. Chờ `QUALITY_PASS_DONE` trong `logs/quality_pass.log`. Nếu có dòng `FAILED <bước>` thì đọc bước đó, sửa, chạy lại `python -u logs/quality_pass.py > logs/quality_pass.log 2>&1`.
+2. Khi crawl `extremes` xong (hoặc người dùng dừng): chạy lại đúng build đó một lần nữa cho nơi có review mới. **Không chạy hai build hay hai audit cùng lúc**; cũng không chạy việc khác trên key UIT trong lúc build (key cho 40 call đồng thời, build đã dùng 38).
+3. Đo và báo: `serving` so mốc VERIFIED 16.375 · UNCERTAIN 10.655 · OUTDATED 2.271 · 772 nơi trải nghiệm; `python -m decision evaluate` so filled_rate 0,767; và tự đọc ~40 nhãn Gemma `correct` mới đối chiếu review gốc.
+4. Đáng làm tiếp nếu muốn chất lượng cao hơn: đo riêng xem luật nhận dạng nơi + luật chủ thể ảnh có hạ tỉ lệ claim sai trên **dữ liệu mới** không (so cùng cách ở trên). Nếu có thì mới cân nhắc extract lại cả bộ, lúc đó tắt `OBSERVE_KEEP_STALE`.
+5. Việc còn treo: `judge dedup` / `judge status` cho nơi mới (cần sol — hỏi người dùng trước), 43 website official lỗi, 7 trip chưa đủ, và hiệu chỉnh gate cho nhãn Gemma + tách cờ `risky`/`second_read` (mục "Chưa quyết").
+
+**Script của phiên này** (đều trong `logs/`, không vào git)
+| File | Việc |
+|---|---|
+| `quality_pass.py` | build hiện tại (một bước, Gemma, keep-stale) |
+| `qwen_probe.py` | đo throughput một endpoint UIT: `[qwen|gemma] <giây> <concurrency...>`, không ghi nhãn |
+| `sol_finish.py`, `quota_switch.py` | chuỗi sol và watchdog hết quota — **đã bỏ** theo quyết định 1, giữ lại để tham khảo |
