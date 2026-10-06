@@ -45,6 +45,7 @@ GATE_MIN_N = 30  # labelled items before a stratum can be judged from its sample
 CHUNK, CHUNK_IMAGES = 24, 8  # items per call; 16 text matched 8 on a 161-claim re-ask (2026-10-05); 24 / 8 pictures
 # raised 2026-10-06 to save Codex quota, not yet measured -- spot-check the labels they produce
 CHUNK_GEMMA = 8  # Gemma's items per call: 8 measured best (16 and 24 let more wrong claims stand)
+PASSAGE_GEMMA = 500  # chars around the quote on the Gemma audit: with its compact items -22% tokens, same precision
 PASSAGE = None  # chars of source text around the quote an item shows (None: the whole passage evidence() gives)
 BY_FEATURE = False  # calls group a feature's items (its definition once per call) instead of a place's
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
@@ -219,7 +220,7 @@ def around(text: str, quote: str, n: int | None) -> str:
 
 def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[bytes], dict]:
     """A call's fields (places, features, items), its pictures and ref -> (source, place stem, observation).
-    claim: each item also states its value's claim sentence (the Gemma audit)."""
+    claim: the Gemma audit's compact items, each with its value's claim sentence and PASSAGE_GEMMA chars of source."""
     places, feats = {}, {}
     lines, images, refs = [], [], {}
     for i, (source, st, h, o) in enumerate(chunk, 1):
@@ -227,7 +228,7 @@ def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[byt
         feat = ont.features[o["feature"]]
         fref = feats.setdefault(feat.id, f"F{len(feats) + 1}")
         ev = evidence(st, o, source)
-        ev["text"] = around(ev["text"], o["span"]["quote"], PASSAGE)
+        ev["text"] = around(ev["text"], o["span"]["quote"], PASSAGE_GEMMA if claim else PASSAGE)
         ref = f"i{i}"
         refs[ref] = (source, st, o)
         pic = ""
@@ -235,9 +236,13 @@ def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[byt
             images.append(ev["image"].read_bytes())
             pic = f" [picture {len(images)} attached]"
         meta = ", ".join(x for x in (ev["date"] and f"date {ev['date']}", ev["rating"] and f"rating {ev['rating']}") if x)
+        if claim:
+            lines.append(f"<{ref}> {pref} {fref}={o['value']}{f' ({meta})' if meta else ''}" + NL
+                         + f"claim: {claim_text(feat, o['value'])}" + NL
+                         + f"quote: \"{o['span']['quote']}\"{pic}" + NL + f"src: {ev['text']}")
+            continue
         # each item a closed block with its own source, so a long call does not mix one item's words into another's
         lines.append(f"<{ref}> place {pref} | {fref} {feat.id} = {o['value']}{f' | {meta}' if meta else ''}" + NL
-                     + (f"  claim: {claim_text(feat, o['value'])}" + NL if claim else "")
                      + f"  quote: \"{o['span']['quote']}\"{pic}" + NL
                      + f"  source of {ref} only: {ev['text']}" + NL + f"</{ref}>")
     place_lines = []
