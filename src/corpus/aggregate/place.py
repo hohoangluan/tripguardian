@@ -51,7 +51,8 @@ COMPLETE_FEATURES, COMPLETE_N = 3, 3
 # is weak evidence; the user accepted that and leaves the correction to travellers' feedback on the place.
 SILENCE_FEATURES = ("steep_or_stairs", "long_walk", "rough_road_access")
 SILENCE_MIN_MENTIONS = 1  # authors naming `present`
-AUTHORITATIVE = {"gmaps_attribute", "official_page"}
+# a traveller_report observation exists only once several people reported the same thing (corpus.observe.reports)
+AUTHORITATIVE = {"gmaps_attribute", "official_page", "traveller_report"}
 WEEKEND = ("sat", "sun")
 DAY_ORDER = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
 
@@ -65,7 +66,7 @@ def time_of_day(hour: int) -> str:
     return "night"
 SOURCE_KIND = {"gmaps_review": "provider", "gmaps_details": "provider", "gmaps_attribute": "provider", "tiktok_segment": "video",
                "tiktok_caption": "video", "tiktok_frame": "video", "tiktok_comment": "comment",
-               "gmaps_photo": "photo", "official_page": "official"}
+               "gmaps_photo": "photo", "official_page": "official", "traveller_report": "traveller"}
 
 
 # what a business's own photos and videos can show, or what it states as the operator; never quality, crowd,
@@ -242,7 +243,7 @@ def silence_signal() -> dict:
     return {"n": 0, "distribution": {}, "top_value": "absent", "status": "signal", "authority": None, "by_context": {},
             "by_source": {}, "mention_rate": 0.0,
             "confidence": {"independent_sources": 0, "agreement": None, "freshness_days": None, "source_types": []},
-            "trend": None, "needs_review": False, "checked": {"authors": 0, "of": 0, "all": False},
+            "trend": trend([], "absent"), "needs_review": False, "checked": {"authors": 0, "of": 0, "all": False},
             "observation_ids": []}
 
 

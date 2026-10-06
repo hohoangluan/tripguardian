@@ -22,6 +22,7 @@ from .observe import tiktok as tiktok_observe
 from .crawl.gmaps import photos as gmaps_photos
 from .crawl.official import pages as official_pages
 from .observe import official as official_observe
+from .observe import reports as reports_observe
 from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check,
                            comments_crawl as tiktok_comments_crawl, crawl as tiktok_crawl,
                            filter as tiktok_filter, listing as tiktok_list, place_verify as tiktok_place_verify,
@@ -44,6 +45,7 @@ PHASES = {  # source -> phase -> (run, needs a browser)
               "photos": (gmaps_photos.run, True), "qc": (gmaps_qc.run, False),
               "observe": (gmaps_observe.run, False), "photo_observe": (gmaps_photo_observe.run, False)},
     "official": {"pages": (official_pages.run, True), "observe": (official_observe.run, False)},
+    "reports": {"observe": (reports_observe.run, False)},  # travellers' reports -> evidence (corpus.observe.reports)
 }
 
 

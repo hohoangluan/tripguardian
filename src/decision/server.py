@@ -13,6 +13,7 @@ from .curation import ActionError
 from .engine import Engine, NoSession, NotConfirmable, VersionMismatch
 
 BASE = "/api/decision/sessions"
+REPORTS = "/api/reports"  # a traveller reports something about a place (corpus.review.reports)
 SESSION = re.compile(BASE + r"/([0-9a-f]{12})")
 SUB = re.compile(BASE + r"/([0-9a-f]{12})/(act|turn|compare|confirm)")
 WHY = re.compile(BASE + r"/([0-9a-f]{12})/why-not/([^/]+)")
@@ -68,6 +69,8 @@ def handler(engine: Engine):
                 return self._json(400, {"error": "body is not a JSON object"})
             if path == BASE:
                 return self._call(lambda: engine.create(body.get("search_input") or {}, body.get("trip_session")))
+            if path == REPORTS:
+                return self._call(lambda: engine.report(body.get("place_id"), body.get("text"), body.get("reporter")))
             m = SUB.fullmatch(path)
             if m and m[2] == "act":
                 return self._call(lambda: engine.act(m[1], body))

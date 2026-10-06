@@ -356,6 +356,7 @@ def test_effort_nobody_names_is_served_absent():
     for fid in ("steep_or_stairs", "long_walk", "rough_road_access"):
         s = feats[fid]
         assert (s["top_value"], s["servable"], s["inferred"], s["n"]) == ("absent", True, "silence", 0)
+        assert s["trend"]["direction"] == "insufficient"  # same shape as any signal: the web export reads it
 
 
 def test_effort_silence_needs_someone_read():
@@ -395,3 +396,11 @@ def test_a_report_holds_an_inferred_effort_back():
     assert (s["inferred"], s["needs_review"]) == ("silence", True)
     s = aggregate_place([_read([])], ONT, reviewed={"rough_road_access": "disable"})["features"]["rough_road_access"]
     assert s["servable"] is False and "inferred" not in s
+
+
+def test_travellers_reports_are_an_authoritative_source():
+    rep = [o(i, "parking", "hard", f"traveller:p{i}", source_type="traveller_report") for i in range(8)]
+    s = aggregate_place([_read(rep)], ONT)["features"]["parking"]
+    assert (s["authority"], s["servable"]) == ("hard", True)
+    s = aggregate_place([_read(rep + [o(99, "parking", "easy", "a")])], ONT)["features"]["parking"]
+    assert s["status"] == "uncertain"  # reviews say otherwise: both sides kept, no longer served as settled

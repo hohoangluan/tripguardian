@@ -129,6 +129,16 @@ class Engine:
         with self.store.lock(sid):
             return {"id": s.id, "view": self._result(s).view}
 
+    def report(self, place_id, text, reporter) -> dict:
+        """A traveller reports something about a place in their own words. It is only stored here; it changes the
+        corpus once enough different people report the same thing (corpus.observe.reports, next build)."""
+        from corpus.review import reports
+
+        if place_id not in self.data.by_id:
+            raise ValueError(f"unknown place {place_id!r}")
+        rec = reports.add(place_id, text, reporter)
+        return {"id": rec["id"], "stored": True}
+
     def act(self, sid: str, action: dict) -> dict:
         s = self._get(sid)
         with self.store.lock(sid):
