@@ -345,3 +345,53 @@ def test_official_site_wins_for_hours_and_entry_fee_and_keeps_the_conflict():
     assert res["estimates"]["entry_fee"] == {"min_vnd": 50000, "typical_vnd": 150000, "max_vnd": 799000, "n": 3,
                                              "source": "official"}
     assert res["features"]["entry_fee"]["authority"] == "paid"  # the site declares it, no review says otherwise
+
+
+def _read(obs, voices=50):
+    return {**f(obs), "voices": voices}
+
+
+def test_effort_nobody_names_is_served_absent():
+    feats = aggregate_place([_read([o(1, "crowd", "high", "a")])], ONT)["features"]
+    for fid in ("steep_or_stairs", "long_walk", "rough_road_access"):
+        s = feats[fid]
+        assert (s["top_value"], s["servable"], s["inferred"], s["n"]) == ("absent", True, "silence", 0)
+
+
+def test_effort_silence_needs_someone_read():
+    feats = aggregate_place([_read([], voices=0)], ONT)["features"]
+    assert "steep_or_stairs" not in feats
+
+
+def test_one_person_naming_effort_serves_present():
+    s = aggregate_place([_read([o(1, "steep_or_stairs", "present", "a")])], ONT)["features"]["steep_or_stairs"]
+    assert (s["top_value"], s["servable"], s["inferred"]) == ("present", True, "mentioned")
+
+
+def test_a_mention_held_back_as_unsure_still_counts_as_named():
+    from corpus.review import label_key
+    ob = o(1, "long_walk", "present", "a")
+    verdicts = {label_key(ob["source_id"], ob["feature"], ob["value"], ob["span"]["quote"]): "unsure_again"}
+    s = aggregate_place([_read([ob])], ONT, verdicts=verdicts)["features"]["long_walk"]
+    assert (s["top_value"], s["inferred"]) == ("present", "mentioned")
+
+
+def test_a_mention_the_judge_called_wrong_is_silence():
+    from corpus.review import label_key
+    ob = o(1, "steep_or_stairs", "present", "a")
+    verdicts = {label_key(ob["source_id"], ob["feature"], ob["value"], ob["span"]["quote"]): "wrong"}
+    s = aggregate_place([_read([ob])], ONT, verdicts=verdicts)["features"]["steep_or_stairs"]
+    assert (s["top_value"], s["inferred"]) == ("absent", "silence")
+
+
+def test_effort_said_both_ways_stays_a_conflict():
+    s = aggregate_place([_read([o(1, "steep_or_stairs", "present", "a"), o(2, "steep_or_stairs", "absent", "b")])],
+                        ONT)["features"]["steep_or_stairs"]
+    assert "inferred" not in s
+
+
+def test_a_report_holds_an_inferred_effort_back():
+    s = aggregate_place([_read([])], ONT, reviewed={"rough_road_access": "report"})["features"]["rough_road_access"]
+    assert (s["inferred"], s["needs_review"]) == ("silence", True)
+    s = aggregate_place([_read([])], ONT, reviewed={"rough_road_access": "disable"})["features"]["rough_road_access"]
+    assert s["servable"] is False and "inferred" not in s

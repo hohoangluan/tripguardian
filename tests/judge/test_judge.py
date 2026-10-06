@@ -200,7 +200,7 @@ def test_gemma_wrong_and_unsure_stand_on_gemma_and_go_back_to_the_codex_judge():
 
 
 def test_claim_text_picks_the_value_part_of_the_hint():
-    assert audit.claim_text(ONT.features["crowd"], "medium") == "nơi này: vừa"
+    assert audit.claim_text(ONT.features["food_quality"], "mixed") == "nơi này: bình thường"  # no claims: the hint part
     assert audit.claim_text(ONT.features["booking_needed"], "yes") == ONT.features["booking_needed"].claims["yes"]
 
 

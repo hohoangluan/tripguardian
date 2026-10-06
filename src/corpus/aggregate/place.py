@@ -45,6 +45,12 @@ TREND_MIN = 5  # authors on each side
 TREND_DELTA = 0.2  # change in the share of the top value
 RATING_DELTA = 0.5  # stars
 COMPLETE_FEATURES, COMPLETE_N = 3, 3
+# Effort that people name only when it is there (user, 2026-10-06): a place nobody calls steep, a long walk or a rough
+# road -- in any review, video or photo -- is served as `absent`; one person naming it (a claim the Judge did not call
+# wrong) is enough to serve `present`. Even where these are real only ~1.5-3.6% of reviewers name them, so silence
+# is weak evidence; the user accepted that and leaves the correction to travellers' feedback on the place.
+SILENCE_FEATURES = ("steep_or_stairs", "long_walk", "rough_road_access")
+SILENCE_MIN_MENTIONS = 1  # authors naming `present`
 AUTHORITATIVE = {"gmaps_attribute", "official_page"}
 WEEKEND = ("sat", "sun")
 DAY_ORDER = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
@@ -231,6 +237,24 @@ def merge_hours(maps: dict | None, official: dict | None) -> dict:
     return {"hours": {**(maps or {}), **official}, "hours_source": "official", "hours_conflict": conflict or None}
 
 
+def silence_signal() -> dict:
+    """The signal of a SILENCE_FEATURES feature nobody named: `absent`, with no evidence behind it."""
+    return {"n": 0, "distribution": {}, "top_value": "absent", "status": "signal", "authority": None, "by_context": {},
+            "by_source": {}, "mention_rate": 0.0,
+            "confidence": {"independent_sources": 0, "agreement": None, "freshness_days": None, "source_types": []},
+            "trend": None, "needs_review": False, "checked": {"authors": 0, "of": 0, "all": False},
+            "observation_ids": []}
+
+
+def inferred(sig: dict, how: str, quality: dict | None, decision: str | None) -> dict:
+    """A SILENCE_FEATURES signal served by the rule, not by the label gate (`inferred` = "silence" | "mentioned"). A
+    person's or a traveller's report still holds it back (judge sets needs_review) and a disable still removes it."""
+    sig = judge(sig, quality, decision)
+    if sig.get("status") != "disabled":
+        sig["servable"], sig["inferred"] = True, how
+    return sig
+
+
 def coverage(features: dict, ont: Ontology) -> dict:
     out = {}
     for g in ont.groups:
@@ -276,6 +300,20 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
             sig = feature_signal(feat, by_feature[fid], as_of,
                                  voices + voices_targeted if targeted_ok(feat) else voices, verdicts)
             features[fid] = judge(sig, quality.get((fid, sig["top_value"])), reviewed.get(fid))
+    for fid in SILENCE_FEATURES:
+        said = [o for f in files for o in f["observations"] if o["feature"] == fid and ont.valid(fid, o["value"])
+                and verdicts.get(label_key(o["source_id"], fid, o["value"], o["span"]["quote"])) != "wrong"]
+        if not said:
+            if voices:  # someone's words were read and none named it
+                features[fid] = inferred(silence_signal(), "silence", None, reviewed.get(fid))
+            continue
+        if features.get(fid, {}).get("servable"):
+            continue
+        if (len({_who(o) for o in said if o["value"] == "present"}) >= SILENCE_MIN_MENTIONS
+                and all(o["value"] == "present" for o in said)):  # "có" and "không" both said: a real conflict
+            feat = ont.features[fid]
+            sig = feature_signal(feat, said, as_of, voices + voices_targeted if targeted_ok(feat) else voices, verdicts)
+            features[fid] = inferred(sig, "mentioned", quality.get((fid, "present")), reviewed.get(fid))
     ratings = [r for f in files for r in f.get("ratings", []) if r.get("sample") not in TARGETED]
     proposed = collections.defaultdict(list)
     for f in files:

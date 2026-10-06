@@ -44,7 +44,7 @@ def feature_status(sig: dict) -> tuple[str, str | None]:
         return "UNCERTAIN", "conflict" if sig.get("authority") is None and len(sig["distribution"]) > 1 else "low_agreement"
     if not sig.get("servable"):
         return "UNCERTAIN", "unmeasured_precision"
-    return "VERIFIED", None
+    return "VERIFIED", sig.get("inferred")  # "silence" / "mentioned": served by the effort rule, not the label gate
 
 
 def _feature(fid: str, sig: dict) -> dict | None:
