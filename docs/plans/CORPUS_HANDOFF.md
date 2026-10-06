@@ -3,7 +3,46 @@
 File làm việc tạm (RULE §0.1): xong các bước dưới thì gộp phần còn giá trị vào `docs/CORPUS.md` và xóa file này.
 Mô tả hành vi code: `docs/CORPUS.md`. Ở đây chỉ có trạng thái và việc còn lại.
 
-## Trạng thái hiện tại
+## ▶ Việc cho phiên sau — đọc mục này trước (cập nhật 2026-10-06 19:05 giờ VN)
+
+Các mục phía dưới là lịch sử và lý do; mục này là trạng thái đúng hiện tại.
+
+### Trạng thái
+- **Code:** đã push, `origin/main` = local (`9f6e19d`). Chỉ còn `src/corpus/crawl/common/throttle.py` sửa dở của phiên khác — không commit, không đụng.
+- **Data zip cho team:** `tripguardian-data-20261006.zip` (3,71 GB, có ảnh, CRC ok) ở gốc repo, chờ người dùng tự upload Drive.
+- **Corpus:** build Gemma xong 10:57 UTC; aggregate + serving + snapshot web chạy lại 11:40 UTC. Serving: VERIFIED 23.004 · UNCERTAIN 6.289 · OUTDATED 2.606 · 771 nơi trải nghiệm. `decision evaluate`: filled_rate **0,967**, 1 trip chưa đủ (`group_food`), 0 violation, 0 unknown trong danh sách chính.
+- **Chờ Gemma:** 1.369 claim chưa audit (1.285 chữ, 84 ảnh) + các nơi có review `extremes` mới từ sau build (chưa observe).
+
+### Đang chạy — không đụng
+- `logs/gmaps_runner.py` (log `logs/gmaps_runner_17.log`, do `logs/gmaps_after_build.py` của phiên khác bật): luân phiên extremes → photos → keywords. `extremes` còn **607 nơi** (runner đếm lúc 18:02 giờ VN, 1.098 file đã có). Không có job Gemma nào chạy.
+
+### Quy tắc đã chốt với người dùng — không đổi khi chưa hỏi
+1. **Gemma là engine duy nhất của corpus.** Sol (Codex) chỉ dùng cho task người dùng giao (gen ảnh…), không chấm, không kiểm corpus. Kiểm chất lượng = tự đọc nguồn, không gọi model, không ghi nhãn người.
+2. **Không extract lại cả thành phố** khi đổi prompt/ontology: `OBSERVE_KEEP_STALE=1` (đã đặt trong `logs/quality_pass.py`); luật mới chỉ áp cho dữ liệu mới.
+3. **Cổng precision** đo bằng nhãn chính xác khi có ≥30 (`labels.stats`, cột `measured_by`); nhãn Gemma chỉ để lọc claim.
+4. **Effort theo im lặng** (`steep_or_stairs`, `long_walk`, `rough_road_access`): 0 người nhắc → `absent`; ≥1 người nhắc `present` → `present`; vừa có vừa không → không xác định.
+5. **Báo cáo người dùng:** 8 người khác nhau báo cùng một ý (`REPORTS_MIN`) mới thành bằng chứng (nguồn authoritative).
+6. Không chạy hai build hay hai audit cùng lúc; không chạy việc khác trên key UIT khi build (key 40 call, build dùng 38). Build bị kill vì hết RAM thì chạy lại là được — mọi bước resume.
+
+### Việc cần làm, theo thứ tự
+1. **Build Gemma** khi crawl `extremes` xong (hoặc sớm hơn nếu cần dữ liệu ngay; không chạy lúc đang nén zip):
+   `python -u logs/quality_pass.py > logs/quality_pass.log 2>&1` → xong khi log có `QUALITY_PASS_DONE`. Rồi `python web/scripts/export_snapshot.py` và `python -m decision evaluate`.
+2. **Đo sau build** và so mốc ở "Trạng thái": serving status, evaluate; tự đọc ~40 nhãn Gemma `correct` mới đối chiếu review gốc.
+3. **Zip lại cho team** nếu dữ liệu đổi đáng kể: `python scripts/pack_data.py` (cần ~4 GB trống, không chạy khi build đang ghi `data/`). Người dùng tự upload.
+4. **UI báo cáo** (phiên web): nút "Báo thông tin sai" + ô nhập chữ trên thẻ nơi → `POST /api/reports {place_id, text, reporter}`, `reporter` là id ẩn danh trình duyệt giữ (6–64 ký tự).
+5. **Đo lại `REPORTS_MIN`** khi có báo cáo thật (báo cáo vượt ngưỡng có khớp bằng chứng tìm thấy sau không).
+6. **Đo luật v10 trên dữ liệu mới** (nhận dạng nơi trong `REVIEW_OBSERVE`, chủ thể ảnh trong `PHOTO_OBSERVE`, 15 feature siết): so ở mức (nơi, feature, value) với nhãn mạnh, **không so ở mức quote** (quote đổi là trượt key, ra số ảo). Giảm claim sai rõ thì mới cân nhắc tắt `OBSERVE_KEEP_STALE` để extract lại cả bộ.
+7. **Cần người dùng quyết:** `judge dedup` / `judge status` cho nơi mới (cần sol); 43 website official lỗi (`python -m corpus official pages` sau vài ngày); trip `group_food`; hiệu chỉnh gate / tách cờ `risky`–`second_read` (mục "Chưa quyết"); số phận `throttle.py` của phiên khác.
+
+### Kiểm nhanh
+```sh
+cd D:/Study/mlai/tripguardian
+tail -3 logs/gmaps_runner_17.log                      # crawl còn bao nhiêu nơi
+grep -E "^(===|build dalat|ok |FAILED|QUALITY_PASS_DONE)" logs/quality_pass.log
+python -m decision evaluate                           # filled_rate, violations
+```
+
+## Trạng thái hiện tại (cũ — xem mục ▶ ở trên)
 
 - **Đang chạy (14:35 giờ VN):** crawl Maps (`logs/gmaps_runner.py`, log `logs/gmaps_runner.log`), phase `extremes`, headed; và build `logs/quality_pass.py` → `logs/quality_pass.log` (bắt đầu 07:32 UTC, `corpus build --city dalat --skip "judge dedup" "judge status"`, `OBSERVE_KEEP_STALE=1`, audit trên Gemma). Xong khi log có `QUALITY_PASS_DONE`.
 - **Còn lại (đo 07:35 UTC 2026-10-06):**
