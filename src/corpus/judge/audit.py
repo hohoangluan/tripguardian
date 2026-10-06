@@ -41,6 +41,8 @@ GATE_LOWER = 0.8  # same bar as the label gate (corpus.review.labels)
 GATE_MIN_N = 30  # labelled items before a stratum can be judged from its sample (the label gate's min_n)
 CHUNK, CHUNK_IMAGES = 24, 8  # items per call; 16 text matched 8 on a 161-claim re-ask (2026-10-05); 24 / 8 pictures
 # raised 2026-10-06 to save Codex quota, not yet measured -- spot-check the labels they produce
+PASSAGE = None  # chars of source text around the quote an item shows (None: the whole passage evidence() gives)
+BY_FEATURE = False  # calls group a feature's items (its definition once per call) instead of a place's
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
 MAX_ROUNDS = 5
 QUOTA_WAIT_S = 120
@@ -126,10 +128,11 @@ def picture(r: tuple) -> bool:
 
 
 def chunks(rows: list[tuple], ont) -> list[list[tuple]]:
-    """Calls of up to CHUNK items (CHUNK_IMAGES pictures), a place's items together, strong-Judge items apart."""
+    """Calls of up to CHUNK items (CHUNK_IMAGES pictures), a place's (BY_FEATURE: a feature's) items together,
+    strong-Judge items apart."""
     by = collections.defaultdict(list)
     for r in rows:
-        by[(strong(ont.features[r[3]["feature"]], r[3]["value"]), r[1])].append(r)
+        by[(strong(ont.features[r[3]["feature"]], r[3]["value"]), r[3]["feature"] if BY_FEATURE else r[1])].append(r)
     out, cur, images, kind = [], [], 0, None
     for (is_strong, _), items in sorted(by.items()):
         for r in sorted(items, key=lambda r: (r[3]["feature"], r[0])):
@@ -174,6 +177,17 @@ async def guarded(coro, what: str):
         return "error"
 
 
+def around(text: str, quote: str, n: int | None) -> str:
+    """At most n chars of text centred on the quote (its first 40 chars), cut at word boundaries."""
+    if n is None or len(text) <= n:
+        return text
+    at = text.casefold().find(" ".join(quote.split()).casefold()[:40])
+    lo = max(0, min((at if at >= 0 else 0) - n // 3, len(text) - n))
+    lo = text.rfind(" ", 0, lo) + 1 if lo else 0
+    hi = text.find(" ", lo + n)
+    return ("… " if lo else "") + text[lo: hi if hi > 0 else len(text)].strip() + (" …" if 0 < hi < len(text) else "")
+
+
 def render(chunk: list[tuple], ont) -> tuple[dict, list[bytes], dict]:
     """A call's fields (places, features, items), its pictures and ref -> (source, place stem, observation)."""
     places, feats = {}, {}
@@ -183,6 +197,7 @@ def render(chunk: list[tuple], ont) -> tuple[dict, list[bytes], dict]:
         feat = ont.features[o["feature"]]
         fref = feats.setdefault(feat.id, f"F{len(feats) + 1}")
         ev = evidence(st, o, source)
+        ev["text"] = around(ev["text"], o["span"]["quote"], PASSAGE)
         ref = f"i{i}"
         refs[ref] = (source, st, o)
         pic = ""

@@ -992,6 +992,14 @@ Judge each item on its own source. Reason: at most 15 words.
 Items:
 {items}"""
 
+# same verdicts, shorter answer: no reason for "correct" (output tokens are the dearest); the schema is not part of
+# prompt_hash, the verdict rules are unchanged
+AUDIT_SCHEMA_SHORT = {**AUDIT_SCHEMA, "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
+    "ref": {"type": "string"},
+    "verdict": {"type": "string", "enum": ["correct", "wrong", "unsure"]},
+    "reason": {"type": "string", "description": "empty string when correct; else at most 8 words"}},
+    "required": ["ref", "verdict", "reason"], "additionalProperties": False}}}}
+
 OBS_AUDIT = Task(name="obs_audit", role=JUDGE, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT, parallel=8)
 # optional first reader (JUDGE_FIRST_MODEL): its "correct" stands, wrong / unsure go to OBS_AUDIT (judge.audit)
 OBS_AUDIT_FIRST = Task(name="obs_audit", role=JUDGE_FIRST, max_tokens=12000, schema=AUDIT_SCHEMA, prompt=_AUDIT_PROMPT,
