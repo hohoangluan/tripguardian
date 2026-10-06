@@ -10,6 +10,7 @@ The limit reached is saved, so the next run starts at the last stable level inst
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 
@@ -31,6 +32,9 @@ class Throttle:
         except (OSError, ValueError, KeyError):
             pass
         self.limit = min(max(1, start), self.hi)
+        self.fixed = os.environ.get("CORPUS_FIXED_TABS") == "1"  # runner-set: keep the tab count, no AIMD steps
+        if self.fixed:
+            self.limit = self.hi
         self._active = self._streak = 0
         self._until = 0.0  # no new tab opens before this monotonic time
         self._wake = asyncio.Event()
@@ -52,6 +56,8 @@ class Throttle:
         self._wake.set()
 
     def success(self) -> None:
+        if self.fixed:
+            return
         self._blocks = 0
         self._streak += 1
         need = self.grow_after * 2 ** min(self._fails.get(self.limit + 1, 0), MAX_BACKOFF)
@@ -60,6 +66,8 @@ class Throttle:
             self._set(self.limit + 1)
 
     def blocked(self) -> None:
+        if self.fixed:
+            return  # a timeout is retried at the same count
         if time.monotonic() < self._until:
             return  # other tabs reporting the block already being waited out
         self._blocks += 1
