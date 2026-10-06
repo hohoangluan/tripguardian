@@ -35,7 +35,7 @@ gmaps:
   search_tabs_start: 2  # first run only
   min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
   same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
-  tabs: 10  # max parallel place tabs; the working level is found automatically (data/gmaps/throttle.json)
+  tabs: 12  # max parallel place tabs (RAM ~250 MB/tab; 13 filled 15.6 GB 2026-10-05); the working level is found automatically (data/gmaps/throttle.json)
   tabs_start: 3  # first run only
   cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 10
