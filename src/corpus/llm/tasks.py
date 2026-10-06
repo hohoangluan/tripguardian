@@ -1053,7 +1053,9 @@ AUDIT_SCHEMA_DOUBT = {
 }
 
 OBS_AUDIT_GEMMA = Task(name="obs_audit", role=EXTRACTOR, max_tokens=8000, schema=AUDIT_SCHEMA_DOUBT,
-                       prompt=_AUDIT_GEMMA_PROMPT, parallel=24,
+                       # 38, like REVIEW_OBSERVE: the key allows 40 concurrent and Gemma holds that steadily (user,
+                       # 2026-10-06); Task.ask backs off on 429. Nothing else may run on the key at the same time.
+                       prompt=_AUDIT_GEMMA_PROMPT, parallel=38,
                        extra_body={"chat_template_kwargs": {"enable_thinking": False}})
 
 PLACE_STATUS = Task(
