@@ -21,9 +21,11 @@ async def run(city: str, headed: bool = False, profile=open_profile, profile_nam
     for video_id in want:
         d = root / "videos" / video_id
         f = d / "video.json"
-        if not f.exists() or not (d / "video.mp4").exists():
+        if not f.exists():
             continue
         v = json.loads(f.read_text(encoding="utf-8"))
+        if not (d / "video.mp4").exists() and not v.get("clip_removed"):
+            continue  # not downloaded yet; a verified clip deleted on purpose still needs its comments
         if v.get("comments_complete") is True:
             continue
         todo.append({"video_id": video_id, "url": v["video_url"]})

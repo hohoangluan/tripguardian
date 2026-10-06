@@ -171,7 +171,7 @@ async def observe_pair(client, model: str, sem: asyncio.Semaphore, city: str, v:
     t = v["transcript"]
     segs = segments(t)
     caption = " ".join([v.get("caption") or "", *(f"#{h}" for h in v.get("hashtags") or [])])
-    with_frames = not others and (d / "video.mp4").exists()
+    with_frames = not others and ((d / "video.mp4").exists() or (d / "frames" / "f1.jpg").exists())  # saved frames outlive a deleted clip
     images = await asyncio.to_thread(frames, d / "video.mp4", t["total_s"], d / "frames") if with_frames else []
     async with sem:
         answer = await ask(VIDEO_OBSERVE, 

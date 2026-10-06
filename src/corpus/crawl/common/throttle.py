@@ -20,7 +20,7 @@ MAX_BACKOFF = 5  # a failed level waits at most grow_after * 32 clean items befo
 
 
 class Throttle:
-    def __init__(self, path: Path, start: int, hi: int, grow_after: int = 5, cooldown_s: float = 60,
+    def __init__(self, path: Path, start: int, hi: int, grow_after: int = 2, cooldown_s: float = 60,
                  max_cooldown_s: float = 900):
         self.path, self.hi, self.grow_after = path, max(1, hi), grow_after
         self.cooldown_s, self.max_cooldown_s = cooldown_s, max_cooldown_s

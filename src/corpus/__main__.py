@@ -55,7 +55,8 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
     for p in PHASES[source] if phase == "all" else (phase,):
         fn, browser_phase = PHASES[source][p]
         if browser_phase and source == "tiktok":
-            out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}))
+            out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}),
+                     **({"limit": limit} if p == "place_crawl" else {}))
         elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages"):
             out = fn(city, headed, limit=limit)
         elif browser_phase:
@@ -94,7 +95,7 @@ def main() -> None:
         sp.add_argument("phase", choices=[*phases, "all"])
         sp.add_argument("--city", default="dalat")
         sp.add_argument("--headed", action="store_true")
-        sp.add_argument("--limit", type=int, help="observe / photos: only the first N places")
+        sp.add_argument("--limit", type=int, help="observe / photos: only the first N places; place_crawl: only N videos per run")
         sp.add_argument("--wait-relevant", action="store_true",
                         help="gmaps observe: skip places whose relevant reviews are not crawled yet")
         if source == "tiktok":
