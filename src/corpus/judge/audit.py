@@ -39,7 +39,8 @@ RISKY_GROUPS = {"effort", "suitability"}
 SAMPLE_STEPS = (30, 60, 100)
 GATE_LOWER = 0.8  # same bar as the label gate (corpus.review.labels)
 GATE_MIN_N = 30  # labelled items before a stratum can be judged from its sample (the label gate's min_n)
-CHUNK, CHUNK_IMAGES = 16, 4  # items per call; 16 text items matched 8 on a 161-claim re-ask (2026-10-05)
+CHUNK, CHUNK_IMAGES = 24, 8  # items per call; 16 text matched 8 on a 161-claim re-ask (2026-10-05); 24 / 8 pictures
+# raised 2026-10-06 to save Codex quota, not yet measured -- spot-check the labels they produce
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
 MAX_ROUNDS = 5
 QUOTA_WAIT_S = 120
