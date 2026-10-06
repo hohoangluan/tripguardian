@@ -383,7 +383,7 @@ PLACE_VIDEO_VERIFY = Task(
     name="place_video_verify",
     role=EXTRACTOR,
     max_tokens=800,
-    parallel=8,  # four images per call
+    parallel=24,  # four images per call; the key allows 40 and Task.ask backs off on 429 (raised 2026-10-06)
     schema={
         "type": "object",
         "properties": {
@@ -561,7 +561,7 @@ VIDEO_OBSERVE = Task(
     name="video_observe",
     role=EXTRACTOR,
     max_tokens=4000,
-    parallel=8,  # four images per call
+    parallel=24,  # four images per call; the key allows 40 and Task.ask backs off on 429 (raised 2026-10-06)
     schema={"type": "object", "properties": {"observations": {"type": "array", "items": _VIDEO_OBS}},
             "required": ["observations"], "additionalProperties": False},
     # One (video, place) pair that place_verify accepted. The same ontology and rules as REVIEW_OBSERVE; frames only
@@ -606,7 +606,7 @@ VIDEO_VERIFY = Task(
     name="video_verify",
     role=EXTRACTOR,
     max_tokens=300,
-    parallel=8,
+    parallel=24,  # one image per call; the key allows 40 (raised 2026-10-06)
     schema=REVIEW_VERIFY.schema,
     # Second read of a high-impact video observation (ontology `check: span`): one claim, the speech around the quote
     # or the one frame it came from.
@@ -865,7 +865,7 @@ PHOTO_OBSERVE = Task(
     name="photo_observe",
     role=EXTRACTOR,
     max_tokens=2000,
-    parallel=8,  # four images per call
+    parallel=24,  # four images per call; the key allows 40 and Task.ask backs off on 429 (raised 2026-10-06)
     schema={"type": "object", "properties": {"observations": {"type": "array", "items": {
         "type": "object",
         "properties": {"feature": {"type": "string"}, "value": {"type": "string"}, "photo": {"type": "integer"},
@@ -903,7 +903,7 @@ PHOTO_VERIFY = Task(
     name="photo_verify",
     role=EXTRACTOR,
     max_tokens=300,
-    parallel=8,
+    parallel=24,  # one image per call; the key allows 40 (raised 2026-10-06)
     schema=REVIEW_VERIFY.schema,
     prompt="""You check one claim about a place against one Google Maps photo of it (attached). Decide from the photo
 only.
