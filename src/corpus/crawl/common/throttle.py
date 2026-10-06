@@ -27,14 +27,17 @@ class Throttle:
         self.cooldown_s, self.max_cooldown_s = cooldown_s, max_cooldown_s
         self._blocks = 0  # blocks since the last success
         self._fails: dict[int, int] = {}  # level -> failed tries since it was last held
+        saved = None
         try:
-            start = json.loads(path.read_text(encoding="utf-8"))["limit"]
+            saved = json.loads(path.read_text(encoding="utf-8"))["limit"]
         except (OSError, ValueError, KeyError):
             pass
-        self.limit = min(max(1, start), self.hi)
-        self.fixed = os.environ.get("CORPUS_FIXED_TABS") == "1"  # runner-set: keep the tab count, no AIMD steps
+        self.fixed = os.environ.get("CORPUS_FIXED_TABS") == "1"  # runner-set: no AIMD steps
         if self.fixed:
-            self.limit = self.hi
+            # runner-set: the saved limit is the runner's RAM-guard level; no saved limit = the ceiling
+            self.limit = self.hi if saved is None else min(max(1, saved), self.hi)
+        else:
+            self.limit = min(max(1, start if saved is None else saved), self.hi)
         self._active = self._streak = 0
         self._until = 0.0  # no new tab opens before this monotonic time
         self._wake = asyncio.Event()
