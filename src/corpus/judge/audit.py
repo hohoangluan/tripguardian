@@ -120,6 +120,10 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7) -> list[
     return out
 
 
+def picture(r: tuple) -> bool:
+    return r[0] == "gmaps_photo" or r[3]["source_type"] == "tiktok_frame"
+
+
 def chunks(rows: list[tuple], ont) -> list[list[tuple]]:
     """Calls of up to CHUNK items (CHUNK_IMAGES pictures), a place's items together, strong-Judge items apart."""
     by = collections.defaultdict(list)
@@ -128,7 +132,7 @@ def chunks(rows: list[tuple], ont) -> list[list[tuple]]:
     out, cur, images, kind = [], [], 0, None
     for (is_strong, _), items in sorted(by.items()):
         for r in sorted(items, key=lambda r: (r[3]["feature"], r[0])):
-            pic = r[0] == "gmaps_photo" or r[3]["source_type"] == "tiktok_frame"
+            pic = picture(r)
             if cur and (len(cur) >= CHUNK or (pic and images >= CHUNK_IMAGES) or kind != is_strong):
                 out.append(cur)
                 cur, images = [], 0
@@ -227,12 +231,12 @@ async def label_with(task, chunk: list[tuple], ont, city: str, clients: dict, se
 
 
 async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1) -> collections.Counter:
-    """The Judge's labels for one chunk. With a first reader (JUDGE_FIRST_MODEL) on a plain chunk, its "correct"
+    """The Judge's labels for one chunk. With a first reader (JUDGE_FIRST_MODEL) on a plain text chunk, its "correct"
     stands and the Judge reads only what it called wrong or unsure: a wrong drops evidence, so the Judge confirms it."""
     is_strong = look > 1 or strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
     if is_strong:
         got, rest = await label_with(OBS_AUDIT_STRONG, chunk, ont, city, clients, sems, look)
-    elif OBS_AUDIT_FIRST.role.name in clients:
+    elif OBS_AUDIT_FIRST.role.name in clients and not any(picture(r) for r in chunk):  # measured on text only
         got, rest = await label_with(OBS_AUDIT_FIRST, chunk, ont, city, clients, sems, look, keep={"correct"})
         if rest:
             more, rest = await label_with(OBS_AUDIT, rest, ont, city, clients, sems, look)
