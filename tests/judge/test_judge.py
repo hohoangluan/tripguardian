@@ -163,3 +163,59 @@ def test_first_reader_correct_stands_and_the_judge_reads_the_rest(monkeypatch):
     assert asked == [("judge_first", 3), ("judge", 2)]  # the Judge reads the wrong one and the missing one
     assert written == [("x0", "correct", "judge:judge_first"), ("x1", "correct", "judge:judge"), ("x2", "wrong", "judge:judge")]
     assert got["correct"] == 2 and got["wrong"] == 1 and got["missing"] == 0
+
+
+def test_gemma_audit_reads_every_claim_once_and_its_unsure_is_final(monkeypatch):
+    rows = [_row(i, "food_quality", "good") for i in range(3)]
+    asked, written = [], []
+
+    async def fake_ask(task, client, model, images=(), **fields):
+        asked.append((task.role.name, "claim: " in fields["items"]))
+        return {"items": [{"ref": "<i1>", "doubt": "d", "verdict": "correct"},
+                          {"ref": "i2", "doubt": "d", "verdict": "unsure"},
+                          {"ref": "i3", "doubt": "d", "verdict": "wrong"}]}
+
+    monkeypatch.setattr(audit, "ask", fake_ask)
+    monkeypatch.setattr(audit, "evidence", lambda st, o, source: {"text": "t", "date": None, "rating": None, "image": None})
+    monkeypatch.setattr(audit, "place_info", lambda st: {"category": "c", "address": "a"})
+    monkeypatch.setattr(audit, "judge_label", lambda o, st, source, verdict, note, by, ph, look=1:
+                        written.append((o["id"], verdict, look, ph)))
+    import asyncio
+    clients = {"extractor": (None, "gemma")}
+    sems = {"extractor": asyncio.Semaphore(1)}
+    got = asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", clients, sems))
+    ph = audit.OBS_AUDIT_GEMMA.prompt_hash
+    assert asked == [("extractor", True)]  # one strict reader, items carry their claim sentence
+    assert written == [("x0", "correct", 1, ph), ("x1", "unsure", 2, ph), ("x2", "wrong", 1, ph)]
+    assert got["missing"] == 0
+
+
+def test_gemma_wrong_and_unsure_stand_on_gemma_and_go_back_to_the_codex_judge():
+    ph = audit.OBS_AUDIT_GEMMA.prompt_hash
+    recs = {"k1": {"label": "wrong", "by": "judge:gemma-4-26b", "ph": ph},
+            "k2": {"label": "unsure", "by": "judge:gemma-4-26b", "ph": ph, "look": 2},
+            "k3": {"label": "correct", "by": "judge:gemma-4-26b", "ph": ph}}
+    assert audit.current(recs, local=True) == {"k1": "wrong", "k2": "unsure", "k3": "correct"}
+    assert audit.current(recs) == {"k3": "correct"}
+
+
+def test_claim_text_picks_the_value_part_of_the_hint():
+    assert audit.claim_text(ONT.features["crowd"], "medium") == "nơi này: vừa"
+    assert audit.claim_text(ONT.features["booking_needed"], "yes") == ONT.features["booking_needed"].claims["yes"]
+
+
+def test_gemma_correct_on_a_picture_waits_for_the_strong_judge(monkeypatch):
+    rows = [("gmaps_photo",) + _row(0, "setting", "outdoor")[1:]]
+
+    async def fake_ask(task, client, model, images=(), **fields):
+        return {"items": [{"ref": "i1", "doubt": "d", "verdict": "correct"}]}
+
+    written = []
+    monkeypatch.setattr(audit, "ask", fake_ask)
+    monkeypatch.setattr(audit, "evidence", lambda st, o, source: {"text": "t", "date": None, "rating": None, "image": None})
+    monkeypatch.setattr(audit, "place_info", lambda st: {"category": "c", "address": "a"})
+    monkeypatch.setattr(audit, "judge_label", lambda o, st, source, verdict, note, by, ph, look=1:
+                        written.append((verdict, look)))
+    import asyncio
+    asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", {"extractor": (None, "g")}, {"extractor": asyncio.Semaphore(1)}))
+    assert written == [("unsure", 1)]  # kept like an unlabelled claim; the second look reads it when sol is back

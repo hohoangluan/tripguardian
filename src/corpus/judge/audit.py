@@ -13,6 +13,9 @@ Calls of up to CHUNK items, a place's items together: the places, the features' 
 ontology, and each item as its own closed block with its passage (review text, transcript, caption) or picture (Maps photo, video frame). Values that widen a choice
 (`verify: always`, not a caution value) go to the strong Judge. Labels append to data/review/judge_labels.jsonl as
 they arrive (corpus.review.judge_label), so a stopped run resumes; claims already labelled are skipped.
+JUDGE_ENGINE=gemma (.env) runs the whole audit on the Extractor's Gemma instead (OBS_AUDIT_GEMMA, strict prompt, 8 items
+per call, one round, no first reader, no strong Judge, no second look). Its wrong and unsure drop the claim now; once
+the engine is back to the Codex Judge, those labels count as not done and the Judge reads those claims again.
 """
 
 import asyncio
@@ -24,7 +27,7 @@ import random
 import openai
 
 from ..crawl.common.files import ROOT, data_dir, load_config, now
-from ..llm import OBS_AUDIT, OBS_AUDIT_FIRST, OBS_AUDIT_STRONG, OutOfQuota
+from ..llm import OBS_AUDIT, OBS_AUDIT_FIRST, OBS_AUDIT_GEMMA, OBS_AUDIT_STRONG, OutOfQuota
 from ..observe import TARGETED, targeted_ok
 from ..ontology import load as load_ontology
 from ..review import evidence, judge_label, label_key, label_records
@@ -41,6 +44,7 @@ GATE_LOWER = 0.8  # same bar as the label gate (corpus.review.labels)
 GATE_MIN_N = 30  # labelled items before a stratum can be judged from its sample (the label gate's min_n)
 CHUNK, CHUNK_IMAGES = 24, 8  # items per call; 16 text matched 8 on a 161-claim re-ask (2026-10-05); 24 / 8 pictures
 # raised 2026-10-06 to save Codex quota, not yet measured -- spot-check the labels they produce
+CHUNK_GEMMA = 8  # Gemma's items per call: 8 measured best (16 and 24 let more wrong claims stand)
 PASSAGE = None  # chars of source text around the quote an item shows (None: the whole passage evidence() gives)
 BY_FEATURE = False  # calls group a feature's items (its definition once per call) instead of a place's
 WAIT_S, TRIES = 30, 20  # 9router busy / unreachable: wait, do not fail the run
@@ -94,11 +98,36 @@ def load_rows(ont) -> list[tuple]:
     return rows
 
 
-def current(records: dict[str, dict]) -> dict[str, str]:
+def current(records: dict[str, dict], local: bool = False) -> dict[str, str]:
     """content key -> label that still stands: a person's, or the Judge's unless it said wrong under an older audit
-    prompt (a wrong verdict drops evidence, so a changed prompt gives it a second look)."""
-    return {k: r["label"] for k, r in records.items()
-            if not (r.get("by", "").startswith("judge:") and r["label"] == "wrong" and r.get("ph") != OBS_AUDIT.prompt_hash)}
+    prompt (a wrong verdict drops evidence, so a changed prompt gives it a second look). Off the Gemma audit (local
+    False), Gemma's wrong and unsure do not stand either: the Codex Judge reads those claims again."""
+    prompts = {OBS_AUDIT.prompt_hash, OBS_AUDIT_GEMMA.prompt_hash}
+
+    def stands(r):
+        if not r.get("by", "").startswith("judge:"):
+            return True
+        if r.get("ph") == OBS_AUDIT_GEMMA.prompt_hash and r["label"] != "correct" and not local:
+            return False
+        return not (r["label"] == "wrong" and r.get("ph") not in prompts)
+    return {k: r["label"] for k, r in records.items() if stands(r)}
+
+
+def gemma() -> bool:
+    """JUDGE_ENGINE=gemma in .env: the audit runs on the Extractor's Gemma (no Codex quota needed)."""
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+    return os.environ.get("JUDGE_ENGINE", "").strip().lower() == "gemma"
+
+
+def claim_text(feat, value: str) -> str:
+    """A value's claim as one sentence: the ontology's claims, else the hint's part for this value."""
+    if feat.claims and value in feat.claims:
+        return feat.claims[value]
+    parts = [p.strip() for p in feat.hint.split(" / ")]
+    if len(parts) == len(feat.values) > 1:
+        return f"nơi này: {parts[feat.values.index(value)]}"
+    return f"nơi này có: {feat.hint}"
 
 
 def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7) -> list[tuple]:
@@ -127,8 +156,8 @@ def picture(r: tuple) -> bool:
     return r[0] == "gmaps_photo" or r[3]["source_type"] == "tiktok_frame"
 
 
-def chunks(rows: list[tuple], ont) -> list[list[tuple]]:
-    """Calls of up to CHUNK items (CHUNK_IMAGES pictures), a place's (BY_FEATURE: a feature's) items together,
+def chunks(rows: list[tuple], ont, size: int | None = None) -> list[list[tuple]]:
+    """Calls of up to size (default CHUNK) items (CHUNK_IMAGES pictures), a place's (BY_FEATURE: a feature's) items together,
     strong-Judge items apart."""
     by = collections.defaultdict(list)
     for r in rows:
@@ -137,7 +166,7 @@ def chunks(rows: list[tuple], ont) -> list[list[tuple]]:
     for (is_strong, _), items in sorted(by.items()):
         for r in sorted(items, key=lambda r: (r[3]["feature"], r[0])):
             pic = picture(r)
-            if cur and (len(cur) >= CHUNK or (pic and images >= CHUNK_IMAGES) or kind != is_strong):
+            if cur and (len(cur) >= (size or CHUNK) or (pic and images >= CHUNK_IMAGES) or kind != is_strong):
                 out.append(cur)
                 cur, images = [], 0
             cur.append(r)
@@ -188,8 +217,9 @@ def around(text: str, quote: str, n: int | None) -> str:
     return ("… " if lo else "") + text[lo: hi if hi > 0 else len(text)].strip() + (" …" if 0 < hi < len(text) else "")
 
 
-def render(chunk: list[tuple], ont) -> tuple[dict, list[bytes], dict]:
-    """A call's fields (places, features, items), its pictures and ref -> (source, place stem, observation)."""
+def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[bytes], dict]:
+    """A call's fields (places, features, items), its pictures and ref -> (source, place stem, observation).
+    claim: each item also states its value's claim sentence (the Gemma audit)."""
     places, feats = {}, {}
     lines, images, refs = [], [], {}
     for i, (source, st, h, o) in enumerate(chunk, 1):
@@ -207,6 +237,7 @@ def render(chunk: list[tuple], ont) -> tuple[dict, list[bytes], dict]:
         meta = ", ".join(x for x in (ev["date"] and f"date {ev['date']}", ev["rating"] and f"rating {ev['rating']}") if x)
         # each item a closed block with its own source, so a long call does not mix one item's words into another's
         lines.append(f"<{ref}> place {pref} | {fref} {feat.id} = {o['value']}{f' | {meta}' if meta else ''}" + NL
+                     + (f"  claim: {claim_text(feat, o['value'])}" + NL if claim else "")
                      + f"  quote: \"{o['span']['quote']}\"{pic}" + NL
                      + f"  source of {ref} only: {ev['text']}" + NL + f"</{ref}>")
     place_lines = []
@@ -225,23 +256,33 @@ def render(chunk: list[tuple], ont) -> tuple[dict, list[bytes], dict]:
 async def label_with(task, chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1,
                      keep=None) -> tuple[collections.Counter, list[tuple]]:
     """One call of task over chunk. Verdicts in keep (all when None) are written as labels; the rows of the other
-    verdicts and of items the answer left out are returned for another reader."""
+    verdicts and of items the answer left out are returned for another reader. On the Gemma audit an unsure is
+    written as look 2 so aggregate drops it until the Codex Judge reads it again (current)."""
     client, model = clients[task.role.name]
-    fields, images, refs = render(chunk, ont)
+    single = task is OBS_AUDIT_GEMMA
+    fields, images, refs = render(chunk, ont, claim=single)
     async with sems[task.role.name]:
         ans = await ask(task, client, model, images=images, city=city, **fields)
     got, rest = collections.Counter(), []
     by = f"judge:{ans.get('_model', model)}"
     row_of = {f"i{i}": r for i, r in enumerate(chunk, 1)}
     for it in ans["items"]:
-        if it["ref"] not in refs:
+        ref = it["ref"].strip("<>/ ")  # small models now and then echo the item's tag
+        if ref not in refs:
             continue
-        source, st, o = refs.pop(it["ref"])
+        source, st, o = refs.pop(ref)
         if keep is None or it["verdict"] in keep:
-            judge_label(o, st, source, it["verdict"], it["reason"][:300], by, task.prompt_hash, look)
-            got[it["verdict"]] += 1
+            verdict, note = it["verdict"], it.get("reason", it.get("doubt", ""))[:300]
+            if single and verdict == "correct" and picture(row_of[ref]):
+                # Gemma passed 35% of wrong picture claims (2026-10-06): its "correct" on a picture is a first-look
+                # unsure (kept like an unlabelled claim) that the Codex Judge reads again (current)
+                verdict, note = "unsure", f"gemma: correct (pictures need the strong Judge) {note}"[:300]
+                got["gemma_picture_correct"] += 1
+            judge_label(o, st, source, verdict, note, by, task.prompt_hash,
+                        2 if single and it["verdict"] == "unsure" else look)
+            got[verdict] += 1
         else:
-            rest.append(row_of[it["ref"]])
+            rest.append(row_of[ref])
     rest += [row_of[ref] for ref in refs]
     return got, rest
 
@@ -250,7 +291,9 @@ async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: d
     """The Judge's labels for one chunk. With a first reader (JUDGE_FIRST_MODEL) on a plain text chunk, its "correct"
     stands and the Judge reads only what it called wrong or unsure: a wrong drops evidence, so the Judge confirms it."""
     is_strong = look > 1 or strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
-    if is_strong:
+    if OBS_AUDIT_GEMMA.role.name in clients:  # the Gemma audit: one strict reader for every claim
+        got, rest = await label_with(OBS_AUDIT_GEMMA, chunk, ont, city, clients, sems, look)
+    elif is_strong:
         got, rest = await label_with(OBS_AUDIT_STRONG, chunk, ont, city, clients, sems, look)
     elif OBS_AUDIT_FIRST.role.name in clients and not any(picture(r) for r in chunk):  # measured on text only
         got, rest = await label_with(OBS_AUDIT_FIRST, chunk, ont, city, clients, sems, look, keep={"correct"})
@@ -305,17 +348,18 @@ async def second_look(ont, name: str, clients: dict, sems: dict) -> collections.
 async def run(city: str, limit: int | None = None) -> dict:
     name, _ = load_config(city)
     ont = load_ontology()
-    tasks = (OBS_AUDIT, OBS_AUDIT_STRONG) + ((OBS_AUDIT_FIRST,) if first_reader() else ())
+    local = gemma()
+    tasks = (OBS_AUDIT_GEMMA,) if local else (OBS_AUDIT, OBS_AUDIT_STRONG) + ((OBS_AUDIT_FIRST,) if first_reader() else ())
     clients = {t.role.name: t.role.client() for t in tasks}
     clients = {k: (c.with_options(timeout=300, max_retries=0), m) for k, (c, m) in clients.items()}
-    sems = {OBS_AUDIT.role.name: asyncio.Semaphore(OBS_AUDIT.parallel),
-            OBS_AUDIT_STRONG.role.name: asyncio.Semaphore(OBS_AUDIT_STRONG.parallel),
-            OBS_AUDIT_FIRST.role.name: asyncio.Semaphore(OBS_AUDIT_FIRST.parallel)}
+    sems = {t.role.name: asyncio.Semaphore(t.parallel)
+            for t in (OBS_AUDIT, OBS_AUDIT_STRONG, OBS_AUDIT_FIRST, OBS_AUDIT_GEMMA)}
+    size = CHUNK_GEMMA if local else None
     total, rounds = collections.Counter(), 0
     while True:  # a sample that misses the gate pulls its whole stratum into the next round
         rows = load_rows(ont)
-        todo = select(rows, ont, current(label_records()))
-        parts = chunks(todo, ont)[:limit] if limit is not None else chunks(todo, ont)
+        todo = select(rows, ont, current(label_records(), local))
+        parts = chunks(todo, ont, size)[:limit] if limit is not None else chunks(todo, ont, size)
         if not parts:
             break
         rounds += 1
@@ -339,9 +383,9 @@ async def run(city: str, limit: int | None = None) -> dict:
             this.update(got)
         total.update(this)
         labelled = this["correct"] + this["wrong"] + this["unsure"]
-        if limit is not None or not labelled or rounds >= MAX_ROUNDS:
+        if limit is not None or not labelled or rounds >= (1 if local else MAX_ROUNDS):  # Gemma: one round
             break
-    second = await second_look(ont, name, clients, sems) if limit is None else collections.Counter()
+    second = await second_look(ont, name, clients, sems) if limit is None and not local else collections.Counter()
     summary = {"at": now(), "rounds": rounds, "labels": dict(total), "second_look": dict(second)}
     print(f"judge audit {city}: {json.dumps(summary, ensure_ascii=False)}")
     return summary

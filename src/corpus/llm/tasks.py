@@ -112,6 +112,7 @@ class Task:
     max_tokens: int
     temperature: float = 0.0
     parallel: int = 36  # concurrent calls; the UIT key allows 40 (HTTP 429 above), ~1 s each -> ~35 calls/s
+    extra_body: dict | None = None  # sent with guided calls, e.g. to switch a model's thinking off
 
     @property
     def prompt_hash(self) -> str:
@@ -140,7 +141,8 @@ class Task:
                         model=current, messages=[{"role": "user", "content": content}],
                         temperature=self.temperature, max_tokens=self.max_tokens,
                         response_format={"type": "json_schema", "json_schema": {
-                            "name": self.name, "schema": self.schema, "strict": True}})
+                            "name": self.name, "schema": self.schema, "strict": True}},
+                        **({"extra_body": self.extra_body} if self.extra_body else {}))
                     if isinstance(r, str):  # a busy or down server can answer with a plain body, not a completion
                         raise BadBody(r[:200])
                     text = r.choices[0].message.content or ""
@@ -1007,6 +1009,52 @@ OBS_AUDIT_FIRST = Task(name="obs_audit", role=JUDGE_FIRST, max_tokens=12000, sch
 # values that widen a choice (suitable for elderly / kids / wheelchair ...): a wrong "yes" can hurt someone
 OBS_AUDIT_STRONG = Task(name="obs_audit", role=JUDGE_STRONG, max_tokens=12000, schema=AUDIT_SCHEMA,
                         prompt=_AUDIT_PROMPT, parallel=8)
+
+# The audit on the Extractor's Gemma (judge.audit, JUDGE_ENGINE=gemma) while no Codex quota is left. Gemma made the
+# claims and tends to confirm them, so its prompt is strict: each item carries the value's claim sentence, and the
+# answer writes the strongest doubt before the verdict. Measured 2026-10-06 (logs/judge_exp/gemma_eval.py, 663
+# sol-labelled claims stratified per feature): it lets 10% of wrong claims stand (the production prompt on Gemma: 48%)
+# and drops 31% of correct ones; 8 items per call, ~8 s. Missing evidence can be crawled again; a wrong claim reaches
+# the traveller, so precision comes first.
+_AUDIT_GEMMA_TRAPS = """not enough: words that only hint or imply it ("không khí mát" is not nature); advice or preference ("nên
+đặt trước để có chỗ đẹp" is not booking needed); a condition or exception ("phí 10k nếu không mua nước"); negated,
+sarcastic or hypothetical words; something near or sold there instead of the place (a waterfall's slope is not stairs
+visitors climb; a drink at 20k is not an entry ticket; fresh fruit is not a clean shop); the writer's own action or
+choice ("mình đặt bàn trước"); weaker than the definition."""
+
+_AUDIT_GEMMA_PROMPT = """You check claims in a travel database about {city}, Vietnam. A small model read each source (a Google Maps
+review or a TikTok video) and claimed that a place has a value of a feature. Many claims are wrong: be strict. A claim
+stands only when its own source says it plainly about this place.
+
+Places:
+{places}
+
+Features (definition; what each value claims):
+{features}
+
+For every item first write the strongest reason the claim could be wrong (doubt, at most 12 words): is it about
+another place, the area or the road beyond, only implied, advice, a condition, or weaker than the definition? Things
+that are """ + _AUDIT_GEMMA_TRAPS + """
+Then the verdict: correct only if the doubt clearly fails and the source states the claim about this place; wrong if
+the doubt holds; unsure if the source cannot tell.
+
+Items:
+{items}"""
+
+AUDIT_SCHEMA_DOUBT = {
+    "type": "object",
+    "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
+        "ref": {"type": "string"},
+        "doubt": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["correct", "wrong", "unsure"]}},
+        "required": ["ref", "doubt", "verdict"], "additionalProperties": False}}},
+    "required": ["items"],
+    "additionalProperties": False,
+}
+
+OBS_AUDIT_GEMMA = Task(name="obs_audit", role=EXTRACTOR, max_tokens=8000, schema=AUDIT_SCHEMA_DOUBT,
+                       prompt=_AUDIT_GEMMA_PROMPT, parallel=24,
+                       extra_body={"chat_template_kwargs": {"enable_thinking": False}})
 
 PLACE_STATUS = Task(
     name="place_status",
