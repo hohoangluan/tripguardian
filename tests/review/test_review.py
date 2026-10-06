@@ -199,6 +199,37 @@ def test_stats_precision_and_gate(labelled):
     assert labels.wilson_lower(9, 10) < 0.9
 
 
+
+def _many(tmp_path, n, feature="nature", value="present"):
+    obs = [_obs(i, feature, value) for i in range(100, 100 + n)]
+    _w(tmp_path / "gmaps" / "observations" / "0x9_0x9.json", {"place_fid": "0x9:0x9", "place_name": "Vườn B",
+                                                              "ontology_version": load_ontology().version,
+                                                              "observations": obs})
+    return obs
+
+
+def test_gate_measures_on_accurate_labels_once_there_are_enough(labelled):
+    # Gemma's labels are a filter that calls many correct claims wrong: once the accurate labels reach the gate's
+    # sample size they alone decide the precision; Gemma's wrong verdicts must not drag a passing value down
+    obs = _many(labelled, 80)
+    for o in obs[:40]:  # 40 accurate labels, 39 correct
+        labels.judge_label(o, "0x9_0x9", "gmaps", "correct" if o is not obs[0] else "wrong", "", "judge:cx/gpt-5.6-sol")
+    for o in obs[40:]:  # 40 Gemma labels, half of them wrong
+        labels.judge_label(o, "0x9_0x9", "gmaps", "wrong" if int(o["source_id"][1:]) % 2 else "correct", "",
+                           "judge:gemma-4-26b")
+    row = next(r for r in labels.stats()["rows"] if (r["feature"], r["value"]) == ("nature", "present"))
+    assert (row["measured_by"], row["correct"], row["wrong"], row["gate"]) == ("strong", 39, 1, True)
+
+
+def test_gate_falls_back_to_every_label_below_the_sample_size(labelled):
+    obs = _many(labelled, 40)
+    for o in obs[:10]:
+        labels.judge_label(o, "0x9_0x9", "gmaps", "correct", "", "judge:cx/gpt-5.6-sol")
+    for o in obs[10:]:
+        labels.judge_label(o, "0x9_0x9", "gmaps", "wrong", "", "judge:gemma-4-26b")
+    row = next(r for r in labels.stats()["rows"] if (r["feature"], r["value"]) == ("nature", "present"))
+    assert (row["measured_by"], row["correct"], row["wrong"], row["gate"]) == ("all", 10, 30, False)
+
 def test_server_labels_and_feature_review_decisions(labelled):
     import threading
     import urllib.error

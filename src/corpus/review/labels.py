@@ -330,16 +330,32 @@ def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:
 
 def stats() -> dict:
     """Per (feature, value): labels, precision, Wilson lower bound and whether the value passes the gate; by_source
-    splits the correct / wrong counts per source folder (a new source has to earn its own precision)."""
+    splits the correct / wrong counts per source folder (a new source has to earn its own precision).
+
+    The precision is measured on the accurate labels (a person's, the Codex Judge's) once they reach GATE_MIN_N, and on
+    every label only below that. The Gemma Judge's labels are a filter, not a measure: it calls ~30% of correct claims
+    wrong (docs/CORPUS.md §6), so mixing them in pulled values whose accurate labels pass well below the gate --
+    food_quality=good measured 0.95 on 73 accurate labels and 0.83 once Gemma's were added (2026-10-06, 12 values and
+    84.6k claims held back this way). Which labels decide is reported as `measured_by`."""
     rows = _rows()
     pool = collections.Counter((r[2], r[3]) for r in rows)
     current = {r[4]: r[5] for r in rows}
     got = collections.defaultdict(collections.Counter)
     per_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    strong = collections.defaultdict(collections.Counter)
+    strong_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     for k, rec in latest().items():
         if k in current:  # a label on a claim the current observations no longer make says nothing about them
-            got[(rec["feature"], rec["value"])][rec["label"]] += 1
-            per_source[(rec["feature"], rec["value"])][current[k]][rec["label"]] += 1
+            fv = (rec["feature"], rec["value"])
+            got[fv][rec["label"]] += 1
+            per_source[fv][current[k]][rec["label"]] += 1
+            if not stand_in(rec):
+                strong[fv][rec["label"]] += 1
+                strong_source[fv][current[k]][rec["label"]] += 1
+    measured_by = {}
+    for fv, c in strong.items():
+        if c["correct"] + c["wrong"] >= GATE_MIN_N:
+            got[fv], per_source[fv], measured_by[fv] = c, strong_source[fv], "strong"
     rows = []
     for key in sorted(set(pool) | set(got)):
         c = got[key]
@@ -348,6 +364,7 @@ def stats() -> dict:
         rows.append({"feature": key[0], "value": key[1], "observations": pool[key], "correct": c["correct"],
                      "wrong": c["wrong"], "unsure": c["unsure"], "precision": round(c["correct"] / n, 3) if n else None,
                      "lower": lower, "gate": n >= GATE_MIN_N and lower >= GATE_LOWER, "needed": max(0, GATE_MIN_N - n),
+                     "measured_by": measured_by.get(key, "all"),
                      "by_source": {src: {"correct": sc["correct"], "wrong": sc["wrong"]}
                                    for src, sc in sorted(per_source[key].items())}})
     return {"gate": {"min_n": GATE_MIN_N, "lower": GATE_LOWER}, "rows": rows,
