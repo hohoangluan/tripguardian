@@ -57,8 +57,9 @@ Các commit trước (`c77ef78` … `d8195aa`) xem `git log`.
 ## Vai trò hai model (người dùng quyết 2026-10-06)
 
 - **Gemma là engine chính của corpus.** `.env` giữ `JUDGE_ENGINE=gemma`; mọi build chạy observe + audit trên Gemma (miễn phí, cần mạng UIT). Audit: 1 vòng, 8 nhận định/call, 38 call song song.
-- **Sol chỉ để KIỂM TRA kết quả, không tham gia xây corpus.** Quota gần hết. Dùng sol để đọc một mẫu nhỏ nhãn Gemma mà đo độ chính xác, không để chấm cả corpus. 48.507 nhãn mạnh đã có (sol 41.400 + 6.1-sol 4.498 + astra 2.405 + sonnet 204) vẫn đứng và vẫn nuôi gate; `judge dedup` / `judge status` giữ quyết định cũ, build vẫn `--skip` hai bước đó.
+- **Sol ra khỏi corpus hoàn toàn.** Quota gần hết và người dùng giữ phần còn lại cho việc họ chỉ định (gen ảnh hoặc task khác): không dùng sol để chấm corpus, **cũng không dùng để kiểm tra**. 48.507 nhãn mạnh đã có (sol 41.400 + 6.1-sol 4.498 + astra 2.405 + sonnet 204) vẫn đứng và vẫn nuôi gate; `judge dedup` / `judge status` giữ quyết định cũ, build vẫn `--skip` hai bước đó.
 - Hệ quả đã chấp nhận (ưu tiên precision): Gemma `wrong`/`unsure` bỏ nhận định ngay, `correct` trên ảnh ghi thành `unsure`. Gemma bỏ oan ~30% nhận định đúng — đó là giá của việc không có sol trong dây chuyền. Cách bù là siết định nghĩa ontology (xem "Chưa quyết"), dùng chính 48,5k nhãn mạnh đã có để đo, không tốn quota.
+- **Kiểm chất lượng do trợ lý tự đọc**, không gọi model nào: lấy mẫu nhãn Gemma, đọc review / transcript gốc, báo cáo cái nào sai. Không tự ghi nhãn người vào `judge_labels.jsonl` (quy tắc cũ vẫn giữ).
 - Chuỗi đang chạy: `logs/quality_pass.py` → `logs/quality_pass.log`, một bước `corpus build --city dalat --skip "judge dedup" "judge status"`, xong khi có `QUALITY_PASS_DONE`.
 
 ## Judge (2026-10-06)
