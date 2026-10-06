@@ -102,7 +102,8 @@ def load_rows(ont) -> list[tuple]:
 def current(records: dict[str, dict], local: bool = False) -> dict[str, str]:
     """content key -> label that still stands: a person's, or the Judge's unless it said wrong under an older audit
     prompt (a wrong verdict drops evidence, so a changed prompt gives it a second look). Off the Gemma audit (local
-    False), Gemma's wrong and unsure do not stand either: the Codex Judge reads those claims again."""
+    False), Gemma's wrong and unsure do not stand either: the Codex Judge reads those claims again. On Gemma (local)
+    every label stands: Gemma never relabels what the Codex Judge decided, even under an older prompt."""
     prompts = {OBS_AUDIT.prompt_hash, OBS_AUDIT_GEMMA.prompt_hash}
 
     def stands(r):
@@ -110,6 +111,8 @@ def current(records: dict[str, dict], local: bool = False) -> dict[str, str]:
             return True
         if r.get("ph") == OBS_AUDIT_GEMMA.prompt_hash and r["label"] != "correct" and not local:
             return False
+        if local:  # Gemma only adds labels: a claim the Codex Judge labelled is never asked again on Gemma
+            return True
         return not (r["label"] == "wrong" and r.get("ph") not in prompts)
     return {k: r["label"] for k, r in records.items() if stands(r)}
 

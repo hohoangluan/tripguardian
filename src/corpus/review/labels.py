@@ -61,15 +61,21 @@ def key(source_id: str, feature: str, value: str, quote: str) -> str:
 
 
 def latest() -> dict[str, dict]:
-    """content key -> latest label. Records written before labels kept their quote are keyed through the current
-    observations by id (migrate() writes the key into them once)."""
+    """content key -> latest label (a Gemma label never replaces another's, stand_in). Records written before labels
+    kept their quote are keyed through the current observations by id (migrate() writes the key into them once)."""
     by_id = {r[1]: r[4] for r in _rows()}
     out = {}
     for rec in _all():
         k = rec.get("key") or by_id.get(rec["id"])
-        if k:
+        if k and not (stand_in(rec) and k in out and not stand_in(out[k])):
             out[k] = rec
     return out
+
+
+def stand_in(rec: dict) -> bool:
+    """A label of the Gemma Judge (used while Codex quota is out): it adds to a person's and the Codex Judge's labels,
+    never replaces one; the Codex Judge's later label replaces it."""
+    return rec.get("by", "").startswith("judge:gemma")
 
 
 def _rows() -> list[tuple]:

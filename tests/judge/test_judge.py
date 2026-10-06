@@ -219,3 +219,17 @@ def test_gemma_correct_on_a_picture_waits_for_the_strong_judge(monkeypatch):
     import asyncio
     asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", {"extractor": (None, "g")}, {"extractor": asyncio.Semaphore(1)}))
     assert written == [("unsure", 1)]  # kept like an unlabelled claim; the second look reads it when sol is back
+
+
+def test_gemma_never_relabels_or_hides_a_codex_label(monkeypatch):
+    old = {"label": "wrong", "by": "judge:cx/gpt-5.6-sol", "ph": "old"}
+    assert audit.current({"k": old}, local=True) == {"k": "wrong"}  # not asked again on Gemma
+    lab = importlib.import_module("corpus.review.labels")
+    recs = [{"key": "k", "id": "x", "label": "wrong", "by": "judge:cx/gpt-5.6-sol"},
+            {"key": "k", "id": "x", "label": "unsure", "by": "judge:gemma-4-26b"},
+            {"key": "g", "id": "y", "label": "wrong", "by": "judge:gemma-4-26b"},
+            {"key": "g", "id": "y", "label": "correct", "by": "judge:cx/gpt-6.1-sol"}]
+    monkeypatch.setattr(lab, "_all", lambda: recs)
+    monkeypatch.setattr(lab, "_rows", lambda: [])
+    got = lab.latest()
+    assert got["k"]["by"] == "judge:cx/gpt-5.6-sol" and got["g"]["by"] == "judge:cx/gpt-6.1-sol"

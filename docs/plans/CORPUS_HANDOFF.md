@@ -44,6 +44,7 @@ Các commit trước (`c77ef78` … `d8195aa`) xem `git log`.
 Mô tả hành vi: `docs/CORPUS.md` §6 (đoạn "Engine Gemma"). Code: `src/corpus/judge/audit.py`, prompt `OBS_AUDIT_GEMMA` trong `src/corpus/llm/tasks.py`. Commit `ad00fd5`, `00fcda8`.
 
 - **Đang bật:** `.env` `JUDGE_ENGINE=gemma`. Audit chạy trên Gemma UIT (miễn phí, cần mạng UIT/VPN), 8 nhận định/call, 1 vòng, không đọc lần hai. Sol = `cx/gpt-6.1-sol` (`JUDGE_MODEL`, `JUDGE_STRONG_MODEL=cx/gpt-6-astra,cx/gpt-6.1-sol`).
+- **Gemma chỉ thêm, không thay:** Gemma chỉ chấm claim chưa có nhãn; nhãn người / sol / astra có trước không bao giờ bị chấm lại hay bị che (`audit.current(local=True)`, `review.labels.stand_in`). Nhãn sol sau này thì thay nhãn Gemma.
 - **Ưu tiên precision** (người dùng): thiếu dữ liệu thì crawl bù, sai thì ảnh hưởng thẳng người dùng. Gemma `wrong` / `unsure` → bỏ nhận định ngay. Gemma `correct` trên ảnh → ghi `unsure` lượt 1 (giữ như chưa chấm, vì ảnh Gemma lọt sai 35%).
 - **Kết quả lượt Gemma đầu** (2.473 nhận định, 7 phút, 310 call): correct 372, wrong 930, unsure 242, ảnh-correct-chờ-sol 929.
 - **Chất lượng đo được** (`logs/judge_exp/gemma_eval.py`, tập `gemma_eval_out/{dev,test}.json` = 1.334 nhận định có nhãn sol, chia theo feature, dev/test khác nơi): Gemma lọt 11–16% nhận định sai, bỏ nhầm ~30% nhận định đúng (sol lọt ~3%). Đã thử và loại: gom theo feature + few-shot, 1 nhận định/call, ngưỡng logprob (luôn 0/1), ghép 2–5 call, Qwen3.8-27B (cùng chất lượng, chậm ×3). Key JSON viết tắt làm Gemma điền sai trường.
