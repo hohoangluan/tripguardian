@@ -486,6 +486,11 @@ For each review ref return the observations it states clearly:
   walking on foot; "quán nằm trên dốc" is NOT steep_or_stairs unless visitors must climb; "xe mới", "mới mở" are NOT
   condition_change; staff holding an umbrella to the car or a rented bike "không sợ mưa gió" are NOT weather_exposed
   sheltered, which needs the place's own roof or indoor space; a spa session "massage 90 phút" is NOT visit_duration.
+- Words about another place are not about this one. A comparison with, or a description of, another branch, a hotel,
+  a shop, a café, a waterfall, or the area, street and road around it ("quán X bên cạnh", "chi nhánh Hòa Bình", "khu
+  này", "ngoài kia", "trên đường tới", "mấy quán nổi tiếng") gives no observation for this place. The Judge's commonest
+  reason for rejecting a claim is exactly this, so when the words could belong either to this place or to something
+  near it, leave them out.
 - Praise without a concrete point ("tuyệt vời", "10 điểm", "sẽ quay lại") gives no observation.
 - Something useful for choosing the place that is not in the list: add it to proposed with a short English label
   and its quote.
@@ -896,6 +901,11 @@ Rules:
   building, outdoor = open air, both = that one photo shows both. Never from food, drinks, a menu, a person close-up,
   a treatment, a car park or the street. One value per photo.
 - A pet or stray animal is not animals; a dish photo, a selfie close-up, a menu or a receipt gives nothing.
+- outdoor_seating: the seating itself must be visible in the open air, tables and chairs with sky or garden around
+  them. A roofed terrace or a covered hall is not outdoor; a photo of the facade is not indoor; food on a table says
+  nothing about where that table stands.
+- What you report must be the photo's own subject, not something guessed from a corner, a background or a reflection.
+  The Judge rejects a claim whenever the picture only hints at it.
 - Unsure, blurry, or could be anywhere -> nothing. Return an empty list when nothing is clearly shown.""",
 )
 
