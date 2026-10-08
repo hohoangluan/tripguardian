@@ -17,11 +17,11 @@ def test_names_in_full_or_last_two_words():
 def test_updates_become_actions():
     text = "Cầu Đất xa quá, thêm Lan Viên, muốn chỗ yên tĩnh, tìm chỗ có nhạc nhẹ"
     g = guard(plan(("drop", "P1", "far", "Cầu Đất xa quá"), ("select", "P2", "", "thêm Lan Viên"),
-                   ("soft", "", "noise=quiet:love", "muốn chỗ yên tĩnh"), ("unmapped", "", "nhạc nhẹ", "nhạc nhẹ"),
+                   ("trip", "", "", "muốn chỗ yên tĩnh"), ("trip", "", "", "tìm chỗ có nhạc nhẹ"),
                    ("crowd", "", "", "chỗ yên tĩnh")), text, ALIASES, "", KEYS)
     assert g.actions == [{"type": "drop", "place_id": "A", "reason": "far"}, {"type": "select", "place_id": "B"},
-                         {"type": "prefer", "feature": "noise", "value": "quiet", "weight": 1},
-                         {"type": "note", "phrase": "nhạc nhẹ"}, {"type": "feedback", "reason": "crowded"}]
+                         {"type": "trip", "text": "muốn chỗ yên tĩnh"}, {"type": "trip", "text": "tìm chỗ có nhạc nhẹ"},
+                         {"type": "feedback", "reason": "crowded"}]
     assert g.say == "Mình đã bỏ nơi đó." and g.log == []
 
 
@@ -29,9 +29,22 @@ def test_bad_updates_are_dropped_and_logged():
     text = "bỏ nơi thứ hai đi"
     g = guard(plan(("drop", "P9", "", "bỏ nơi thứ hai"), ("drop", "P1", "", "không có câu này"),
                    ("select", "P2", "", "bỏ nơi thứ hai"), ("drop", "", "", "bỏ nơi thứ hai"),
-                   ("soft", "", "noise=purple:love", "bỏ nơi thứ hai")), text, ALIASES, "", KEYS)
-    assert g.actions == [{"type": "note", "phrase": "bỏ nơi thứ hai"}] and len(g.log) == 5
+                   ("trip", "", "", "muốn yên tĩnh hơn")), text, ALIASES, "", KEYS)
+    assert g.actions == [] and len(g.log) == 5
 
+
+
+def test_trip_wish_becomes_a_trip_action_with_the_quoted_words():
+    text = "mình không thích quán giống Cà Phê Số 1, muốn yên tĩnh hơn"
+    g = guard(plan(("trip", "", "", "không thích quán giống Cà Phê Số 1"), ("trip", "", "", "muốn yên tĩnh hơn")),
+              text, ALIASES, "", KEYS)
+    assert g.actions == [{"type": "trip", "text": "không thích quán giống Cà Phê Số 1"},
+                         {"type": "trip", "text": "muốn yên tĩnh hơn"}]
+
+
+def test_trip_wish_with_a_quote_not_in_the_message_is_dropped():
+    g = guard(plan(("trip", "", "", "thích cà phê sách")), "bỏ nơi thứ hai", ALIASES, "", KEYS)
+    assert g.actions == []
 
 def test_say_with_unseen_numbers_or_places_is_replaced():
     assert guard(plan(say="Còn 45 phút trống."), "bỏ đi", ALIASES, "", KEYS).say == ""

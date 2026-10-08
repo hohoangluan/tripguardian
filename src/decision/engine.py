@@ -198,8 +198,10 @@ class Engine:
                     actions, say, log = g.actions, g.say, g.log
             except AgentError as e:
                 (actions, say), log = policy(text, aliases), [f"agent_fallback: {e}"]
+            trips = [a["text"] for a in actions if a.get("type") == "trip"]
+            actions = [a for a in actions if a.get("type") != "trip"]
             new, done, skipped = self._apply(s, actions, before, strict=False)
-            say = say or (DONE if done else NONE)  # a guard-dropped say never leaves an empty bubble
+            say = say or (DONE if done or trips else NONE)  # a guard-dropped say never leaves an empty bubble
             if say != "".join(streamed):
                 emit("say", {"replace": say})
             logged = {"type": "turn", "text": text, "actions": done, "log": log + skipped}
@@ -210,6 +212,8 @@ class Engine:
                 s.log.append({"version": len(s.history), "action": logged, "scope": None, "at": _now()})
                 self.store.save(s)
                 out = {"view": before.view, "diff": diff(before.view, before.view, None)}
+            if trips:
+                emit("trip", {"texts": trips})
             emit("view", out)
             emit("done", {})
 

@@ -3,15 +3,13 @@ screen, values are in the allowed sets; `say` holds no number or place name the 
 
 import re
 from dataclasses import dataclass, field
-from functools import cache
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from corpus.ontology import load
 from trip import contains, squash
 
-Op = Literal["select", "drop", "lock", "travel", "crowd", "price", "soft", "visited", "unmapped"]
+Op = Literal["select", "drop", "lock", "travel", "crowd", "price", "trip", "visited"]
 FEEDBACK = {"travel": "far", "crowd": "crowded", "price": "pricey"}
 REASONS = ("far", "crowded", "pricey", "dislike", "visited")
 PLACE_OPS = {"select", "lock", "drop", "visited"}
@@ -38,11 +36,6 @@ class Guarded:
     actions: list[dict]
     say: str
     log: list[str] = field(default_factory=list)
-
-
-@cache
-def _ontology():
-    return load()
 
 
 def names_in(text: str, name: str) -> bool:
@@ -89,15 +82,8 @@ def guard(plan: TurnPlan, text: str, aliases: dict[str, dict], screen_text: str,
             actions.append({"type": "drop", "place_id": place["id"], "reason": "visited"})
         elif u.op in FEEDBACK:
             actions.append({"type": "feedback", "reason": FEEDBACK[u.op]})
-        elif u.op == "soft":
-            m = re.fullmatch(r"([a-z_]+)=([a-z_]+):(love|avoid)", u.value.strip())
-            if m and _ontology().valid(m[1], m[2]):
-                actions.append({"type": "prefer", "feature": m[1], "value": m[2], "weight": 1 if m[3] == "love" else -1})
-            else:
-                log.append(f"unmapped soft {u.value!r}")
-                actions.append({"type": "note", "phrase": u.quote})
-        elif u.op == "unmapped" and u.value.strip():
-            actions.append({"type": "note", "phrase": u.value.strip()})
+        elif u.op == "trip":
+            actions.append({"type": "trip", "text": u.quote.strip()})
     say = plan.say.strip()
     why = _bad_say(say, f"{text} {screen_text}", aliases, name_keys)
     if why:

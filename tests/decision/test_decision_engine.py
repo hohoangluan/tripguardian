@@ -165,3 +165,16 @@ def test_first_shortlist_counts_top_and_anchors_not_the_whole_window():
     s = e.store.get(out["id"])
     assert s.first_shortlist == sum(1 for g in out["view"]["groups"] for c in g["cards"] if c["top"] or c["anchor"])
     assert s.first_shortlist < len(out["view"]["shortlist"])
+
+
+def test_turn_with_a_trip_wish_emits_trip_before_view_and_still_applies_place_ops():
+    say_plan = TurnPlan(say="Mình hiểu rồi.", updates=(
+        PlanUpdate(op="trip", place="", value="", quote="muốn yên tĩnh hơn"),
+        PlanUpdate(op="drop", place="P1", value="", quote="bỏ quán số 0")))
+    e = engine(FakeAgent(say_plan))
+    out = e.create(trip())
+    events = []
+    e.turn(out["id"], "bỏ quán số 0, muốn yên tĩnh hơn", lambda ev, d: events.append((ev, d)))
+    names = [ev for ev, _ in events]
+    assert ("trip", {"texts": ["muốn yên tĩnh hơn"]}) in events and names.index("trip") < names.index("view")
+    assert [d.place_id for d in e.store.get(out["id"]).state.dropped] != []
