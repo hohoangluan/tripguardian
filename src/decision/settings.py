@@ -52,6 +52,9 @@ class Settings:
     rethink_drops: int
     history_max: int
     unverified_show: int
+    page_size: int
+    keep_factor: float
+    replace_below: float
     first_token_s: float
     total_s: float
     display_groups: dict

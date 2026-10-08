@@ -40,6 +40,9 @@ gap_min: 90
 rethink_drops: 6
 history_max: 50
 unverified_show: 12
+page_size: 24               # places per display group shown at once; scrolling loads the next page
+keep_factor: 2              # a shown place survives a new ranking while it ranks within keep_factor x the window
+replace_below: 0.3          # fewer survivors than this share of the window -> replace the window whole
 first_token_s: 8
 total_s: 30
 display_groups:
