@@ -33,13 +33,18 @@ export interface Card {
   anchor: boolean
   alternatives: { id: string; name: string }[]
   suggested: boolean
+  top: boolean
 }
 
 export interface Group {
   id: string
   label: string
   cards: Card[]
+  total: number
 }
+
+// How one display group's shown window changed in the last rebuild (src/decision/window.py).
+export interface Change { kept: number; added: number; removed: number; replaced_all: boolean }
 
 export type Action =
   | { type: 'select' | 'lock' | 'unlock' | 'wishlist'; place_id: string }
@@ -85,6 +90,7 @@ export interface Pending {
 export interface View {
   version: number
   groups: Group[]
+  change: Record<string, Change>
   shortlist: string[]
   selected: string[]
   locked: string[]
@@ -150,4 +156,32 @@ export interface TurnHandlers {
   view?: (d: ActResult) => void
   done?: () => void
   error?: (d: { message: string }) => void
+}
+
+// GET /api/harness/sessions/<id>/preview: the schedule the current selection would get (src/harness/dispatch.py preview).
+export interface PreviewVariant {
+  id: string
+  objective: string
+  label: string
+  metrics: { travel_min: number; cost_vnd: number; cost_unknown: number }
+  robustness: { level: 'solid' | 'feasible' | 'fragile'; label: string }
+  places: string[][] // place ids per day
+}
+
+export interface PlanPreview {
+  revision: number
+  status: 'ready' | 'failed' | 'blocked' | 'empty'
+  plan: { ok: boolean; days: number; warnings: { code: string; text: string }[]; back_to_decision: { reason: string; places: string[] } | null; variants: PreviewVariant[] } | null
+}
+
+// GET /api/harness/trips?ids=: one line per journey this browser started.
+export interface TripSummary {
+  id: string
+  stage: 'trip' | 'decision' | 'planning'
+  revision: number
+  start_date: string | null
+  days: number | null
+  people: number | null
+  places: string[]
+  confirmed: boolean
 }
