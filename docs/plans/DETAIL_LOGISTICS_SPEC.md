@@ -8,7 +8,7 @@ Người dùng duyệt từng phần trong chat ngày 2026-10-08.
 | # | Người dùng nói | Xong khi |
 |---|---|---|
 | A | "Xem chi tiết" hiện như video `20261008-0352-34.7778994.mp4`, bố cục y chang; gallery nhiều ảnh hơn, chọn ảnh đẹp nhất; animation mở tối ưu UX | Bấm "Xem chi tiết" ở đĩa xoay **và** ở lưới mở cùng một modal theo bố cục video (khối ảnh giữ như đĩa xoay hiện tại); tab Hình ảnh hiện ~12 ảnh/nơi do Gemma chọn |
-| B | Gợi ý hiện quá ít; hiện hết cho người dùng chọn, rồi họ chat để thu hẹp | Explore hiện mọi nơi qua giới hạn cứng, nhóm đầu có nhãn "Hợp nhất" |
+| B | Gợi ý hiện quá ít; hiện hết cho người dùng chọn, rồi họ chat để thu hẹp; màn ít xáo trộn khi lọc | Cuộn xuống thấy dần mọi nơi qua giới hạn cứng; chat lọc giữ nơi còn khớp đúng chỗ, chuyển cảnh mượt |
 | C | Sau phase chat hỏi điểm xuất phát (tìm như Google Maps), phương tiện (xe khách / máy bay → đề xuất chuyến để chốt hoặc bỏ qua), khách sạn | Ba câu hỏi chạy trong Understand; chuyến đã chốt điền giờ đến / giờ về; khách sạn đã chọn là mốc khi xếp lịch |
 | C' | Gợi ý khách sạn theo vibe người dùng thích (Trip Understanding); điểm ưa thích nặng hơn điểm vị trí; khâu chậm chuyển offline | Thứ tự khách sạn do mức hợp gu quyết định trước, vị trí sau; mỗi thẻ nói "hợp vì …" kèm bằng chứng |
 
@@ -65,12 +65,31 @@ Nút: "Thêm vào hành trình" = `act({type:'select'})`; đã chọn → "Đã 
 
 Vận hành (người dùng xác nhận 2026-10-08, ghi ở `docs/plans/SESSION_TIKTOK.md`): khi chạy `photo_rank` thì tạm dừng `logs/tiktok_lan_uit_lane.sh`, xong thì chạy lại.
 
-## 2. B — Hiện hết gợi ý
+## 2. B — Hiện hết gợi ý, lọc bằng chat mà màn ít xáo trộn
 
-- `src/decision/diversify.py` `pick`: trả **mọi** ứng viên qua hard filter và `min_context_fit`, sắp theo MMR cho phần đầu (cỡ cũ `k`) rồi theo `score` cho phần còn lại. Nơi gần trùng vẫn có `alternatives` nhưng **cũng nằm trong danh sách**.
-- Mỗi card thêm `top: bool` (true với `k` nơi đầu — cỡ shortlist cũ). Schema `src/decision` + `web/src/user/pd/types.ts`.
-- Web: header Explore "N nơi hợp với chuyến của bạn · chat để thu hẹp" (mở Assistant); badge "Hợp nhất" cho `top`; lưới hiện 24 nơi, cuộn tới đâu hiện thêm tới đó; đĩa xoay giữ nguyên (đã chỉ vẽ ±6 nan).
-- Feasibility (`infeasible_ratio`, nhắc chọn quá nhiều) không đổi: tính trên nơi **đã chọn**, không trên số nơi được hiện.
+Đo trên dữ liệu thật (chuyến 3 ngày, chưa giới hạn): hiện 30 nơi; qua lọc cứng + bán kính có 1.278 nơi (ăn uống 545, cà phê 424, tham quan 193, thiên nhiên 116). Người dùng (2026-10-08): hiện tối ưu UX, không cần quá nhiều một lúc nhưng lướt xuống vẫn thấy thêm; chat lọc ở backend (Place Decision); nơi vẫn khớp thì giữ, màn đổi ít nhất có thể; không còn khớp thì thay hết cũng được; chuyển cảnh mượt.
+
+### 2.1 Danh sách và phân trang
+
+- `src/decision/pipeline.py`: thứ hạng đầy đủ của mỗi nhóm = nơi đã chọn → `k` nơi MMR (cỡ shortlist cũ, card `top: true`, nhãn "Hợp nhất") → mọi nơi còn lại trong pool sắp theo `score`. Nơi gần trùng vẫn có `alternatives` nhưng cũng nằm trong danh sách.
+- View chỉ mang **cửa sổ đang hiện** mỗi nhóm: lần đầu `page_size` = 24 nơi (config `decision.yaml`), kèm `total` của nhóm. Web cuộn gần cuối lưới → `GET .../decision/page?group=<id>&offset=<n>` (route `READ` sẵn có của harness) trả 24 nơi tiếp; số đã hiện lưu vào session (`shown[group]`) để lần dựng sau giữ đúng cửa sổ đó.
+- Agent (`engine._aliases`) chỉ nhận nơi trong cửa sổ đang hiện + nơi đã chọn; nơi ngoài cửa sổ vẫn tìm được qua tool sẵn có (`explain_exclusion` / tìm theo tên).
+- `first_shortlist` (ngưỡng "bỏ nhiều quá, nghĩ lại") = số card `top` + anchor, không phải tổng số nơi.
+
+### 2.2 Lọc lại mà ít xáo trộn
+
+Khi một lượt (chat, sửa vé, chip) làm đổi thứ hạng, mỗi nhóm gộp thứ hạng mới với cửa sổ cũ `old` (theo thứ tự đang hiện):
+
+1. `keep` = nơi trong `old` vẫn qua lọc **và** đứng trong `keep_factor × len(old)` hạng đầu của thứ hạng mới (`keep_factor` = 2, config).
+2. Nếu `len(keep) < 0.3 × len(old)` → thay hết: cửa sổ mới = `len(old)` nơi đầu của thứ hạng mới.
+3. Ngược lại: giữ `keep` đúng vị trí cũ; ô của nơi bị gỡ được lấp bằng nơi mới theo thứ hạng mới (ô trên cùng nhận nơi hợp nhất); dư thì nối cuối. Cửa sổ giữ đúng độ dài cũ.
+4. `top` tính lại theo thứ hạng mới. View mang `change[group] = {kept, added, removed, replaced_all}`; câu báo dùng `diff()` sẵn có: "Lọc theo yên tĩnh: giữ 18 nơi, thay 6".
+
+### 2.3 Web
+
+- Lưới tự tải thêm khi cuộn (IntersectionObserver ở cuối lưới, skeleton 3 thẻ), không nút "Xem thêm". Header: "N nơi hợp với chuyến của bạn · Chat để thu hẹp" (mở Assistant).
+- Chuyển cảnh khi view đổi: thẻ giữ lại đứng yên (lệch vị trí thì trượt FLIP 280 ms); thẻ bị gỡ fade + thu nhỏ 180 ms; thẻ mới vào ô trống fade-up lệch nhau 40 ms; `replaced_all` → cross-fade cả lưới 240 ms. Đĩa xoay: nơi đang xem còn trong danh sách thì vẫn ở giữa. `prefers-reduced-motion` → chỉ fade.
+- Feasibility (`infeasible_ratio`, nhắc chọn quá nhiều) không đổi: tính trên nơi **đã chọn**.
 
 ## 3. C — Hỏi hậu cần sau phase chat
 
@@ -144,7 +163,7 @@ w_pref > w_loc   (config/planning.yaml lodging_weights; khởi điểm pref 2.0,
 | Phần | Test |
 |---|---|
 | A | `pick_covers.py` trên 3 nơi (dry run, in thứ hạng); `shots_app.mjs` mở modal từ đĩa và từ lưới, chụp từng tab |
-| B | `src/decision`: số card = số ứng viên qua lọc; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; nhóm `stay` không bao giờ vào Explore |
+| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore |
 | C | `src/trip`: chuỗi `origin → arrival_mode → inbound/outbound → lodging_booked`; chọn chuyến điền `arrive_at`/`leave_at` và bỏ câu `times`; "Tự đi" suy `entry_point` |
 | C live | parser Google Flights / Vexere chạy trên HTML mẫu lưu trong `tests/fixtures/`; cache có → không mở trình duyệt; lỗi crawl → `Unavailable`, không trả chuyến giả; `src/live` không có đường ghi tới `data/intel`, `data/serving`, `data/gmaps` |
 | C' corpus | `gmaps list` giữ chỗ ở vào `<city>_stay.json`, nơi tham quan không lẫn vào; feature ngoài tập `stay` không được ghi cho chỗ ở |
