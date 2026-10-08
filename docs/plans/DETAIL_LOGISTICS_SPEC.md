@@ -145,17 +145,18 @@ Thứ tự trong Understand, sau khi chat xong và trước `ready`: **xuất ph
 
 ### 3.4 Chỗ ở — `lodging_booked`
 
-Câu hỏi ngay sau phương tiện (hoặc chuyến), cùng giọng với các câu hiện có trong `questions.py`. Field mới `lodging_booked`.
+Câu hỏi ngay sau phương tiện (hoặc chuyến), `input="lodging"`: **ô tìm là phần chính của thẻ**, người đã có chỗ ở chỉ việc gõ và chọn. Field mới `lodging_booked`.
 
-- `text`: **"Bạn đã có chỗ nghỉ ở Đà Lạt chưa?"**
+- `text`: **"Cho mình biết nơi bạn sẽ lưu trú ở Đà Lạt nhé."**
 - `reason`: "Để mình tính đường đi mỗi ngày từ đúng chỗ bạn ở."
-- Chip: **"Có rồi"** · **"Chưa, gợi ý giúp mình"** · lối thoát "Bỏ qua" sẵn có.
+- Ô tìm, placeholder "Tên khách sạn, homestay hoặc địa chỉ": gợi ý từ chỗ ở trong corpus §4 trước, rồi `geosearch` §3.1.
+- Chip **"Chưa có, gợi ý giúp mình"** và lối thoát **"Bỏ qua"** sẵn có.
 
-| Trả lời | Làm gì |
+| Người dùng | Làm gì |
 |---|---|
-| Có rồi | ô tìm địa điểm (placeholder "Tên khách sạn, homestay hoặc địa chỉ") như §3.1 (gợi ý từ chỗ ở trong corpus §4 trước, rồi `geosearch`) → người dùng chọn đúng chỗ, chốt như bình thường → `lodging_point` của Planning (`pick_lodging` / `set_lodging`) |
-| Chưa, gợi ý giúp mình | khi bấm "Xếp lịch" hiện màn chọn khách sạn (§4.3) trước khi lịch hiện ra |
-| Bỏ qua | không chỗ ở; mốc = `entry_point` như hiện tại |
+| Gõ rồi chọn một kết quả | chốt như mọi ô tìm khác → `lodging_booked = yes` + điểm đó thành `lodging_point` của Planning (`pick_lodging` nếu là chỗ ở trong corpus / live, `set_lodging` nếu là địa chỉ). Planning không gợi ý chỗ ở nữa (vẫn đổi được ở ô bên hông màn Plan) |
+| "Chưa có, gợi ý giúp mình" | `lodging_booked = no` → khi bấm "Xếp lịch" hiện màn chọn khách sạn §4.3 trước khi lịch hiện ra |
+| "Bỏ qua" | `lodging_booked` để trống → không chặn bằng màn chọn; Planning vẫn gợi ý chỗ ở theo gu (§4.2) ở ô bên hông màn Plan như hiện tại |
 
 ## 4. C' — Khách sạn theo gu, dữ liệu offline
 
