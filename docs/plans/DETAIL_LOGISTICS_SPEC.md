@@ -145,12 +145,16 @@ Thứ tự trong Understand, sau khi chat xong và trước `ready`: **xuất ph
 
 ### 3.4 Chỗ ở — `lodging_booked`
 
-Câu hỏi **"Bạn có khách sạn chưa?"** ngay sau phương tiện (hoặc chuyến). Field mới `lodging_booked`.
+Câu hỏi ngay sau phương tiện (hoặc chuyến), cùng giọng với các câu hiện có trong `questions.py`. Field mới `lodging_booked`.
+
+- `text`: **"Bạn đã có chỗ nghỉ ở Đà Lạt chưa?"**
+- `reason`: "Để mình tính đường đi mỗi ngày từ đúng chỗ bạn ở."
+- Chip: **"Có rồi"** · **"Chưa, gợi ý giúp mình"** · lối thoát "Bỏ qua" sẵn có.
 
 | Trả lời | Làm gì |
 |---|---|
-| Có rồi | ô tìm địa điểm như §3.1 (gợi ý từ chỗ ở trong corpus §4 trước, rồi `geosearch`) → người dùng chọn đúng chỗ, chốt như bình thường → `lodging_point` của Planning (`pick_lodging` / `set_lodging`) |
-| Chưa có | khi bấm "Xếp lịch" hiện màn chọn khách sạn (§4.3) trước khi lịch hiện ra |
+| Có rồi | ô tìm địa điểm (placeholder "Tên khách sạn, homestay hoặc địa chỉ") như §3.1 (gợi ý từ chỗ ở trong corpus §4 trước, rồi `geosearch`) → người dùng chọn đúng chỗ, chốt như bình thường → `lodging_point` của Planning (`pick_lodging` / `set_lodging`) |
+| Chưa, gợi ý giúp mình | khi bấm "Xếp lịch" hiện màn chọn khách sạn (§4.3) trước khi lịch hiện ra |
 | Bỏ qua | không chỗ ở; mốc = `entry_point` như hiện tại |
 
 ## 4. C' — Khách sạn theo gu, dữ liệu offline
