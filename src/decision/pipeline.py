@@ -15,6 +15,7 @@ from .model import Cand, role_of
 from .rank import score
 from .screen import screen
 from .trip_days import trip_days
+from .window import merge
 
 MISSING_NAME = "Địa điểm chưa có trong dữ liệu"
 
@@ -39,6 +40,8 @@ class Result:
     alternatives: dict[str, list[str]]
     group_of: dict[str, str]
     days: list
+    shown: dict[str, list[str]]
+    ranked: dict[str, list[str]]
 
 
 def stub(pid: str) -> dict:
@@ -114,6 +117,12 @@ def run(s, data: Data, cfg) -> Result:
             if same:
                 alts[c.id] = same[:3]
 
+    top = {c.id for c in reps}
+    rest = sorted((c for c in pool if c.id not in top), key=lambda c: (-c.score, c.id))
+    ranked: dict[str, list[str]] = {}
+    for c in [*(x for x in chosen if x.id not in anchors), *reps, *rest]:
+        ranked.setdefault(group_of.get(c.id, "sights"), []).append(c.id)
+
     suggested = next((c.id for c in reps if group_of[c.id] == st.suggest_group), None) if st.suggest_group else None
     want = wanted(si, st.profile)
     labels = cfg.labels["group"]
@@ -121,16 +130,19 @@ def run(s, data: Data, cfg) -> Result:
     def mk(c: Cand) -> dict:
         return card(c, si, cfg, wanted=want, chosen=c.id in st.selected, locked=c.id in st.locked,
                     anchor=c.id in anchors, alternatives=[(x.id, x.name) for x in alts.get(c.id, [])],
-                    suggested=c.id == suggested, group=group_of.get(c.id, "sights"))
+                    suggested=c.id == suggested, group=group_of.get(c.id, "sights"), top=c.id in top)
 
-    groups = []
+    groups, shown, change = [], {}, {}
     if anchors:
-        groups.append({"id": "anchors", "label": labels["anchors"], "cards": [mk(cands[a]) for a in anchors]})
+        groups.append({"id": "anchors", "label": labels["anchors"], "cards": [mk(cands[a]) for a in anchors],
+                       "total": len(anchors)})
     for gid in [*cfg.display_groups, "meal"]:
-        here = [c for c in chosen if c.id not in anchors and group_of.get(c.id) == gid]
-        here += [c for c in reps if group_of[c.id] == gid]
-        if here:
-            groups.append({"id": gid, "label": labels[gid], "cards": [mk(c) for c in here]})
+        ids = ranked.get(gid, [])
+        pinned = {c.id for c in chosen if group_of.get(c.id) == gid}
+        win, ch = merge(st.shown.get(gid, []), ids, pinned, cfg)
+        if win:
+            shown[gid], change[gid] = win, ch
+            groups.append({"id": gid, "label": labels[gid], "cards": [mk(cands[i]) for i in win], "total": len(ids)})
 
     unverified = sorted((c for c in live if not c.keep and c.status == "unverified" and c.id not in dropped),
                         key=lambda c: (-c.score, c.id))
@@ -153,6 +165,7 @@ def run(s, data: Data, cfg) -> Result:
     view = {
         "version": len(s.history),
         "groups": groups,
+        "change": change,
         "shortlist": [x["id"] for g in groups for x in g["cards"]],
         "selected": list(st.selected), "locked": list(st.locked),
         "unverified": {"count": len(unverified), "open": any(h.unknown_policy == "flag" for h in si.hard_filters),
@@ -169,7 +182,7 @@ def run(s, data: Data, cfg) -> Result:
         "unknowns": list(si.unknowns),
         "unmapped": [*si.unmapped, *st.unmapped],
     }
-    return Result(view, cands, {k: [x.id for x in v] for k, v in alts.items()}, group_of, days)
+    return Result(view, cands, {k: [x.id for x in v] for k, v in alts.items()}, group_of, days, shown, ranked)
 
 
 def why_not(res: Result, pid: str, si, cfg) -> dict:

@@ -87,7 +87,7 @@ def _fail_text(x: dict, cfg) -> str:
 
 
 def card(c: Cand, si, cfg, *, wanted=(), chosen=False, locked=False, anchor=False, alternatives=(), suggested=False,
-         group="") -> dict:
+         group="", top=False) -> dict:
     rec = c.rec
     vm = rec["operation"].get("visit_minutes")
     price = price_text(rec)
@@ -108,5 +108,5 @@ def card(c: Cand, si, cfg, *, wanted=(), chosen=False, locked=False, anchor=Fals
                        if x["result"] == "unknown"],
         "failed": [_fail_text(x, cfg) for x in c.checks if x["result"] == "fail"],
         "chosen": chosen, "locked": locked, "anchor": anchor,
-        "alternatives": [{"id": i, "name": n} for i, n in alternatives], "suggested": suggested,
+        "alternatives": [{"id": i, "name": n} for i, n in alternatives], "suggested": suggested, "top": top,
     }

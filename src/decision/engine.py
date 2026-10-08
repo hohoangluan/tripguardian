@@ -21,6 +21,7 @@ from .policy import DONE, NONE, policy
 from .scope import STEPS, replan_scope
 from .session import Pending, Session, State, Store
 from .settings import Settings
+from .window import extend
 
 Emit = Callable[[str, dict], None]
 Agent = Callable[[dict, Callable[[str], None]], Awaitable[TurnPlan]]
@@ -83,7 +84,11 @@ class Engine:
 
     def _result(self, s: Session) -> Result:
         if s.id not in self._results:
-            self._results[s.id] = run(s, self.data, self.cfg)
+            res = run(s, self.data, self.cfg)
+            if res.shown != s.state.shown:  # the window is screen state, not an action: no history entry
+                s.state = s.state.model_copy(update={"shown": res.shown})
+                self.store.save(s)
+            self._results[s.id] = res
         return self._results[s.id]
 
     def _apply(self, s: Session, actions: list[dict], before: Result, strict: bool) -> tuple[State, list[dict], list[str]]:
@@ -121,7 +126,7 @@ class Engine:
                    locked=[a.place_id for a in si.anchors if a.priority == "must"])
         s = self.store.new(si, trip_session, st)
         res = self._result(s)
-        s.first_shortlist = len(res.view["shortlist"])
+        s.first_shortlist = sum(1 for g in res.view["groups"] for c in g["cards"] if c["top"] or c["anchor"])
         self.store.save(s)
         return {"id": s.id, "view": res.view}
 
@@ -129,6 +134,19 @@ class Engine:
         s = self._get(sid)
         with self.store.lock(sid):
             return {"id": s.id, "view": self._result(s).view}
+
+    def page(self, sid: str, group: str) -> dict:
+        """The next page of one display group: the window grows, the session keeps it."""
+        s = self._get(sid)
+        with self.store.lock(sid):
+            res = self._result(s)
+            if group not in res.ranked:
+                raise ValueError(f"unknown group {group!r}")
+            shown = {**s.state.shown, group: extend(s.state.shown.get(group, []), res.ranked[group], self.cfg)}
+            s.state = s.state.model_copy(update={"shown": shown})  # a new dict: history entries may share the old one
+            self._results.pop(s.id, None)
+            self.store.save(s)
+            return {"view": self._result(s).view}
 
     def report(self, place_id, text, reporter) -> dict:
         """A traveller reports something about a place in their own words. It is only stored here; it changes the
@@ -224,6 +242,15 @@ class Engine:
             s.output = output.build(s, res, self.cfg)
             self.store.save(s)
             return s.output
+
+    def draft(self, sid: str) -> dict | None:
+        """The output confirm() would write right now, without saving it; None while it is not confirmable."""
+        s = self._get(sid)
+        with self.store.lock(sid):
+            res = self._result(s)
+            if res.view["feasibility"]["status"] not in ("feasible", "unknown"):
+                return None
+            return output.build(s, res, self.cfg)
 
     # ---------- agent prompt ----------
 

@@ -10,7 +10,7 @@ from agents import ToolError, load_skill, permit_tool
 from trip import SearchInput
 
 from .agent import run_agent
-from .engine import Engine, NoSession, NotConfirmable
+from .engine import Engine, NoSession, NotConfirmable, diff
 from .contracts import DecisionOutput
 from .pipeline import Data
 from .session import Session, Store
@@ -68,7 +68,19 @@ class Tools:
             return self.engine.compare(sid, payload.get("a", ""), payload.get("b", ""), record=False)
         if operation == "why-not":
             return self.engine.why_not(sid, payload.get("place", ""))
+        if operation == "page":
+            return self.engine.page(sid, str(payload.get("group", "")))
+        if operation == "draft":
+            out = self.engine.draft(sid)
+            return {"output": None if out is None else
+                    DecisionOutput.model_validate(out).model_dump(mode="json", by_alias=True)}
         raise ValueError(f"unknown Decision read {operation}")
+
+    def report(self, payload: dict) -> dict:
+        """A traveller's free-text report on a place; stored for review, never applied to the corpus directly."""
+        if set(payload) - {"place_id", "text", "reporter"}:
+            raise ValueError("unknown report field")
+        return self.engine.report(payload.get("place_id"), payload.get("text"), payload.get("reporter"))
 
     def snapshot(self, sid: str) -> dict:
         with self.engine.store.lock(sid):
@@ -81,6 +93,7 @@ class Tools:
 
     def rebase(self, sid: str, payload: dict) -> dict:
         inp = StartInput.model_validate(payload)
+        before = self.load(sid)["view"]
         with self.engine.store.lock(sid):
             s = self.engine.store.get(sid)
             s.search_input, s.trip_session, s.output = inp.search_input, inp.trip_session, None
@@ -92,7 +105,8 @@ class Tools:
                     s.state.locked.append(anchor.place_id)
             self.engine._results.pop(sid, None)
             self.engine.store.save(s)
-        return self.load(sid)
+        out = self.load(sid)
+        return {**out, "diff": diff(before, out["view"], None)}
 
 
 def create_engine(data_root: Path) -> Engine:

@@ -97,3 +97,32 @@ def test_no_days_means_no_weekday_checks_even_with_a_start_date():
     v = run(s, d, CFG).view
     assert "TUE" in v["shortlist"] and v["known_days"] is False
     assert all(x["weekday"] is None for x in v["days"])
+
+
+def many_cafes(n):
+    return Data([srec(f"CAFE{i:02d}", features={"steep_or_stairs": "absent", "cozy_decor": "present"},
+                      lng=108.44 + i / 1000) for i in range(n)])
+
+
+def test_window_shows_a_page_and_reports_the_total():
+    res = run(session(), many_cafes(40), CFG)
+    chill = next(g for g in res.view["groups"] if g["id"] == "chill")
+    assert len(chill["cards"]) == CFG.page_size and chill["total"] == 40
+    assert any(c["top"] for c in chill["cards"]) and not all(c["top"] for c in chill["cards"])
+    assert res.shown["chill"] == [c["id"] for c in chill["cards"]]
+
+
+def test_chosen_place_stays_where_it_was_in_the_window():
+    data = many_cafes(40)
+    first = run(session(), data, CFG)
+    ids = first.shown["chill"]
+    st = State(selected=[ids[5]], shown=first.shown)
+    again = run(session(state=st), data, CFG)
+    assert again.shown["chill"][5] == ids[5]
+    assert again.view["change"]["chill"]["added"] == 0
+
+
+def test_hard_filter_still_fail_closed_with_full_ranking():
+    v = run(session(), data(), CFG).view
+    shown = {c["id"] for g in v["groups"] for c in g["cards"]}
+    assert "STEEP" not in shown and "UNK" not in shown

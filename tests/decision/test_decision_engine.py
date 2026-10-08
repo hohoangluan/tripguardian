@@ -44,7 +44,7 @@ def test_create_selects_anchors_and_counts_first_shortlist():
     e = engine()
     out = e.create(trip(anchors=[{"place_id": "C0", "priority": "must"}]))
     s = e.store.get(out["id"])
-    assert s.state.selected == ["C0"] and s.state.locked == ["C0"] and s.first_shortlist == len(out["view"]["shortlist"])
+    assert s.state.selected == ["C0"] and s.state.locked == ["C0"] and s.first_shortlist == sum(1 for g in out["view"]["groups"] for c in g["cards"] if c["top"] or c["anchor"])
     with pytest.raises(VersionMismatch):
         e.create({**trip(), "ontology_version": 1})
 
@@ -142,3 +142,26 @@ def test_dropped_say_is_replaced_by_a_sentence_never_empty():
     events = []
     nothing.turn(sid, "ừm", lambda ev, d: events.append((ev, d)))
     assert [d["replace"] for ev, d in events if ev == "say" and "replace" in d][-1].startswith("Mình chưa hiểu")
+
+
+def test_page_extends_the_window_and_is_kept_in_the_session():
+    recs = [srec(f"C{i:02d}", features={"scenic_view": "present", "steep_or_stairs": "absent"}, lng=108.44 + i / 1000)
+            for i in range(60)]
+    e = Engine(Data(recs), CFG, Store(None), None)
+    out = e.create(trip())
+    g = next(x for x in out["view"]["groups"] if x["id"] == "chill")
+    assert len(g["cards"]) == CFG.page_size
+    more = e.page(out["id"], "chill")["view"]
+    g2 = next(x for x in more["groups"] if x["id"] == "chill")
+    assert len(g2["cards"]) == 2 * CFG.page_size and [c["id"] for c in g2["cards"]][: CFG.page_size] == [c["id"] for c in g["cards"]]
+    assert e.load(out["id"])["view"]["groups"] == more["groups"]
+
+
+def test_first_shortlist_counts_top_and_anchors_not_the_whole_window():
+    recs = [srec(f"C{i:02d}", features={"scenic_view": "present", "steep_or_stairs": "absent"}, lng=108.44 + i / 1000)
+            for i in range(60)]
+    e = Engine(Data(recs), CFG, Store(None), None)
+    out = e.create(trip())
+    s = e.store.get(out["id"])
+    assert s.first_shortlist == sum(1 for g in out["view"]["groups"] for c in g["cards"] if c["top"] or c["anchor"])
+    assert s.first_shortlist < len(out["view"]["shortlist"])
