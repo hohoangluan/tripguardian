@@ -159,7 +159,7 @@ Câu hỏi ngay sau phương tiện (hoặc chuyến), cùng giọng với các 
 
 ## 4. C' — Khách sạn theo gu, dữ liệu offline
 
-Người dùng chọn 2026-10-08: khách sạn vào corpus, online chỉ đọc. Thẻ crawl live (`name, rating, reviews, price_vnd, amenities`) không đủ để biết hợp gu, và crawl + đọc đánh giá online mất vài phút.
+Người dùng chọn 2026-10-08: khách sạn vào corpus, online chỉ đọc. Thẻ crawl live (`name, rating, reviews, price_vnd, amenities`) không đủ để biết hợp gu, và crawl + đọc đánh giá online mất vài phút. Trong lúc corpus `stay` chưa build xong, đường live hiện tại vẫn chạy để tính năng dùng được ngay (§4.2).
 
 ### 4.1 Corpus: nhóm `stay`
 
@@ -180,7 +180,7 @@ w_pref > w_loc   (config/planning.yaml lodging_weights; khởi điểm pref 2.0,
 - Hard filter (ví dụ tránh dốc / bậc thang): có bằng chứng chống → loại; `unknown` → giữ, gắn "chưa xác minh: …" (như `planning/lodging.py` `sieve` hiện tại).
 - `loc_fit`: số phút trung bình tới các nơi đã chọn (ma trận `travel_matrix` sẵn có, chỉ cho top theo `pref_fit` để ma trận nhỏ).
 - `price_fit`: theo `price_cap` sẵn có, dùng giá tham khảo trong corpus; không giá → 0, không loại.
-- `planning/lodging.py` `candidates` đọc chỗ ở từ serving thay cho `lodging_near`. `live.lodging_near` chỉ còn **cập nhật giá đúng ngày** cho 5 thẻ đầu, chạy nền, không chặn màn; về rồi thì thay giá trên thẻ ("giá ngày dd/mm lúc HH:mm").
+- **Nguồn chỗ ở theo dữ liệu có sẵn** (người dùng 2026-10-08: chưa có corpus thì production crawl trực tiếp để dùng được ngay; có corpus rồi thì dùng corpus): `planning/lodging.py` `candidates` đọc chỗ ở nhóm `stay` từ serving khi serving có ít nhất `stay_min` (config, khởi điểm 50) chỗ ở trong vùng tìm; chưa đủ → dùng đường crawl live hiện tại (`lodging_near`, chạy nền như bây giờ). Không có cờ bật tắt tay: corpus `stay` build xong là tự chuyển. Đường live chỉ có thẻ Maps (không có đánh giá đã observe) nên `pref_fit` gần như toàn `unknown` → thứ hạng rơi về vị trí / giá / điểm; thẻ ghi "chưa đủ dữ liệu để so gu". Mỗi thẻ mang `source` (`corpus` | `live`). `live.lodging_near` chỉ còn **cập nhật giá đúng ngày** cho 5 thẻ đầu, chạy nền, không chặn màn; về rồi thì thay giá trên thẻ ("giá ngày dd/mm lúc HH:mm").
 
 ### 4.3 Màn chọn
 
@@ -196,7 +196,7 @@ w_pref > w_loc   (config/planning.yaml lodging_weights; khởi điểm pref 2.0,
 | C | `src/trip`: chuỗi `origin → arrival_mode → inbound/outbound → lodging_booked`; chọn chuyến điền `arrive_at`/`leave_at` và bỏ câu `times`; "Tự đi" suy `entry_point` |
 | C live | parser Google Flights / Vexere chạy trên HTML mẫu lưu trong `tests/fixtures/`; cache có → không mở trình duyệt; lỗi crawl → `Unavailable`, không trả chuyến giả; `src/live` không có đường ghi tới `data/intel`, `data/serving`, `data/gmaps` |
 | C' corpus | `gmaps list` giữ chỗ ở vào `<city>_stay.json`, nơi tham quan không lẫn vào; feature ngoài tập `stay` không được ghi cho chỗ ở |
-| C' planning | chỗ ở hợp gu xếp trên chỗ ở gần hơn nhưng không hợp; `unknown` không bị trừ điểm; hard filter có bằng chứng chống thì loại; giá live về muộn không đổi thứ hạng đã hiện trừ khi vượt trần |
+| C' planning | serving có ≥ `stay_min` chỗ ở → không gọi `lodging_fn`; ít hơn → gọi `lodging_fn` như cũ, thẻ `source = live`; chỗ ở hợp gu xếp trên chỗ ở gần hơn nhưng không hợp; `unknown` không bị trừ điểm; hard filter có bằng chứng chống thì loại; giá live về muộn không đổi thứ hạng đã hiện trừ khi vượt trần |
 | Toàn luồng | `web/scripts/test_journey.mjs` thêm một chuyến: chat → xuất phát → máy bay → chọn chuyến → chưa có khách sạn → chọn nơi → chọn khách sạn → lịch |
 
 ## 6. Tài liệu chính thức cần sửa khi xong
