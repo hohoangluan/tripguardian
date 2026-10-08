@@ -105,7 +105,7 @@ Tài khoản và User Profile được xin sau khi user đã thấy kết quả 
 Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự.
 
 ```text
-① NẠP PRIOR        Profile (nếu đồng ý) + anchor/link đã có → Trip State nháp
+① NẠP PRIOR        Mẫu dài hạn đã lưu (nếu có user id, §17) + anchor/link đã có → Trip State nháp
 ② MỞ ĐẦU           Câu tự do + thẻ khung bằng chip (ngày · đi với ai · đi lại bằng gì)
 ③ TRÍCH XUẤT       LLM tách một câu thành nhiều field; phát hiện từ chủ quan ("chill", "yên tĩnh")
                    và tín hiệu nhạy cảm ("bố mẹ", "trẻ nhỏ", "đau gối", "say xe")
@@ -144,6 +144,8 @@ Tầng 3 — GIÁ TRỊ THÔNG TIN (chấm điểm, §6)
    Trong các câu còn lại, chọn câu làm tập ứng viên đổi nhiều nhất trên mỗi đơn vị công sức
 ```
 
+Sau tầng 1, nếu phiên có prior từ mẫu dài hạn, **một thẻ xác nhận** (`prior`, §17) đứng trước mọi câu thích ứng: giữ cả nhóm một chạm thay vì hỏi từng field.
+
 Nhóm C nằm ở tầng 1 vì câu an toàn có thể có điểm thấp ở tầng 3 (hiếm gặp) nhưng sai thì hậu quả nặng. Constraint cứng vẫn fail-closed.
 
 ## 6. Đo "câu hỏi có đổi kết quả không"
@@ -173,9 +175,16 @@ Feature trong Search Input dùng chung id với feature ontology của corpus (`
 Dừng hỏi khi gặp một trong các điều kiện:
 
 - `score` cao nhất còn lại dưới ngưỡng: không câu nào đổi tập ứng viên đáng kể.
-- Hết ngân sách lượt: khoảng 3–5 lượt thích ứng sau thẻ mở đầu, trước đề xuất đầu tiên.
+- Hết ngân sách lượt (`turn_budget`, mặc định 5 lượt thích ứng sau thẻ mở đầu, trước đề xuất đầu tiên): ngân sách là sức người dùng chịu trả lời.
+- `idle_limit` câu thích ứng liên tiếp không thêm gì vào Trip State (trả lời không đổi field nào, kể cả `Bỏ qua`): câu hỏi lặp mà không sinh thông tin thì dừng sớm.
 - User chọn `Không chắc` / `Bỏ qua` liên tiếp, hoặc trả lời cụt.
 - User yêu cầu "xem gợi ý trước" (mixed initiative, được phép bất cứ lúc nào).
+
+Một câu gõ khi thẻ đang mở chỉ tính là đã trả lời thẻ khi nó ghi được field của thẻ (thẻ do agent viết: thêm được bất cứ gì). Câu không trả lời (lạc đề, hỏi ngược) giữ thẻ mở và không tốn ngân sách lượt; câu thứ hai như vậy liên tiếp trên cùng thẻ thì thẻ tính là đã hỏi. Câu không thêm gì vẫn tính vào `idle_limit`.
+
+Chip và câu gõ gửi cùng một lượt: giá trị câu gõ nêu rõ thay giá trị chip cho cùng field, và lời đáp nói rõ "Mình ghi theo câu bạn gõ: …" thay vì ghi đè lặng lẽ.
+
+"Xem gợi ý" không biến `unknown` của hard constraint thành pass: câu bắt buộc còn thiếu vẫn được hỏi lại (fail-closed).
 
 Sau khi dừng, field còn thiếu giữ `unknown`. Hệ thống chuyển sang đề xuất và học tiếp từ phản hồi: compare, critique, lý do bỏ (`Project_Context.md` §8.3–8.4).
 
@@ -249,6 +258,7 @@ Chỉ dùng thông tin user đã cung cấp hoặc thể hiện trong hội tho�
 | `Không chắc` | Hợp lệ; ghi `unknown`, học tiếp qua đề xuất |
 | Không hiểu vì sao bị hỏi | Nói lý do hoặc tác động ("để tránh chỗ leo dốc", "còn 38 → 14 nơi") |
 | Hệ thống đoán sai | Bản hiểu nhu cầu đánh dấu ✎ phần suy luận / profile; sửa tại chỗ |
+| Hệ thống nhớ gu từ các chuyến trước | Một thẻ "giữ như mọi lần / chuyến này khác" thay cho nhiều câu; chỉ nhớ khi user đồng ý; xóa được (§17) |
 | Câu nhạy cảm (sức khỏe, ngân sách, ăn kiêng) | Giọng trung tính, nói rõ vì sao hỏi, luôn có `Bỏ qua` |
 
 ## 12. Ngân hàng câu hỏi
@@ -326,7 +336,7 @@ Bộ câu hỏi là **ngân hàng**, không phải form; nhóm A–I là nhóm c
 | User chọn `Không chắc` nhiều câu liền | Bạn muốn xem vài gợi ý trước rồi chỉnh không? | [16], [17] |
 | User bỏ một đề xuất | Vì sao bạn bỏ địa điểm này? (`Project_Context.md` §8.3) | [17] |
 
-Cài đặt: `src/trip/questions.py` (ngân hàng + rule tầng 1), `config/trip.yaml` (`turn_budget`, `stop_score`, `top_k`). Căn cứ nghiên cứu của từng nguyên tắc đặt câu hỏi: `Project_Context.md` §12.1.
+Cài đặt: `src/trip/questions.py` (ngân hàng + rule tầng 1), `config/trip.yaml` (`turn_budget`, `idle_limit`, `stop_score`, `top_k`, `patterns`). Căn cứ nghiên cứu của từng nguyên tắc đặt câu hỏi: `Project_Context.md` §12.1.
 
 ## 13. Giọng điệu
 
@@ -352,10 +362,13 @@ Quy tắc:
 Giọng điệu chỉ đổi cách diễn đạt, không đổi nội dung câu hỏi, lựa chọn gợi ý hay field được ghi.
 ## 14. CLI và API
 
-`python -m trip serve [--port 8766]` bind `127.0.0.1`; web gọi qua proxy `/api/trip`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); không có thì mọi lượt chạy bằng `policy.py`.
+User Web gọi Trip qua harness bằng journey chung (`docs/AGENT_HARNESS.md`). Public API xuất `Tools`, `create_engine`, `SearchInput`; `tools.py` giữ snapshot do Trip sở hữu. `skills.yaml` khai báo quyền Trip; `agent.py` dùng runtime public `agents`. Heuristic trước Agent và điều kiện bypass: `docs/AGENT_HARNESS.md` §5.
+
+API độc lập: `python -m trip serve [--port 8766]` bind `127.0.0.1`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); thiếu thì lượt chữ cần suy luận chạy bằng `policy.py`.
 
 ```
-POST   /api/trip/sessions          {experience?, start_with?}  → phiên mới + thẻ mở đầu
+POST   /api/trip/sessions          {experience?, start_with?, user_id?, remember?}  → phiên mới + thẻ mở đầu
+DELETE /api/trip/profile/<user_id>  → {forgotten}  xóa mẫu đã lưu của user
 GET    /api/trip/sessions/<id>
 POST   /api/trip/sessions/<id>/turn  SSE: say(delta|replace) · view · done · error
 GET    /api/trip/places?q=<tên>    tra địa điểm cho anchor / nơi đã lưu (chỉ đọc serving index)
@@ -374,6 +387,8 @@ src/trip/
   values.py         chuẩn hóa giá trị về field của Trip State
   questions.py      ngân hàng câu hỏi (§12) + rule tầng 1 + chấm giá trị thông tin (§6)
   coverage.py       hard filter này có đủ bằng chứng trong corpus để đáng hỏi không
+  patterns.py       phiếu bầu, phát hiện mẫu, nạp prior vào Trip State (§17)
+  profile.py        lịch sử phiếu bầu theo user id: data/trip/profiles/<user_id>.json (§17)
   understanding.py  bản hiểu nhu cầu (§8)
   compile.py        Trip State → Search Input (§9)
   agent.py guard.py policy.py   một call mỗi lượt; guard; policy từ khóa khi agent lỗi
@@ -431,3 +446,27 @@ Mô phỏng offline: user giả lập bằng LLM, mỗi user có một Trip Stat
 | Constraint violation ở bước Planning | Hậu quả của hiểu sai hoặc bỏ sót |
 
 Chỉ số thật từ pilot đi vào `Project_Context.md` §18–19.
+
+## 17. Học mẫu dài hạn
+
+Cá nhân hóa cho lần hỏi sau: gu người dùng lặp lại qua nhiều chuyến trở thành **prior**, xác nhận một chạm thay vì hỏi lại (`Project_Context.md` §8.6, §11). Mặc định **tắt** (`patterns.enabled: false` trong `config/trip.yaml`) cho tới khi cơ chế cập nhật được kiểm bằng khảo sát người dùng.
+
+**Điều kiện chạy.** Cần `patterns.enabled`, `user_id` trên phiên (chuỗi mờ 8–64 ký tự `A-Za-z0-9_-`; khi có đăng nhập sẽ gắn user id này vào tài khoản) và `remember = true` để **ghi**. Có `user_id` mà không `remember` thì chỉ đọc mẫu đã có. Xóa: `DELETE /api/harness/profile/<user_id>` (User Web), `DELETE /api/trip/profile/<user_id>` (API độc lập) hoặc `Engine.forget`.
+
+**Phiếu bầu.** Lúc người dùng bấm xem gợi ý, `votes_from_state` lấy các lựa chọn **tường minh** của phiên: `purpose`, `pace`, `crowd_tolerance`, `novelty`; `soft` do user nói hay chọn (`love` | `avoid`); nơi đã khớp thành anchor. Phiên ghi một `Summary` (id phiên, ngày, phiếu), ghi lại cùng phiên thì thay chứ không cộng. Không bao giờ thành phiếu:
+
+| Không bầu | Vì |
+|---|---|
+| Field im lặng, `unknown`, `Bỏ qua` | unknown ≠ không thích |
+| `visited` | đã đến ≠ đã thích |
+| Soft do suy luận / từ khóa đoán | chỉ lựa chọn tường minh |
+| Giá trị chỉ được xác nhận từ mẫu đã lưu (`chip:prior`) | tránh vòng lặp tự củng cố; không có filter bubble |
+| `signal` sức khỏe / cơ thể, hard filter, ngày, ngân sách, người đi cùng | chỉ ở phiên, không lưu dài hạn |
+
+**Mẫu.** `detect` đọc `window` phiếu gần nhất của từng key. Thành mẫu khi cùng một lựa chọn xuất hiện ở ít nhất `min_sessions` phiên khác nhau, chiếm ít nhất `agreement` cửa sổ, và phiếu gần nhất vẫn là lựa chọn đó (đổi gu thì mẫu mất ngay). Phiếu cuối cũ hơn `stale_days` thì bỏ. Độ tin `medium`; `high` khi số phiên ≥ 2 × `min_sessions`.
+
+**Prior.** `seed` ghi mẫu vào Trip State với `source = profile` (✎ trong bản hiểu nhu cầu); mọi thứ chuyến này nói đều ghi đè, vì chuyến hiện tại thắng profile. Mẫu thúc đẩy vận động (`hiking`, `adventure_activity`, `pace = packed`) bị bỏ ngay khi chuyến có giới hạn vận động (signal hay hard filter). Mẫu về nơi không tự vào chuyến: chỉ hiện thành chip "Thêm <tên>" (anchor `want`) và chỉ khi nơi còn trong serving index. Mẫu mà ontology không còn biết bị bỏ qua.
+
+**Thẻ `prior`** (tier 2) nằm sau các câu bắt buộc và trước mọi câu thích ứng: "Ở các chuyến trước bạn hay chọn …. Giữ vậy cho chuyến này nhé?" với `Giữ như mọi lần`, `Chuyến này khác` (xóa prior, hỏi như thường; không coi là không thích) và chip nơi hay chọn. Hỏi một lần mỗi phiên; `Bỏ qua` giữ prior ở trạng thái ✎.
+
+**Còn mở.** Chưa có giao diện xin `remember` và cho xem / xóa mẫu; mẫu `avoid` cho nơi chưa có nguồn phiếu (Decision `drop` chưa nối vào); ngưỡng `min_sessions`, `agreement` chờ số liệu khảo sát.

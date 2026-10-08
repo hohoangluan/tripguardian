@@ -2,7 +2,7 @@
 fallback when the agent fails."""
 
 from .catalog import Catalog
-from .questions import READY, Question, bank, clarify_q, purpose_q, rank_questions, required, show_first_q
+from .questions import READY, Question, bank, clarify_q, prior_q, purpose_q, rank_questions, required, show_first_q
 from .settings import Settings
 from .state import TripState
 
@@ -14,8 +14,10 @@ def next_question(state: TripState, catalog: Catalog, cfg: Settings) -> Question
     done = set(state.meta.asked) | state.meta.skipped
     if state.meta.unsure_streak >= 2 and "show_first" not in done:
         return show_first_q()
-    if state.meta.adaptive_turns >= cfg.turn_budget:
+    if state.meta.adaptive_turns >= cfg.turn_budget or state.meta.idle_streak >= cfg.idle_limit:
         return READY
+    if q := prior_q(state, catalog):
+        return q
     if q := clarify_q(state):
         return q
     if state.meta.experience == "first" and not state.purpose.known and not state.soft and "purpose" not in done:

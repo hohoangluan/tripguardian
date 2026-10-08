@@ -80,3 +80,18 @@ def test_forced_question_drops_the_agents_own_question_from_say(catalog, cfg):
     g = run(plan(u("signal", "elderly", "bố mẹ", op="add", how="inferred"), say=say, qid="clarify:chill"),
             framed(), catalog, cfg)
     assert g.question.qid == "c_effort" and g.say == "Mình ghi nhận đi cùng bố mẹ."
+
+
+def test_the_models_at_suffix_is_a_weight_not_a_context(catalog, cfg):
+    g = run(plan(u("soft", "crowd=low@love", "yên tĩnh", op="add")), framed(), catalog, cfg)
+    assert g.state.soft["crowd=low"].value == "love" and not g.state.unmapped
+    g = run(plan(u("soft", "crowd=low@avoid", "yên tĩnh", op="add")), framed(), catalog, cfg)
+    assert g.state.soft["crowd=low"].value == "avoid"
+
+
+def test_an_agent_question_does_not_repeat_what_the_rules_already_ask(catalog, cfg):
+    ev = Evidence(turn=1, quote="x")
+    s = apply(framed(), Update(field="pending", op="add", value={"phrase": "chill", "keys": ["noise=quiet", "crowd=low"]},
+                               source="user", confidence="medium", evidence=ev))
+    g = run(plan(custom_text="Chill với bạn là gì?", custom_chips=("Yên", "Vắng")), s, catalog, cfg)
+    assert g.question.qid == "clarify:chill" and not g.question.custom and "already waiting" in g.log[-1]

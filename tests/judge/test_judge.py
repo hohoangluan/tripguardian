@@ -52,6 +52,43 @@ def test_select_grows_an_undecided_sample_and_stops_a_passed_one():
     assert len(audit.select(rows, ONT, _labelled(rows, 85, 15))) == 200  # undecided at the last step: check all
 
 
+def test_read_all_takes_every_unlabelled_claim_even_of_a_passed_stratum(monkeypatch):
+    rows = [_row(i, "food_quality", "good") for i in range(300)]
+    done = _labelled(rows, 92, 8)  # passed: a sampled audit reads nothing more
+    monkeypatch.setenv("JUDGE_READ_ALL", "1")
+    assert audit.read_all() and len(audit.select(rows, ONT, done, read_all=True)) == 200
+    monkeypatch.setenv("JUDGE_READ_ALL", "0")
+    assert not audit.read_all()
+
+
+def test_pool_spreads_calls_over_endpoints_within_their_slots():
+    import asyncio
+    busy, peak, used = {"a": 0, "b": 0}, {"a": 0, "b": 0}, []
+
+    async def call(pool):
+        async with pool.take() as (client, model):
+            busy[client] += 1
+            peak[client] = max(peak[client], busy[client])
+            used.append(client)
+            await asyncio.sleep(0.01)
+            busy[client] -= 1
+
+    async def main():
+        pool = audit.Pool([("a", "m", 2), ("b", "m", 1)])
+        await asyncio.gather(*(call(pool) for _ in range(9)))
+
+    asyncio.run(main())
+    assert peak == {"a": 2, "b": 1} and used.count("a") > used.count("b") > 0
+
+
+def test_also_lan_only_on_a_uit_gemma_run(monkeypatch):
+    monkeypatch.setenv("JUDGE_ALSO_LAN", "1")
+    monkeypatch.delenv("EXTRACTOR_ON_UIT", raising=False)
+    assert not audit.also_lan()  # the run is on the LAN host already
+    monkeypatch.setenv("EXTRACTOR_ON_UIT", "1")
+    assert audit.also_lan()
+
+
 def test_chunks_keep_strong_items_apart():
     rows = [_row(1, "kids", "suitable"), _row(2, "kids", "unsuitable"), _row(3, "steep_or_stairs", "present")]
     parts = audit.chunks(rows, ONT)
@@ -158,7 +195,7 @@ def test_first_reader_correct_stands_and_the_judge_reads_the_rest(monkeypatch):
     monkeypatch.setattr(audit, "judge_label", lambda o, st, source, verdict, note, by, ph, look=1: written.append((o["id"], verdict, by)))
     import asyncio
     clients = {n: (None, n) for n in ("judge", "judge_first", "judge_strong")}
-    sems = {n: asyncio.Semaphore(1) for n in clients}
+    sems = {n: audit.Pool([(*clients[n], 1)]) for n in clients}
     got = asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", clients, sems))
     assert asked == [("judge_first", 3), ("judge", 2)]  # the Judge reads the wrong one and the missing one
     assert written == [("x0", "correct", "judge:judge_first"), ("x1", "correct", "judge:judge"), ("x2", "wrong", "judge:judge")]
@@ -182,7 +219,7 @@ def test_gemma_audit_reads_every_claim_once_and_its_unsure_is_final(monkeypatch)
                         written.append((o["id"], verdict, look, ph)))
     import asyncio
     clients = {"extractor": (None, "gemma")}
-    sems = {"extractor": asyncio.Semaphore(1)}
+    sems = {"extractor": audit.Pool([(*clients["extractor"], 1)])}
     got = asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", clients, sems))
     ph = audit.OBS_AUDIT_GEMMA.prompt_hash
     assert asked == [("extractor", True)]  # one strict reader, items carry their claim sentence
@@ -217,7 +254,7 @@ def test_gemma_correct_on_a_picture_waits_for_the_strong_judge(monkeypatch):
     monkeypatch.setattr(audit, "judge_label", lambda o, st, source, verdict, note, by, ph, look=1:
                         written.append((verdict, look)))
     import asyncio
-    asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", {"extractor": (None, "g")}, {"extractor": asyncio.Semaphore(1)}))
+    asyncio.run(audit.audit_chunk(rows, ONT, "Đà Lạt", {"extractor": (None, "g")}, {"extractor": audit.Pool([(None, "g", 1)])}))
     assert written == [("unsure", 1)]  # kept like an unlabelled claim; the second look reads it when sol is back
 
 

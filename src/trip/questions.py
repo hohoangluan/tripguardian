@@ -271,6 +271,65 @@ def clarify_q(state: TripState) -> Question | None:
                     exit_drafts=(done,))
 
 
+PRIOR_LABEL = {
+    "pace": {"slow": "đi thong thả", "normal": "nhịp vừa phải", "packed": "đi được nhiều nơi"},
+    "crowd_tolerance": {"avoid": "tránh chỗ đông", "ok_if_worth": "chấp nhận chỗ đông nếu đáng", "fine": "không ngại đông"},
+    "novelty": {"familiar": "theo gu quen", "new": "thử cái mới", "mix": "trộn quen và mới"},
+}
+PRIOR_SHOWN = 5  # stored tastes named in the card text; the keep chip still covers all of them
+
+
+def _prior_label(key: str, value: str) -> str:
+    if key == "purpose":
+        return PURPOSE[value][0].lower()
+    if key in PRIOR_LABEL:
+        return PRIOR_LABEL[key][value]
+    feature = SoftKey.parse(key[5:]).feature
+    label = SOFT_LABEL.get(key[5:]) or ontology().features[feature].hint
+    return label.lower() if value == "love" else f"tránh: {label.lower()}"
+
+
+def prior_q(state: TripState, catalog: Catalog) -> Question | None:
+    """One card that confirms what stored patterns put in the state, instead of asking each thing again. None when
+    nothing is waiting, the card was answered or skipped, or every stored item has since been replaced."""
+    if "prior" in state.meta.asked or "prior" in state.meta.skipped:
+        return None
+    keep, fresh, names = [], [], []
+    places: list[str] = []
+    for key in state.meta.prior:
+        if key.startswith("place:"):
+            pid = key[6:]
+            if pid in catalog.by_id and not any(a.place_id == pid for a in state.anchors):
+                places.append(pid)
+        elif key.startswith("soft:"):
+            f = state.soft.get(key[5:])
+            if f is not None and f.source == "profile":
+                keep.append(d("soft", (key[5:], f.value), "add"))
+                fresh.append(d("soft", key[5:], "remove", inferred=True))
+                names.append(_prior_label(key, f.value))
+        else:
+            f = getattr(state, key, None)
+            if f is not None and f.known and f.source == "profile":
+                keep.append(d(key, f.value))
+                fresh.append(d(key, op="remove", inferred=True))
+                names.append(_prior_label(key, f.value))
+    if not names and not places:
+        return None
+    chips: list[Chip] = []
+    row = "Như mọi lần" if places and names else None
+    if names:
+        chips += [Chip(id="keep", label="Giữ như mọi lần", row=row, drafts=tuple(keep)),
+                  Chip(id="fresh", label="Chuyến này khác", row=row, drafts=tuple(fresh))]
+    for pid in places:
+        a = Anchor(text=catalog.by_id[pid].name, place_id=pid, state="matched", priority="want")
+        chips.append(Chip(id=f"place:{pid}", label=f"Thêm {a.text}", row="Nơi bạn hay chọn", drafts=(d("anchor", a, "add"),)))
+    shown = "; ".join(names[:PRIOR_SHOWN]) + (f"; và {len(names) - PRIOR_SHOWN} ý khác" if len(names) > PRIOR_SHOWN else "")
+    text = (f"Ở các chuyến trước bạn hay chọn: {shown}. Giữ vậy cho chuyến này nhé?" if names
+            else "Ở các chuyến trước bạn hay chọn những nơi này. Muốn thêm vào chuyến này không?")
+    return Question(qid="prior", group="H", tier=2, multi=bool(places), single_rows=(row,) if row else (), chips=tuple(chips),
+                    text=text, reason="Mình nhớ từ những chuyến bạn đã đồng ý lưu; bạn đổi được bất cứ lúc nào.")
+
+
 def show_first_q() -> Question:
     return Question(qid="show_first", group="I", tier=2, exits=False,
                     text="Bạn muốn xem vài gợi ý trước rồi chỉnh tiếp không?",

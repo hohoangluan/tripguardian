@@ -1,0 +1,8 @@
+# Hazard notices, hand-entered from an official notice (src/live/advisories.py). Empty = no notice in our data, NOT "safe".
+#   kind: storm | flood | landslide | fire | road_closed | other
+#   severity: watch | warning | severe     (severe on a place in scope = Planning will not schedule it that day)
+#   area: city | {lat, lng, radius_km}      source: required, who issued it
+# Example:
+#   - {kind: landslide, severity: severe, start: "2026-11-02", end: "2026-11-04",
+#      area: {lat: 11.91, lng: 108.43, radius_km: 6}, note: "Sạt lở đèo Prenn", source: "<issuer and link>", issued: "2026-11-01"}
+advisories: []

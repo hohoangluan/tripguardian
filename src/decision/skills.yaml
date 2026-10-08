@@ -1,0 +1,11 @@
+name: decision
+workflow:
+  - curate_verified_candidates
+  - compare_candidates
+  - confirm_selection
+tools:
+  - {name: decision.candidates, access: read}
+  - {name: decision.compare, access: read}
+  - {name: decision.turn, access: write}
+  - {name: decision.act, access: write}
+  - {name: decision.confirm, access: write}

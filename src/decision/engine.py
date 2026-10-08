@@ -15,6 +15,7 @@ from .agent import AgentError, features_text
 from .compare import compare as compare_cands
 from .curation import ActionError, apply
 from .guard import TurnPlan, guard
+from .heuristics import exact_command
 from .pipeline import Data, Result, run, wanted, why_not
 from .policy import DONE, NONE, policy
 from .scope import STEPS, replan_scope
@@ -160,7 +161,8 @@ class Engine:
         with self.store.lock(sid):
             before = self._result(s)
             aliases = self._aliases(before.view)
-            fields = self._fields(before.view, aliases, text)
+            quick = exact_command(text, aliases)
+            fields = {} if quick is not None else self._fields(before.view, aliases, text)
             streamed: list[str] = []
 
             def on_say(d: str) -> None:
@@ -168,11 +170,14 @@ class Engine:
                 emit("say", {"delta": d})
 
             try:
-                if self.agent is None:
-                    raise AgentError("no agent configured")
-                g = guard(asyncio.run(self.agent(fields, on_say)), text, aliases,
-                          f"{fields['places']} {fields['feasibility']} {fields['pending']}", self.name_keys)
-                actions, say, log = g.actions, g.say, g.log
+                if quick is not None:
+                    actions, say, log = quick, "", ["heuristic:exact_command"]
+                else:
+                    if self.agent is None:
+                        raise AgentError("no agent configured")
+                    g = guard(asyncio.run(self.agent(fields, on_say)), text, aliases,
+                              f"{fields['places']} {fields['feasibility']} {fields['pending']}", self.name_keys)
+                    actions, say, log = g.actions, g.say, g.log
             except AgentError as e:
                 (actions, say), log = policy(text, aliases), [f"agent_fallback: {e}"]
             new, done, skipped = self._apply(s, actions, before, strict=False)
@@ -190,7 +195,7 @@ class Engine:
             emit("view", out)
             emit("done", {})
 
-    def compare(self, sid: str, a: str, b: str) -> dict:
+    def compare(self, sid: str, a: str, b: str, *, record: bool = True) -> dict:
         s = self._get(sid)
         with self.store.lock(sid):
             res = self._result(s)
@@ -198,9 +203,10 @@ class Engine:
             if ca is None or cb is None:
                 raise ActionError(f"unknown place {a if ca is None else b!r}")
             out = compare_cands(ca, cb, wanted(s.search_input, s.state.profile), res.days, self.cfg)
-            s.log.append({"version": len(s.history), "action": {"type": "compare", "a": a, "b": b}, "scope": None,
-                          "at": _now()})
-            self.store.save(s)
+            if record:
+                s.log.append({"version": len(s.history), "action": {"type": "compare", "a": a, "b": b}, "scope": None,
+                              "at": _now()})
+                self.store.save(s)
             return out
 
     def why_not(self, sid: str, pid: str) -> dict:

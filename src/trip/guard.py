@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from . import values
 from .catalog import Catalog
 from .policy import askable, next_question
-from .questions import READY, Chip, Question, required
+from .questions import READY, Chip, Question, clarify_q, prior_q, required
 from .settings import Settings
 from .state import SCALARS, Evidence, Frozen, TripState, Update, apply, settle
 from .text import contains, squash
@@ -79,13 +79,17 @@ def guard(plan: TurnPlan, state: TripState, text: str, turn: int, catalog: Catal
     question = _question(plan.next, state, turn, catalog, cfg, log)
     say = plan.say.strip()
     if question.custom is False and plan.next.qid != question.qid:
-        # the card asks something else: keep the acknowledgement, drop the agent's own question
-        say = " ".join(x for x in re.split(r"(?<=[.!?…])\s+", say) if not x.rstrip().endswith("?")).strip()
+        say = drop_questions(say)  # the card asks something else: keep the acknowledgement
     why = _bad_say(say, heard, state, catalog)
     if why:
         log.append(f"say replaced: {why}")
         say = ""
     return Guarded(state, question, say, log)
+
+
+def drop_questions(say: str) -> str:
+    """The sentences of `say` that are not questions."""
+    return " ".join(x for x in re.split(r"(?<=[.!?…])\s+", say) if not x.rstrip().endswith("?")).strip()
 
 
 def _question(nx: PlanNext, state: TripState, turn: int, catalog: Catalog, cfg: Settings, log: list[str]) -> Question:
@@ -94,8 +98,15 @@ def _question(nx: PlanNext, state: TripState, turn: int, catalog: Catalog, cfg: 
         if nx.qid != req.qid:
             log.append(f"forced tier-1 {req.qid} over {nx.qid or nx.custom_text or nx.kind!r}")
         return req
-    if nx.kind == "stop" or state.meta.adaptive_turns >= cfg.turn_budget:
+    if nx.kind == "stop" or state.meta.adaptive_turns >= cfg.turn_budget or state.meta.idle_streak >= cfg.idle_limit:
         return READY
+    if q := prior_q(state, catalog):
+        if nx.qid != q.qid:
+            log.append(f"stored tastes first: prior over {nx.qid or nx.custom_text or nx.kind!r}")
+        return q
+    if nx.custom_text.strip() and (q := clarify_q(state)):
+        log.append(f"custom question dropped: {q.qid} is already waiting")     # the rules ask what a word means, once
+        return q
     if nx.custom_text.strip():
         chips = [c.strip() for c in nx.custom_chips if c.strip()]
         if 2 <= len(chips) <= 6 and all(len(c) <= 40 for c in chips):

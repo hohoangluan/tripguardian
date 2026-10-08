@@ -86,6 +86,12 @@ class Store:
             self._mem[s.id] = s
         return s
 
+    def restore(self, session: Session) -> None:
+        if not SID.fullmatch(session.id):
+            raise ValueError(session.id)
+        with self._guard:
+            self._mem[session.id] = session
+
     def get(self, sid: str) -> Session:
         if not SID.fullmatch(sid):
             raise KeyError(sid)

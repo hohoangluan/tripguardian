@@ -1,0 +1,8 @@
+name: trip
+workflow:
+  - understand_clues
+  - compile_search_input
+tools:
+  - {name: trip.clues, access: read}
+  - {name: trip.compile, access: read}
+  - {name: trip.turn, access: write}

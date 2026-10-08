@@ -4,5 +4,16 @@ top_k: 20           # shortlist size used to measure whether a question changes 
 enough_factor: 1.5  # a hard filter's coverage is "enough" when verified passes >= top_k * enough_factor
 turn_budget: 5      # adaptive questions after the opening card; tier-1 questions are asked anyway
 stop_score: 0.15    # stop asking when the best remaining question scores below this
+idle_limit: 2       # also stop after this many adaptive questions in a row that added nothing to the Trip State
 first_token_s: 8    # agent: wait this long for the first streamed token, then answer from the policy
 total_s: 30         # agent: whole-call limit
+
+# Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17). Needs a user id on the session; writes only with consent.
+patterns:
+  enabled: false        # off until the update rule is validated with a user survey
+  min_sessions: 3       # sessions with the same explicit choice before it is a pattern
+  window: 8             # latest votes on one key that are read
+  agreement: 0.75       # share of those votes the winning choice needs
+  stale_days: 365       # a pattern whose last vote is older than this is dropped
+  max_places: 3         # place patterns offered on the prior card
+  dir: data/trip/profiles

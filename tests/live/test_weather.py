@@ -77,3 +77,18 @@ def test_the_second_call_for_the_same_range_comes_from_the_cache(cfg, monkeypatc
 
 def test_no_dates_needs_no_network(cfg):
     assert weather_fn(11.94, 108.45, [], cfg) == {}
+
+
+def test_rain_amount_gusts_and_thunderstorm_come_with_the_forecast(cfg, monkeypatch):
+    body = {"daily": {"time": ["2026-10-05", "2026-10-06"], "precipitation_probability_max": [90, 10],
+                      "precipitation_sum": [85.5, 0.0], "wind_gusts_10m_max": [72.0, 20.0], "weather_code": [95, 1]}}
+    monkeypatch.setattr(open_meteo, "get_json", lambda url, ua, timeout: body)
+    out = weather_fn(11.94, 108.45, ["2026-10-05", "2026-10-06"], cfg, today_fn=TODAY)
+    assert (out["2026-10-05"]["rain_mm"], out["2026-10-05"]["gust_kmh"], out["2026-10-05"]["storm"]) == (85.5, 72.0, True)
+    assert out["2026-10-06"]["storm"] is False
+
+
+def test_a_figure_open_meteo_did_not_give_stays_unknown(cfg, monkeypatch):
+    monkeypatch.setattr(open_meteo, "get_json", lambda url, ua, timeout: doc(["2026-10-05"], [40]))
+    out = weather_fn(11.94, 108.45, ["2026-10-05"], cfg, today_fn=TODAY)["2026-10-05"]
+    assert out["rain_prob"] == 0.4 and out["rain_mm"] is None and out["gust_kmh"] is None and out["storm"] is None

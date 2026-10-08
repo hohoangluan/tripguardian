@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 
 import openai
 
-from .roles import AGENT, EXTRACTOR, JUDGE, JUDGE_FIRST, JUDGE_STRONG, Role
+from .roles import AGENT, EXTRACTOR, JUDGE, JUDGE_FIRST, JUDGE_STRONG, USER_SIM, Role
 
 ATTEMPTS = 4  # per call: a broken JSON answer or a busy / unreachable server is tried again
 RETRY_S = 2.0  # first wait after HTTP 429 or a connection error; doubles each time
@@ -111,8 +111,12 @@ class Task:
     schema: dict  # strict JSON schema of the answer
     max_tokens: int
     temperature: float = 0.0
-    parallel: int = 36  # concurrent calls; the UIT key allows 40 (HTTP 429 above), ~1 s each -> ~35 calls/s
+    parallel: int | None = None  # concurrent calls; None = what the role's endpoint takes (Role.parallel)
     extra_body: dict | None = None  # sent with guided calls, e.g. to switch a model's thinking off
+
+    def __post_init__(self):
+        if self.parallel is None:
+            object.__setattr__(self, "parallel", self.role.parallel())
 
     @property
     def prompt_hash(self) -> str:
@@ -336,7 +340,6 @@ ASR_CHECK = Task(
     name="asr_check",
     role=EXTRACTOR,
     max_tokens=4000,
-    parallel=8,  # long prompts
     schema={
         "type": "object",
         "properties": {
@@ -383,7 +386,6 @@ PLACE_VIDEO_VERIFY = Task(
     name="place_video_verify",
     role=EXTRACTOR,
     max_tokens=800,
-    parallel=24,  # four images per call; the key allows 40 and Task.ask backs off on 429 (raised 2026-10-06)
     schema={
         "type": "object",
         "properties": {
@@ -441,7 +443,6 @@ REVIEW_OBSERVE = Task(
     name="review_observe",
     role=EXTRACTOR,
     max_tokens=6000,
-    parallel=38,  # ~50 s per batch of 15; the key allows 40 concurrent, Task.ask backs off on 429; caps REVIEW_VERIFY
     schema={
         "type": "object",
         "properties": {"reviews": {"type": "array", "items": {
@@ -566,7 +567,6 @@ VIDEO_OBSERVE = Task(
     name="video_observe",
     role=EXTRACTOR,
     max_tokens=4000,
-    parallel=24,  # four images per call; the key allows 40 and Task.ask backs off on 429 (raised 2026-10-06)
     schema={"type": "object", "properties": {"observations": {"type": "array", "items": _VIDEO_OBS}},
             "required": ["observations"], "additionalProperties": False},
     # One (video, place) pair that place_verify accepted. The same ontology and rules as REVIEW_OBSERVE; frames only
@@ -611,7 +611,6 @@ VIDEO_VERIFY = Task(
     name="video_verify",
     role=EXTRACTOR,
     max_tokens=300,
-    parallel=24,  # one image per call; the key allows 40 (raised 2026-10-06)
     schema=REVIEW_VERIFY.schema,
     # Second read of a high-impact video observation (ontology `check: span`): one claim, the speech around the quote
     # or the one frame it came from.
@@ -705,7 +704,7 @@ or fact the user did not say. The question and its options appear on a card unde
 - If REQUIRED is not "none": kind ask, qid = its id.
 - Otherwise follow the user's thread: clarify a subjective word, or ask why they want a place they named (at most
   twice), using custom_text + 2-6 short custom_chips naming concrete things; or pick a qid from CANDIDATES; or kind
-  stop when nothing left would change the result (BUDGET 0 means stop).
+  stop when nothing left would change the result (BUDGET 0 or IDLE_LEFT 0 means stop).
 - reason: why the question matters, Vietnamese, one short clause, shown to the user.
 - Unused fields: "" or [].
 
@@ -722,6 +721,7 @@ REQUIRED: {required}
 CANDIDATES:
 {candidates}
 BUDGET: {budget}
+IDLE_LEFT: {idle_left}
 
 USER MESSAGE:
 {text}""",
@@ -870,7 +870,6 @@ PHOTO_OBSERVE = Task(
     name="photo_observe",
     role=EXTRACTOR,
     max_tokens=2000,
-    parallel=24,  # four images per call; the key allows 40 and Task.ask backs off on 429 (raised 2026-10-06)
     schema={"type": "object", "properties": {"observations": {"type": "array", "items": {
         "type": "object",
         "properties": {"feature": {"type": "string"}, "value": {"type": "string"}, "photo": {"type": "integer"},
@@ -913,7 +912,6 @@ PHOTO_VERIFY = Task(
     name="photo_verify",
     role=EXTRACTOR,
     max_tokens=300,
-    parallel=24,  # one image per call; the key allows 40 (raised 2026-10-06)
     schema=REVIEW_VERIFY.schema,
     prompt="""You check one claim about a place against one Google Maps photo of it (attached). Decide from the photo
 only.
@@ -1063,9 +1061,8 @@ AUDIT_SCHEMA_DOUBT = {
 }
 
 OBS_AUDIT_GEMMA = Task(name="obs_audit", role=EXTRACTOR, max_tokens=8000, schema=AUDIT_SCHEMA_DOUBT,
-                       # 38, like REVIEW_OBSERVE: the key allows 40 concurrent and Gemma holds that steadily (user,
-                       # 2026-10-06); Task.ask backs off on 429. Nothing else may run on the key at the same time.
-                       prompt=_AUDIT_GEMMA_PROMPT, parallel=38,
+                       # concurrency: the Extractor endpoint's (Role.parallel); Task.ask backs off on 429
+                       prompt=_AUDIT_GEMMA_PROMPT,
                        extra_body={"chat_template_kwargs": {"enable_thinking": False}})
 
 PLACE_STATUS = Task(
@@ -1138,7 +1135,6 @@ OFFICIAL_OBSERVE = Task(
     name="official_observe",
     role=EXTRACTOR,
     max_tokens=2500,
-    parallel=16,  # pages are long
     schema={
         "type": "object",
         "properties": {"facts": {"type": "array", "items": {"type": "object", "properties": {
@@ -1183,4 +1179,56 @@ this place.
 
 Text:
 {text}""",
+)
+
+
+# Benchmark users (python -m bench, docs/plans/BENCH.md): a model plays one traveller whose trip it knows in full.
+USER_SIM_CODES = (
+    "What the codes in the JSON mean: mobility motorbike = you ride your own motorbike, car = your own car, ride = "
+    "Grab or taxi (you do not drive); companions solo = alone, partner = your partner, friends, kids = young children, "
+    "parents = your parents / older people; pace slow = few places a day, normal, packed = as many as possible; "
+    "crowd_tolerance avoid = you avoid crowds, ok_if_worth = crowds are fine if the place is worth it, fine = you do "
+    "not mind; novelty familiar = well-known places, new = places you have not seen, mix; budget_vnd = what one "
+    "person spends a day on food and tickets; dates kind exact = a fixed date, month = only the month, undecided = no "
+    "dates yet; signals = health or body facts about someone in the group (knee = bad knee, elderly, kids, wheelchair, "
+    "pregnant, motion_sick = gets carsick, height = afraid of heights, vegetarian); hard feature != present = that thing "
+    "must be avoided (steep_or_stairs = slopes or stairs, long_walk = long walks); loves / avoids = what you like / "
+    "dislike in places (feature=value); anchors = places you must or want to visit.")
+USER_SIM_BRIEF = Task(
+    name="user_sim_brief",
+    role=USER_SIM,
+    max_tokens=700,
+    temperature=0.7,
+    parallel=4,
+    schema={"type": "object", "properties": {"brief": {"type": "string"}}, "required": ["brief"],
+            "additionalProperties": False},
+    prompt="""You are a Vietnamese traveller planning a trip to Đà Lạt. Below is everything true about you and this
+trip, in JSON. Write the first message you would type to a trip-planning assistant when you want it to plan the whole
+trip for you: Vietnamese, casual, one long message of 4-10 sentences, the way people describe a trip to a friend.
+Cover most of what matters to you, in your own words and in any order; never use the JSON field names or ids; never
+mention anything listed under "indifferent"; never add facts that are not in the JSON.
+
+""" + USER_SIM_CODES + """
+
+Trip: {trip}""",
+)
+
+USER_SIM_REPLY = Task(
+    name="user_sim_reply",
+    role=USER_SIM,
+    max_tokens=200,
+    temperature=0.5,
+    parallel=4,
+    schema={"type": "object", "properties": {"reply": {"type": "string"}}, "required": ["reply"],
+            "additionalProperties": False},
+    prompt="""You are a Vietnamese traveller talking to a trip-planning assistant about a trip to Đà Lạt. Everything true
+about you and this trip is in the JSON below. Answer the assistant's question in Vietnamese, in your own words, 1-2
+short sentences, as a person would type. Answer only from the JSON; if the JSON has nothing on the question or lists
+it under "indifferent", say you have no preference. Never use the JSON field names or ids.
+
+""" + USER_SIM_CODES + """
+
+Trip: {trip}
+Assistant's question: {question}
+Options shown on screen (you may ignore them): {options}""",
 )

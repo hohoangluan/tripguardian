@@ -45,12 +45,25 @@ max_days: 7
 max_clusters: 8
 exact_n: 7                  # up to this many stops a day the order is found by trying every permutation
 improve_passes: 5
-weights: {travel: 1.0, overflow: 3.0, count: 15.0, closed: 1000.0}
+weights: {travel: 1.0, overflow: 3.0, count: 15.0, closed: 1000.0, crowd: 8.0}
 
 # Weather. P4 takes a forecast as input; P5 fetches it (live.weather). A day whose rain probability is at or above
 # rain_high is a rainy day: its buffers grow, and its weather-exposed places are lost in the rain scenario.
 rain_high: 0.6
 buffer_extra_rain: 10
+
+# Day conditions (docs/PLANNING.md §Điều kiện từng ngày): what the date itself changes. Every figure is an estimate to tune
+# after the pilot. A day with no signal behaves exactly as without this block.
+crowd_busy_pct: 70          # a place's own Google popular-times figure at or above this = busy at that time
+conditions:
+  heavy_rain_mm: 30         # daily rain at or above this, or a thunderstorm, is a heavy day: exposed places count as rained on
+  heavy_gust_kmh: 50
+  severe_rain_mm: 80        # at or above this a weather-exposed place is not scheduled that day (validate refuses it)
+  severe_gust_kmh: 70
+  crowd_visit_pct: {busy: 15, peak: 30}   # queue time added to a visit to a place that is busy on that kind of day
+  crowd_buffer_min: {busy: 5, peak: 10}   # extra buffer after such a visit
+  crowd_avoid_factor: 3.0   # the user said they avoid crowds: the day-split crowd cost is multiplied by this
+  closure_buffer_min: 10    # extra buffer after a meal place on a day many shops close (Tết)
 
 # Robustness (docs/PLANNING.md ⓕ): fixed perturbations, never random. Each scenario re-runs the order of
 # every day and counts the places that no longer fit. tier small = the few small delays a solid plan must absorb.

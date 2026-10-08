@@ -19,6 +19,7 @@ Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ
 |---|---|
 | `docs/Project_Context.md` | Vì sao, cho ai, User Profile, nguyên tắc sản phẩm, phạm vi MVP, thước đo |
 | `docs/ARCHITECTURE.md` | Bản đồ hệ thống: bốn giai đoạn, ranh giới module, constraint, cấu hình, quyết định thiết kế |
+| `docs/AGENT_HARNESS.md` | Agent/tool/skill, router, hành trình chung, revision/retry, HTTP và SSE |
 | `docs/CORPUS.md` | Place Intelligence: nguồn, vai trò model, pipeline, gate, data model, CLI, đo chất lượng |
 | `docs/TRIP_UNDERSTANDING.md` | Trip State, chọn câu hỏi, ngân hàng câu hỏi, Search Input, CLI và API |
 | `docs/PLACE_DECISION.md` | Sàng lọc fail-closed, xếp hạng, đa dạng, khả thi của tổ hợp, Decision Output, CLI và API |
@@ -26,6 +27,7 @@ Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ
 | `docs/Role_Web_Functional_Design.md` | Chức năng Web theo vai trò, từng màn, và màn nào nằm ở file nào |
 | `docs/UX_Design_Brief.md` | Brief UI/UX: nguyên tắc, cách hiển thị chất lượng dữ liệu, hệ thị giác |
 | `docs/UI_SPEC_USER_WEB.md` | Đặc tả trang User Web cho designer / Figma |
+| `docs/UI_SPEC_FLOW_LAYOUT.md` | Luồng chuyển màn, kiểu chuyển cảnh và bố cục từng màn User Web |
 | `docs/UI_SPEC_LANDING.md` | Đặc tả landing: thế giới 3D, ngân sách chữ, animation |
 | `docs/LLM_PROVIDER.md` | Model nào đảm nhận vai trò nào: endpoint, key, chứng chỉ, ASR local |
 | `docs/log/DEV_LOG.md` | Nhật ký **code đang có gì** theo từng tính năng |
@@ -58,17 +60,17 @@ Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-
 ## Chạy
 
 ```sh
-./run.sh start   # 4 API Python + web dev server, in ra URL khi mọi cổng đã trả lời
+./run.sh start   # harness + review + web dev server, in ra URL khi mọi cổng đã trả lời
 ./run.sh stop    # dừng mọi tiến trình script này khởi động
 ```
 
 | Dịch vụ | Cổng | Lệnh tương đương |
 |---|---|---|
 | Web (Vite) | 5173 | `http://127.0.0.1:5173/app` · `/admin` |
-| Trip Understanding | 8766 | `python -m trip serve` |
-| Place Decision | 8767 | `python -m decision serve` |
-| Planning | 8768 | `python -m planning serve` |
+| Agent harness (Trip, Decision, Planning) | 8769 | `python -m harness serve` |
 | Trang review / gán nhãn | 8765 | `python -m corpus review` |
+
+CLI/API module chạy độc lập khi cần: `python -m trip serve` (:8766), `python -m decision serve` (:8767), `python -m planning serve` (:8768). User Web dùng harness và journey chung; contract ở `docs/AGENT_HARNESS.md`.
 
 Log ở `logs/run/<tên>.log`. Web đọc địa điểm từ `web/public/data/snapshot.json` (trong gói Drive); sinh lại bằng `python web/scripts/export_snapshot.py` sau khi aggregate. Ảnh bìa (ảnh Maps / frame clip không có người) nằm ở `web/public/data/covers.json`, sinh bằng `python web/scripts/pick_covers.py` (YOLO, chạy GPU khoảng 1 giờ; `--resume` chạy tiếp chỗ dừng).
 
@@ -101,6 +103,7 @@ Phase cần model cần mạng UIT; gặp captcha thì giải trong cửa sổ t
 python -m pytest -q                      # không gọi mạng; thiếu gói Drive thì test parser Maps/TikTok tự skip
 python -m pytest -q tests/planning        # một giai đoạn
 python -m pytest -m live tests/trip/test_live.py   # gọi model thật, chạy tay
+python scripts/journey_sim.py [--monkey N]           # mô phỏng người dùng đi hết Trip → Decision → Planning trên dữ liệu thật, không gọi model hay mạng; báo cáo ở data/journey_sim/report.json; `--agent` chạy 5 kịch bản gõ chữ qua Gemma trên UIT (từ chối chạy nếu `AGENT_BASE_URL` không phải UIT) và in thời gian từng lượt
 ```
 
 Test gọi mạng hoặc model thật nằm sau marker `live` và bị `addopts` loại khỏi lần chạy mặc định (`pyproject.toml`).

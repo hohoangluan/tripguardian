@@ -60,3 +60,13 @@ def test_errors(base):
     with pytest.raises(urllib.error.HTTPError) as e:
         post(f"{base}/sessions/{v['id']}/turn", {"kind": "dance"})
     assert e.value.code == 400
+
+
+def test_user_id_is_validated_and_forget_is_a_delete(base):
+    for bad in ({"user_id": "../etc"}, {"user_id": 7}, {"remember": "yes"}):
+        with pytest.raises(urllib.error.HTTPError) as e:
+            post(f"{base}/sessions", bad)
+        assert e.value.code == 400
+    assert json.load(post(f"{base}/sessions", {"user_id": "user-abc-123", "remember": True}))["card"]["qid"] == "frame"
+    req = urllib.request.Request(f"{base}/profile/user-abc-123", method="DELETE")
+    assert json.load(urllib.request.urlopen(req, timeout=5)) == {"forgotten": False}  # learning is off in this engine

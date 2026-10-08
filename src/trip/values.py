@@ -31,6 +31,12 @@ def money(raw: str) -> int:
     return int(n * 1000 if unit in ("k", "nghin", "ngan") else n * 1_000_000 if unit in ("tr", "trieu", "cu") else n)
 
 
+def split_weight(raw: str) -> tuple[str, str]:
+    """'crowd=low:avoid' and the model's habit 'crowd=low@avoid' -> ('crowd=low', 'avoid'); no weight = love."""
+    m = re.fullmatch(r"(.+?)[:@](love|avoid|off)", raw.strip())
+    return (m[1], m[2]) if m else (raw.strip(), "love")
+
+
 def parse(field: str, raw: str, catalog: Catalog) -> Any:
     raw = raw.strip()
     if not raw:
@@ -54,9 +60,7 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
     if field == "anchor":
         return anchor_for(raw, catalog)
     if field == "soft":
-        key, sep, weight = raw.rpartition(":")
-        if not sep or weight not in ("love", "avoid", "off"):
-            key, weight = raw, "love"
+        key, weight = split_weight(raw)
         return str(SoftKey.parse(key)), weight
     if field == "hard":
         m = re.fullmatch(r"\s*([a-z_]+)\s*(!=|=)\s*([a-z_0-9]+)\s*", raw)
@@ -74,8 +78,7 @@ def parse_remove(field: str, raw: str) -> Any:
     """What apply() needs to remove something the agent names."""
     raw = raw.strip()
     if field == "soft":
-        key, sep, weight = raw.rpartition(":")
-        return str(SoftKey.parse(key if sep and weight in ("love", "avoid", "off") else raw))
+        return str(SoftKey.parse(split_weight(raw)[0]))
     if field == "hard":
         return re.split(r"!=|=", raw)[0].strip()
     if field in ("companions", "signal"):

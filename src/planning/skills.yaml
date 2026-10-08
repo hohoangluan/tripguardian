@@ -1,0 +1,8 @@
+name: planning
+workflow:
+  - inspect_verified_variants
+  - propose_layout_from_diagnostics
+tools:
+  - {name: planning.variants, access: read}
+  - {name: planning.diagnostics, access: read}
+  - {name: planning.propose, access: read}

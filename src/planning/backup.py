@@ -1,7 +1,7 @@
 """Backups (docs/PLANNING.md ⓗ, docs/ARCHITECTURE.md §13).
 
 A sensitive visit: weather-exposed on a rainy day · opening hours UNCERTAIN / OUTDATED · ending close to closing time
-· far from where its day starts. Its replacements come only from the Decision's backup_pool: close by (rough minutes,
+· far from where its day starts · busy on a peak day · a meal place when shops close for Tết · covered by a warning notice. Its replacements come only from the Decision's backup_pool: close by (rough minutes,
 since backups are not in the travel matrix), the same kind, through the hard filters, and not sensitive for the same
 reason. None found -> said so, nothing invented. For a delay, each day names the stop to drop first.
 """
@@ -9,12 +9,15 @@ reason. None found -> said so, nothing invented. For a delay, each day names the
 from corpus.serving import check
 
 from . import places as pl
+from .conditions import advisory_hits, crowd_sensitive, hazard, warned
 from .schedule import DayCtx, intervals_for
 from .traits import exposure, kind_group
 from .travel import km, rough_minutes
 
 REASON_TEXT = {"rain": "ngoài trời vào ngày dự báo mưa", "hours_uncertain": "giờ mở cửa chưa chắc",
-               "near_close": "sát giờ đóng cửa", "far": "xa điểm xuất phát của ngày"}
+               "near_close": "sát giờ đóng cửa", "far": "xa điểm xuất phát của ngày",
+               "crowd": "rất đông khách vào ngày này, phải chờ lâu", "holiday_closure": "dịp này nhiều quán đóng cửa hoặc đổi giờ",
+               "advisory": "nằm trong vùng có thông báo cảnh báo"}
 SHAKY = ("UNCERTAIN", "OUTDATED")
 
 
@@ -22,7 +25,7 @@ def sensitive(it, cx: DayCtx) -> list[str]:
     """Why one visit item is sensitive, in REASON_TEXT order; [] = it is not."""
     cfg, p = cx.cfg, cx.places[it.place_id]
     out = []
-    if cx.rain is not None and cx.rain >= cfg.rain_high and exposure(p) == "exposed":
+    if cx.wet is not None and cx.wet >= cfg.rain_high and exposure(p) == "exposed":
         out.append("rain")
     if p.hours_status in SHAKY:
         out.append("hours_uncertain")
@@ -32,17 +35,27 @@ def sensitive(it, cx: DayCtx) -> list[str]:
     start = cx.day.start_node
     if start and cx.travel.leg(start, p.id)[0] > cfg.far_leg_min:
         out.append("far")
+    if cx.cond and cx.cond.crowd == "peak" and crowd_sensitive(p, cx.cond, cfg):
+        out.append("crowd")
+    if cx.cond and cx.cond.closure_risk and p.kind == "meal":
+        out.append("holiday_closure")
+    if warned(p, cx.cond):
+        out.append("advisory")
     return out
 
 
 def _fits(b, s, reasons: list[str], cx: DayCtx, hard_filters: list) -> bool:
-    if b.kind != s.kind:
+    if b.kind != s.kind or hazard(b, cx.cond):
+        return False
+    if "crowd" in reasons and crowd_sensitive(b, cx.cond, cx.cfg):
+        return False
+    if "advisory" in reasons and advisory_hits(b, cx.cond):
         return False
     if any(hf["op"] == "ne" and check(b.rec, hf["feature"], hf["value"]) == "fail" for hf in hard_filters):
         return False
     if "rain" in reasons and exposure(b) != "sheltered":
         return False
-    if "hours_uncertain" in reasons and (b.hours is None or b.hours_status in SHAKY):
+    if ({"hours_uncertain", "holiday_closure"} & set(reasons)) and (b.hours is None or b.hours_status in SHAKY):
         return False
     return pl.windows_on(b.hours, cx.day.weekday) != []        # not closed that day
 

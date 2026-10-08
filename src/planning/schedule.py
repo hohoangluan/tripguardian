@@ -4,6 +4,7 @@ rests and meals go. route.py tries orders through simulate(); validate.py re-che
 
 from dataclasses import dataclass
 
+from .conditions import DayCond, queue_minutes, crowd_sensitive
 from .model import Day, DayResult, Item, Place, Violation
 from .places import windows_on
 from .settings import Settings
@@ -22,6 +23,17 @@ class DayCtx:
     sun: tuple[int, int] | None     # (sunrise, sunset) of the day; None when the date or place is unknown
     rain: float | None = None       # rain probability of the day; None = no forecast, rain is not considered
     prefs: dict | None = None       # place id -> how much the trip's soft weights want it (traits.preference)
+    cond: DayCond | None = None     # what the date itself changes (conditions.py); None = nothing known, nothing changes
+    crowd_tol: str | None = None    # the user's crowd tolerance: avoid | ok_if_worth | fine
+
+    @property
+    def wet(self) -> float | None:
+        """Rain probability as the day's planning treats it: a heavy day counts as at least rain_high, a severe one as
+        certain. None only when there is neither a forecast nor a heavy / severe signal."""
+        level = self.cond.weather if self.cond else "none"
+        if level == "none":
+            return self.rain
+        return max(self.rain or 0.0, self.cfg.rain_high if level == "heavy" else 1.0)
 
 
 def intervals_for(place: Place, ctx: DayCtx) -> list[tuple[int, int]]:
@@ -114,6 +126,7 @@ def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
         t, active = _breaks(t, active, items, free, served, notes, ctx)
         move(here, pid)
         visit = p.visit[cfg.visit_key[ctx.pace]]
+        visit += queue_minutes(p, visit, ctx.cond, cfg)
         lo, hi = pin_window(p, ctx)
         if pid in claimed:
             a, b = cfg.meal_windows[claimed[pid]]
@@ -121,7 +134,7 @@ def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
             served.add(claimed[pid])
         pin_lo = pin_window(p, ctx)[0]
         start, why = None, "opening"
-        shortest = min(visit, p.visit["short"]) if shrink else visit
+        shortest = min(visit, p.visit["short"] + queue_minutes(p, p.visit["short"], ctx.cond, cfg)) if shrink else visit
         for o, c in intervals_for(p, ctx):
             s = max(t, o, lo)
             # The visit is an estimate range: when the pace's length does not fit the opening block or what is
@@ -160,8 +173,12 @@ def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
                 buffer += cfg.buffer_extra_long
             if p.hours_status in ("UNCERTAIN", "OUTDATED"):
                 buffer += cfg.buffer_extra_uncertain
-            if ctx.rain is not None and ctx.rain >= cfg.rain_high:
+            if ctx.wet is not None and ctx.wet >= cfg.rain_high:
                 buffer += cfg.buffer_extra_rain
+            if crowd_sensitive(p, ctx.cond, cfg):
+                buffer += cfg.conditions["crowd_buffer_min"][ctx.cond.crowd]
+            if ctx.cond and ctx.cond.closure_risk and p.kind == "meal":
+                buffer += cfg.conditions["closure_buffer_min"]
             items.append(Item("buffer", t, t + buffer))
             t += buffer
     if order and day.end_node not in (None, here):

@@ -2,6 +2,7 @@
 the same split. Past max_days / max_clusters it falls back to a greedy split and says so.
 """
 
+from .conditions import crowd_sensitive, hazard
 from .places import windows_on
 from .schedule import DayCtx, pin_window
 from .traits import exposure, kind_group
@@ -34,6 +35,8 @@ def _can_start(p, ctx: DayCtx) -> bool:
     """Whether the place can be visited at all inside this day: open that weekday, long enough within the day's window,
     and at the time of day its feature needs (a restaurant that opens at 18:00 on a day that ends at 15:00, a
     live-music bar on a day that ends before dark). A sunrise place can pull a later day's start forward."""
+    if hazard(p, ctx.cond):
+        return False                        # a severe storm or a hazard notice: not a day this place can be visited
     need = min(p.visit[ctx.cfg.visit_key[ctx.pace]], p.visit["short"])   # a visit may shrink to its short estimate
     lo, hi = pin_window(p, ctx)
     floor = lo if 0 < lo < ctx.day.start and ctx.day.index > 0 else ctx.day.start
@@ -71,7 +74,7 @@ def day_cost(ids: list[str], ctx: DayCtx) -> float:
     shorter = 0.001 * len(ids) * (1440 - (ctx.day.end - ctx.day.start))     # equal costs: the longer day takes more
     return (w["travel"] * tour + w["overflow"] * over + w["count"] * abs(len(ids) - target) + w["closed"] * closed
             + shorter + w.get("exposed", 0) * exposed_risk(ids, ctx) + w.get("repeat", 0) * repeats(ids, ctx)
-            + w.get("pref_risk", 0) * pref_risk(ids, ctx))
+            + w.get("pref_risk", 0) * pref_risk(ids, ctx) + w.get("crowd", 0) * crowd_risk(ids, ctx))
 
 
 def day_risk(ctx: DayCtx) -> float:
@@ -79,12 +82,22 @@ def day_risk(ctx: DayCtx) -> float:
     shorter than a full day it is (an arrival or departure day)."""
     full = ctx.cfg.day_end - ctx.cfg.day_start
     short = max(0.0, 1 - (ctx.day.end - ctx.day.start) / full) if full > 0 else 0.0
-    return (ctx.rain or 0.0) + short
+    return (ctx.wet or 0.0) + short
 
 
 def exposed_risk(ids: list[str], ctx: DayCtx) -> float:
     """Weather-exposed places on the day, times its rain probability. No forecast -> 0."""
-    return sum(exposure(ctx.places[i]) == "exposed" for i in ids) * (ctx.rain or 0.0)
+    return sum(exposure(ctx.places[i]) == "exposed" for i in ids) * (ctx.wet or 0.0)
+
+
+def crowd_risk(ids: list[str], ctx: DayCtx) -> float:
+    """Places that are busy on this kind of day, by how busy the day is (a holiday counts double); a user who avoids
+    crowds weighs it more. 0 on a normal day or without a signal."""
+    if ctx.cond is None or ctx.cond.crowd == "normal":
+        return 0.0
+    n = sum(crowd_sensitive(ctx.places[i], ctx.cond, ctx.cfg) for i in ids)
+    level = 2 if ctx.cond.crowd == "peak" else 1
+    return n * level * (ctx.cfg.conditions["crowd_avoid_factor"] if ctx.crowd_tol == "avoid" else 1.0)
 
 
 def repeats(ids: list[str], ctx: DayCtx) -> int:

@@ -40,10 +40,10 @@ def _comparison(variants: list[dict]) -> list[dict]:
 
 
 def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None, matrix_fn=None,
-                   sun_fn=None, weather: dict | None = None) -> dict:
-    trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather)
+                   sun_fn=None, weather: dict | None = None, signals: dict | None = None) -> dict:
+    trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals)
     cfg = trip.cfg
-    objectives = choose(decision["trip_context"], [cx.rain for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
+    objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
     tried = [(obj, schedule_trip(trip, cfg.objective_weights[obj])) for obj in objectives]
     warnings = list(trip.warnings)
     if any(cx.rain is None for cx in trip.ctxs):
@@ -122,7 +122,8 @@ def _nights(ctx: dict) -> int:
 
 
 def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None,
-                           matrix_fn=None, sun_fn=None, weather: dict | None = None, lodging_fn=None) -> dict:
+                           matrix_fn=None, sun_fn=None, weather: dict | None = None, lodging_fn=None,
+                           signals: dict | None = None) -> dict:
     """build_variants, with lodging candidates competing as each day's anchor (docs/PLANNING.md ⓐ ⓖ).
 
     Every candidate (plus the original base, as "no lodging") is tried under every chosen objective, sharing one
@@ -133,7 +134,7 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
     cfg = cfg or load_settings()
     live_cfg = live_cfg or live.load_settings()
     lodging_fn = lodging_fn or live.lodging_near
-    base_trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather)
+    base_trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals)
     warnings = []
     try:
         cands = lodging_candidates(base_trip.by_place, decision, cfg, lodging_fn, live_cfg)
@@ -141,13 +142,13 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
         cands = []
     if not cands:
         warnings.append(_warn("lodging_unavailable"))
-    trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather,
+    trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals,
                    extra_nodes={c["id"]: (c["lat"], c["lng"]) for c in cands})
     home0 = trip.days[0].start_node if trip.days else None
     options = [{"id": None, "home": home0, "price": None, "name": None}] + \
         [{"id": c["id"], "home": c["id"], "price": c["price_vnd"], "name": c["name"]} for c in cands]
     nights = _nights(decision["trip_context"]["context"])
-    objectives = choose(decision["trip_context"], [cx.rain for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
+    objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
 
     rows = {obj: [] for obj in objectives}
     for opt in options:

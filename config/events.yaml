@@ -1,0 +1,9 @@
+# Crowd and shop-closure periods, hand-entered (src/live/events.py). A date this file does not list has no KNOWN event,
+# which is not the same as a quiet day. Planning treats Saturdays, Sundays and config/holidays.yaml dates as busy on its
+# own; list here only what those do not cover.
+#   crowd: busy | peak     closure_risk: true = many shops close or change hours (Tết)
+# Add a festival only from its official announcement:
+#   - {name: "Festival Hoa Đà Lạt", start: "YYYY-MM-DD", end: "YYYY-MM-DD", crowd: peak}
+events:
+  - {name: "Noel và Tết Dương lịch", start: "2026-12-24", end: "2027-01-01", crowd: peak}
+  - {name: "Tết Nguyên Đán", start: "2027-02-05", end: "2027-02-09", crowd: peak, closure_risk: true}

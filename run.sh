@@ -1,5 +1,5 @@
 #!/bin/sh
-# Start / stop the local TripGuardian stack: 4 Python APIs + the Vite web dev server.
+# Start / stop the local TripGuardian stack: 2 Python APIs + the Vite web dev server.
 #   ./run.sh start   start everything not already running, then print the URLs
 #   ./run.sh stop    stop everything this script started (and anything still holding its ports)
 # Logs: logs/run/<name>.log. PIDs: logs/run/<name>.pid.
@@ -13,9 +13,7 @@ PYTHON=${PYTHON:-python}
 mkdir -p "$RUN_DIR"
 
 # name | port | command (run from the repo root unless it is the web app)
-SERVICES="trip|8766|$PYTHON -m trip serve --port 8766
-decision|8767|$PYTHON -m decision serve --port 8767
-planning|8768|$PYTHON -m planning serve --port 8768
+SERVICES="harness|8769|$PYTHON -m harness serve --port 8769
 review|8765|$PYTHON -m corpus review --city dalat
 web|5173|node web/node_modules/vite/bin/vite.js web --port 5173 --strictPort"
 

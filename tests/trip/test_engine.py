@@ -54,16 +54,16 @@ def test_text_turn_streams_say_then_state_then_card(make):
                       chunks=("Mình ", "hiểu rồi."))
     e = make(agent)
     sid = e.create("first", "nothing")["id"]
-    ev = run(e, sid, kind="text", text="đi 3 ngày")
+    ev = run(e, sid, kind="text", text="đi 3 ngày muốn chill")
     assert names(ev) == ["preview", "say", "say", "state", "card"]
     assert ev[3][1]["understanding"]["trip"][0]["value"] == 3
-    assert agent.fields["text"] == "đi 3 ngày"
+    assert agent.fields["text"] == "đi 3 ngày muốn chill"
 
 
 def test_agent_failure_falls_back_to_policy(make):
     e = make()
     sid = e.create("first", "nothing")["id"]
-    ev = run(e, sid, kind="text", text="đi 3 ngày bằng xe máy")
+    ev = run(e, sid, kind="text", text="đi 3 ngày bằng xe máy, muốn chill")
     assert ("say", {"replace": FALLBACK_SAY}) in ev and names(ev)[-1] == "card"
     trip = {r["target"]: r["value"] for r in ev[-2][1]["understanding"]["trip"]}
     assert trip == {"days": 3, "mobility": "motorbike"}
@@ -162,6 +162,92 @@ def test_text_reply_to_a_tier_one_card_that_changes_nothing_asks_for_a_chip(make
     ev = run(e, sid, kind="text", text="không sao đâu")
     says = [d.get("replace", "") for n, d in ev if n == "say"]
     assert ev[-1][1]["qid"] == "c_effort" and any("chọn một ý" in s for s in says)
+
+
+def test_off_topic_text_keeps_the_open_card(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    ev = run(e, sid, kind="text", text="Đà Lạt có lạnh không?")
+    assert ev[-1][1]["qid"] == "frame" and "frame" not in e.store.get(sid).state.meta.asked
+
+
+def test_off_topic_text_on_an_adaptive_card_costs_no_question(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    answer_frame(e, sid)
+    run(e, sid, kind="answer", qid="dates", value="2026-12-12")
+    before = e.store.get(sid)
+    qid, adaptive = before.card.qid, before.state.meta.adaptive_turns
+    assert before.card.tier >= 2
+    ev = run(e, sid, kind="text", text="Đà Lạt có lạnh không?")
+    st = e.store.get(sid).state
+    assert ev[-1][1]["qid"] == qid and qid not in st.meta.asked and st.meta.adaptive_turns == adaptive
+
+
+def test_a_card_stays_open_through_one_off_topic_message_only(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="text", text="Đà Lạt có lạnh không?")
+    run(e, sid, kind="text", text="ở đó có gì vui không?")
+    assert "frame" in e.store.get(sid).state.meta.asked
+
+
+@pytest.mark.parametrize("agent", [None, FakeAgent(plan(updates=[
+    {"field": "mobility", "op": "set", "value": "car", "quote": "ô tô", "how": "said"}]))])
+def test_text_sent_with_chips_wins_a_conflict_and_says_so(make, agent):
+    e = make(agent)
+    sid = e.create("first", "nothing")["id"]
+    ev = run(e, sid, kind="answer", qid="frame", chips=("days:3", "who:solo", "mobility:motorbike"),
+             text="à thật ra đi ô tô")
+    says = [d.get("replace", "") for n, d in ev if n == "say"]
+    assert e.store.get(sid).state.mobility.value == "car"
+    assert any("câu bạn gõ" in s and "ô tô" in s for s in says)
+
+
+def to_purpose(e, sid):
+    answer_frame(e, sid)
+    run(e, sid, kind="answer", qid="dates", value="2026-12-12")
+    assert e.load(sid)["card"]["qid"] == "purpose"
+
+
+def test_typing_a_chip_label_answers_the_card_without_the_agent(make):
+    agent = FakeAgent(error=AssertionError("must not be called"))
+    e = make(agent)
+    sid = e.create("first", "nothing")["id"]
+    to_purpose(e, sid)
+    run(e, sid, kind="text", text="Nghỉ ngơi nhé")
+    s = e.store.get(sid)
+    assert s.state.purpose.value == "relax" and "purpose" in s.state.meta.asked and agent.calls == 0
+    assert any("heuristic:chip_echo" in t["text"] for t in s.transcript if t["role"] == "system")
+
+
+def test_a_typed_exit_skips_the_card_without_the_agent(make):
+    agent = FakeAgent(error=AssertionError("must not be called"))
+    e = make(agent)
+    sid = e.create("first", "nothing")["id"]
+    to_purpose(e, sid)
+    run(e, sid, kind="text", text="bỏ qua")
+    assert "purpose" in e.store.get(sid).state.meta.skipped and agent.calls == 0
+
+
+def test_a_chip_label_inside_a_longer_message_goes_to_the_agent(make):
+    agent = FakeAgent(plan())
+    e = make(agent)
+    sid = e.create("first", "nothing")["id"]
+    to_purpose(e, sid)
+    run(e, sid, kind="text", text="không nghỉ ngơi")
+    assert agent.calls == 1
+
+
+def test_typing_the_safe_answer_closes_the_safety_card(make):
+    agent = FakeAgent(error=AgentError("down"))
+    e = make(agent)
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="text", text="mẹ đau gối")
+    assert e.load(sid)["card"]["qid"] == "c_effort"
+    calls = agent.calls
+    run(e, sid, kind="text", text="đi lại bình thường")
+    assert e.load(sid)["card"]["qid"] != "c_effort" and agent.calls == calls
 
 
 def test_show_with_a_missing_trip_field_does_not_talk_about_safety(make):

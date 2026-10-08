@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 
 import httpx
@@ -56,7 +57,8 @@ class PoolClient:
 def test_pool_rests_a_spent_model_and_asks_the_next(monkeypatch):
     monkeypatch.setattr(tasks, "_REST", {})
     client = PoolClient()
-    out = asyncio.run(tasks.SAME_PLACE.ask(client, "a,b", city="c", a="A", b="B", meters=1))
+    proxy = dataclasses.replace(tasks.SAME_PLACE, role=dataclasses.replace(tasks.SAME_PLACE.role, guided=False))  # a streaming proxy
+    out = asyncio.run(proxy.ask(client, "a,b", city="c", a="A", b="B", meters=1))
     assert out["relation"] == "different" and out["_model"] == "b" and client.models == ["a", "b"]
     assert tasks.pick("a,b") == "b"  # a rests ~3 minutes
     tasks._REST["b"] = tasks._REST["a"]
@@ -71,3 +73,15 @@ def test_unsupported_model_on_one_account_rests_briefly():
     assert tasks._quota_rest(e) == tasks.UNSUPPORTED_REST_S
     plain = openai.BadRequestError("bad field", response=httpx.Response(400, request=req), body=None)
     assert tasks._quota_rest(plain) is None
+
+
+def test_extractor_on_uit_switch_moves_only_the_extractor(monkeypatch):
+    from corpus.llm import roles
+    monkeypatch.setenv("AGENT_API_KEY", "k")
+    monkeypatch.setenv("AGENT_BASE_URL", "https://uit/v1")
+    monkeypatch.setenv("AGENT_MODEL", "uit-gemma")
+    monkeypatch.setenv("EXTRACTOR_ON_UIT", "1")
+    client, model = roles.EXTRACTOR.client()
+    assert str(client.base_url).startswith("https://uit") and model == "uit-gemma" and roles.EXTRACTOR.parallel() == 38
+    monkeypatch.delenv("EXTRACTOR_ON_UIT")
+    assert not str(roles.EXTRACTOR.client()[0].base_url).startswith("https://uit")

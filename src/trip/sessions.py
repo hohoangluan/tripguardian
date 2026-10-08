@@ -34,6 +34,13 @@ class SessionStore:
             self._mem[s.id] = s
         return s
 
+    def restore(self, s: Session) -> None:
+        """Restore an in-memory snapshot owned by the harness."""
+        if not SID.fullmatch(s.id):
+            raise ValueError(s.id)
+        with self._guard:
+            self._mem[s.id] = s
+
     def get(self, sid: str) -> Session:
         if not SID.fullmatch(sid):
             raise KeyError(sid)

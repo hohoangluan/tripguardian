@@ -6,7 +6,7 @@ import pytest
 from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, sample_trip
 
 from planning.engine import Engine
-from planning.server import run
+from planning.server import handler
 from planning.session import Store
 
 
@@ -19,15 +19,17 @@ def client():
     d, recs = sample_trip()
     e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
-    import socket
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    t = threading.Thread(target=run, args=(e, port), daemon=True)
+    from http.server import ThreadingHTTPServer
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler(e))
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     yield conn, d
     conn.close()
+    server.shutdown()
+    server.server_close()
+    t.join()
 
 
 def test_create_then_load(client):

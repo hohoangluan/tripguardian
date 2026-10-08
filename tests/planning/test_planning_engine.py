@@ -181,6 +181,23 @@ def test_set_day_window_changes_the_days_window_and_the_laid_out_day_still_confi
     assert plan["chosen"]
 
 
+def test_a_variant_whose_later_day_opens_early_for_a_sunrise_place_confirms():
+    """The view shows the variant as valid; confirm re-checks the same days and must agree."""
+    from plan_fixtures import CENTRE, decision, rec
+    recs = [rec(f"c{i}", CENTRE[0] + i * 0.002, CENTRE[1] + i * 0.002, area="area-1") for i in range(3)]
+    recs.append(rec("cloud", CENTRE[0] + 0.006, CENTRE[1] + 0.006, area="area-1", hours=None,
+                    features={"cloud_hunting": "present"}))
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route,
+               background=False)
+    out = e.create(decision([r["id"] for r in recs]), None)
+    v = out["view"]["variants"][0]
+    assert any(w["code"] == "early_start" for w in v["warnings"])
+    sid = out["id"]
+    e.act(sid, {"type": "pick_variant", "id": v["id"]})
+    assert e.confirm(sid)["chosen"]
+
+
 def far_geocode(text):
     from plan_fixtures import CENTRE
     return {"lat": CENTRE[0] + 2.0, "lng": CENTRE[1] + 2.0, "label": text, "source": "nominatim", "fetched_at": "t"}

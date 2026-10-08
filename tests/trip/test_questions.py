@@ -60,6 +60,10 @@ def test_policy_ready_when_budget_is_spent(catalog, cfg):
     assert next_question(framed(adaptive_turns=5), catalog, cfg) is READY
 
 
+def test_policy_ready_when_questions_stop_adding_anything(catalog, cfg):
+    assert next_question(framed(idle_streak=2), catalog, cfg) is READY
+
+
 def test_policy_ready_when_nothing_changes_results(catalog, cfg):
     s = framed(asked=("frame", "purpose", "vibe", "crowd", "pace", "max_leg", "budget", "times"))
     assert next_question(s, catalog, cfg) is READY

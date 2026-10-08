@@ -215,3 +215,18 @@ def test_two_places_that_both_want_the_evening_share_a_day_by_giving_up_one_pin(
     assert validate([cx], [r], [], set(), None, None)    # as pinned, the day cannot hold both
     cx2, r2, dropped = _unpin(cx, r, ["m1", "m2"], [], None, None)
     assert len(dropped) == 1 and validate([cx2], [r2], [], set(), None, None) == []
+
+
+def test_a_plan_that_gave_up_a_pin_still_passes_the_check_it_is_confirmed_with():
+    """The pin was dropped on purpose and the user was told; re-validating the same plan later must agree."""
+    from plan_fixtures import day_ctx
+
+    from planning.build import _unpin
+    from planning.route import order_day
+    from planning.validate import validate
+    from dataclasses import replace
+    music = {"live_music": "present"}
+    cx = day_ctx([rec("m1", 1, 1, features=music, visit=(60, 120, 150)), rec("m2", 1, 1, features=music, visit=(60, 120, 150))])
+    _, r, dropped = _unpin(cx, order_day(["m1", "m2"], cx), ["m1", "m2"], [], None, None)
+    assert validate([cx], [replace(r, unpinned=tuple(dropped))], [], set(), None, None) == []      # original ctx, pins intact
+    assert validate([cx], [r], [], set(), None, None)                                                # undeclared: still refused

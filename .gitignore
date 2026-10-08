@@ -31,3 +31,7 @@ tests/fixtures/tiktok/
 
 # model weights fetched by scripts (web/scripts/pick_covers.py)
 /.cache/
+
+# Local model experiments and training assets are not part of the application pipeline.
+/system_one_model/
+/training/

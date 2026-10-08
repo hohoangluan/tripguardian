@@ -425,10 +425,12 @@ Mô phỏng offline trên các Trip State ẩn (dùng chung bộ mô phỏng v�
 
 ```
 python -m decision evaluate            # 30 Trip State ẩn ở config/eval_trips.yaml, trong tiến trình
-python -m decision serve [--port 8767] # HTTP + SSE cho web
+python -m decision serve [--port 8767] # HTTP + SSE độc lập
 ```
 
-`serve` bind `127.0.0.1`; web gọi qua proxy `/api/decision`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); không có thì mọi lượt gõ chữ chạy bằng `policy.py`.
+User Web gọi Decision qua harness bằng journey chung (`docs/AGENT_HARNESS.md`); `advance` lấy Decision Output trên server để tạo Planning. Public API xuất `Tools`, `create_engine`, `DecisionOutput`; `tools.py` sở hữu snapshot/rebase, `contracts.py` validate output ở biên, `skills.yaml` giới hạn quyền. Agent dùng runtime public `agents`; heuristic cho lệnh tên chính xác ở `docs/AGENT_HARNESS.md` §5.
+
+`serve` độc lập bind `127.0.0.1`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); thiếu thì lượt chữ cần suy luận chạy bằng `policy.py`.
 
 ```
 POST   /api/decision/sessions                   {search_input, trip_session?}

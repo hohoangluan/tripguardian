@@ -24,6 +24,11 @@ def exposure(place: Place) -> str | None:
     return "exposed" if s == "outdoor" else "sheltered" if s == "indoor" else None
 
 
+def crowd(place: Place) -> str | None:
+    """The served `crowd` value (low | medium | high), or None without evidence."""
+    return _value(place, "crowd")
+
+
 def preference(place: Place, soft_weights: list) -> float:
     """Sum of the positive soft weights whose feature value the place has. Context of a weight is ignored: Planning
     does not know it per visit."""

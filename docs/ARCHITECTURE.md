@@ -77,7 +77,11 @@ trip     ──►  corpus.serving, corpus.ontology
 decision ──►  corpus.serving, corpus.ontology
 live     ──►  corpus.crawl            (chỉ 3 tên: open_sessions, maps_search, LoginRequired)
 planning ──►  live, decision, trip, corpus.serving, corpus.ontology
+agents   ──►  corpus.llm
+harness  ──►  trip, decision, planning, agents
 ```
+
+Agent của module dùng runtime public `agents`; `harness` gọi `Tools` public của module, router chọn module theo stage. Hành trình, capability và persistence: `docs/AGENT_HARNESS.md`.
 
 `live` không biết `planning`. `corpus` không biết giai đoạn nào ở sau nó. Test khẳng định các ranh giới này (`tests/planning/test_planning_boundaries.py`, `tests/live/test_boundaries.py`).
 
@@ -85,9 +89,9 @@ planning ──►  live, decision, trip, corpus.serving, corpus.ontology
 
 ## 4. Vai trò model
 
-Code gọi model theo **vai trò**, không gọi thẳng một model cố định: **ASR** (âm thanh → transcript), **Extractor** (mọi việc khối lượng lớn), **Judge** (chốt chặn trước người), **Agent** (hiểu câu tự do của người dùng trong một phiên). Định nghĩa và yêu cầu từng vai trò: `docs/CORPUS.md` §Vai trò model. Model nào đang đảm nhận vai trò nào: `docs/LLM_PROVIDER.md`.
+Code gọi model theo **vai trò**, không gọi thẳng một model cố định: **ASR** (âm thanh → transcript), **Extractor** (mọi việc khối lượng lớn), **Judge** (chốt chặn trước người), **Agent** (hiểu câu tự do trong Trip/Decision và đề xuất bố trí nội bộ trong Planning). Định nghĩa và yêu cầu từng vai trò: `docs/CORPUS.md` §Vai trò model. Model nào đang đảm nhận vai trò nào: `docs/LLM_PROVIDER.md`.
 
-Mọi nơi gọi model đều theo cùng một hình dạng: **một call mỗi lượt, output validate theo schema, guard chặn mọi số / tên không có trong kết quả tool, và một `policy.py` từ khóa tất định chạy thay khi model lỗi hoặc chậm.** Model không bao giờ ghi fact, không bao giờ kết luận khả thi, không bao giờ tạo địa điểm.
+Agent online dùng runtime chung: output validate theo schema và guard nghiệp vụ kiểm quyền/grounding trước khi chạy act. Heuristic xử lý input đơn giản hiểu trọn vẹn; Trip/Decision dùng `policy.py` khi call lỗi hoặc chậm, Planning nội bộ giữ baseline đã kiểm. Solver/validator quyết định khả thi. Chi tiết: `docs/AGENT_HARNESS.md` §1, §5 và `docs/PLANNING.md` §Agent đề xuất nội bộ. Model không ghi fact hoặc tạo địa điểm.
 
 ---
 
@@ -102,6 +106,7 @@ Mọi ngưỡng nằm trong `config/`, không trong code:
 | `category_defaults.yaml` | corpus | mặc định theo nhóm category cho estimate |
 | `serving.yaml` | corpus | ngưỡng của serving record |
 | `trip.yaml` | trip | ngân hàng câu hỏi, ngưỡng dừng hỏi |
+| `agents.yaml` | agents | giới hạn call và queue của runtime trong tiến trình |
 | `decision.yaml` | decision | trọng số xếp hạng, cỡ shortlist, ngưỡng sàng |
 | `planning.yaml` | planning | nhịp độ, cụm, ngày, mục tiêu, độ vững, dự phòng, chỗ ở |
 | `live.yaml` | live | endpoint và TTL từng nguồn live |
@@ -110,7 +115,7 @@ Mọi ngưỡng nằm trong `config/`, không trong code:
 
 Dữ liệu: `data/<nguồn>/` thô và observation, `data/intel/` + `data/serving/` Place Intelligence (`docs/CORPUS.md` §Data model); `data/live/` cache live có TTL (`docs/PLANNING.md` §Ranh giới module). Không nguồn nào gộp với nguồn khác, cả trong code lẫn trong thư mục dữ liệu (`RULE.md` §2).
 
-Phiên của cả ba giai đoạn online cùng một hình dạng: `State` có phiên bản, sống trong RAM của tiến trình server và mirror ra `data/{trip,decision,planning}/sessions/<id>.json` nên reload trang hay restart server vẫn tiếp được. Một act là một hàm **thuần** sinh `State` mới; `scope.py` quyết định phần nào phải tính lại.
+User Web dùng journey chung; harness lưu snapshot các module, revision và receipt cùng file tại `data/harness/sessions/` (`docs/AGENT_HARNESS.md` §3). CLI/API module độc lập mirror state vào `data/{trip,decision,planning}/sessions/`. Một act sinh `State` mới; `scope.py` quyết định phần nào phải tính lại.
 
 ---
 
@@ -141,7 +146,7 @@ Hai vòng đầu là lý do Place Decision và Planning tách nhau mà vẫn n�
 
 ```text
 web (Vite, :5173)  /landing  giải thích vấn đề, một CTA
-                   /app      User Web   → trip :8766 · decision :8767 · planning :8768
+                   /app      User Web   → harness :8769 → trip · decision · planning
                    /admin    Admin Web  → review :8765
 ```
 

@@ -31,6 +31,7 @@ SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "pregnant", "motio
 EFFORT_SIGNALS = frozenset({"knee", "elderly", "kids", "wheelchair", "pregnant"})  # answered by question c_effort
 OTHER_SIGNALS = frozenset({"motion_sick", "height", "vegetarian"})  # answered by question c_other
 EFFORT_FEATURES = frozenset({"steep_or_stairs", "long_walk"})
+EFFORT_CLASH = frozenset({"hiking", "adventure_activity"})  # what a stored taste may not push once the trip has an effort limit
 SCALARS = ("start_date", "month", "days", "people", "base", "entry_point", "exit_point", "mobility", "arrive_at",
            "leave_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd")
 RANGES = {"month": (1, 12), "days": (1, 7), "people": (1, 20), "max_leg_min": (5, 180),
@@ -173,7 +174,12 @@ class Meta(Frozen):
     asked: tuple[str, ...] = ()
     skipped: frozenset[str] = frozenset()
     unsure_streak: int = 0
+    idle_streak: int = 0  # adaptive questions in a row that added nothing to the state
     pending: tuple[Ambiguous, ...] = ()  # subjective words still to clarify
+    held: str | None = None  # the card a typed message did not answer; it stays open for one such message
+    user_id: str | None = None  # opaque id whose stored patterns seeded this session
+    remember: bool = False  # the user agreed that this session may add to those patterns
+    prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/TRIP_UNDERSTANDING.md §17)
 
 
 class TripState(Frozen):
@@ -343,8 +349,22 @@ def apply(state: TripState, u: Update) -> TripState:
     raise ValueError(f"unknown field {f!r}")
 
 
+def _drop_clashing_priors(state: TripState) -> TripState:
+    """The current trip wins over a stored taste: with an effort limit, a profile-sourced push toward effort goes."""
+    feats = {h.feature for h in state.hard}
+    if not (feats & EFFORT_FEATURES or any(s.kind in EFFORT_SIGNALS for s in state.signals)):
+        return state
+    soft = {k: f for k, f in state.soft.items()
+            if not (f.source == "profile" and SoftKey.parse(k).feature in EFFORT_CLASH)}
+    changes: dict[str, Any] = {} if len(soft) == len(state.soft) else {"soft": soft}
+    if state.pace.source == "profile" and state.pace.value == "packed":
+        changes["pace"] = Field[Pace]()
+    return state.model_copy(update=changes) if changes else state
+
+
 def settle(state: TripState) -> TripState:
     """Physical signals count as handled once a hard filter answers them."""
+    state = _drop_clashing_priors(state)
     feats = {h.feature for h in state.hard}
     done: set[str] = set()
     if feats & EFFORT_FEATURES:

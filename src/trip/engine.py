@@ -1,7 +1,7 @@
 """One conversation turn (docs/TRIP_UNDERSTANDING.md §4).
 
-answer / edit / show are deterministic. text runs prepass -> agent (streamed) -> guard; any agent failure is answered
-by the policy with the same state.
+answer / edit / show are deterministic. text runs prepass -> S1 (Laya, when loaded) -> agent (streamed) -> guard; any
+S1 or agent failure is answered by the rest of the chain with the same state.
 """
 
 import asyncio
@@ -14,14 +14,17 @@ from . import values
 from .agent import AgentError, prompt_fields
 from .catalog import Catalog
 from .compile import compile_search_input
-from .guard import TurnPlan, guard
+from .guard import TurnPlan, drop_questions, guard
+from .heuristics import chip_echo, simple_frame
+from .patterns import Summary, seed, votes_from_state
 from .policy import next_question
 from .prepass import Prepass, prepass
-from .questions import Question, rank_questions, required
+from .profile import ProfileStore
+from .questions import READY, Question, rank_questions, required
 from .resolve import URL, anchor_for, search
 from .sessions import Session, SessionStore
 from .settings import Settings
-from .state import SCALARS, Evidence, Frozen, Meta, TripState, Update, apply, apply_drafts, settle, with_meta
+from .state import SCALARS, Anchor, Evidence, Frozen, Meta, TripState, Update, apply, apply_drafts, settle, with_meta
 from .understanding import view as understanding
 
 Emit = Callable[[str, dict], None]
@@ -34,6 +37,10 @@ MISSING_SAY = "Mình cần biết thêm điều này trước khi tìm chỗ."
 NUDGE_SAY = "Câu này bạn chọn một ý bên dưới giúp mình nhé (hoặc Bỏ qua)."
 DONE_SAY = "Xong rồi, mình đi tìm chỗ hợp với chuyến này."
 BAD_VALUE = "Giá trị này mình chưa đọc được, bạn thử lại nhé."
+TYPED_WINS = "Mình ghi theo câu bạn gõ: {}."
+# a chip draft's field -> the Trip State fields it writes; a date card is answered by a month too
+WRITES = {"signal": ("signals",), "signal_handled": ("signals",), "anchor": ("anchors",),
+          "anchor_priority": ("anchors",), "hard_policy": ("hard",), "start_date": ("start_date", "month")}
 
 
 class TurnInput(Frozen):
@@ -43,6 +50,28 @@ class TurnInput(Frozen):
     chips: tuple[str, ...] = ()
     value: str | None = None
     target: str = ""
+
+
+def gained(before: TripState, after: TripState) -> bool:
+    """Did a turn change what the Trip State knows? Counters and the question log do not count."""
+    def core(st: TripState) -> TripState:
+        return st.model_copy(update={"meta": Meta(pending=st.meta.pending)})
+    return core(before) != core(after)
+
+
+def touched(q: Question, before: TripState, after: TripState) -> bool:
+    """Did a turn write one of the fields this card asks about? An agent-written card has no drafts: any gain counts."""
+    if q.custom:
+        return gained(before, after)
+    fields = {x.field for c in q.chips for x in c.drafts} | ({q.input_field} if q.input_field else set())
+    attrs = {a for f in fields for a in WRITES.get(f, (f,)) if a in TripState.model_fields}
+    return any(getattr(before, a) != getattr(after, a) for a in attrs)
+
+
+def mark(st: TripState, q: Question) -> TripState:
+    """The card counts as asked: logged once, and an adaptive card spends one question of the budget."""
+    asked = st.meta.asked + (() if q.qid in st.meta.asked else (q.qid,))
+    return with_meta(st, asked=asked, adaptive_turns=st.meta.adaptive_turns + int(q.tier >= 2), held=None)
 
 
 def card(q: Question | None) -> dict | None:
@@ -55,13 +84,21 @@ def card(q: Question | None) -> dict | None:
 
 class Engine:
     def __init__(self, catalog: Catalog, cfg: Settings, store: SessionStore, agent: Agent,
-                 today: Callable[[], date] = date.today):
+                 today: Callable[[], date] = date.today, profiles: ProfileStore | None = None):
+        """profiles: stored patterns (config patterns.enabled); None = no long-term learning."""
         self.catalog, self.cfg, self.store, self.agent, self.today = catalog, cfg, store, agent, today
+        self.profiles = profiles
 
     # ---------- reads ----------
 
-    def create(self, experience: str | None = None, start_with: str | None = None) -> dict:
-        state = TripState(meta=Meta(experience=experience, start_with=start_with))
+    def create(self, experience: str | None = None, start_with: str | None = None, user_id: str | None = None,
+               remember: bool = False) -> dict:
+        """user_id: whose stored patterns seed the session. remember: the user agreed this session may add to them."""
+        on = self.profiles is not None and user_id is not None
+        state = TripState(meta=Meta(experience=experience, start_with=start_with, user_id=user_id if on else None,
+                                    remember=remember and on))
+        if on:
+            state = seed(state, self.profiles.patterns(user_id, self.today()), self.catalog, self.cfg.patterns)
         s = self.store.new(state)
         s.card = next_question(state, self.catalog, self.cfg)
         s.transcript.append({"role": "agent", "text": GREETING, "turn": 0})
@@ -77,6 +114,10 @@ class Engine:
                                if t["role"] in ("user", "agent")],
                 "understanding": understanding(s.state, self.catalog, self.cfg),
                 "card": card(s.card)}
+
+    def forget(self, user_id: str) -> bool:
+        """Delete everything stored about a user. False when nothing was stored (or learning is off)."""
+        return self.profiles.forget(user_id) if self.profiles else False
 
     def places(self, q: str) -> list[dict]:
         return [{"id": p.id, "name": p.name, "category": p.category} for p in search(q, self.catalog)]
@@ -118,13 +159,18 @@ class Engine:
             return self._text(s, TurnInput(kind="text", text=text), emit)
         turn = s.state.meta.turn + 1
         st = s.state
+        # text sent with the chips is the more specific answer: a value it states replaces the chip's for that field
+        typed = {p.field: p.value for p in prepass(inp.text, self.today()).proposals
+                 if p.field in SCALARS and p.op == "set" and not p.inferred} if inp.text.strip() else {}
+        chip_set = {x.field: x.value for c in chosen for x in c.drafts if x.field in SCALARS and x.op == "set"}
         try:
             if exit_:
                 st = apply_drafts(st, q.exit_drafts, turn, tool=f"chip:{q.qid}:{exit_}")
                 st = with_meta(st, skipped=st.meta.skipped | {q.qid}, unsure_streak=st.meta.unsure_streak + 1)
             else:
                 for c in chosen:
-                    st = apply_drafts(st, c.drafts, turn, tool=f"chip:{q.qid}:{c.id}", quote=c.label)
+                    drafts = tuple(x for x in c.drafts if not (x.field in typed and x.value != typed[x.field]))
+                    st = apply_drafts(st, drafts, turn, tool=f"chip:{q.qid}:{c.id}", quote=c.label)
                 if inp.value and q.input_field:
                     st = apply(st, Update(field=q.input_field, value=values.parse(q.input_field, inp.value, self.catalog),
                                           source="user", confidence="high",
@@ -137,32 +183,47 @@ class Engine:
             ", ".join(c.label for c in chosen) or (inp.value or "")
         self._close_card(s)
         s.transcript.append({"role": "user", "text": label or "…", "turn": turn, "kind": "answer", "qid": q.qid})
-        st = with_meta(st, turn=turn, asked=st.meta.asked + (q.qid,),
-                       adaptive_turns=st.meta.adaptive_turns + int(q.tier >= 2))
-        s.state, s.card = settle(st), None
+        st = settle(st)
+        idle = (0 if gained(s.state, st) else st.meta.idle_streak + 1) if q.tier >= 2 else st.meta.idle_streak
+        st = with_meta(st, turn=turn, asked=st.meta.asked + (q.qid,), idle_streak=idle,
+                       adaptive_turns=st.meta.adaptive_turns + int(q.tier >= 2), held=None)
+        s.state, s.card = st, None
         if inp.text.strip():
-            return self._text(s, TurnInput(kind="text", text=inp.text), emit)
+            return self._text(s, TurnInput(kind="text", text=inp.text), emit, chip_set)
         self._advance(s, emit)
 
-    def _text(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+    def _text(self, s: Session, inp: TurnInput, emit: Emit, chips: dict | None = None) -> None:
+        """chips: scalar values chips set earlier in this same turn; a typed value that replaced one is said aloud."""
         text = inp.text.strip()
         if not text:
             emit("card", card(s.card))
             return
+        if not chips and (chip := chip_echo(text, s.card)):  # typed a chip's label: the same as tapping it
+            qid = s.card.qid
+            self._answer(s, TurnInput(kind="answer", qid=qid, chips=(chip,)), emit)
+            s.transcript.append({"role": "system", "text": f"heuristic:chip_echo {qid}:{chip}", "turn": s.state.meta.turn})
+            return
         st, prev = s.state, s.card
+        before = st
         turn = st.meta.turn + 1
         self._close_card(s)
         s.transcript.append({"role": "user", "text": text, "turn": turn, "kind": "text"})
         pre = prepass(text, self.today())
         emit("preview", {"fields": [{"target": p.field, "value": values.jsonable(p.value), "quote": p.quote}
                                     for p in pre.proposals]})
-        answered = (prev.qid,) if prev and prev.qid not in st.meta.asked else ()
-        st = with_meta(st, turn=turn, asked=st.meta.asked + answered, unsure_streak=0,
-                       adaptive_turns=st.meta.adaptive_turns + int(bool(prev) and prev.tier >= 2))
+        st = with_meta(st, turn=turn, unsure_streak=0)
+        # the open card counts as asked once the message writes one of its fields. A message that does not (off topic,
+        # a question back) leaves it open; the next such message closes it as before, so a vague reply cannot loop.
+        hold = prev if prev and prev.qid not in st.meta.asked and st.meta.held != prev.qid else None
+        if prev and not hold:
+            st = mark(st, prev)
         st = self._deterministic(st, text, pre, turn)
+        simple = simple_frame(text, pre)
+        if hold and touched(hold, before, st):
+            st, hold = mark(st, hold), None
         req = required(st, self.catalog, self.cfg)
         ranked = rank_questions(st, self.catalog, self.cfg)[:5]
-        fields = prompt_fields(st, text, pre, req, ranked, self.cfg, prev.text if prev else None, self.today())
+        fields = {} if simple else prompt_fields(st, text, pre, req, ranked, self.cfg, prev.text if prev else None, self.today())
         streamed: list[str] = []
 
         def on_say(delta: str) -> None:
@@ -171,12 +232,27 @@ class Engine:
 
         heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
         try:
-            g = guard(asyncio.run(self.agent(fields, on_say)), st, text, turn, self.catalog, self.cfg, heard)
-            st, q, say, log = g.state, g.question, g.say, g.log
+            if simple:
+                st = settle(st)
+                q, say, log = next_question(st, self.catalog, self.cfg), "Mình đã ghi nhận thông tin chuyến đi.", ["heuristic:frame"]
+            else:
+                g = guard(asyncio.run(self.agent(fields, on_say)), st, text, turn, self.catalog, self.cfg, heard)
+                st, q, say, log = g.state, g.question, g.say, g.log
         except AgentError as e:
             st, say, log = settle(st), FALLBACK_SAY, [f"agent_fallback: {e}"]
             q = next_question(st, self.catalog, self.cfg)
-        if prev and prev.tier == 1 and prev.qid != "frame" and q.qid == prev.qid:
+        if hold and touched(hold, before, st):  # the agent answered the card
+            st, hold = mark(st, hold), None
+            if q and q.qid == prev.qid:
+                q, say = next_question(st, self.catalog, self.cfg), drop_questions(say)
+        elif hold:
+            st = with_meta(st, held=hold.qid)
+        st, q, say = self._idle(before, st, prev, q, say)  # a held card still counts toward the idle stop
+        typed = [f"“{f.evidence[-1].quote}”" for k, v in (chips or {}).items()
+                 if (f := getattr(st, k)).value != v and f.evidence and f.evidence[-1].quote]
+        if typed:
+            say = f"{say} {TYPED_WINS.format(', '.join(typed))}".strip()
+        if prev and prev.tier == 1 and prev.qid != "frame" and q and q.qid == prev.qid:
             say = f"{say} {NUDGE_SAY}".strip()  # typed past a card only a chip can answer
         if say != "".join(streamed):
             emit("say", {"replace": say})
@@ -216,7 +292,7 @@ class Engine:
             return
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
         req = required(s.state, self.catalog, self.cfg)
-        stale = s.card is not None and s.card.tier == 1 and req is None
+        stale = s.card is not None and (s.card.qid == "prior" or (s.card.tier == 1 and req is None))
         if stale or (req and (s.card is None or s.card.qid != req.qid)):
             s.card = req or next_question(s.state, self.catalog, self.cfg)
             emit("card", card(s.card))
@@ -229,6 +305,7 @@ class Engine:
             emit("card", card(req))
             return
         si = compile_search_input(s.state)
+        self._remember(s)
         self._close_card(s)
         s.card = None
         s.transcript.append({"role": "agent", "text": DONE_SAY, "turn": s.state.meta.turn, "kind": "done"})
@@ -267,6 +344,29 @@ class Engine:
                 u = Update(field="unmapped", op="add", value=quote, source="user", confidence="medium", evidence=ev)
             st = apply(st, u)
         return settle(st)
+
+    def _idle(self, before: TripState, st: TripState, prev: Question | None, q: Question | None, say: str):
+        """An adaptive question that added nothing counts as idle; idle_limit of them in a row end the questioning.
+        There is no cap on turns that keep adding something."""
+        if prev is None or prev.tier < 2:
+            return st, q, say
+        st = with_meta(st, idle_streak=0 if gained(before, st) else st.meta.idle_streak + 1)
+        if st.meta.idle_streak >= self.cfg.idle_limit and q is not None and q.tier >= 2:
+            return st, READY, drop_questions(say)
+        return st, q, say
+
+    def _remember(self, s: Session) -> None:
+        """The user is done with this session: add its explicit choices to their stored history, if they agreed."""
+        m = s.state.meta
+        if not (self.profiles and m.remember and m.user_id):
+            return
+        votes = votes_from_state(s.state)
+        if not votes:
+            return
+        try:
+            self.profiles.record(m.user_id, Summary(sid=s.id, day=self.today(), votes=votes))
+        except OSError as e:
+            s.transcript.append({"role": "system", "text": f"profile not saved: {e}", "turn": m.turn})
 
     def _close_card(self, s: Session) -> None:
         if s.card:

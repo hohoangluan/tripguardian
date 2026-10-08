@@ -59,4 +59,5 @@ def build(trip, variants: list[dict], chosen: dict, chosen_results: list, decisi
         "robustness": chosen["robustness"],
         "backups": chosen["backups"],
         "provenance": shared["provenance"],
+        **{k: shared[k] for k in ("day_conditions", "crowd_tips") if k in shared},      # only when the days had any
     }

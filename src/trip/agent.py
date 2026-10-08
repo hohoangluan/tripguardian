@@ -1,13 +1,12 @@
 """One agent call per free-text turn: prompt from prefetched facts, streamed say, typed plan (docs/TRIP_UNDERSTANDING.md §4, §14)."""
 
-import asyncio
 import functools
 import json
 import re
 from datetime import date
 from typing import AsyncIterator, Callable
 
-from pydantic import ValidationError
+from agents import AgentError, SayStream, run_structured
 
 from corpus.llm import AGENT, TRIP_TURN
 
@@ -16,53 +15,6 @@ from .prepass import Prepass
 from .questions import Question
 from .settings import Settings
 from .state import SCALARS, Base, TripState, ontology
-
-
-class AgentError(Exception):
-    """The agent did not give a usable plan in time; the turn falls back to the policy."""
-
-
-class SayStream:
-    """Pulls the "say" string out of a JSON object while it streams in."""
-
-    def __init__(self):
-        self.buf = ""
-        self.sent = 0
-
-    def feed(self, delta: str) -> str:
-        self.buf += delta
-        m = re.search(r'"say"\s*:\s*"', self.buf)
-        if not m:
-            return ""
-        raw = self.buf[m.end():]
-        end = _closing_quote(raw)
-        raw = raw[:end] if end is not None else _trim_partial_escape(raw)
-        try:
-            text = json.loads('"' + raw + '"')
-        except json.JSONDecodeError:
-            return ""
-        new, self.sent = text[self.sent:], max(self.sent, len(text))
-        return new
-
-
-def _closing_quote(raw: str) -> int | None:
-    i = 0
-    while i < len(raw):
-        if raw[i] == "\\":
-            i += 2
-            continue
-        if raw[i] == '"':
-            return i
-        i += 1
-    return None
-
-
-def _trim_partial_escape(raw: str) -> str:
-    m = re.search(r"\\u[0-9a-fA-F]{0,3}$", raw)
-    if m:
-        return raw[:m.start()]
-    tail = len(raw) - len(raw.rstrip("\\"))
-    return raw[:-1] if tail % 2 else raw
 
 
 @functools.cache
@@ -111,6 +63,7 @@ def prompt_fields(state: TripState, text: str, pre: Prepass, required: Question 
         "required": f"{required.qid}: {required.text}" if required else "none",
         "candidates": "\n".join(f"{q.qid}: {q.text}" for q, _ in ranked[:5]) or "none",
         "budget": max(0, cfg.turn_budget - state.meta.adaptive_turns),
+        "idle_left": max(0, cfg.idle_limit - state.meta.idle_streak),
         "experience": state.meta.experience or "unknown",
         "last_question": last_question or "none",
         "today": today.isoformat(),
@@ -128,61 +81,7 @@ def gemma_stream(fields: dict) -> AsyncIterator[str]:
     return gen()
 
 
-LOOP_WS = 32  # guided decoding now and then emits whitespace until max_tokens; this many in a row means it started
-
-
 async def run_agent(fields: dict, on_say: Callable[[str], None], cfg: Settings,
                     open_stream: Callable[[dict], AsyncIterator[str]] = gemma_stream) -> TurnPlan:
-    """One call, or two when the first loops on whitespace; the second does not stream its say again."""
-    deadline = asyncio.get_running_loop().time() + cfg.total_s
-    try:
-        return await _attempt(fields, on_say, cfg, open_stream, deadline)
-    except _Looping:
-        try:
-            return await _attempt(fields, lambda s: None, cfg, open_stream, deadline)
-        except _Looping as e:
-            raise AgentError("output looped on whitespace twice") from e
-
-
-class _Looping(AgentError):
-    pass
-
-
-async def _attempt(fields: dict, on_say: Callable[[str], None], cfg: Settings,
-                   open_stream: Callable[[dict], AsyncIterator[str]], deadline: float) -> TurnPlan:
-    loop = asyncio.get_running_loop()
-    it = open_stream(fields).__aiter__()
-    say, buf, first = SayStream(), [], True
-    try:
-        while True:
-            timeout = cfg.first_token_s if first else deadline - loop.time()
-            if timeout <= 0:
-                raise AgentError(f"no complete answer in {cfg.total_s:.0f} s")
-            try:
-                delta = await asyncio.wait_for(it.__anext__(), timeout)
-            except StopAsyncIteration:
-                break
-            first = False
-            buf.append(delta)
-            if new := say.feed(delta):
-                on_say(new)
-            tail = "".join(buf[-LOOP_WS:])[-LOOP_WS:]
-            if len(tail) == LOOP_WS and not tail.strip():
-                raise _Looping("whitespace loop")
-    except asyncio.TimeoutError as e:
-        raise AgentError("first token too slow" if first else "answer too slow") from e
-    except AgentError:
-        raise
-    except Exception as e:  # openai errors, and httpx / OS errors a dropped stream raises unwrapped
-        raise AgentError(f"{type(e).__name__}: {e}") from e
-    finally:
-        aclose = getattr(it, "aclose", None)
-        if aclose:
-            try:
-                await aclose()
-            except Exception:
-                pass
-    try:
-        return TurnPlan.model_validate_json("".join(buf))
-    except ValidationError as e:
-        raise AgentError(f"bad plan: {str(e).splitlines()[0]}") from e
+    """Stream a typed plan with the shared runtime deadlines and retry policy."""
+    return await run_structured(fields, on_say, cfg, TurnPlan, open_stream)

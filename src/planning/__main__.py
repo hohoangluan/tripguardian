@@ -10,11 +10,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import live
 from corpus.serving import load as load_records
 
 from . import (Engine, build_lodging_variants, build_plan, build_variants, render_lodging_variants, render_text,
               render_variants, run_server)
 from .agent import run_agent
+from .conditions import fetch_live
 from .session import Store
 from .settings import ROOT
 
@@ -57,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             from .settings import load as load_settings
             agent = lambda fields, on_say: run_agent(fields, on_say, load_settings())  # noqa: E731
-        engine = Engine(load_records(), store=store, agent=agent)
+        engine = Engine(load_records(), store=store, agent=agent, conditions_fn=fetch_live(live.load_settings()))
         print(f"Planning: http://127.0.0.1:{args.port} (agent {os.environ.get('AGENT_MODEL') if agent else 'off'})")
         run_server(engine, port=args.port)
         return 0

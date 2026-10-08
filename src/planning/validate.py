@@ -4,9 +4,12 @@ It re-derives every check from the finished timeline instead of trusting what si
 scheduler cannot also hide from the check. Fail-closed: a violation is reported, never repaired here.
 """
 
+from dataclasses import replace
+
 from corpus.ontology import load as load_ontology
 from corpus.serving import check
 
+from .conditions import hazard
 from .model import DayResult, Violation
 from .schedule import DayCtx, intervals_for, pin_window
 
@@ -16,11 +19,20 @@ def _is_physical(feature: str) -> bool:
     return f is not None and f.group == "effort"
 
 
+def _released(cx: DayCtx, r: DayResult) -> DayCtx:
+    """The day as the scheduler laid it out: a place whose time-of-day pin it gave up (and said so) is not held to it.
+    Without this, a plan shown as valid would fail the same check at confirm."""
+    if not r.unpinned:
+        return cx
+    return replace(cx, places={**cx.places, **{i: replace(cx.places[i], pins=()) for i in r.unpinned if i in cx.places}})
+
+
 def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, anchors: set,
              budget_vnd: int | None, max_leg_min: int | None) -> list[Violation]:
     out: list[Violation] = []
     visited: dict = {}
     for cx, r in zip(ctxs, results):
+        cx = _released(cx, r)
         d = cx.day
         items = sorted(r.items, key=lambda i: (i.start, i.end))
         for a, b in zip(items, items[1:]):
@@ -46,6 +58,8 @@ def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, a
             p = cx.places[it.place_id]
             if not any(o <= it.start and it.end <= c for o, c in intervals_for(p, cx)):
                 out.append(Violation("hours", d.index, p.id, 0, False, "visit outside the opening hours"))
+            if why := hazard(p, cx.cond):
+                out.append(Violation("hazard", d.index, p.id, 0, False, f"hazard that day: {why}"))
             lo, hi = pin_window(p, cx)
             if not lo <= it.start <= hi:
                 out.append(Violation("timed", d.index, p.id, 0, False, "off the time of day its feature needs"))

@@ -72,6 +72,8 @@ class Settings:
     first_token_s: float
     total_s: float
     rethink_drops: int
+    crowd_busy_pct: int
+    conditions: dict
 
 
 @cache

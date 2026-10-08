@@ -33,7 +33,7 @@ def test_no_deep_import_into_live_or_corpus_and_none_into_decision_or_trip(path)
         top = name.split(".")[0]
         # decision: only evaluate.py, offline, in process, through decision's public __init__ (docs/PLANNING.md
         # §Ranh giới module lists decision as a one-way dependency; P9 ruling). Everywhere else it stays forbidden.
-        assert top != "decision" or (path.name == "evaluate.py" and name == "decision"), f"{path.name} imports {name}"
+        assert top != "decision" or (path.name in {"evaluate.py", "tools.py"} and name == "decision"), f"{path.name} imports {name}"
         # trip: only its public text helpers (trip/__init__.py), the same import decision/guard.py makes (P7 ruling)
         assert top != "trip" or name == "trip", f"{path.name} deep-imports {name}"
         assert top != "live" or name == "live", f"{path.name} deep-imports {name}"
@@ -51,6 +51,6 @@ def test_the_public_api_is_the_plan_builder_and_its_settings():
     import planning
     assert set(planning.__all__) == {"Engine", "Settings", "build_lodging_variants", "build_plan", "build_variants",
                                      "load_settings", "render_lodging_variants", "render_text", "render_variants",
-                                     "run_server"}
+                                     "run_server", "PlanningProposal", "Tools", "create_engine", "run_proposal"}
     for name in planning.__all__:
         assert hasattr(planning, name)

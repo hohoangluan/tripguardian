@@ -6,6 +6,8 @@ Three rules hold for everything in here:
   - a source that does not answer raises Unavailable. Nothing here invents a value to fill a gap.
 """
 
+from .advisories import advisories
+from .events import events
 from .geocode import geocode
 from .holidays import holidays
 from .http import Unavailable
@@ -16,5 +18,5 @@ from .lodging import lodging_near
 from .sun import sun_times
 from .weather import weather
 
-__all__ = ["Settings", "Unavailable", "geocode", "holidays", "load_settings", "lodging_near", "route_shape",
+__all__ = ["Settings", "Unavailable", "advisories", "events", "geocode", "holidays", "load_settings", "lodging_near", "route_shape",
            "sun_times", "travel_matrix", "weather"]

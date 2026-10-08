@@ -64,14 +64,14 @@ def _describe(sc: dict) -> str:
 def robustness(ctxs: list[DayCtx], results: list, travel_source: str) -> dict:
     cfg = ctxs[0].cfg
     rob = cfg.robustness
-    forecast = any(cx.rain is not None for cx in ctxs)
+    forecast = any(cx.wet is not None for cx in ctxs)
     scenarios, skipped = [], []
     for sc in rob["scenarios"]:
         if sc.get("rain"):
             if not forecast:
                 skipped.append(sc["id"])
                 continue
-            lost = [i for cx, r in zip(ctxs, results) if cx.rain is not None and cx.rain >= cfg.rain_high
+            lost = [i for cx, r in zip(ctxs, results) if cx.wet is not None and cx.wet >= cfg.rain_high
                     for i in r.order if exposure(cx.places[i]) == "exposed"]
         else:
             lost = [i for cx, r in zip(ctxs, results) for i in lost_places(r.order, _perturbed(cx, sc))]

@@ -67,7 +67,7 @@ class Item:
 @dataclass(frozen=True)
 class Violation:
     kind: str                       # hours | timed | overlap | day_window | travel | long_leg | anchor | budget
-    day: int | None                 #        | hard | duplicate
+    day: int | None                 #        | hard | duplicate | hazard
     place_id: str | None
     minutes: int
     physical: bool                  # a physical constraint is never relaxed
@@ -84,6 +84,7 @@ class DayResult:
     end: int
     notes: tuple[str, ...] = ()
     method: str = ""                # exact | heuristic | single
+    unpinned: tuple[str, ...] = ()  # places whose time-of-day pin was given up to fit the day (the user is told)
 
     @property
     def key(self) -> tuple[int, int, int]:

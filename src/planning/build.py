@@ -10,6 +10,7 @@ import live
 
 from . import places as pl
 from .cluster import cluster_places, split_to_fit
+from .conditions import build_cond, crowd_sensitive, crowd_tips, describe
 from .days import assign_days, day_load, isolate_constrained
 from .frame import trip_days
 from .model import Item
@@ -37,7 +38,15 @@ WARNING_TEXT = {
     "early_start": "Ngày {day}: bắt đầu sớm lúc {start} để kịp {name}.",
     "pin_dropped": "Ngày {day}: không xếp kịp {name} vào đúng giờ đẹp nhất (hoàng hôn / bình minh / nhạc), vẫn ghé nơi này lúc khác trong ngày.",
     "near_duplicate": "{a} và {b} cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn.",
+    "severe_weather": "Ngày {day}: dự báo thời tiết rất xấu ({what}); không xếp nơi ngoài trời vào ngày này.",
+    "heavy_weather": "Ngày {day}: dự báo mưa lớn hoặc dông ({what}); nơi ngoài trời dễ hỏng, mỗi nơi có phương án thay.",
+    "advisory": "Ngày {day}: có thông báo {kind} mức {severity}: {note} (nguồn: {source}).",
+    "crowd_day": "Ngày {day}: {why}. Nơi vốn đông sẽ đông hơn, mình để thêm thời gian chờ.",
+    "holiday_closure": "Ngày {day}: dịp {name} nhiều quán đóng cửa hoặc đổi giờ; gọi xác nhận trước khi đi.",
 }
+ADVISORY_KIND = {"storm": "bão / dông", "flood": "ngập lụt", "landslide": "sạt lở", "fire": "cháy", "road_closed": "đường bị chặn",
+                 "other": "khác"}
+SEVERITY_TEXT = {"watch": "theo dõi", "warning": "cảnh báo", "severe": "nghiêm trọng"}
 
 
 MEAL_NAME = {"lunch": "trưa", "dinner": "tối"}
@@ -84,8 +93,11 @@ class Schedule:
 
 
 def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, live_cfg=None, geocode_fn=None,
-            matrix_fn=None, sun_fn=None, weather: dict | None = None, extra_nodes: dict | None = None) -> Trip:
-    """weather: {"YYYY-MM-DD": {"rain_prob": 0..1, "source", "fetched_at"}} or None. P5 fills it from live.weather."""
+            matrix_fn=None, sun_fn=None, weather: dict | None = None, extra_nodes: dict | None = None,
+            signals: dict | None = None) -> Trip:
+    """weather: {"YYYY-MM-DD": {"rain_prob": 0..1, "rain_mm", "gust_kmh", "storm", "source", "fetched_at"}} or None.
+    signals: {"YYYY-MM-DD": {"holiday": name | None, "events": [...], "advisories": [...]}} or None (see
+    conditions.fetch_live). With neither, no day has a DayCond and the plan is what it was before conditions."""
     cfg = cfg or load_settings()
     live_cfg = live_cfg or live.load_settings()
     geocode_fn = geocode_fn or (lambda text: live.geocode(text, live_cfg))
@@ -145,11 +157,47 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
         day = (weather or {}).get(d.date.isoformat()) if d.date else None
         return day.get("rain_prob") if day else None
 
+    crowd_tol = (tc.get("pace") or {}).get("crowd_tolerance")
     ctxs = [DayCtx(d, by_place, travel, cfg, pace,
-                   sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None, rain_on(d), prefs)
+                   sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None, rain_on(d), prefs,
+                   build_cond(d, weather, signals, cfg), crowd_tol)
             for d in days]
+    warnings += condition_warnings(ctxs)
     return Trip(decision, cfg, pace, by_place, unplaced, by_id, points, travel, days, ctxs, warnings, weather,
                lodging_ids=tuple(extra_nodes or {}))
+
+
+def condition_warnings(ctxs: list) -> list[dict]:
+    """What each day's conditions mean for the user, in words. A day with nothing notable says nothing."""
+    out = []
+    for cx in ctxs:
+        c, n = cx.cond, cx.day.index + 1
+        if c is None:
+            continue
+        what = ", ".join(x for x in ("dông" if c.storm else "", f"mưa ~{c.rain_mm:.0f} mm" if c.rain_mm else "",
+                                     f"gió giật ~{c.gust_kmh:.0f} km/h" if c.gust_kmh else "") if x)
+        if c.weather != "none":
+            out.append(_warn("severe_weather" if c.weather == "severe" else "heavy_weather", day=n, what=what))
+        out += [_warn("advisory", day=n, kind=ADVISORY_KIND[a["kind"]], severity=SEVERITY_TEXT[a["severity"]],
+                      note=a["note"] or "không ghi chú", source=a["source"]) for a in c.advisories]
+        if c.crowd != "normal" and any(crowd_sensitive(p, c, cx.cfg) for p in cx.places.values()):
+            out.append(_warn("crowd_day", day=n, why=", ".join(c.crowd_reasons)))
+        if c.closure_risk:
+            out.append(_warn("holiday_closure", day=n, name=c.closure_risk))
+    return out
+
+
+def pull_early(cx: DayCtx, day_ids, by_place: dict, travel) -> tuple[DayCtx, str | None]:
+    """A sunrise place pulls a later day's start forward: (the day, the place that pulled it, or None). The scheduler
+    and every later check of a laid-out day use this one rule, so a plan shown as valid passes the check at confirm."""
+    early = [(pin_window(by_place[i], cx)[0], i) for i in day_ids
+             if i in by_place and 0 < pin_window(by_place[i], cx)[0] < cx.day.start]
+    if not early or cx.day.index == 0:
+        return cx, None
+    lo, pid = min(early)
+    first = cx.day.start_node
+    start = max(0, lo - (travel.leg(first, pid)[0] if first else 0))
+    return replace(cx, day=replace(cx.day, start=start)), pid
 
 
 def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
@@ -168,15 +216,10 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
     if flag:
         warnings.append(_warn(flag))
     ctxs = list(ctxs)
-    for k, (cx, day_ids) in enumerate(zip(ctxs, per_day)):      # a sunrise place pulls a later day's start forward
-        early = [(pin_window(trip.by_place[i], cx)[0], i) for i in day_ids
-                 if 0 < pin_window(trip.by_place[i], cx)[0] < cx.day.start]
-        if early and cx.day.index > 0:
-            lo, pid = min(early)
-            first = cx.day.start_node
-            start = max(0, lo - (trip.travel.leg(first, pid)[0] if first else 0))
-            ctxs[k] = replace(cx, day=replace(cx.day, start=start))
-            warnings.append(_warn("early_start", day=cx.day.index + 1, start=fmt(start),
+    for k, (cx, day_ids) in enumerate(zip(ctxs, per_day)):
+        ctxs[k], pid = pull_early(cx, day_ids, trip.by_place, trip.travel)
+        if pid:
+            warnings.append(_warn("early_start", day=cx.day.index + 1, start=fmt(ctxs[k].day.start),
                                   name=trip.by_place[pid].name))
     tc = trip.decision["trip_context"]
     hard, budget = tc.get("hard_filters") or [], tc["context"].get("budget_vnd")
@@ -189,6 +232,7 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
         r = trip.routes[key]
         if validate([cx], [r], hard, set(), budget, max_leg):
             cx, r, dropped = _unpin(cx, r, day_ids, hard, budget, max_leg)
+            r = replace(r, unpinned=tuple(dropped))     # validate and every later re-check honour the same decision
             ctxs[k] = cx
             warnings += [_warn("pin_dropped", day=cx.day.index + 1, name=cx.places[i].name) for i in dropped]
         results.append(r)
@@ -248,7 +292,11 @@ def flag_warnings(decision: dict) -> list[dict]:
 def shared_output(trip: Trip) -> dict:
     """The parts of the Plan Output that do not depend on how the trip is laid out."""
     decision, travel = trip.decision, trip.travel
-    return {
+    conds = [cx.cond for cx in trip.ctxs]
+    extra = {"day_conditions": [{"day": cx.day.index + 1, "date": cx.day.date.isoformat() if cx.day.date else None,
+                                 **(describe(cx.cond) or {})} for cx in trip.ctxs],
+             "crowd_tips": crowd_tips(list(trip.by_place.values()), conds, trip.cfg)} if any(conds) else {}
+    return {**extra,
         "unplaced": [asdict(u) for u in trip.unplaced],
         "uncertainty": {"travel_source": travel.source, "rough_pairs": travel.rough_pairs,
                         "estimated": ["travel_minutes", "visit_minutes", "cost"]},

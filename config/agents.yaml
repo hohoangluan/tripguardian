@@ -1,0 +1,3 @@
+# Process-wide quota for calls using the shared Agent runtime.
+max_parallel: 2
+max_waiting: 16

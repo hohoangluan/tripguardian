@@ -10,7 +10,9 @@ from urllib.parse import parse_qs, urlparse
 from pydantic import ValidationError
 
 from .engine import Engine, TurnInput
+from .profile import USER_ID
 
+PROFILE = re.compile(r"/api/trip/profile/([A-Za-z0-9_-]{8,64})")
 SESSION = re.compile(r"/api/trip/sessions/([0-9a-f]{12})")
 TURN = re.compile(r"/api/trip/sessions/([0-9a-f]{12})/turn")
 
@@ -47,10 +49,13 @@ def handler(engine: Engine):
             except json.JSONDecodeError:
                 return self._json(400, {"error": "body is not JSON"})
             if path == "/api/trip/sessions":
-                exp, start = body.get("experience"), body.get("start_with")
+                exp, start, uid, remember = (body.get("experience"), body.get("start_with"), body.get("user_id"),
+                                             body.get("remember", False))
                 if exp not in (None, "first", "returning") or start not in (None, "nothing", "saved", "must", "itinerary"):
                     return self._json(400, {"error": "bad experience / start_with"})
-                return self._json(200, engine.create(exp, start))
+                if not isinstance(remember, bool) or (uid is not None and not (isinstance(uid, str) and USER_ID.fullmatch(uid))):
+                    return self._json(400, {"error": "bad user_id / remember"})
+                return self._json(200, engine.create(exp, start, uid, remember))
             if m := TURN.fullmatch(path):
                 try:
                     inp = TurnInput.model_validate(body)
@@ -75,6 +80,11 @@ def handler(engine: Engine):
                     traceback.print_exc(file=sys.stderr)
                     emit("error", {"message": "Máy chủ gặp lỗi, bạn thử lại nhé."})
                 return
+            self._json(404, {"error": "not found"})
+
+        def do_DELETE(self):
+            if m := PROFILE.fullmatch(urlparse(self.path).path):
+                return self._json(200, {"forgotten": engine.forget(m[1])})
             self._json(404, {"error": "not found"})
 
         def log_message(self, *args):

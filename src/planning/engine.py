@@ -4,6 +4,8 @@ version that undo / redo moves between.
 """
 
 import asyncio
+import hashlib
+import json
 import threading
 import traceback
 import urllib.error
@@ -14,14 +16,16 @@ from typing import Awaitable, Callable
 
 import live
 
-from .build import prepare, schedule_trip, with_home
+from .build import prepare, pull_early, schedule_trip, with_home
 from .lodging import candidates as lodging_candidates
 from .objectives import LABEL, add_lodging_cost, choose, metrics, score
 from .repair import repair_day
 from .robustness import robustness as robustness_of
 from .backup import backups as backups_of
+from .conditions import crowd_tips, describe
 from .agent import AgentError
 from .guard import TurnPlan, guard
+from .proposal import PlanningProposal
 from .policy import DONE, NONE as NO_PLAN_SAY, policy
 from .scope import LODGING_FETCH, LODGING_HOME, NONE, RELAYOUT, VARIANT, act_scope, widest
 from .session import ActCtx, ActionError, Session, State, Store
@@ -71,7 +75,7 @@ class Engine:
     def __init__(self, records: list[dict], cfg: Settings | None = None, live_cfg=None, store: Store | None = None,
                 geocode_fn=None, matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None,
                 decision_url: str | None = None, http_post=None, background: bool = True,
-                agent: "Agent | None" = None):
+                agent: "Agent | None" = None, proposal_agent=None, conditions_fn=None):
         self.by_id = {r["id"]: r for r in records}
         self.records = records
         self.cfg = cfg or load_settings()
@@ -86,6 +90,8 @@ class Engine:
         self.http_post = http_post or _http_post
         self.background = background
         self.agent = agent
+        self.proposal_agent = proposal_agent
+        self.conditions_fn = conditions_fn      # (decision, by_id) -> (weather, signals); None = no live conditions
         self._base: dict[str, _Base] = {}
         self._schedules: dict[str, list] = {}
 
@@ -106,12 +112,13 @@ class Engine:
     # ---------- Trip / variants (no lodging) ----------
 
     def _prepare(self, decision: dict, extra_nodes: dict | None = None):
+        weather, signals = self.conditions_fn(decision, self.by_id) if self.conditions_fn else (None, None)
         return prepare(decision, self.records, self.cfg, self.live_cfg, self.geocode_fn, self.matrix_fn, self.sun_fn,
-                       extra_nodes=extra_nodes)
+                       weather, extra_nodes=extra_nodes, signals=signals)
 
     def _build_base(self, decision: dict) -> _Base:
         trip = self._prepare(decision)
-        objectives = choose(decision["trip_context"], [cx.rain for cx in trip.ctxs], trip.ctxs[0].prefs, self.cfg)
+        objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, self.cfg)
         variants, seen = [], set()
         for obj in objectives:
             s = schedule_trip(trip, self.cfg.objective_weights[obj])
@@ -224,7 +231,7 @@ class Engine:
             results = next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant)
         by_place = self._places_for(s, base)
         home = self._home_for(s, base)
-        _, ctxs = self._ctxs_for(base.trip, by_place, home, s.state)
+        _, ctxs = self._ctxs_for(base.trip, by_place, home, s.state, results)
         days = [cx.day for cx in ctxs]
         from .build import itinerary as render_itinerary
         from .build import travel_load as render_travel_load
@@ -239,6 +246,9 @@ class Engine:
                            "candidates": [{"id": c["id"], "name": c["name"], "price_vnd": c["price_vnd"]}
                                          for c in self._offered_lodging(base, s.state)]},
                "itinerary": active[0] if active else None, "travel_load": active[1] if active else None,
+               "day_conditions": [{"day": cx.day.index + 1, "date": cx.day.date.isoformat() if cx.day.date else None,
+                                   **(describe(cx.cond) or {})} for cx in base.trip.ctxs if cx.cond],
+               "crowd_tips": crowd_tips(list(base.trip.by_place.values()), [cx.cond for cx in base.trip.ctxs], self.cfg),
                "state": s.state.model_dump(mode="json")}
 
     def load(self, sid: str) -> dict:
@@ -276,7 +286,8 @@ class Engine:
             return state.lodging_point["id"]
         return state.lodging_id
 
-    def _ctxs_for(self, trip, by_place: dict, home: str | None, state: State):
+    def _ctxs_for(self, trip, by_place: dict, home: str | None, state: State, results: list | None = None):
+        """results: days already laid out; their windows get the scheduler's own early start for a sunrise place."""
         t2 = trip if home in (None, trip.days[0].start_node if trip.days else None) else with_home(trip, home)
         ctxs = list(t2.ctxs)                 # a fresh list: never mutate t2.ctxs (shared with base.trip) in place
         if state.pace_override and state.pace_override != t2.pace:
@@ -285,6 +296,9 @@ class Engine:
             if 0 <= day < len(ctxs):
                 ctxs[day] = replace(ctxs[day], day=replace(ctxs[day].day, start=lo, end=hi))
         ctxs = [replace(cx, places=by_place) for cx in ctxs]
+        if results is not None:
+            ctxs = [pull_early(cx, [i.place_id for i in r.items if i.kind == "visit"], by_place, t2.travel)[0]
+                    for cx, r in zip(ctxs, results)] + ctxs[len(results):]
         return t2, ctxs
 
     def _members(self, s: Session, prev_results: list) -> list:
@@ -439,6 +453,8 @@ class Engine:
         forward-looking validation (e.g. pick_lodging's still-offered check) is not -- the action already passed
         it once, when it was first performed."""
         t = action.get("type")
+        if t == "recommend":
+            return self._proposal_trial(base, s2, old_state, prev_results, action["proposal"])[1]
         if t == "set_lodging" and action.get("_point"):
             self._ensure_lodging_node(base, s2.decision, action["_point"])
         if t == "pick_variant":
@@ -533,6 +549,99 @@ class Engine:
             self.store.save(s)
             return {"view": self._view(s), "diff": {"scope": act_scope(action)}}
 
+    # ---------- internal recommendation ----------
+
+    def _proposal_trial(self, base, session, state, previous, proposal):
+        trial = session.model_copy(deep=True)
+        trial.states = [state.model_copy(deep=True)]
+        trial.position = 0
+        ctx = ActCtx(base.trip.by_place, len(base.trip.days), {v['id'] for v in base.variants},
+                     {}, [list(r.order) for r in previous], set(LABEL), set(self.cfg.per_day))
+        trial.states[0] = _apply(trial.state, {'type': 'pick_variant', 'id': proposal['variant_id']}, ctx)
+        seed = next(v['_results'] for v in base.variants if v['id'] == proposal['variant_id'])
+        # Rebuild for the chosen objective with the user's pace, day windows, home and edits.
+        results, _ = self._rebuild_variant(base, trial)
+        for action in proposal.get('acts', []):
+            ctx = replace(ctx, day_members=[list(r.order) for r in results])
+            old = trial.state
+            trial.states[0] = _apply(old, action, ctx)
+            results = self._compute_results(base, trial, old, results, action)
+        return trial.state, results
+
+    def recommend(self, sid: str) -> dict:
+        """One proposal over a deterministic baseline; only validated drafts become session state."""
+        self._get(sid)
+        with self.store.lock(sid):
+            base = self._ensure_base(sid)
+            session = self._get(sid)
+            if not base.variants:
+                return {'id': sid, 'view': self._view(session),
+                        'proposal': {'status': 'fallback', 'diagnostics': ['no_valid_baseline']}}
+            if session.state.chosen_variant is None:
+                self.act(sid, {'type': 'pick_variant', 'id': base.variants[0]['id']})
+            previous = self._turn_current(session, base)
+            view = self._view(session)
+            snapshot = {'session': session.model_dump(mode='json'), 'view': view}
+            fingerprint = hashlib.sha256(json.dumps(snapshot, sort_keys=True, default=str).encode()).hexdigest()
+            diagnostics = {f'warning:{i}': w for i, w in enumerate(view['warnings'])}
+            fields = {'fingerprint': fingerprint, 'variants': view['variants'], 'diagnostics': diagnostics,
+                      'state': view['state'], 'itinerary': view['itinerary'],
+                      'hard_filters': session.decision['trip_context'].get('hard_filters') or []}
+            status, log = 'fallback', []
+            try:
+                if self.proposal_agent is None:
+                    raise ActionError('proposal_unavailable')
+                async def call():
+                    return await asyncio.wait_for(self.proposal_agent(fields), timeout=self.cfg.total_s)
+                raw = asyncio.run(call())
+                proposal = PlanningProposal.model_validate(raw).model_dump(mode='json')
+                current = {'session': session.model_dump(mode='json'), 'view': self._view(session)}
+                current_fp = hashlib.sha256(json.dumps(current, sort_keys=True, default=str).encode()).hexdigest()
+                if proposal['fingerprint'] != fingerprint or current_fp != fingerprint:
+                    raise ActionError('stale_fingerprint')
+                if any(reason not in diagnostics for reason in proposal['reasons']):
+                    raise ActionError('unknown_diagnostic')
+                state, results = self._proposal_trial(base, session, session.state, previous, proposal)
+                def membership(rs):
+                    return sorted(pid for r in rs for pid in r.order)
+                if membership(results) != membership(previous):
+                    raise ActionError('membership_changed')
+                anchors = {c['id'] for c in session.decision['confirmed'] if c.get('role') == 'anchor'}
+                decision_locked = {c['id'] for c in session.decision['confirmed']
+                                   if c.get('role') == 'locked'}
+                protected = anchors | decision_locked | set(session.state.locked)
+                def slots(rs):
+                    return [(day, item) for day, result in enumerate(rs) for item in result.items
+                            if item.place_id in protected]
+                if slots(results) != slots(previous):
+                    raise ActionError('protected_slot_changed')
+                _, ctxs = self._ctxs_for(base.trip, self._places_for(session, base),
+                                         self._home_for(session, base), state, results)
+                from .validate import validate
+                tc = session.decision['trip_context']
+                if validate(ctxs, results, tc.get('hard_filters') or [], anchors,
+                            tc['context'].get('budget_vnd'), (tc.get('pace') or {}).get('max_leg_min')):
+                    raise ActionError('validation_failed')
+                # Compare both validated schedules with the CURRENT objective, never the
+                # proposed variant's objective. score() includes travel as its tie-breaker.
+                objective = session.state.objective_override or next(
+                    v['objective'] for v in base.variants if v['id'] == session.state.chosen_variant)
+                baseline_metrics = metrics(ctxs, previous)
+                draft_metrics = metrics(ctxs, results)
+                if score(objective, draft_metrics) > score(objective, baseline_metrics):
+                    raise ActionError('objective_worse')
+                committed = session.model_copy(deep=True)
+                committed.states = session.states[:session.position + 1] + [state]
+                committed.log = session.log[:session.position] + [{'action': {'type': 'recommend', 'proposal': proposal}}]
+                committed.position += 1
+                self.store.save(committed)
+                session.states, session.log, session.position = committed.states, committed.log, committed.position
+                self._schedules[sid] = self._schedules.get(sid, [None] * session.position)[:session.position] + [results]
+                status, log = 'accepted', proposal['reasons']
+            except Exception as exc:
+                log = [str(exc) if isinstance(exc, ActionError) else type(exc).__name__]
+            return {'id': sid, 'view': self._view(session), 'proposal': {'status': status, 'diagnostics': log}}
+
     # ---------- confirm ----------
 
     def confirm(self, sid: str) -> dict:
@@ -546,7 +655,7 @@ class Engine:
                 results = next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant)
             by_place = self._places_for(s, base)
             home = self._home_for(s, base)
-            trip, ctxs = self._ctxs_for(base.trip, by_place, home, s.state)
+            trip, ctxs = self._ctxs_for(base.trip, by_place, home, s.state, results)
             from .validate import validate
             tc = s.decision["trip_context"]
             anchors = {c["id"] for c in s.decision["confirmed"] if c.get("role") == "anchor"}

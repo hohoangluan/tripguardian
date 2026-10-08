@@ -1,4 +1,4 @@
-"""Trip State -> Search Input (docs/TRIP_UNDERSTANDING.md §11). Deterministic; refuses while a physical signal is open."""
+"""Trip State -> Search Input (docs/TRIP_UNDERSTANDING.md §9). Deterministic; refuses while a physical signal is open."""
 
 from .state import (AnchorRef, Context, HardFilter, NoveltySpec, PaceSpec, SearchInput, SoftKey, SoftWeight, TripState,
                     WEIGHT_SIGN, ontology, pending_signals, unknown_fields)
