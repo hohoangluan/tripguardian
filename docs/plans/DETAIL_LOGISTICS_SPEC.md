@@ -122,7 +122,7 @@ Thứ tự trong Understand, sau khi chat xong và trước `ready`: **xuất ph
 
 ### 3.1 Điểm xuất phát — `origin`
 
-- Câu hỏi `origin`, `input="geo"`: "Bạn khởi hành từ đâu?". Ô gõ có gợi ý giống Google Maps (debounce 300 ms, ↑/↓/Enter, mỗi dòng: tên · địa chỉ · tỉnh).
+- Câu hỏi `origin`, `input="geo"`: "Bạn khởi hành từ đâu?". Ô gõ có gợi ý ngay khi gõ giống Google Maps (component `PlaceInput`, cùng hành vi như §3.4; mỗi dòng: tên · địa chỉ · tỉnh).
 - Nguồn: `live.geosearch(text, limit=6)` mới trong `src/live/geocode/` — Photon (OSM, làm cho autocomplete), lỗi → Nominatim. Cache 30 ngày ở `data/live/geocode/`. Harness: `GET /api/harness/geo?q=`.
 - Trip State: field mới `origin: Base` (text, lat, lng, province).
 
@@ -149,7 +149,12 @@ Câu hỏi ngay sau phương tiện (hoặc chuyến), `input="lodging"`: **ô t
 
 - `text`: **"Cho mình biết nơi bạn sẽ lưu trú ở Đà Lạt nhé."**
 - `reason`: "Để mình tính đường đi mỗi ngày từ đúng chỗ bạn ở."
-- Ô tìm, placeholder "Tên khách sạn, homestay hoặc địa chỉ": gợi ý từ chỗ ở trong corpus §4 trước, rồi `geosearch` §3.1.
+- Ô tìm, placeholder "Tên khách sạn, homestay hoặc địa chỉ", **gợi ý ngay khi gõ** (cùng component `PlaceInput` với ô xuất phát §3.1):
+  - từ ký tự thứ 2, debounce 250 ms; tối đa 6 dòng; phần chữ khớp được tô đậm; ↑ / ↓ / Enter / Esc;
+  - thứ tự: chỗ ở trong dữ liệu của mình trước (corpus `stay` §4, hoặc thẻ live đã crawl khi corpus chưa có — tra tên ngay trên máy chủ, không chờ mạng), rồi địa chỉ từ `geosearch`;
+  - mỗi dòng: icon loại (khách sạn / homestay / địa chỉ) · tên · khu hoặc địa chỉ ngắn · ★ điểm nếu có;
+  - không có kết quả → "Không thấy nơi này. Thử gõ địa chỉ hoặc tên đường."; nguồn tìm lỗi → vẫn hiện phần gợi ý từ dữ liệu của mình.
+  - Harness: `GET /api/harness/lodging/suggest?q=` gộp hai nguồn trên.
 - Chip **"Chưa có, gợi ý giúp mình"** và lối thoát **"Bỏ qua"** sẵn có.
 
 | Người dùng | Làm gì |
