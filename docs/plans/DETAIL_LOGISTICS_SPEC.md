@@ -98,7 +98,7 @@ Người dùng (2026-10-08): ở bước Chọn nơi, người dùng nhắn đi�
 | "không thích quán giống X", "tìm chỗ kiểu X" | `trip` (+ `drop` X nếu X đang được gợi ý) | như trên; Trip Understanding tự tra X |
 | "vì sao không có Y" | không đổi gì | why-not sẵn có |
 
-**Op `trip` chạy ở harness** (`src/harness/dispatch.py`, operation `turn` ở stage `decision`): sau khi decision agent trả plan, mỗi update `trip` → `trip.apply(trip_sid, "turn", {kind: "text", text: value})` → Search Input mới → `decision.rebase(...)` → gộp ít xáo trộn §2.2 → rồi mới áp các op nơi còn lại của cùng plan. Nơi đã chọn / đã khóa giữ nguyên như `rebase` hiện tại. Lượt trip này không mở lại màn Understand.
+**Op `trip` chạy ở harness** (`src/harness/dispatch.py`, operation `turn` ở stage `decision`): decision engine áp các op nơi của plan như hiện tại và phát event `trip {texts}` cho các update `trip`; harness gọi `trip.apply(trip_sid, "refine", {text})` (operation mới của trip: chạy lượt text như thường rồi compile Search Input, không đổi card trên màn Understand) → Search Input mới → `decision.rebase(...)` (trả thêm `diff`) → gộp ít xáo trộn §2.2. Nơi đã chọn / đã khóa giữ nguyên như `rebase` hiện tại. Lượt trip này không mở lại màn Understand.
 
 **Trip Understanding mở rộng** (`src/trip/agent/tools.py`): tool mới `place_traits(place_id)` (chỉ đọc catalog) trả các feature `VERIFIED` nổi bật của X so với nơi cùng loại (giá trị + số người nhắc). Agent dùng `search_places` để ra id của X, rồi `place_traits` để biết X "như thế nào", rồi viết draft:
 - "không thích giống X" → soft `avoid` cho các nét nổi bật của X (ví dụ `noise=loud`, `crowd=high`, `tourist_trap=present`);
@@ -106,7 +106,7 @@ Người dùng (2026-10-08): ở bước Chọn nơi, người dùng nhắn đi�
 
 Guard (`src/trip/domain/guard.py`) chấp nhận draft này khi tên X có trong câu người dùng **và** giá trị nằm trong kết quả `place_traits(X)` của chính lượt đó; draft mang `inferred=True` và nguồn `place:<id>`. Vé chuyến hiện "Tránh: ồn ào, đông (giống X)", sửa / xóa được như mọi dòng. Soft không phải hard: không loại nơi nào, chỉ đổi thứ hạng (User Profile / soft là prior, không phải constraint).
 
-**Bot trả lời**: lời agent + nét đã hiểu về X + câu báo từ `diff()`, ví dụ "Mình hiểu X ồn và đông khách, nên ưu tiên chỗ yên tĩnh, ít người. Giữ 18 nơi, thay 6." kèm chip "Không phải vì ồn" / "Không phải vì đông" (bấm = gỡ đúng draft đó, rebase lại). Trip Understanding hỏi lại (nếu có) → hiện thành tin nhắn của bot kèm chip.
+**Bot trả lời**: lời agent + nét đã hiểu về X + câu báo từ `diff()`, ví dụ "Mình hiểu X ồn và đông khách, nên ưu tiên chỗ yên tĩnh, ít người. Giữ 18 nơi, thay 6.". Hiểu sai thì người dùng nói lại ("không phải vì ồn") — cùng đường `trip`, Trip Understanding gỡ draft đó.
 
 Web: `Assistant.tsx` ở bước Chọn nơi gửi `turn` như cũ; view trả về có thêm `change` để chạy chuyển cảnh §2.4.
 
