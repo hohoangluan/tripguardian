@@ -2,15 +2,54 @@
 
 from dataclasses import asdict
 
-from .catalog import Catalog
+from pydantic import ValidationError
+
+from ..infrastructure.catalog import Catalog
+from ..infrastructure.settings import Settings
 from .coverage import admissible, coverage
-from .settings import Settings
-from .state import SoftKey, TripState, pending_signals, unknown_fields
+from .questions import Question
+from .state import WEIGHT_SIGN, SoftKey, TripState, apply_drafts, pending_signals, unknown_fields
 from .values import jsonable
 
 MARKED = ("inferred", "anchor", "profile")
 TRIP_ROWS = ("start_date", "month", "days", "companions", "people", "base", "entry_point", "exit_point", "mobility",
              "arrive_at", "leave_at", "day_end")
+
+
+def to_taste(state: TripState):
+    """-> fits(candidate): passes when the place has evidence for at least one liked soft value (any, when nothing is
+    liked yet) and no evidence for an avoided one. Unknown is never against a place."""
+    love, avoid = [], []
+    for key, f in state.soft.items():
+        if f.known and WEIGHT_SIGN.get(f.value):
+            k = SoftKey.parse(key)
+            (love if WEIGHT_SIGN[f.value] > 0 else avoid).append((k.feature, k.value, k.context))
+    return lambda c: ((not love or any(c.value(fe, cx) == v for fe, v, cx in love))
+                      and not any(c.value(fe, cx) == v for fe, v, cx in avoid))
+
+
+def matching(state: TripState, catalog: Catalog | None) -> int:
+    """Places past the hard limits and to the taste so far: the "Đang hợp với bạn" count."""
+    fits = to_taste(state)
+    return sum(1 for c in (catalog.places if catalog is not None else ()) if admissible(c, state.hard) and fits(c))
+
+
+def chip_effects(state: TripState, q: Question | None, catalog: Catalog | None) -> dict[str, int]:
+    """chip id -> how many places that count gains (+) or loses (−) if this chip alone is chosen now; chips that change
+    nothing are left out. Computed on a copy of the state: nothing is written."""
+    if q is None or catalog is None:
+        return {}
+    now, out = matching(state, catalog), {}
+    for c in q.chips:
+        if not c.drafts:
+            continue
+        try:
+            after = apply_drafts(state, c.drafts, state.meta.turn + 1, tool=f"preview:{q.qid}")
+        except (ValueError, ValidationError):
+            continue
+        if n := matching(after, catalog) - now:
+            out[c.id] = n
+    return out
 
 
 def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
@@ -52,7 +91,8 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
         "unknowns": unknown_fields(state),
         "unmapped": [{"target": f"unmapped:{i}", "phrase": u.phrase} for i, u in enumerate(state.unmapped)],
         "safety_pending": bool(pending_signals(state)) or open_policy,
-        # How many places pass the hard limits right now: a fact about the current state, never a forecast.
-        "matching": sum(1 for c in places if admissible(c, state.hard)),
+        # How many places fit the trip right now: past the hard limits and to the taste so far (to_taste). A fact about
+        # the current state, never a forecast; soft values only rank later, this count does not remove anything.
+        "matching": matching(state, catalog),
         "total": len(places),
     }

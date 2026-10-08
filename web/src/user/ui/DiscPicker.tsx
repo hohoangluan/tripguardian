@@ -8,15 +8,19 @@ import { toggleSaved, useUi } from '../store'
 import { go, Hint, Photo, placeHref } from './common'
 import { HeartFill, Icon, type IconName } from './icons'
 
-const STEP = 13 // degrees between two wedges; keep equal to --step in disc.css
-const NEAR = 6 // wedges further than this from the active one are not drawn on desktop
+const BLADES = 7 // wedges on the half disc at most (3 above, the active one, 3 below): each photo stays large and clear;
+// fewer places get wider wedges (180° / count, up to MAX_STEP)
+const MAX_STEP = 45
+const NARROW = '(max-width: 900px)'
 const ICONS: IconName[] = ['tree', 'flag', 'coffee', 'suitcase', 'utensils', 'compass']
 
 // How many of the trip's wishes a card's reasons speak to; qualitative on purpose, never a bare percentage.
 const fitOf = (c: Card) => ({ level: c.why.length >= 3 ? 'Rất hợp' : c.why.length === 2 ? 'Hợp' : c.why.length === 1 ? 'Khá hợp' : 'Tạm được', matched: c.why.map((w) => w.text) })
 
-// Full-screen rotary wheel pinned to the left edge: every place is a wedge of the rim, the active one points straight at the user.
-// The hub of the wheel holds the place groups. ↑ ↓ / wheel / click a wedge turn it; ← → browse the photos of the active place.
+// Full-screen rotary wheel pinned to the left edge: the places are wedges fanned over a half disc, the active one points
+// straight at the user. It is a loop with no first place: turning past the last one comes back to the first.
+// The hub holds the place groups. Wheel or drag on the disc, ↑ ↓, or a click on a wedge turn it; ← → browse the photos.
+// The rest of the layer scrolls like a page.
 export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: { groups: Group[]; tab: string; onTab: (t: string) => void; cmp: string[]; onCmp: (id: string) => void; onDrop: (c: Card) => void; onBack: () => void }) {
   const { act, busy, more } = useDecision()
   const group = groups.find((g) => g.id === tab)
@@ -28,9 +32,12 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [g, setG] = useState(0)
   const root = useRef<HTMLDivElement>(null)
+  const zone = useRef<HTMLDivElement>(null)
   const wheel = useRef<HTMLDivElement>(null)
   const acc = useRef(0)
   const last = useRef(0)
+  const drag = useRef<{ y: number; moved: boolean } | null>(null)
+  const narrow = useMedia(NARROW)
   const saved = useUi((u) => u.saved)
   const n = ids.length
   const found = activeId ? ids.indexOf(activeId) : -1
@@ -45,46 +52,71 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
   // Near the end of the loaded places: load the group's next page.
   useEffect(() => { if (group && n < group.total && i >= n - 4) more(group.id) }, [group, n, i, more])
   const show = (k: number) => { setActive(k); setActiveId(ids[k] ?? null) }
-  const turn = (d: number) => show(Math.min(Math.max(0, i + d), Math.max(0, n - 1)))
+  const turn = (d: number) => { if (n > 1) show((((i + d) % n) + n) % n) }
+  // The half disc: up to BLADES wedges around the active one, each placed by its shortest way round the loop.
+  const blades = Math.min(n, BLADES)
+  const step = Math.min(MAX_STEP, 180 / Math.max(blades, 1))
+  const reach = Math.floor(blades / 2)
+  const rel = (k: number) => { const d = (((k - i) % n) + n) % n; return d > n / 2 ? d - n : d }
+  // A wedge that wraps from one end of the half disc to the other must jump, not sweep across the whole wheel.
+  const before = useRef(new Map<string, number>())
+  useEffect(() => { before.current = new Map(ids.map((id, k) => [id, rel(k)])) })
   const browse = (d: number) => setG((v) => (shots ? (v + d + shots) % shots : 0))
   const turnRef = useRef(turn)
   turnRef.current = turn
 
-  // The layer owns the wheel and the page behind it does not scroll.
+  // The layer scrolls like a page and the page behind it does not; the wheel over the disc turns the disc instead.
   useEffect(() => {
-    const el = root.current
-    if (!el) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    el.focus({ preventScroll: true })
+    root.current?.focus({ preventScroll: true })
+    return () => { document.body.style.overflow = prev }
+  }, [])
+  useEffect(() => {
+    const el = zone.current
+    if (!el || narrow) return
     const on = (e: WheelEvent) => {
       if (e.ctrlKey) return // pinch-zoom
-      if (matchMedia('(max-width: 900px)').matches) return // the layer scrolls itself on small screens
       e.preventDefault()
-      acc.current += e.deltaY
+      acc.current += Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
       const now = performance.now()
-      if (Math.abs(acc.current) < 40 || now - last.current < 230) return
+      if (Math.abs(acc.current) < 30 || now - last.current < 140) return
       last.current = now
       turnRef.current(acc.current > 0 ? 1 : -1)
       acc.current = 0
     }
     el.addEventListener('wheel', on, { passive: false })
-    return () => { el.removeEventListener('wheel', on); document.body.style.overflow = prev }
-  }, [])
+    return () => el.removeEventListener('wheel', on)
+  }, [narrow])
+  // Drag up or down on the disc to turn it, a wedge per 44 px; a drag never counts as a click on a wedge.
+  const dragOn = narrow ? {} : {
+    onPointerDown: (e: React.PointerEvent) => { if (e.button === 0) drag.current = { y: e.clientY, moved: false } },
+    onPointerMove: (e: React.PointerEvent) => {
+      const d = drag.current
+      if (!d || !(e.buttons & 1)) return
+      const dy = d.y - e.clientY
+      if (Math.abs(dy) < 44) return
+      d.y = e.clientY
+      d.moved = true
+      turn(dy > 0 ? 1 : -1)
+    },
+    onPointerUp: () => { window.setTimeout(() => { drag.current = null }, 0) },
+    onPointerLeave: () => { drag.current = null },
+  }
 
   // Small screens: the wheel is a strip, keep the active wedge in view.
   useEffect(() => {
-    if (!matchMedia('(max-width: 900px)').matches) return
+    if (!narrow) return
     wheel.current?.querySelector<HTMLElement>(`[data-k="${i}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
-  }, [i, tab])
+  }, [i, tab, narrow])
 
-  // The hub of the wheel: the four place groups sit on its inner arc as small icons; the name shows on hover or focus.
-  const hub = (
-    <div className="tg-disc__hub" role="group" aria-label="Nhóm địa điểm">
+  // The hub is the still centre of the wheel; the place groups are named tabs above the place, readable at any size.
+  const hub = <div className="tg-disc__hub" aria-hidden="true" />
+  const tabs = (
+    <div className="tg-disc__tabs" role="tablist" aria-label="Nhóm địa điểm">
       {groups.map((t, k) => (
-        <button key={t.id} type="button" className="tg-disc__cat" aria-pressed={tab === t.id} aria-label={`${t.label}, ${t.total} nơi`} style={{ '--ha': `${(k - (groups.length - 1) / 2) * 24}deg` } as CSSProperties} onClick={() => onTab(t.id)}>
-          <Icon name={ICONS[k % ICONS.length]} size={18} />
-          <span className="tg-disc__tip" aria-hidden="true">{t.label} <b>{t.total}</b></span>
+        <button key={t.id} type="button" role="tab" className="tg-tab" aria-selected={tab === t.id} onClick={() => onTab(t.id)}>
+          <Icon name={ICONS[k % ICONS.length]} size={16} />{t.label}<b>{t.total}</b>
         </button>
       ))}
     </div>
@@ -109,7 +141,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
       <div className="tg-disc__field">
         {back}
         <div className="tg-disc__zone">{hub}</div>
-        <p className="tg-disc__none">Chưa có nơi nào ở nhóm này.</p>
+        <section className="tg-disc__main">{tabs}<p className="tg-disc__none">Chưa có nơi nào ở nhóm này. Thử nhóm khác.</p></section>
       </div>,
     )
   }
@@ -126,19 +158,22 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
   return shell(
     <div className="tg-disc__field">
       {back}
-      <div className="tg-disc__zone">
+      <div className="tg-disc__zone" ref={zone} title="Lăn chuột hoặc kéo để xoay; ↑ ↓ cũng được" {...dragOn}>
         {hub}
-        <div className="tg-disc__wheel" key={tab} ref={wheel} role="listbox" aria-label="Danh sách nơi" aria-activedescendant={`tg-disc-${c.id}`} style={{ '--rot': `${-i * STEP}deg` } as CSSProperties}>
+        <div className="tg-disc__wheel" key={tab} ref={wheel} role="listbox" aria-label="Danh sách nơi" aria-activedescendant={`tg-disc-${c.id}`} style={{ '--step': `${step}deg` } as CSSProperties}>
           {ids.map((id, k) => {
-            const d = k - i
+            const d = narrow ? k - i : rel(k)
+            if (!narrow && Math.abs(d) > reach) return null
             const pl = cards[k]
             const ph = info(id)?.photos[0]
             const on = d === 0
+            const was = before.current.get(id)
+            const jump = was === undefined || Math.abs(was - d) > 1
             return (
-              <div key={id} id={`tg-disc-${id}`} role="option" aria-selected={on} data-k={k} data-far={Math.abs(d) > NEAR || undefined}
-                className={`tg-disc__wedge ${on ? 'is-on' : ''}`}
-                style={{ '--a': `${k * STEP}deg`, '--fade': on ? 1 : Math.max(0.3, 1 - Math.abs(d) * 0.16) } as CSSProperties}>
-                <button type="button" className="tg-disc__cut" onClick={() => show(k)} tabIndex={-1} aria-label={on ? pl.name : `Xoay tới ${pl.name}`}>
+              <div key={id} id={`tg-disc-${id}`} role="option" aria-selected={on} data-k={k}
+                className={`tg-disc__wedge ${on ? 'is-on' : ''} ${jump ? 'is-jump' : ''}`}
+                style={{ '--d': d, '--fade': on ? 1 : Math.max(0.42, 1 - Math.abs(d) * 0.11) } as CSSProperties}>
+                <button type="button" className="tg-disc__cut" onClick={() => { if (!drag.current?.moved) show(k) }} tabIndex={-1} aria-label={on ? pl.name : `Xoay tới ${pl.name}`}>
                   <Photo photo={ph} alt="" className="tg-disc__ph" eager />
                   <span className="tg-disc__nm">{pl.name}</span>
                   {pl.chosen && <i className="tg-disc__check"><Icon name="check" size={12} /></i>}
@@ -150,6 +185,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
       </div>
 
       <section className="tg-disc__main" aria-live="polite">
+        {tabs}
         <div className="tg-disc__show" key={c.id}>
           <div className="tg-disc__copy">
             <p className="tg-disc__kick"><i />{[c.category, p?.area ?? c.area].filter(Boolean).join(' · ')}</p>
@@ -202,12 +238,6 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
           <div><dt>Giá</dt><dd>{c.price ?? priceText(p?.price) ?? 'Chưa có dữ liệu'}</dd></div>
         </dl>
 
-        <div className="tg-disc__nav">
-          <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => turn(-1)} disabled={i === 0}><Icon name="chevronUp" size={16} /> Nơi trước</button>
-          <span className="tg-mono" aria-label={`Nơi ${i + 1} trên ${n}`}>{i + 1} / {n}</span>
-          <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => turn(1)} disabled={i >= n - 1}>Nơi sau <Icon name="chevronDown" size={16} /></button>
-          <p className="tg-disc__hint"><kbd>↑</kbd><kbd>↓</kbd> hoặc cuộn: đổi nơi <i /> <kbd>←</kbd><kbd>→</kbd>: xem ảnh</p>
-        </div>
       </section>
     </div>,
   )
@@ -217,4 +247,15 @@ const clip = (s: string, max: number) => {
   const t = s.replace(/\s+/g, ' ').trim()
   if (t.length <= max) return t
   return t.slice(0, max).replace(/\s+\S*$/, '') + '…'
+}
+
+function useMedia(query: string) {
+  const [on, setOn] = useState(() => matchMedia(query).matches)
+  useEffect(() => {
+    const m = matchMedia(query)
+    const f = () => setOn(m.matches)
+    m.addEventListener('change', f)
+    return () => m.removeEventListener('change', f)
+  }, [query])
+  return on
 }

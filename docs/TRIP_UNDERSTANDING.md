@@ -211,6 +211,8 @@ Chưa rõ    ngân sách · ăn uống
 ```
 
 - `✎` = từ profile hoặc suy luận. User sửa tại chỗ, kể cả phần lấy từ profile.
+- Sở thích suy từ một nơi người dùng so sánh ghi nguồn `place:<id>` trong evidence; vé gộp chúng thành một dòng "Tránh: ồn, đông (giống X)", xóa dòng đó là xóa cả nhóm.
+- "Đang hợp với bạn" = số nơi qua giới hạn cứng và hợp gu hiện tại (`understanding.matching`). Mỗi chip của thẻ đang mở mang `effect`: số nơi đó tăng (+) hay giảm (−) nếu chỉ chọn chip này, tính trên bản sao Trip State (`chip_effects`, khoảng 8 ms một thẻ trên corpus thật); chip không đổi gì thì không có số. Web hiện số trên chip và ghi bốn lựa chọn gần nhất kèm +/−.
 - Sửa ở đây là override **của chuyến này**, không tự ghi vào long-term profile.
 - Mục "Chưa rõ" hiển thị công khai, không giấu.
 

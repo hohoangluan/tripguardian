@@ -4,6 +4,7 @@ export interface Chip {
   id: string
   label: string
   row: string | null
+  effect?: number | null // places the "Đang hợp với bạn" count gains (+) or loses (−) if this chip alone is chosen
 }
 
 export interface Card {
@@ -115,7 +116,7 @@ export interface SearchInput {
 
 export type TurnInput =
   | { kind: 'text'; text: string }
-  | { kind: 'answer'; qid: string; chips: string[]; text?: string; value?: string | null }
+  | { kind: 'answer'; qid: string; chips: string[]; value?: string | null }
   | { kind: 'edit'; target: string; value: string | null }
   | { kind: 'show' }
 

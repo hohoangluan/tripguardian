@@ -5,6 +5,7 @@ import type { Card } from '../pd/types'
 import { requestStageEntry } from '../journey'
 import { nudge, openAssistant, setUi, useUi } from '../store'
 import { DROP_LABEL, useTrip, type DropReason } from '../trip'
+import { placesDelta } from '../tu/labels'
 import { AssistantFloat, AssistantPinned } from '../ui/Assistant'
 import { ArtHills, Empty, go, placeHref, PlacePhoto } from '../ui/common'
 import { DiscPicker } from '../ui/DiscPicker'
@@ -60,6 +61,16 @@ export function Explore() {
   useEffect(() => { if (foodSel >= 3) nudge(`Bạn đã chọn ${foodSel} quán cà phê. Thêm một chỗ ăn trưa chứ?`) }, [foodSel])
   const onCmp = (id: string) => setCmp((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= 3 ? [...c.slice(1), id] : [...c, id]))
   const goCompare = (ids: string[]) => go(`/explore/compare/${ids.map(encodeURIComponent).join(',')}`)
+  // The header count moved (a chat wish, an edited ticket): show by how much next to it.
+  const listed = view ? view.groups.filter((g) => g.id !== 'anchors').reduce((n, g) => n + g.total, 0) : null
+  const lastListed = useRef<number | null>(null)
+  const [listMove, setListMove] = useState<{ key: number; delta: number } | null>(null)
+  useEffect(() => {
+    if (listed === null) return
+    const before = lastListed.current
+    lastListed.current = listed
+    if (before !== null && before !== listed) setListMove({ key: Date.now(), delta: listed - before })
+  }, [listed])
   // Tabs whose list changed in the last rebuild while the user looked elsewhere: "+N mới" until they open it.
   const [fresh, setFresh] = useState<Record<string, number>>({})
   useEffect(() => {
@@ -148,7 +159,7 @@ export function Explore() {
               <div>
                 <p className="tg-kicker">Bước 2 · Chọn nơi</p>
                 <h1>Gợi ý cho chuyến của bạn</h1>
-                <p>{total - anchors.length} nơi hợp với chuyến của bạn, xếp từ hợp nhất. <button type="button" className="tg-link" onClick={() => openAssistant(true)}>Chat để thu hẹp</button></p>
+                <p>{total - anchors.length} nơi hợp với chuyến của bạn{listMove && <span key={listMove.key} className={`tg-xhead__delta tg-mono ${listMove.delta < 0 ? 'is-down' : 'is-up'}`}>{placesDelta(listMove.delta)}</span>}, xếp từ hợp nhất. <button type="button" className="tg-link" onClick={() => openAssistant(true)}>Chat để thu hẹp</button></p>
               </div>
               <div className="tg-xhead__ops">
                 <div className="tg-seg" role="group" aria-label="Cách xem"><button type="button" aria-pressed={mode === 'grid'} onClick={() => setMode('grid')}><Icon name="grid" size={15} /> Lưới</button><button type="button" aria-pressed={mode === 'disc'} disabled={!groups.length} onClick={() => setMode('disc')}><Icon name="compass" size={15} /> Đĩa xoay</button></div>

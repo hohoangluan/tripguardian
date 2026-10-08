@@ -246,7 +246,7 @@ Mỗi lần dựng lại (act, lượt chat, rebase), cửa sổ cũ `old` gộp
 2. `len(keep) < replace_below × len(old)` → thay hết: chỉ nơi đã chọn giữ ô, các ô còn lại lấy thứ hạng mới từ trên xuống.
 3. Ngược lại: nơi trong `keep` đứng nguyên ô; ô của nơi bị gỡ được lấp bằng nơi mới theo thứ hạng mới (ô trên cùng nhận nơi hợp nhất); cửa sổ không dài hơn cũ.
 
-View mang `change[group] = {kept, added, removed, replaced_all}` để web chạy chuyển cảnh. `page_size` = 24, `keep_factor` = 2, `replace_below` = 0.3 trong `config/decision.yaml`.
+View mang `change[group] = {kept, added, removed, replaced_all}` để web chạy chuyển cảnh. Sau `rebase` (Search Input mới), `diff(..., rebuilt=True)` nói gọn điều đó: "Giữ 45 nơi, thay 3 nơi hợp hơn", "Danh sách đổi theo ý bạn: 24 nơi mới" hoặc "Các nơi đang gợi ý vẫn hợp, không cần đổi"; thay đổi không làm xê dịch gì thì `text` rỗng. `rebase` giữ lịch sử hoàn tác. `why-not` của một nơi có trong danh sách nhưng nằm dưới phần đã tải trả `listed: true` và vị trí ("xếp thứ 41/60; cuộn xuống để thấy"). Prompt của agent có mọi nơi trên màn, nhưng lý do chỉ cho trang đầu mỗi nhóm và nơi đã chọn. `page_size` = 24, `keep_factor` = 2, `replace_below` = 0.3 trong `config/decision.yaml`.
 
 ## 10. So sánh
 

@@ -20,7 +20,7 @@ from ..domain.prepass import Prepass, prepass
 from ..domain.questions import READY, Question, required
 from ..domain.resolve import URL, anchor_for, search
 from ..domain.state import SCALARS, Evidence, Frozen, Meta, TripState, Update, apply, apply_drafts, settle, with_meta
-from ..domain.understanding import view as understanding
+from ..domain.understanding import chip_effects, view as understanding
 from ..infrastructure.catalog import Catalog
 from ..infrastructure.profile import ProfileStore
 from ..infrastructure.sessions import Session, SessionStore
@@ -73,11 +73,12 @@ def mark(st: TripState, q: Question) -> TripState:
     return with_meta(st, asked=asked, adaptive_turns=st.meta.adaptive_turns + int(q.tier >= 2), held=None)
 
 
-def card(q: Question | None) -> dict | None:
+def card(q: Question | None, effects: dict[str, int] | None = None) -> dict | None:
+    """effects: chip id -> places the "Đang hợp với bạn" count gains or loses if that chip is chosen."""
     if q is None:
         return None
     d = q.model_dump(mode="json", exclude={"exit_drafts"})
-    d["chips"] = [{"id": c.id, "label": c.label, "row": c.row} for c in q.chips]
+    d["chips"] = [{"id": c.id, "label": c.label, "row": c.row, "effect": (effects or {}).get(c.id)} for c in q.chips]
     return d
 
 
@@ -113,7 +114,7 @@ class Engine:
                 "transcript": [{k: t[k] for k in ("role", "text", "turn")} for t in s.transcript
                                if t["role"] in ("user", "agent")],
                 "understanding": understanding(s.state, self.catalog, self.cfg),
-                "card": card(s.card)}
+                "card": self._card(s.state, s.card)}
 
     def forget(self, user_id: str) -> bool:
         """Delete everything stored about a user. False when nothing was stored (or learning is off)."""
@@ -180,7 +181,7 @@ class Engine:
         q = s.card
         if q is None or q.qid != inp.qid:
             emit("error", {"message": "Câu này đã qua, bạn trả lời câu mới nhất nhé."})
-            emit("card", card(s.card))
+            emit("card", self._card(s.state, s.card))
             return
         if "show" in inp.chips:
             return self._show(s, inp, emit)
@@ -230,7 +231,7 @@ class Engine:
         """chips: scalar values chips set earlier in this same turn; a typed value that replaced one is said aloud."""
         text = inp.text.strip()
         if not text:
-            emit("card", card(s.card))
+            emit("card", self._card(s.state, s.card))
             return
         if not chips and (chip := chip_echo(text, s.card)):  # typed a chip's label: the same as tapping it
             qid = s.card.qid
@@ -271,14 +272,14 @@ class Engine:
         stale = s.card is not None and (s.card.qid == "prior" or (s.card.tier == 1 and req is None))
         if stale or (req and (s.card is None or s.card.qid != req.qid)):
             s.card = req or next_question(s.state, self.catalog, self.cfg)
-            emit("card", card(s.card))
+            emit("card", self._card(s.state, s.card))
 
     def _show(self, s: Session, inp: TurnInput, emit: Emit) -> None:
         req = required(s.state, self.catalog, self.cfg)
         if req:
             s.card = req
             emit("say", {"replace": SAFETY_SAY if req.group == "C" else MISSING_SAY})
-            emit("card", card(req))
+            emit("card", self._card(s.state, req))
             return
         si = compile_search_input(s.state)
         self._remember(s)
@@ -344,6 +345,9 @@ class Engine:
         except OSError as e:
             s.transcript.append({"role": "system", "text": f"profile not saved: {e}", "turn": m.turn})
 
+    def _card(self, state: TripState, q: Question | None) -> dict | None:
+        return card(q, chip_effects(state, q, self.catalog))
+
     def _close_card(self, s: Session) -> None:
         if s.card:
             s.transcript.append({"role": "agent", "text": s.card.text, "turn": s.state.meta.turn, "kind": "card"})
@@ -351,4 +355,4 @@ class Engine:
     def _advance(self, s: Session, emit: Emit, question: Question | None = None) -> None:
         s.card = question or next_question(s.state, self.catalog, self.cfg)
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
-        emit("card", card(s.card))
+        emit("card", self._card(s.state, s.card))

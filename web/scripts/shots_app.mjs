@@ -57,6 +57,7 @@ try {
       else break
     }
     await page.waitForTimeout(1200)
+    if (i === 2) await shot('understand-delta')
   }
   await page.waitForURL(/\/app\/explore/, { timeout: 180000 })
   await page.waitForSelector('.tg-pc', { timeout: 120000 })
@@ -77,6 +78,33 @@ try {
   await page.waitForTimeout(1500)
   await shot('explore-narrowed')
   await page.keyboard.press('Escape')
+  step('disc: wheel on the disc turns it, the layer does not scroll')
+  await page.getByRole('button', { name: /Đĩa xoay/ }).click()
+  await page.waitForSelector('.tg-disc__wedge.is-on', { timeout: 30000 })
+  await shot('disc')
+  const name0 = await page.locator('.tg-disc__copy h2').innerText()
+  const zone = await page.locator('.tg-disc__zone').boundingBox()
+  await page.mouse.move(zone.x + zone.width * 0.6, zone.y + zone.height / 2)
+  for (let k = 0; k < 3; k++) { await page.mouse.wheel(0, 120); await page.waitForTimeout(260) }
+  const name1 = await page.locator('.tg-disc__copy h2').innerText()
+  const top1 = await page.locator('.tg-disc').evaluate((el) => el.scrollTop)
+  console.log('disc turned:', name0 !== name1, '| layer scrollTop after wheel on disc:', top1)
+  await shot('disc-turned')
+  for (let k = 0; k < 4; k++) { await page.mouse.wheel(0, -120); await page.waitForTimeout(260) }
+  await shot('disc-wrapped')
+  const main = await page.locator('.tg-disc__main').boundingBox()
+  await page.mouse.move(main.x + main.width / 2, main.y + main.height / 2)
+  await page.mouse.wheel(0, 400)
+  await page.waitForTimeout(400)
+  const fits = await page.locator('.tg-disc').evaluate((el) => ({ top: el.scrollTop, overflow: el.scrollHeight - el.clientHeight }))
+  console.log('wheel on content scrolls the layer:', fits)
+  await shot('disc-content-scrolled')
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.waitForTimeout(500)
+  await shot('disc-1280x720')
+  await page.setViewportSize({ width: W, height: 900 })
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.tg-grid', { timeout: 10000 })
   // the group with most cards, so compare has two places to put side by side
   const tabs = await page.$$('.tg-tab')
   let best = null, most = -1

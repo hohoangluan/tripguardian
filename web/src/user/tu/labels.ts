@@ -64,3 +64,6 @@ export function softGroups(rows: SoftRow[]): { key: string; rows: SoftRow[]; tex
 
 export const hardText = (h: HardRow) =>
   HARD_TEXT[h.feature] ?? `${featureLabel(h.feature)} ${h.op === 'ne' ? 'khác' : 'là'} ${valueLabel(h.value)}`
+
+// "−1.384 nơi" / "+120 nơi": a change in the matching count, with a real minus sign.
+export const placesDelta = (n: number) => `${n < 0 ? '−' : '+'}${Math.abs(n).toLocaleString('vi-VN')} nơi`

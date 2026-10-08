@@ -47,7 +47,7 @@ def test_chip_answer_needs_no_agent(make):
     sid = e.create("first", "nothing")["id"]
     ev = answer_frame(e, sid)  # days, companions and mobility only: settled without the agent
     assert names(ev) == ["preview", "say", "state", "card"] and ev[-1][1]["qid"] == "dates"
-    assert all(set(c) == {"id", "label", "row"} for c in ev[-1][1]["chips"])
+    assert all(set(c) == {"id", "label", "row", "effect"} for c in ev[-1][1]["chips"])  # never the drafts
     ev = run(e, sid, kind="answer", qid="dates", chips=("undecided",))
     assert names(ev) == ["state", "card"] and agent.calls == 0
 
@@ -333,3 +333,16 @@ def test_refine_never_ends_its_reply_with_a_question_no_card_will_answer(ready_e
     e.refine(sid, "muốn yên tĩnh hơn", lambda ev, d: events.append((ev, d)))
     said = [d for ev, d in events if ev == "say"]
     assert said[-1] == {"replace": "Mình ưu tiên chỗ yên tĩnh."}
+
+
+def test_every_chip_of_the_card_carries_its_effect_on_the_matching_count(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    answer_frame(e, sid)
+    for _ in range(12):
+        c = e.load(sid)["card"]
+        assert all("effect" in x for x in c["chips"])
+        if any(x["effect"] for x in c["chips"]) or c["qid"] in ("ready", "show_first"):
+            break
+        run(e, sid, kind="answer", qid=c["qid"], chips=tuple([x["id"] for x in c["chips"]][:1] or ["skip"]))
+    assert any(x["effect"] for x in c["chips"]), c["qid"]
