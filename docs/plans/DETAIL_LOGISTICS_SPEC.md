@@ -100,11 +100,11 @@ Người dùng (2026-10-08): ở bước Chọn nơi, người dùng nhắn đi�
 
 **Op `trip` chạy ở harness** (`src/harness/dispatch.py`, operation `turn` ở stage `decision`): decision engine áp các op nơi của plan như hiện tại và phát event `trip {texts}` cho các update `trip`; harness gọi `trip.apply(trip_sid, "refine", {text})` (operation mới của trip: chạy lượt text như thường rồi compile Search Input, không đổi card trên màn Understand) → Search Input mới → `decision.rebase(...)` (trả thêm `diff`) → gộp ít xáo trộn §2.2. Nơi đã chọn / đã khóa giữ nguyên như `rebase` hiện tại. Lượt trip này không mở lại màn Understand.
 
-**Trip Understanding mở rộng** (`src/trip/agent/tools.py`): tool mới `place_traits(place_id)` (chỉ đọc catalog) trả các feature `VERIFIED` nổi bật của X so với nơi cùng loại (giá trị + số người nhắc). Agent dùng `search_places` để ra id của X, rồi `place_traits` để biết X "như thế nào", rồi viết draft:
+**Trip Understanding mở rộng** (`src/trip/domain/traits.py`): khi câu có "giống / kiểu / như / tương tự" + tên một nơi tra được trong catalog (`resolve.search` sẵn có), engine tra **trước** các nét nổi bật của nơi đó — feature đã phục vụ (`Known`) có giá trị khác giá trị phổ biến của các nơi cùng category, xếp theo số người nhắc — và đưa vào ngữ cảnh agent (`compared_places`). Không cần tool step, không qua Clef. Agent viết draft:
 - "không thích giống X" → soft `avoid` cho các nét nổi bật của X (ví dụ `noise=loud`, `crowd=high`, `tourist_trap=present`);
 - "kiểu X" → soft `love` cho các nét đó.
 
-Guard (`src/trip/domain/guard.py`) chấp nhận draft này khi tên X có trong câu người dùng **và** giá trị nằm trong kết quả `place_traits(X)` của chính lượt đó; draft mang `inferred=True` và nguồn `place:<id>`. Vé chuyến hiện "Tránh: ồn ào, đông (giống X)", sửa / xóa được như mọi dòng. Soft không phải hard: không loại nơi nào, chỉ đổi thứ hạng (User Profile / soft là prior, không phải constraint).
+Guard (`src/trip/domain/guard.py`) chấp nhận draft soft `inferred` nhắc tên X khi giá trị nằm trong nét nổi bật của X ở chính lượt đó; draft mang `inferred=True` và nguồn `place:<id>`. Vé chuyến hiện "Tránh: ồn ào, đông (giống X)", sửa / xóa được như mọi dòng. Soft không phải hard: không loại nơi nào, chỉ đổi thứ hạng (User Profile / soft là prior, không phải constraint).
 
 **Bot trả lời**: lời agent + nét đã hiểu về X + câu báo từ `diff()`, ví dụ "Mình hiểu X ồn và đông khách, nên ưu tiên chỗ yên tĩnh, ít người. Giữ 18 nơi, thay 6.". Hiểu sai thì người dùng nói lại ("không phải vì ồn") — cùng đường `trip`, Trip Understanding gỡ draft đó.
 
@@ -193,7 +193,7 @@ w_pref > w_loc   (config/planning.yaml lodging_weights; khởi điểm pref 2.0,
 | Phần | Test |
 |---|---|
 | A | `pick_covers.py` trên 3 nơi (dry run, in thứ hạng); `shots_app.mjs` mở modal từ đĩa và từ lưới, chụp từng tab |
-| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore. `src/decision` guard: op `trip` hợp lệ; `src/trip`: "không thích quán giống X" → soft avoid đúng các nét `place_traits(X)`, nét không có trong `place_traits` bị guard từ chối; `src/harness`: plan có `trip` → trip state đổi + rebase + nơi đã chọn còn nguyên, rồi mới áp op nơi |
+| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore. `src/decision` guard: op `trip` hợp lệ; `src/trip`: "không thích quán giống X" → soft avoid đúng các nét nổi bật của X, nét không có trong đó bị guard từ chối; `src/harness`: plan có `trip` → trip state đổi + rebase + nơi đã chọn còn nguyên, rồi mới áp op nơi |
 | C | `src/trip`: chuỗi `origin → arrival_mode → inbound/outbound → lodging_booked`; chọn chuyến điền `arrive_at`/`leave_at` và bỏ câu `times`; "Tự đi" suy `entry_point` |
 | C live | parser Google Flights / Vexere chạy trên HTML mẫu lưu trong `tests/fixtures/`; cache có → không mở trình duyệt; lỗi crawl → `Unavailable`, không trả chuyến giả; `src/live` không có đường ghi tới `data/intel`, `data/serving`, `data/gmaps` |
 | C' corpus | `gmaps list` giữ chỗ ở vào `<city>_stay.json`, nơi tham quan không lẫn vào; feature ngoài tập `stay` không được ghi cho chỗ ở |
