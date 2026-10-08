@@ -1,31 +1,30 @@
 """One conversation turn (docs/TRIP_UNDERSTANDING.md §4).
 
-answer / edit / show are deterministic. text runs prepass -> S1 (Laya, when loaded) -> agent (streamed) -> guard; any
-S1 or agent failure is answered by the rest of the chain with the same state.
+answer / edit / show are deterministic. text runs through the agent graph
+(prepare -> reason with streamed say -> guard -> finalize).
 """
 
-import asyncio
 from datetime import date
 from typing import Awaitable, Callable, Literal
 
 from pydantic import ValidationError
 
-from . import values
-from .agent import AgentError, prompt_fields
-from .catalog import Catalog
-from .compile import compile_search_input
-from .guard import TurnPlan, drop_questions, guard
-from .heuristics import chip_echo, simple_frame
-from .patterns import Summary, seed, votes_from_state
-from .policy import next_question
-from .prepass import Prepass, prepass
-from .profile import ProfileStore
-from .questions import READY, Question, rank_questions, required
-from .resolve import URL, anchor_for, search
-from .sessions import Session, SessionStore
-from .settings import Settings
-from .state import SCALARS, Anchor, Evidence, Frozen, Meta, TripState, Update, apply, apply_drafts, settle, with_meta
-from .understanding import view as understanding
+from ..agent import TextFlow
+from ..domain import values
+from ..domain.compile import compile_search_input
+from ..domain.guard import TurnPlan, drop_questions
+from ..domain.heuristics import chip_echo
+from ..domain.patterns import Summary, seed, votes_from_state
+from ..domain.policy import next_question
+from ..domain.prepass import Prepass, prepass
+from ..domain.questions import READY, Question, required
+from ..domain.resolve import URL, anchor_for, search
+from ..domain.state import SCALARS, Evidence, Frozen, Meta, TripState, Update, apply, apply_drafts, settle, with_meta
+from ..domain.understanding import view as understanding
+from ..infrastructure.catalog import Catalog
+from ..infrastructure.profile import ProfileStore
+from ..infrastructure.sessions import Session, SessionStore
+from ..infrastructure.settings import Settings
 
 Emit = Callable[[str, dict], None]
 Agent = Callable[[dict, Callable[[str], None]], Awaitable[TurnPlan]]
@@ -61,7 +60,7 @@ def gained(before: TripState, after: TripState) -> bool:
 
 def touched(q: Question, before: TripState, after: TripState) -> bool:
     """Did a turn write one of the fields this card asks about? An agent-written card has no drafts: any gain counts."""
-    if q.custom:
+    if q.custom or not (q.chips or q.input_field):  # an open card is answered by anything the turn added
         return gained(before, after)
     fields = {x.field for c in q.chips for x in c.drafts} | ({q.input_field} if q.input_field else set())
     attrs = {a for f in fields for a in WRITES.get(f, (f,)) if a in TripState.model_fields}
@@ -88,6 +87,7 @@ class Engine:
         """profiles: stored patterns (config patterns.enabled); None = no long-term learning."""
         self.catalog, self.cfg, self.store, self.agent, self.today = catalog, cfg, store, agent, today
         self.profiles = profiles
+        self._text_flow = TextFlow(self)
 
     # ---------- reads ----------
 
@@ -144,6 +144,22 @@ class Engine:
             finally:
                 self.store.save(s)
 
+    def refine(self, sid: str, text: str, emit: Emit) -> None:
+        """A wish typed later, at Chọn nơi: read it like any text turn, then compile again. The Understand screen's
+        card is left as it was; only say / state / done leave this method."""
+        s = self.store.get(sid)
+        quiet = lambda ev, d: None if ev == "card" else emit(ev, d)  # noqa: E731
+        with s.lock:
+            try:
+                card_before = s.card
+                self._text_flow.invoke(s, TurnInput(kind="text", text=text), quiet, None)
+                s.card = card_before
+                if required(s.state, self.catalog, self.cfg) is None:
+                    si = compile_search_input(s.state)
+                    emit("done", {"search_input": si.model_dump(mode="json")})
+            finally:
+                self.store.save(s)
+
     def _answer(self, s: Session, inp: TurnInput, emit: Emit) -> None:
         q = s.card
         if q is None or q.qid != inp.qid:
@@ -154,6 +170,8 @@ class Engine:
             return self._show(s, inp, emit)
         exit_ = next((x for x in ("skip", "unsure") if x in inp.chips), None)
         chosen = [c for c in q.chips if c.id in inp.chips]
+        if not (exit_ or chosen or inp.value) and inp.text.strip():  # only the "other answer" box: a text turn
+            return self._text(s, TurnInput(kind="text", text=inp.text), emit)
         if q.custom and not exit_:
             text = ", ".join([c.label for c in chosen] + ([inp.text.strip()] if inp.text.strip() else []))
             return self._text(s, TurnInput(kind="text", text=text), emit)
@@ -203,65 +221,7 @@ class Engine:
             self._answer(s, TurnInput(kind="answer", qid=qid, chips=(chip,)), emit)
             s.transcript.append({"role": "system", "text": f"heuristic:chip_echo {qid}:{chip}", "turn": s.state.meta.turn})
             return
-        st, prev = s.state, s.card
-        before = st
-        turn = st.meta.turn + 1
-        self._close_card(s)
-        s.transcript.append({"role": "user", "text": text, "turn": turn, "kind": "text"})
-        pre = prepass(text, self.today())
-        emit("preview", {"fields": [{"target": p.field, "value": values.jsonable(p.value), "quote": p.quote}
-                                    for p in pre.proposals]})
-        st = with_meta(st, turn=turn, unsure_streak=0)
-        # the open card counts as asked once the message writes one of its fields. A message that does not (off topic,
-        # a question back) leaves it open; the next such message closes it as before, so a vague reply cannot loop.
-        hold = prev if prev and prev.qid not in st.meta.asked and st.meta.held != prev.qid else None
-        if prev and not hold:
-            st = mark(st, prev)
-        st = self._deterministic(st, text, pre, turn)
-        simple = simple_frame(text, pre)
-        if hold and touched(hold, before, st):
-            st, hold = mark(st, hold), None
-        req = required(st, self.catalog, self.cfg)
-        ranked = rank_questions(st, self.catalog, self.cfg)[:5]
-        fields = {} if simple else prompt_fields(st, text, pre, req, ranked, self.cfg, prev.text if prev else None, self.today())
-        streamed: list[str] = []
-
-        def on_say(delta: str) -> None:
-            streamed.append(delta)
-            emit("say", {"delta": delta})
-
-        heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
-        try:
-            if simple:
-                st = settle(st)
-                q, say, log = next_question(st, self.catalog, self.cfg), "Mình đã ghi nhận thông tin chuyến đi.", ["heuristic:frame"]
-            else:
-                g = guard(asyncio.run(self.agent(fields, on_say)), st, text, turn, self.catalog, self.cfg, heard)
-                st, q, say, log = g.state, g.question, g.say, g.log
-        except AgentError as e:
-            st, say, log = settle(st), FALLBACK_SAY, [f"agent_fallback: {e}"]
-            q = next_question(st, self.catalog, self.cfg)
-        if hold and touched(hold, before, st):  # the agent answered the card
-            st, hold = mark(st, hold), None
-            if q and q.qid == prev.qid:
-                q, say = next_question(st, self.catalog, self.cfg), drop_questions(say)
-        elif hold:
-            st = with_meta(st, held=hold.qid)
-        st, q, say = self._idle(before, st, prev, q, say)  # a held card still counts toward the idle stop
-        typed = [f"“{f.evidence[-1].quote}”" for k, v in (chips or {}).items()
-                 if (f := getattr(st, k)).value != v and f.evidence and f.evidence[-1].quote]
-        if typed:
-            say = f"{say} {TYPED_WINS.format(', '.join(typed))}".strip()
-        if prev and prev.tier == 1 and prev.qid != "frame" and q and q.qid == prev.qid:
-            say = f"{say} {NUDGE_SAY}".strip()  # typed past a card only a chip can answer
-        if say != "".join(streamed):
-            emit("say", {"replace": say})
-        if say:
-            s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
-        if log:
-            s.transcript.append({"role": "system", "text": "; ".join(log), "turn": turn})
-        s.state = st
-        self._advance(s, emit, q)
+        self._text_flow.invoke(s, inp, emit, chips)
 
     def _edit(self, s: Session, inp: TurnInput, emit: Emit) -> None:
         ev = Evidence(turn=s.state.meta.turn, tool="edit")

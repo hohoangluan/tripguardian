@@ -1,5 +1,5 @@
-from trip.guard import PlanNext, PlanUpdate, TurnPlan, guard
-from trip.state import Evidence, TripState, Update, apply, with_meta
+from trip.domain.guard import PlanNext, PlanUpdate, TurnPlan, guard
+from trip.domain.state import Evidence, TripState, Update, apply, with_meta
 
 TEXT = "Tháng 12 đi 3 ngày với bố mẹ, muốn yên tĩnh"
 
@@ -95,3 +95,24 @@ def test_an_agent_question_does_not_repeat_what_the_rules_already_ask(catalog, c
                                source="user", confidence="medium", evidence=ev))
     g = run(plan(custom_text="Chill với bạn là gì?", custom_chips=("Yên", "Vắng")), s, catalog, cfg)
     assert g.question.qid == "clarify:chill" and not g.question.custom and "already waiting" in g.log[-1]
+
+
+COMPARED = [{"id": "0x1:0x1", "name": "Cà Phê Ồn Ào Phố Núi",
+             "traits": [{"feature": "noise", "value": "loud", "n": 12}, {"feature": "crowd", "value": "high", "n": 8}]}]
+LIKE = "không thích quán giống Cà Phê Ồn Ào Phố Núi"
+
+
+def test_inferred_soft_from_a_compared_place_is_kept_only_for_its_traits(catalog, cfg):
+    p = plan(u("soft", "noise=loud:avoid", LIKE, "add", "inferred"), u("soft", "cozy_decor=present:avoid", LIKE, "add", "inferred"))
+    g = guard(p, framed(), LIKE, 2, catalog, cfg, heard=LIKE, compared=COMPARED)
+    assert "noise=loud" in g.state.soft and "cozy_decor=present" not in g.state.soft
+    assert any("not a trait" in line for line in g.log)
+
+
+def test_say_may_name_the_compared_place_but_no_other(catalog, cfg):
+    text = "không thích quán giống Quán Nhạc Sống 7"
+    compared = [{"id": "0x7:0x1", "name": "Quán Nhạc Sống 7", "traits": [{"feature": "noise", "value": "loud", "n": 5}]}]
+    p = plan(u("soft", "noise=loud:avoid", text, "add", "inferred"), say="Mình hiểu Quán Nhạc Sống 7 khá ồn.")
+    assert guard(p, framed(), text, 2, catalog, cfg, heard=text, compared=compared).say == "Mình hiểu Quán Nhạc Sống 7 khá ồn."
+    other = plan(say="Thử Vườn Phẳng Lặng Xanh nhé.")
+    assert guard(other, framed(), text, 2, catalog, cfg, heard=text, compared=compared).say == ""

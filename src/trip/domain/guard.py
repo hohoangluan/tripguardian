@@ -7,10 +7,10 @@ from typing import Literal
 from pydantic import ValidationError
 
 from . import values
-from .catalog import Catalog
+from ..infrastructure.catalog import Catalog
+from ..infrastructure.settings import Settings
 from .policy import askable, next_question
 from .questions import READY, Chip, Question, clarify_q, prior_q, required
-from .settings import Settings
 from .state import SCALARS, Evidence, Frozen, TripState, Update, apply, settle
 from .text import contains, squash
 
@@ -51,13 +51,20 @@ class Guarded:
 
 
 def guard(plan: TurnPlan, state: TripState, text: str, turn: int, catalog: Catalog, cfg: Settings,
-          heard: str) -> Guarded:
-    """text: this turn's message (quotes must come from it); heard: every user message so far (numbers allowed in say)."""
+          heard: str, compared: list[dict] | None = None) -> Guarded:
+    """text: this turn's message (quotes must come from it); heard: every user message so far (numbers allowed in say);
+    compared: places this message compares the trip to, with their traits (trip.domain.traits)."""
     log: list[str] = []
     for u in plan.updates:
         if not contains(text, u.quote):
             log.append(f"drop {u.field}={u.value!r}: quote {u.quote!r} not in the message")
             continue
+        if u.field == "soft" and u.how == "inferred" and compared:
+            named = [c for c in compared if contains(u.quote, c["name"])]
+            key = values.split_weight(u.value)[0].replace(" ", "")
+            if named and key not in {f"{t['feature']}={t['value']}" for c in named for t in c["traits"]}:
+                log.append(f"drop soft={u.value!r}: not a trait of {named[0]['name']!r}")
+                continue
         ev = Evidence(turn=turn, quote=u.quote)
         said = u.how == "said"
         op = u.op if u.field in LIST_FIELDS else ("remove" if u.op == "remove" else "set")
@@ -80,7 +87,7 @@ def guard(plan: TurnPlan, state: TripState, text: str, turn: int, catalog: Catal
     say = plan.say.strip()
     if question.custom is False and plan.next.qid != question.qid:
         say = drop_questions(say)  # the card asks something else: keep the acknowledgement
-    why = _bad_say(say, heard, state, catalog)
+    why = _bad_say(say, heard, state, catalog, {c["id"] for c in compared or ()})
     if why:
         log.append(f"say replaced: {why}")
         say = ""
@@ -122,14 +129,14 @@ def _question(nx: PlanNext, state: TripState, turn: int, catalog: Catalog, cfg: 
     return next_question(state, catalog, cfg)
 
 
-def _bad_say(say: str, heard: str, state: TripState, catalog: Catalog) -> str | None:
+def _bad_say(say: str, heard: str, state: TripState, catalog: Catalog, compared: set[str]) -> str | None:
     said = set(re.findall(r"\d+", heard))
     extra = [n for n in re.findall(r"\d+", say) if n not in said]
     if extra:
         return f"numbers {extra} the user did not say"
-    anchors = {a.place_id for a in state.anchors if a.place_id}
+    named = {a.place_id for a in state.anchors if a.place_id} | compared  # the user named these
     s = f" {squash(say)} "
     for key, pid in catalog.name_keys:
-        if pid not in anchors and f" {key} " in s:
+        if pid not in named and f" {key} " in s:
             return f"names place {pid}"
     return None

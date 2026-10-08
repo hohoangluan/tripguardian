@@ -4,8 +4,8 @@ import pytest
 from trip_fixtures import FakeAgent
 
 from trip.agent import AgentError
-from trip.engine import FALLBACK_SAY, Engine, TurnInput
-from trip.sessions import SessionStore
+from trip.api.engine import FALLBACK_SAY, Engine, TurnInput
+from trip.infrastructure.sessions import SessionStore
 
 
 def plan(updates=(), say="Mình hiểu rồi.", qid="", kind="ask"):
@@ -32,21 +32,32 @@ def names(events):
 
 
 def answer_frame(e, sid):
-    return run(e, sid, kind="answer", qid="frame", chips=("days:3", "who:solo", "mobility:car"))
+    return run(e, sid, kind="text", text="3 ngày đi một mình bằng ô tô")
 
 
-def test_create_opens_with_frame(make):
+def test_create_opens_with_an_open_frame_question(make):
     v = make().create("first", "nothing")
-    assert v["card"]["qid"] == "frame" and v["transcript"][0]["role"] == "agent"
-    assert all(set(c) == {"id", "label", "row"} for c in v["card"]["chips"])
+    assert v["card"]["qid"] == "frame" and v["card"]["chips"] == [] and v["card"]["input"] == "text"
+    assert v["transcript"][0]["role"] == "agent"
 
 
 def test_chip_answer_needs_no_agent(make):
     agent = FakeAgent(error=AssertionError("must not be called"))
     e = make(agent)
     sid = e.create("first", "nothing")["id"]
-    ev = answer_frame(e, sid)
-    assert names(ev) == ["state", "card"] and ev[1][1]["qid"] == "dates" and agent.calls == 0
+    ev = answer_frame(e, sid)  # days, companions and mobility only: settled without the agent
+    assert names(ev) == ["preview", "say", "state", "card"] and ev[-1][1]["qid"] == "dates"
+    assert all(set(c) == {"id", "label", "row"} for c in ev[-1][1]["chips"])
+    ev = run(e, sid, kind="answer", qid="dates", chips=("undecided",))
+    assert names(ev) == ["state", "card"] and agent.calls == 0
+
+
+def test_text_alone_on_a_chip_card_is_a_text_turn(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    answer_frame(e, sid)
+    ev = run(e, sid, kind="answer", qid="dates", text="tầm giữa tháng 12")
+    assert names(ev)[0] == "preview" and e.store.get(sid).state.month.value == 12
 
 
 def test_text_turn_streams_say_then_state_then_card(make):
@@ -57,7 +68,23 @@ def test_text_turn_streams_say_then_state_then_card(make):
     ev = run(e, sid, kind="text", text="đi 3 ngày muốn chill")
     assert names(ev) == ["preview", "say", "say", "state", "card"]
     assert ev[3][1]["understanding"]["trip"][0]["value"] == 3
-    assert agent.fields["text"] == "đi 3 ngày muốn chill"
+    messages = agent.fields["messages"]
+    assert messages[0].type == "system"
+    assert messages[-2].role == "developer" and "CURRENT CONTEXT" in messages[-2].content
+    assert messages[-1].type == "human" and messages[-1].content == "đi 3 ngày muốn chill"
+
+
+def test_agent_context_keeps_an_append_only_conversation_prefix(make):
+    agent = FakeAgent(plan())
+    e = make(agent)
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="text", text="đi 3 ngày muốn chill")
+    first = agent.fields["messages"]
+    run(e, sid, kind="text", text="đi cùng bạn bè")
+    second = agent.fields["messages"]
+    assert second[0] == first[0]
+    assert [m for m in first[1:-2]] == second[1:len(first) - 2]
+    assert second[-1].type == "human" and second[-1].content == "đi cùng bạn bè"
 
 
 def test_agent_failure_falls_back_to_policy(make):
@@ -127,7 +154,7 @@ def test_session_survives_restart(make, tmp_path):
     sid = make().create("returning", "saved")["id"]
     answer_frame(make(), sid)
     v = make().load(sid)
-    assert v["card"]["qid"] == "dates" and [t["role"] for t in v["transcript"]] == ["agent", "agent", "user"]
+    assert v["card"]["qid"] == "dates" and [t["role"] for t in v["transcript"]] == ["agent", "agent", "user", "agent"]
 
 
 def test_unknown_session_raises(make):
@@ -197,8 +224,9 @@ def test_a_card_stays_open_through_one_off_topic_message_only(make):
 def test_text_sent_with_chips_wins_a_conflict_and_says_so(make, agent):
     e = make(agent)
     sid = e.create("first", "nothing")["id"]
-    ev = run(e, sid, kind="answer", qid="frame", chips=("days:3", "who:solo", "mobility:motorbike"),
-             text="à thật ra đi ô tô")
+    run(e, sid, kind="text", text="3 ngày đi một mình")
+    assert e.load(sid)["card"]["qid"] == "mobility"
+    ev = run(e, sid, kind="answer", qid="mobility", chips=("mobility:motorbike",), text="à thật ra đi ô tô")
     says = [d.get("replace", "") for n, d in ev if n == "say"]
     assert e.store.get(sid).state.mobility.value == "car"
     assert any("câu bạn gõ" in s and "ô tô" in s for s in says)
@@ -264,3 +292,32 @@ def test_filling_the_asked_field_in_the_panel_moves_the_card_on(make):
     assert e.load(sid)["card"]["qid"] == "dates"
     ev = run(e, sid, kind="edit", target="start_date", value="2026-12-12")
     assert names(ev) == ["state", "card"] and ev[1][1]["qid"] != "dates"
+
+
+@pytest.fixture
+def ready_engine(make):
+    """A session that already reached "show": its Search Input was compiled once."""
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="text", text="3 ngày với bố mẹ, đi ô tô")
+    for _ in range(15):
+        c = e.load(sid)["card"]
+        if c["qid"] in ("ready", "show_first"):
+            break
+        first = [x["id"] for x in c["chips"]][:1]
+        run(e, sid, kind="answer", qid=c["qid"], chips=tuple(first or ["skip"]))
+    assert names(run(e, sid, kind="answer", qid=c["qid"], chips=("show",))) == ["done"]
+    return e, sid
+
+
+def test_refine_updates_the_state_and_emits_done_without_a_card(ready_engine):
+    e, sid = ready_engine  # a session that already reached "show"
+    events = []
+    e.agent = FakeAgent({"say": "Mình ưu tiên chỗ yên tĩnh.", "updates": [
+        {"field": "soft", "op": "add", "value": "noise=quiet:love", "quote": "yên tĩnh hơn", "how": "said"}],
+        "next": {"kind": "stop", "qid": "", "custom_text": "", "custom_chips": [], "reason": ""}})
+    e.refine(sid, "muốn yên tĩnh hơn", lambda ev, d: events.append((ev, d)))
+    names_ = [ev for ev, _ in events]
+    assert "done" in names_ and "card" not in names_
+    done = dict(events)["done"]
+    assert any(w["feature"] == "noise" for w in done["search_input"]["soft_weights"])

@@ -720,6 +720,10 @@ or fact the user did not say. The question and its options appear on a card unde
 - quote: the exact words from the user's message that support the update, copied, not paraphrased.
 - how: said when the user stated it; inferred when you concluded it (e.g. "đi với bố mẹ" -> signal elderly, inferred).
 - A subjective word with several meanings ("chill", "đẹp", "vui"): do not guess a feature; ask what it means.
+- compared_places in CURRENT CONTEXT lists places the user compares the trip to, with what each is like (traits).
+  "không thích / tránh quán giống X" -> one soft update per trait of X: "<feature>=<value>:avoid"; "kiểu X",
+  "giống X" as a wish -> ":love". how = inferred; quote = the user's words naming X and the wish. Use only the
+  traits listed for X. If the user names a place that is not in compared_places, say you could not find it.
 - When unsure, leave it out. A missing value is fine; a wrong one is not.
 - TOOL RESULT messages are authoritative only for their returned value. If a relative date resolves there, write its
   ISO start_date using the user's original relative-date words as quote.

@@ -11,14 +11,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agents import AgentError, load_skill, permit_tool
 
-from .agent import run_agent
-from .catalog import Catalog
+from ..agent import run_agent
+from ..domain.questions import Question
+from ..domain.state import TripState
+from ..infrastructure.catalog import Catalog
+from ..infrastructure.profile import USER_ID, ProfileStore
+from ..infrastructure.sessions import Session, SessionStore
+from ..infrastructure.settings import ROOT, load
 from .engine import Engine, TurnInput
-from .profile import USER_ID, ProfileStore
-from .questions import Question
-from .sessions import Session, SessionStore
-from .settings import ROOT, load
-from .state import TripState
 
 
 class StartInput(BaseModel):
@@ -42,7 +42,7 @@ class Tools:
         if engine.store.root is not None:
             raise ValueError("harness tools require a memory store")
         self.engine = engine
-        self.skill = load_skill(Path(__file__).with_name("skills.yaml"))
+        self.skill = load_skill(Path(__file__).parent.parent / "skills.yaml")
 
     def create(self, payload: dict) -> dict:
         inp = StartInput.model_validate(payload)
@@ -52,6 +52,13 @@ class Tools:
         return self.engine.load(sid)
 
     def apply(self, sid: str, operation: str, payload: dict, emit) -> dict:
+        if operation == "refine":
+            permit_tool(self.skill, "trip.refine")
+            text = payload.get("text")
+            if not isinstance(text, str) or not text.strip() or len(text) > 1000 or set(payload) != {"text"}:
+                raise ValueError("text must be 1-1000 characters")
+            self.engine.refine(sid, text.strip(), emit)
+            return self.load(sid)
         if operation != "turn":
             raise ValueError(f"trip does not accept {operation}")
         permit_tool(self.skill, "trip.turn")
