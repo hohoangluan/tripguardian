@@ -76,6 +76,8 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 | `EXTRACTOR_PARALLEL` | Số call đồng thời endpoint Extractor nhận (38 host LAN, 36 UIT; thiếu → 36) |
 | `JUDGE_ENGINE`, `JUDGE_FIRST_MODEL` | `gemma`: audit chạy trên Extractor, một vòng; trống: audit chạy trên vai trò Judge. First reader tùy chọn |
 | `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_MODEL` | Key, endpoint và model chung cho agent Trip/Decision và Planning nội bộ; thiếu thì lượt chữ dùng `policy.py`, proposal giữ baseline tất định |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Clef System 1 cấp allowlist tool đọc cho Trip |
+| `CLEF_MODEL`, `CLEF_MODEL_ID`, `CLEF_TIMEOUT_S` | Model, Workers AI model id và timeout của Clef |
 | `DATA_DIR` | Gốc dữ liệu thô (mặc định `data`) |
 | `LIVE_CONTACT` | Liên hệ gửi trong User-Agent của request live context (Nominatim yêu cầu) |
 
@@ -84,6 +86,8 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
 Extractor gọi host LAN, Agent gọi UIT trong mạng campus, ASR trên GPU local, Judge gọi UIT (38 call).
+
+Task `decision_turn` trả update `select | drop | lock | travel | crowd | price | trip | visited`; gu và mong muốn về chuyến luôn là `trip` (đi sang Trip Understanding qua harness), không có op gu riêng ở Decision. Task `trip_turn` nhận thêm `compared_places` trong `CURRENT CONTEXT` (nơi người dùng so sánh "giống X" kèm nét nổi bật lấy từ catalog) và chỉ được viết soft `inferred` từ đúng các nét đó (`docs/TRIP_UNDERSTANDING.md` §4).
 
 Vai trò Agent chạy **trong một phiên người dùng**, có ngân sách thời gian: chờ token đầu `first_token_s` giây, cả call `total_s` giây (`config/trip.yaml`, `config/decision.yaml`, `config/planning.yaml`); quá thì Trip/Decision dùng `policy.py`, Planning nội bộ giữ baseline. Runtime chung `agents.run_structured` validate JSON/schema, giới hạn concurrency/queue qua `config/agents.yaml`; quota này chỉ trong tiến trình (`docs/AGENT_HARNESS.md` §5). Guard của module kiểm grounding/quyền; proposal Planning thử trên nháp rồi qua validator và điểm mục tiêu (`docs/PLANNING.md` §Agent đề xuất nội bộ).
 

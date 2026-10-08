@@ -106,7 +106,8 @@ Luồng lặp theo từng lượt hội thoại, không phải một form tuần
 
 ```text
 ① NẠP PRIOR        Mẫu dài hạn đã lưu (nếu có user id, §17) + anchor/link đã có → Trip State nháp
-② MỞ ĐẦU           Câu tự do + thẻ khung bằng chip (ngày · đi với ai · đi lại bằng gì)
+② MỞ ĐẦU           Một câu hỏi mở, không chip: kể về chuyến đi mơ ước sắp tới. Các câu sau là thẻ
+                   có chip gợi ý + ô "đáp án khác", hỏi tiếp từ điều user đã kể
 ③ TRÍCH XUẤT       LLM tách một câu thành nhiều field; phát hiện từ chủ quan ("chill", "yên tĩnh")
                    và tín hiệu nhạy cảm ("bố mẹ", "trẻ nhỏ", "đau gối", "say xe")
 ④ GỘP + XUNG ĐỘT   Nhu cầu hiện tại ghi đè profile theo thứ tự §2; xung đột rõ thì tự xử lý, không hỏi
@@ -122,9 +123,17 @@ Phân vai:
 | Việc | Ai làm | Lý do |
 |---|---|---|
 | Tách field từ câu tự do, phát hiện từ chủ quan, sinh câu nối tiếp / laddering, diễn đạt theo giọng §13 | LLM | Ngôn ngữ tự do, mơ hồ |
+| Cấp quyền tool đọc theo câu user | Clef | System 1 trả nhãn có xác suất, lỗi thì không cấp quyền |
+| Chạy tool, kiểm argument và giới hạn lượt | Code | Tool không tự ghi Trip State, không bịa argument |
 | Chọn câu tiếp theo, điều kiện dừng, ghi Trip State, biên dịch Search Input | Rule tất định | Test được, tái lập được, không trôi hành vi khi đổi model |
 
 LLM được đề xuất câu hỏi nối tiếp (nhóm I), nhưng câu trả lời luôn được chuẩn hóa về field của Trip State.
+
+Prompt Agent là chuỗi chat append-only: system prompt + ontology bất biến, transcript user/agent của phiên, rồi `CURRENT CONTEXT` (Trip State chuẩn hóa, prepass, câu bắt buộc, candidate) và câu user mới. Prefix cũ giữ nguyên để provider có prompt cache có thể tái dùng; `CURRENT CONTEXT` là nguồn sự thật khi transcript mâu thuẫn, không để model tự khôi phục giá trị cũ. Khi Clef cấp quyền, Agent có thể gọi tối đa `tool_steps` tool đọc (`resolve_relative_date`, `search_places`); argument phải là span trong câu user, kết quả chỉ được đưa lại Agent làm context và mọi update vẫn qua `guard`.
+
+**So sánh với một nơi** ("không thích quán giống X", "kiểu X"): khi câu có "giống / kiểu / như / tương tự" và ngay sau đó là tên một nơi tra được trong catalog (`resolve.search`, tên đầy đủ có trong câu), `domain/traits.py` tính trước các **nét nổi bật** của nơi đó: feature đã phục vụ (`Known`) có giá trị khác giá trị phổ biến nhất của các nơi cùng category, xếp theo số người nhắc, tối đa 4 nét, tối đa 2 nơi mỗi câu. Chúng vào `CURRENT CONTEXT` dưới `compared_places`; không cần tool step. Agent viết soft `inferred`: "không thích giống X" → `<feature>=<value>:avoid` cho từng nét, "kiểu X" → `:love`. Guard bỏ soft `inferred` có quote nhắc X mà giá trị không nằm trong nét của X ở chính lượt đó, và cho `say` nhắc tên X (như anchor). Soft chỉ đổi thứ hạng, không loại nơi nào. X không có trong catalog → không có `compared_places`, agent nói không tìm thấy.
+
+**Lượt `refine`** (`Engine.refine`, tool `trip.refine`): mong muốn người dùng gõ ở bước Chọn nơi, harness chuyển sang. Chạy như một lượt chữ, giữ nguyên thẻ đang mở của màn Hiểu chuyến đi (không phát `card`), rồi compile lại; đủ trường bắt buộc thì phát `done {search_input}`.
 
 ## 5. Chọn câu hỏi tiếp theo
 
@@ -336,7 +345,7 @@ Bộ câu hỏi là **ngân hàng**, không phải form; nhóm A–I là nhóm c
 | User chọn `Không chắc` nhiều câu liền | Bạn muốn xem vài gợi ý trước rồi chỉnh không? | [16], [17] |
 | User bỏ một đề xuất | Vì sao bạn bỏ địa điểm này? (`Project_Context.md` §8.3) | [17] |
 
-Cài đặt: `src/trip/questions.py` (ngân hàng + rule tầng 1), `config/trip.yaml` (`turn_budget`, `idle_limit`, `stop_score`, `top_k`, `patterns`). Căn cứ nghiên cứu của từng nguyên tắc đặt câu hỏi: `Project_Context.md` §12.1.
+Cài đặt: `src/trip/domain/questions.py` (ngân hàng + rule tầng 1), `config/trip.yaml` (`turn_budget`, `idle_limit`, `stop_score`, `top_k`, `patterns`). Căn cứ nghiên cứu của từng nguyên tắc đặt câu hỏi: `Project_Context.md` §12.1.
 
 ## 13. Giọng điệu
 
@@ -374,6 +383,8 @@ POST   /api/trip/sessions/<id>/turn  SSE: say(delta|replace) · view · done · 
 GET    /api/trip/places?q=<tên>    tra địa điểm cho anchor / nơi đã lưu (chỉ đọc serving index)
 ```
 
+Qua harness, `Tools.apply` nhận thêm operation `refine {text}` (chỉ harness gọi, sau lượt chat ở Chọn nơi): say · state · done, không có card.
+
 Module:
 
 ```
@@ -384,6 +395,7 @@ src/trip/
   catalog.py        đọc serving index: tên → place_id, coverage của hard filter
   prepass.py        rule tất định đọc câu người dùng trước khi gọi model
   resolve.py        tên người dùng nêu → place_id, hoặc unmapped
+  traits.py         nét nổi bật của nơi người dùng so sánh ("giống X"), chỉ từ catalog
   values.py         chuẩn hóa giá trị về field của Trip State
   questions.py      ngân hàng câu hỏi (§12) + rule tầng 1 + chấm giá trị thông tin (§6)
   coverage.py       hard filter này có đủ bằng chứng trong corpus để đáng hỏi không

@@ -25,7 +25,7 @@ module → corpus / live qua public API, chỉ đọc Place Intelligence
 | `src/harness/server.py`, `__main__.py` | HTTP/SSE localhost, CLI |
 | `web/src/user/journey.ts` | Client chung: tuần tự mutation, retry và khôi phục pending request |
 
-Skill là khai báo do repo quản lý, không phải code thực thi hay skill tải từ người dùng. Workflow mô tả bước xử lý; `permit_tool` kiểm capability tại adapter. Tool đọc được prefetch vào context, LLM trả plan có schema; không có vòng gọi tool mở. Các agent dùng chung cấu hình model nhưng context, schema và quyền riêng.
+Skill là khai báo do repo quản lý, không phải code thực thi hay skill tải từ người dùng. Workflow mô tả bước xử lý; `permit_tool` kiểm capability tại adapter. Trip dùng tool loop đọc bị chặn: Clef chỉ cấp allowlist theo câu user, Agent gọi tối đa số bước trong `config/trip.yaml`, code validate argument và chạy tool; `guard` vẫn là đường duy nhất ghi state. Call lập kế hoạch chạy song song với Clef (`trip.agent.runtime.run_agent`): Clef không cấp tool → giữ kết quả call đó, `say` giữ lại tới lúc Clef trả lời; Clef cấp tool → hủy call sớm trước bước tool, nên một lượt không bao giờ giữ hai permit Agent. Các agent dùng chung cấu hình model nhưng context, schema và quyền riêng.
 
 Trip/Decision có lượt chat. Planning có call riêng cho proposal nội bộ và không nhận `turn` qua router; quyền và kiểm chứng proposal ở `docs/PLANNING.md` §Agent đề xuất nội bộ. `live` cung cấp tool, không có agent LLM riêng. Corpus giữ pipeline offline riêng.
 
@@ -37,7 +37,11 @@ Trip/Decision có lượt chat. Planning có call riêng cho proposal nội bộ
 | `decision` | `turn`, `act`, `advance`, `back` | `advance` → confirm Decision và tạo Planning; `back` → Trip |
 | `planning` | `act`, `recommend`, `confirm`, `back` | `confirm` → Plan Output; `back` → Decision |
 
+Lịch ngầm (`preview`) là đọc: harness lấy Decision Output nháp (`decision` read `draft`, không lưu) dưới khóa hành trình, rồi gọi `planning.Tools.preview` ngoài khóa; Planning dựng phương án không tạo phiên và cache theo hash Decision Output (15 phút, tối đa 16), `create` khi `advance` dùng lại đúng bản đã dựng. Web gọi sau mỗi thay đổi ở Chọn nơi, debounce 350 ms.
+
 Request đến stage không active bị từ chối. Router không gọi LLM và không chọn agent từ tên tool hoặc lời model. `advance`, `back`, `recommend`, `confirm` chỉ nhận payload rỗng; client không gửi output để thay handoff đã kiểm.
+
+Lượt chat ở Chọn nơi có mong muốn về chuyến (`turn` stage `decision` mà Decision phát event `trip {texts}`): harness gọi `trip.apply(trip_sid, "refine", {text})` (Trip đọc như một lượt chữ, compile lại, không đổi thẻ màn Hiểu chuyến đi), thay `outputs.trip` bằng Search Input mới rồi `decision.rebase`. Event `view` của lượt được thay bằng view sau rebase (kèm `diff`), lời Trip nối sau lời Decision trong cùng bong bóng (`say {replace}`), event `trip` không ra web. Trip không compile được (còn thiếu trường bắt buộc) hoặc hành trình không có phiên Trip → lượt vẫn xong, Decision giữ nguyên.
 
 Quay về Decision giữ ID phiên và lựa chọn. Quay về Trip rồi compile lại dùng `rebase` trên phiên Decision đã có. Quay lại vô hiệu output ở bước sau; Planning được dựng lại khi xác nhận Decision. Act Planning giữ Decision Output làm đầu vào và vô hiệu Plan Output đã chốt.
 
@@ -70,8 +74,13 @@ Bind `127.0.0.1`; Vite proxy `/api/harness` đến cổng 8769. `./run.sh start`
 | `GET /api/harness/places?q=` | Tra nơi từ serving index |
 | `GET /api/harness/sessions/<id>/read/decision/compare?a=&b=` | So sánh |
 | `GET /api/harness/sessions/<id>/read/decision/why-not?place=` | Lý do loại |
+| `GET /api/harness/sessions/<id>/read/decision/page?group=` | Trang tiếp của một nhóm hiển thị: cửa sổ đang hiện nối thêm `page_size` nơi, lưu trong phiên → `{view}` (`docs/PLACE_DECISION.md` §9.4) |
 | `GET /api/harness/sessions/<id>/read/planning/{variants,lodging}` | Đọc phương án / tiến độ chỗ ở |
 | `GET /api/harness/sessions/<id>/planning/lodging/events` | SSE cập nhật view sau chờ chỗ ở, tối đa khoảng 10 giây |
+| `GET /api/harness/sessions/<id>/preview` | Chỉ ở stage `decision`: lịch ngầm cho lựa chọn hiện tại → `{revision, status, plan}`; `status` = `ready` / `failed` (không xếp được, kèm `back_to_decision`) / `blocked` (Decision chưa xác nhận được) / `empty` |
+| `GET /api/harness/trips?ids=a,b` | Tóm tắt tối đa 20 hành trình trình duyệt nhớ: stage, ngày, số người, nơi đã chọn, đã chốt chưa; ID lạ bị bỏ qua, không liệt kê hành trình khác |
+| `POST /api/harness/sessions/<id>/feedback` | `{scores (≤10 tên → 1–5), more_search?, note? ≤1000}` → ghi một dòng `data/harness/feedback.jsonl` |
+| `POST /api/harness/reports` | `{place_id, text, reporter}` → báo cáo thông tin sai của Decision (`corpus.review.reports`); không đổi corpus ngay |
 
 Request mẫu:
 
@@ -85,7 +94,7 @@ SSE mutation bọc `request_id`, `stage`, `revision`, `event`, `data`. `say`/`pr
 
 ## 5. Ngân sách model và kiểm chứng
 
-Chip, edit, show, act của người dùng và router không gọi LLM. `trip/heuristics.py` bypass Agent khi prepass hiểu trọn câu chỉ gồm số ngày, số người, phương tiện và từ nối trong allowlist; không có clue suy luận hay từ còn chưa hiểu. Câu gõ chỉ lặp lại nhãn một chip (hoặc một vế của nhãn, bỏ dấu và từ đệm) hay `Bỏ qua` / `Không chắc` của thẻ đang mở được xử lý như bấm chip đó (`chip_echo`); không áp dụng cho thẻ agent viết và thẻ có ô nhập chữ. `decision/heuristics.py` nhận một lệnh chọn/thêm/bỏ/khóa với tên đầy đủ khớp duy nhất trong các địa điểm trên màn. Act vẫn qua kiểm tra nghiệp vụ. Log ghi `heuristic:frame`, `heuristic:chip_echo` hoặc `heuristic:exact_command`.
+Chip, edit, show, act của người dùng và router không gọi LLM. `trip/heuristics.py` bypass Agent khi prepass hiểu trọn câu chỉ gồm số ngày, số người, người đi cùng, phương tiện và từ nối trong allowlist; không có clue suy luận hay từ còn chưa hiểu. Câu gõ chỉ lặp lại nhãn một chip (hoặc một vế của nhãn, bỏ dấu và từ đệm) hay `Bỏ qua` / `Không chắc` của thẻ đang mở được xử lý như bấm chip đó (`chip_echo`); không áp dụng cho thẻ agent viết và thẻ có ô nhập chữ. Gửi chữ trong ô "đáp án khác" mà không chọn chip nào được xử lý như một lượt gõ tự do. `decision/heuristics.py` nhận một lệnh chọn/thêm/bỏ/khóa với tên đầy đủ khớp duy nhất trong các địa điểm trên màn. Act vẫn qua kiểm tra nghiệp vụ. Log ghi `heuristic:frame`, `heuristic:chip_echo` hoặc `heuristic:exact_command`.
 
 Câu phủ định, điều kiện, nhiều ý không được heuristic hiểu hết hoặc tên trùng đi qua đường Agent hiện có. Prepass vẫn giữ clue đã đọc được và provenance khi Agent lỗi. Heuristic không tự confirm, nới constraint hoặc suy ra fact địa điểm.
 

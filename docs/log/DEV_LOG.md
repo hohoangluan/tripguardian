@@ -177,41 +177,49 @@ _không có_
 - file: `src/trip/` (toàn bộ), `config/trip.yaml`, `tests/trip/`, `web/src/user/tu/`, `web/src/user/screens/Understand.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/trip`; `python -m pytest -m live tests/trip/test_live.py` (Gemma thật); `python -m trip serve` + `/app/understand`
 
-### Hiện tại (2026-10-02)
-- hành vi: mỗi field của `TripState` mang value + source + confidence + status + evidence, nên bản hiểu nhu cầu nói được giá trị đến từ đâu và người dùng sửa tại chỗ. Một lượt: `prepass.py` (rule tất định đọc câu trước khi gọi model) → một call Agent streaming (`agent.py`) → `guard.py` chặn mọi tên / số không có trong câu người dùng hay trong catalog → cập nhật state. Agent lỗi, chậm (`first_token_s` 8 s, `total_s` 30 s) hay JSON hỏng → `policy.py` từ khóa làm lượt đó.
-- chọn câu hỏi: tầng 1 là rule (tín hiệu an toàn → nhóm C; field chặn kiểm tra khả thi; người dùng dán link → xác nhận anchor), tầng 2 bám mạch người dùng, tầng 3 chấm `impact / cost` bằng cách thử từng đáp án trên serving index (`coverage.py`, `questions.py`). Dừng khi `stop_score` 0,15 hoặc hết `turn_budget` 5 lượt.
-- `entry_point` / `exit_point` vào Trip State và Search Input (chỉ text + `place_id`; geocode xảy ra ở Planning nên `trip` không phụ thuộc `live`).
-- `compile.py` sinh `SearchInput` (`hard_filters` có `unknown_policy`, `soft_weights` theo feature id dùng chung ontology, `unknowns`, `unmapped`); phiên mirror ra `data/trip/sessions/<id>.json` nên reload / restart tiếp được.
-- giới hạn: `say` bị thay bằng chuỗi rỗng chứ không phải một câu dẫn khi guard chặn; signal chưa sửa được trong panel; phiên không bao giờ được dọn; ngày trong quá khứ vẫn được nhận.
+### Hiện tại (2026-10-08, chiều)
+- hành vi: như bản trước, thêm hai điểm. (1) Câu có "giống / kiểu / như / tương tự" + tên một nơi trong catalog: `domain/traits.py` lấy tối đa 4 nét nổi bật của nơi đó (giá trị khác phổ biến trong cùng category, theo số người nhắc) đưa vào `compared_places`; guard chỉ nhận soft `inferred` nhắc nơi đó khi giá trị nằm trong các nét ấy, và cho `say` nhắc tên nơi đó. (2) `Engine.refine` / tool `trip.refine`: harness chuyển mong muốn gõ ở Chọn nơi sang, chạy như lượt chữ, giữ thẻ đang mở, compile lại và phát `done`.
 
-### Trước đó
-_không có_
+### Trước đó (2026-10-08)
+- hành vi: như bản trước; `matching` của bản hiểu (`understanding.view`, ô "Đang hợp với bạn") giờ đếm nơi qua giới hạn cứng **và** hợp gu (`to_taste`): có bằng chứng cho ít nhất một giá trị soft được thích (chưa thích gì thì không xét), không có bằng chứng cho giá trị bị tránh; chưa rõ không tính là trái gu. Trước đó chỉ đếm giới hạn cứng nên trả lời sở thích không làm số đổi. Số này không loại nơi nào ở Place Decision. Lượt gõ chữ: call lập kế hoạch chạy song song với Clef (không cấp tool → dùng luôn), lượt đầu từ landing ~2,5 s trung vị qua Cloudflare (trước ~5 s).
 
 ## decision — Place Decision: Search Input tới Decision Output
 
 - file: `src/decision/` (toàn bộ), `config/decision.yaml`, `config/eval_trips.yaml`, `tests/decision/`, `web/src/user/pd/`, `web/src/user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/decision`; `python -m pytest -m live tests/decision/test_decision_live.py`; `python -m decision serve` + `/app/shortlist`; `python -m decision evaluate`
 
-### Hiện tại (2026-10-02)
+### Hiện tại (2026-10-08)
+- hành vi: như bản trước, thêm ba điểm. (1) Không cắt ở shortlist nữa: mỗi nhóm hiển thị có thứ hạng đầy đủ (nơi đã chọn → nơi MMR `top` → mọi nơi còn lại theo `score`), view chỉ mang cửa sổ đang hiện (`window.py`, `State.shown`, `page_size` 24) kèm `total`; `read page` nối trang tiếp. Dữ liệu thật chuyến 3 ngày: 116 / 193 / 424 / 545 nơi, view 114 KB. (2) Dựng lại thì gộp ít xáo trộn: nơi còn khớp đứng nguyên ô, ô trống nhận nơi mới hợp nhất, cửa sổ phần lớn lỗi thời thì thay hết; view có `change` mỗi nhóm cho web chạy chuyển cảnh. `first_shortlist` = số card `top` + anchor. (3) Lượt chữ: op `soft` / `unmapped` thay bằng `trip`; engine phát event `trip`, harness chuyển cho Trip `refine` rồi `rebase` (`docs/AGENT_HARNESS.md` §2). Đo trên journey thật: "không thích quán giống Miền Du Mục" → 4 soft `avoid` từ nét của nơi đó, nhóm cà phê giữ 23 / thay 1, ăn uống giữ 22 / thay 2.
+- web: lưới tự tải khi cuộn (3 thẻ khung), nhãn "Hợp nhất", header "N nơi hợp… · Chat để thu hẹp", chuyển cảnh `useStagedList` + FLIP; đĩa xoay giữ nơi đang xem theo id.
+- giới hạn: câu báo sau lọc vẫn là `diff()` cũ ("0 nơi, 0 phút…"), chưa phải "giữ N, thay M"; soft suy từ nơi so sánh chưa ghi nguồn `place:<id>` và vé chưa hiện "(giống X)"; `rebase` xóa lịch sử hoàn tác của Decision.
+
+### Trước đó (2026-10-02)
 - hành vi: một đường tất định `pipeline.py`: resolve anchor → truy xuất → `screen.py` sàng lọc fail-closed (`corpus.serving.check()` trả `pass | fail | unknown`; `unknown` không vào danh sách chính, nới chỉ áp cho đúng một nơi) → `fit.py` độ hợp bối cảnh thô (cụm, độ đông theo buổi, mùa mưa, đường vào — không gọi route service) → `rank.py` điểm lưu từng thành phần → `diversify.py` gom nơi gần trùng + MMR → `cards.py` thẻ ứng viên, `compare.py` so sánh chỉ trên khía cạnh cả hai đều có bằng chứng.
 - tuyển chọn: `curation.py` act thuần (`select`, `drop` kèm `reason`, `lock`, `unlock`, `swap`, `relax`, `wishlist`, `prefer`, `feedback`, `answer`, `undo`) sinh `State` mới và Session Profile nó dạy; `scope.replan_scope` / `input_scope` nói bước sớm nhất phải chạy lại. `feasibility.py` chấm tổ hợp sau mỗi thao tác. `confirm` → Decision Output (`confirmed`, `backup_pool`, `wishlist`, `trip_context`, `decision_log`).
 - gõ chữ: `agent.py` một call mỗi lượt, `guard.py` đòi quote thật + alias thật + nêu tên khi act rủi ro, `policy.py` từ khóa khi agent lỗi. Phiên mirror ra `data/decision/sessions/<id>.json`.
 - `python -m decision evaluate`: 30 Trip State ẩn chạy qua đúng pipeline thật. 18/30 chuyến không đủ 8 nơi vì mọi điều kiện effort / thời tiết / chặt chém chưa có giá trị `pass` nào được đo (chưa có nhãn) — giới hạn của corpus, không của Decision.
 
-### Trước đó
-_không có_
-
 ## planning — Lịch trình từ Decision Output tới Plan Output
 
-- file: `src/live/` (`osrm/`, `weather/`, `lodging/`, `geocode/`, `sun.py`, `holidays.py`, `cache.py`), `src/planning/` (toàn bộ), `config/planning.yaml`, `config/live.yaml`, `config/climate.yaml`, `config/holidays.yaml`, `tests/live/`, `tests/planning/`, `web/src/user/planning/`, `web/src/user/screens/Itinerary.tsx`
+- file: `src/live/` (`osrm/`, `weather/`, `lodging/`, `geocode/`, `sun.py`, `holidays.py`, `events.py`, `advisories.py`, `cache.py`), `src/planning/` (toàn bộ), `config/planning.yaml`, `config/live.yaml`, `config/climate.yaml`, `config/holidays.yaml`, `config/events.yaml`, `config/advisories.yaml`, `tests/live/`, `tests/planning/`, `web/src/user/planning/`, `web/src/user/screens/Itinerary.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/live tests/planning`; `python -m planning build|variants|lodging <decision_output.json>`; `python -m planning serve` (web qua `/api/planning`); `python -m planning evaluate` (cần OSRM, không chạy trong CI)
 
-### Hiện tại (2026-10-03)
-- hành vi: từ `confirmed` của Place Decision, dựng 2-3 phương án theo mục tiêu (`least_travel`, `low_cost`, `weather_robust`, `diverse`, `preference_fit`): gom cụm (`cluster.py`), chia ngày bằng DP (`days.py`), thứ tự trong ngày (vét cạn ≤ `exact_n`, nearest-neighbour + 2-opt/or-opt khi đông hơn, `route.py`), khớp giờ mở / đệm / nghỉ (`schedule.py`), kiểm fail-closed (`validate.py`). Chỗ ở tra live qua Maps (`src/live/lodging`, dùng lại `corpus.crawl`) và cạnh tranh làm neo đầu/cuối ngày cho K ứng viên; không bao giờ vào Place Intelligence. Thời gian di chuyển qua OSRM local (`src/live/osrm`), rơi về ước lượng thô khi OSRM lỗi, khi đó độ vững bị trần ở "Khả thi". Độ vững 3 mức `solid` / `feasible` / `fragile` (nhãn hiển thị Vững / Khả thi / Mong manh) từ nhiễu cố định (trễ, visit dài hơn, mưa theo xác suất dự báo).
-- phiên có undo/redo; `act` tất định (chip) và `turn` (gõ chữ: một call agent mỗi lượt, `guard.py` chặn số/alias bịa, rơi về `policy.py` từ khoá khi agent lỗi/timeout) đi qua cùng đường `repair_day` / `relayout`.
-- web: `Itinerary.tsx` gọi phiên Planning thật (chọn phương án, timeline, chỗ ở, gõ chữ, chốt → `/app/feedback`); `planner.ts` (ước lượng client cũ) chỉ còn cho màn debug của admin.
-- `python -m planning evaluate`: 30 chuyến ẩn ở `config/eval_trips.yaml` chạy qua Decision (trong tiến trình) rồi Planning, ghi `data/planning/eval.json`. Chạy 2026-10-03 trên serving hiện tại: 0/10 chuyến có lịch khả thi. Nguyên nhân: 6 chuyến Decision không confirm (partial/infeasible), 3 chuyến Decision confirm nhưng không có nơi nào, 1 chuyến Planning không dựng được phương án hợp lệ (giờ mở cửa chưa biết). Chưa có số tiết kiệm phút di chuyển hay chỗ ở vì không có phương án nào để đo.
-- giới hạn: `evaluate` không mô phỏng hội thoại nhiều lượt với agent; `lodging_near` chưa tìm lại K ứng viên quanh tâm mới; "bỏ nhiều nơi qua nhiều lượt" chỉ nhắc ở kênh gõ chữ. Đầy đủ ở `docs/PLANNING.md` §Giới hạn đã biết.
+### Hiện tại (2026-10-08)
+- hành vi: như bản trước, sửa hai lỗi tìm thấy khi chọn một nơi: (1) phí chia ngày bằng nhau thì ngày sớm hơn nhận nơi (`days.assign_days`); trước đó DP trao cho ngày sau nên một nơi duy nhất rơi vào Ngày 2 và Ngày 1 trống. (2) Nơi có nhiều ghim theo giờ chỉ giữ ghim người dùng muốn (`build.prepare`): Đèo Mây Farm với "săn mây" giờ xếp 06:00 thay vì 16:03 (ghim hoàng hôn). Web mở Lịch trình ở ngày đầu tiên có điểm dừng.
 
-### Trước đó
-_không có_
+### Trước đó (2026-10-07)
+- hành vi: như bản trước, thêm điều kiện từng ngày (`planning/conditions.py`, `docs/PLANNING.md` §Điều kiện từng ngày). `Engine` gọi `conditions.fetch_live`: trước đây engine không lấy thời tiết nên kế hoạch online không xét mưa. Giờ mỗi ngày có `DayCond` từ Open-Meteo (mưa mm, gió giật, dông), `holidays.yaml`, `events.yaml` (lễ hội, Noel, Tết) và `advisories.yaml` (thông báo nhập tay có nguồn). Ngày dông / mưa lớn tính như ngày mưa; ngày rất xấu hoặc thông báo `severe` không cho xếp nơi bị ảnh hưởng (validate báo `hazard`, không ngày nào xếp được thì `back_to_decision`); nơi đông vào cuối tuần / lễ tăng thời gian chờ và đệm, bị phạt khi chia ngày (nặng hơn nếu người dùng tránh đông); dịp Tết có cờ đóng cửa và nơi ăn uống thành nơi nhạy cảm với dự phòng. Output thêm `day_conditions`, `crowd_tips`; Web hiện trên ngày đang chọn.
+- không đổi: khi không có tín hiệu nào, lịch giống hệt trước (golden không đổi).
+- sửa: kế hoạch hiện ra là hợp lệ nhưng không xác nhận được (`plan has unresolved violations`) khi bộ xếp lịch đã bỏ ghim giờ của một nơi: `DayResult.unpinned` ghi lại, `validate` tôn trọng. Plan Output đã chốt giữ `day_conditions`, `crowd_tips`. Phát hiện bằng `scripts/journey_sim.py` (mô phỏng 11 kiểu người dùng + hành vi ngẫu nhiên trên dữ liệu thật, không gọi model).
+- giới hạn: thông báo thiên tai và lễ hội nhập tay (chưa có nguồn tự động; `advisories.yaml` rỗng không có nghĩa an toàn); ngưỡng thời tiết, hệ số đông khách là ước lượng chờ pilot; chưa kiểm cửa hàng đóng tạm thời trực tiếp (`place_live_status`).
+
+## user-web — Giao diện người dùng chính thức (landing + `/app`)
+
+- file: `web/src/user/` (`UserApp.tsx`, `screens/`, `ui/`, `css/`, `store.ts`, `lib.ts`, `landing/`), `web/src/App.tsx`; backend `src/harness/{dispatch,server,session}.py` (`preview`, `summaries`, `feedback`, `report`), `src/planning/engine.py` (`preview`, cache theo hash Decision Output), `src/decision/{engine,tools}.py` (`draft`, `report`)
+- cách kiểm chứng: `npm run build:prod --prefix web`; `python -m pytest -q tests/harness tests/planning tests/decision tests/trip`; chạy harness + Vite rồi `node web/scripts/shots_app.mjs <url>` (đi trọn luồng với agent thật, chụp `web/shots/app/`)
+
+### Hiện tại (2026-10-08, tối)
+- hành vi: như bản trước; câu mở của Hiểu chuyến đi thành cuộc trò chuyện (`screens/TripChat.tsx`, `UI_SPEC_USER_WEB` §Trang 3 Mở đầu): AI hỏi, người dùng gõ (câu ở landing là tin nhắn đầu), lúc AI đọc hiện chấm gõ + lời stream + `“quote” → trường` từ sự kiện `preview`; xong thì dừng ở `Mình đã hiểu như này` (mỗi dòng có nguồn và nút sửa, giới hạn / nơi muốn đến bỏ được, chip sở thích có ×) + `Mình cần hỏi thêm một số ý` (`unknowns`), người dùng sửa bằng lời hoặc bấm `Đúng rồi, hỏi tiếp` mới sang chồng thẻ. Chuyển câu: thẻ rơi ngay khi bấm (trước: chờ 380 ms rồi mới gửi, thẻ cũ hiện lại và bị chia hai lần trong lúc chờ máy chủ), chồng thẻ nghiêng lên + chấm chờ trong lúc chờ, thẻ mới chờ thẻ cũ rơi xong; khoá thẻ theo lần nhận thẻ thay vì `hist.length` nên không chia lại khi lịch sử cập nhật; lượt trả lời vào lịch sử ngay nên `câu N` đúng từ lúc thẻ mới hiện; trang tự cuộn về đầu chồng thẻ khi thẻ mới khuất.
+
+### Trước đó (2026-10-08, chiều)
+- hành vi: như bản trước, tối ưu production: landing → hỏi chuyến không chờ snapshot (`/app/understand` tự render, landing tải trước snapshot lúc rảnh, covers + snapshot tải song song) — thẻ câu hỏi hiện sau ~0,4 s thay vì ~13 s qua Cloudflare. Câu gõ ở landing hiện thành thẻ "bạn kể" thay vì hỏi lại câu mở. Thẻ hỏi giữ một màu pine (trước đổi màu theo lượt). Ảnh dùng thumbnail WebP `/media/thumb` qua `srcset`, rơi về ảnh gốc khi thiếu. Thanh bước gọn một dòng trên điện thoại. Server: snapshot gọn + brotli (4,3 MB/10,5 s → 1,7 MB/0,9 s), ETag/304, keep-alive tới harness (README §Production).

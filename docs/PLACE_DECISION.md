@@ -230,11 +230,23 @@ cỡ shortlist ≈ số chỗ cần × hệ số dư
 | cân bằng | trung bình |
 | đi nhiều | nhiều, vẫn không vi phạm physical |
 
-Hệ số dư để user có chỗ chọn nhưng không bị ngợp. Số cụ thể là tham số config, hiệu chỉnh sau pilot.
+Cỡ shortlist là số nơi MMR chọn ở mỗi vai trò; các nơi này mang `top: true` (web hiện nhãn "Hợp nhất"). Danh sách không dừng ở đó: thứ hạng đầy đủ của mỗi nhóm hiển thị = nơi đã chọn → các nơi `top` → mọi nơi còn lại trong pool theo `score`. Nơi gần trùng vẫn có `alternatives` nhưng cũng nằm trong danh sách. View chỉ mang **cửa sổ đang hiện** của mỗi nhóm (§9.4) kèm `total` của nhóm. Ngưỡng "bỏ nhiều quá, nghĩ lại" (`first_shortlist`) = số card `top` + anchor của lần dựng đầu, không phải tổng số nơi.
 
 ### 9.3 Nhóm hiển thị
 
 Shortlist được trình bày theo nhóm hữu ích, chọn theo chuyến: theo loại trải nghiệm, theo khu vực, hoặc theo buổi phù hợp. Anchor luôn đứng đầu, tách riêng.
+
+### 9.4 Cửa sổ hiện và lọc lại
+
+Mỗi nhóm hiển thị có một cửa sổ (`State.shown[group]`, id theo thứ tự trên màn), lưu trong phiên; cửa sổ là trạng thái màn, không vào lịch sử hoàn tác. Lần đầu cửa sổ = `page_size` nơi đầu thứ hạng. Web cuộn gần cuối lưới thì đọc `page` (`Engine.page`): cửa sổ nối thêm `page_size` nơi tiếp theo chưa có.
+
+Mỗi lần dựng lại (act, lượt chat, rebase), cửa sổ cũ `old` gộp với thứ hạng mới (`window.merge`):
+
+1. `keep` = nơi trong `old` vẫn còn trong thứ hạng mới **và** đứng trong `keep_factor × len(old)` hạng đầu; nơi đã chọn của nhóm luôn ở lại.
+2. `len(keep) < replace_below × len(old)` → thay hết: chỉ nơi đã chọn giữ ô, các ô còn lại lấy thứ hạng mới từ trên xuống.
+3. Ngược lại: nơi trong `keep` đứng nguyên ô; ô của nơi bị gỡ được lấp bằng nơi mới theo thứ hạng mới (ô trên cùng nhận nơi hợp nhất); cửa sổ không dài hơn cũ.
+
+View mang `change[group] = {kept, added, removed, replaced_all}` để web chạy chuyển cảnh. `page_size` = 24, `keep_factor` = 2, `replace_below` = 0.3 trong `config/decision.yaml`.
 
 ## 10. So sánh
 
@@ -444,6 +456,8 @@ POST   /api/decision/sessions/<id>/confirm      → Decision Output; 409 khi ch�
 
 Lỗi: 400 act sai hoặc `text` rỗng / > 1000 ký tự, 404 không có phiên, 409 version ontology của Search Input khác corpus hoặc chưa chốt được.
 
+Lượt chữ: agent trả các update `select | drop | lock | visited` (một nơi trên màn), `travel | crowd | price` (phản hồi chung) và `trip` — mong muốn về chuyến hoặc kiểu nơi ("yên tĩnh hơn", "không thích quán giống X"), quote là đúng lời người dùng. Engine áp các update nơi như act; các update `trip` không đổi phiên Decision mà phát event `trip {texts}` trước `view`. Harness chuyển chúng cho Trip Understanding (`refine`) rồi `rebase` Decision trên Search Input mới (`docs/AGENT_HARNESS.md` §2). Gu không bao giờ thành act `prefer` / `note` từ lượt chữ.
+
 Act trên một địa điểm: `select`, `drop` (kèm `reason`: `far | crowded | pricey | dislike | visited`), `lock`, `unlock`, `swap`, `relax`, `wishlist`; ngoài ra `prefer`, `feedback`, `answer`, `undo`, `confirm`. `scope.replan_scope(act)` trả bước sớm nhất phải chạy lại theo bảng §14; `scope.input_scope(old, new)` làm điều đó khi người dùng sửa bản hiểu nhu cầu.
 
 Module:
@@ -456,6 +470,7 @@ src/decision/
   fit.py                     ④ độ hợp bối cảnh thô (§7)
   rank.py                    ⑤ điểm kèm từng thành phần (§8)
   diversify.py               ⑥ gom nơi gần trùng + MMR (§9)
+  window.py                  cửa sổ hiện mỗi nhóm: gộp ít xáo trộn, nối trang (§9.4)
   compare.py cards.py        ⑦ so sánh chỉ trên bằng chứng; thẻ ứng viên (§10, §11)
   curation.py                ⑧ act thuần sinh State mới + Session Profile nó dạy (§12)
   feasibility.py             ⑨ khả thi của tổ hợp (§13)
@@ -469,4 +484,4 @@ src/decision/
 
 Test: `python -m pytest -q tests/decision`; gọi model thật: `python -m pytest -m live tests/decision/test_decision_live.py`.
 
-Web: `web/src/user/pd/` (`types.ts`, `api.ts`, `decision.tsx` — `DecisionProvider` + `useDecision()`), màn `Shortlist.tsx`, `PlaceDetail.tsx`, `Compare.tsx`, `Curate.tsx`, `Feasibility.tsx`. Chức năng từng màn: `docs/Role_Web_Functional_Design.md` §2.5–2.9.
+Web: `web/src/user/pd/` (`types.ts`, `api.ts`, `decision.tsx` — `DecisionProvider` + `useDecision()`), màn `screens/Explore.tsx`, `PlaceDetail.tsx`, `Compare.tsx` và `ui/SelectedBar.tsx` (khả thi + lịch ngầm), `ui/Assistant.tsx` (lượt chat). `Engine.draft` trả Decision Output nháp không lưu, cho lịch ngầm của harness. Chức năng từng màn: `docs/Role_Web_Functional_Design.md` §2.5–2.9.

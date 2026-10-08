@@ -235,12 +235,14 @@ Một app React (`web/`, Vite). `App.tsx` chọn bề mặt theo đường dẫn
 
 | Màn (§) | File | Backend |
 |---|---|---|
-| Landing, Story, Choose (§1) | `web/src/pages/`, `web/src/scene/` (thế giới 3D) | — |
-| Đăng nhập, hai câu mở đầu (§2.1) | `pages/Auth.tsx`, `pages/Start.tsx`, `user/account.ts` | — (bản thử mô phỏng trong trình duyệt) |
-| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/tu/` | `harness` :8769 — stage `trip` |
-| Shortlist, Chi tiết, So sánh, Tuyển chọn, Khả thi (§2.5–2.9) | `user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`, `user/pd/` | `harness` :8769 — stage `decision` |
-| Lịch trình (§2.10) | `user/screens/Itinerary.tsx`, `user/planning/` | `harness` :8769 — stage `planning` |
-| Hồ sơ, Phản hồi (§2.11–2.12) | `user/screens/{Profile,Feedback}.tsx` | — |
+| Landing (§1) | `user/screens/Landing.tsx`, `user/landing/` (nơi thật trích từ snapshot) | — |
+| Đăng nhập (§2.1) | `user/screens/Auth.tsx`, `user/account.ts` | — (tài khoản chỉ lưu trong trình duyệt) |
+| Khám phá — trang chủ app | `user/screens/Discover.tsx` | — |
+| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/ui/Ticket.tsx`, `user/tu/` | `harness` :8769 — stage `trip` |
+| Chọn nơi, Chi tiết, So sánh, thanh "Đã chọn" (khả thi + lịch ngầm), trợ lý (§2.5–2.9) | `user/screens/{Explore,PlaceDetail,Compare}.tsx`, `user/ui/{PlaceCard,SelectedBar,Assistant,DiscPicker}.tsx`, `user/ui/useStagedList.ts` (chuyển cảnh lưới khi danh sách đổi: giữ / gỡ / thêm / thay hết), `user/pd/` (`more(group)` tải trang tiếp khi cuộn) | `harness` :8769 — stage `decision`, `preview`, `reports` |
+| Lịch trình, Tối ưu (§2.10) | `user/screens/Plan.tsx`, `user/ui/RouteStory.tsx`, `user/planning/` | `harness` :8769 — stage `planning` (`recommend` cho Tối ưu) |
+| Phản hồi (§2.12) | `user/screens/Done.tsx` | `harness` — `feedback` |
+| Chuyến của tôi, Đã lưu, Hồ sơ (§2.11) | `user/screens/Account.tsx`, `user/store.ts` | `harness` — `trips`; nơi đã lưu chỉ ở trình duyệt |
 | Admin, mọi màn (§3) | `admin/AdminApp.tsx`, `admin/screens/`, `admin/api.ts` | `review` :8765 — `/api/queue`, `/api/labels{,/next,/stats,/photo,/frame}`, `/api/decision{,s}` |
 
 Client hành trình chung: `user/journey.ts`. Contract `/api/harness`, router, handoff và retry ở `docs/AGENT_HARNESS.md`.
