@@ -169,6 +169,8 @@
 .tg-cta :focus-visible { outline-color: #fff; }
 .tg-lf { display: flex; align-items: center; gap: 12px; padding: 28px var(--pad); background: var(--tg-night); color: #ecd6de; font-size: 0.85rem; }
 .tg-lf__sp { flex: 1; }
+.tg-lf > svg, .tg-lf > img { flex: none; }
+.tg-lf > span:nth-of-type(1) { flex: none; white-space: nowrap; }
 
 @media (max-width: 1100px) {
   .tg-ln__links { display: none; }
