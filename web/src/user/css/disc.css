@@ -1,7 +1,7 @@
 /* rotary wheel picker: a full-screen layer that scrolls like a page; the wheel is fixed to the left edge (wedges fanned
    over a half disc around a still hub), the active place and the group tabs beside it. The wheel sets --step (180° / wedges shown).
    Colors come from tokens only. */
-.tg-disc { --step: 16deg; --R: clamp(260px, calc((100vh - var(--tg-top) - var(--tg-bar)) / 2 - 22px), 470px); --r1: calc(var(--R) * 0.26); --W: calc(var(--R) - var(--r1)); --cx: calc(var(--r1) * -0.32); --gap: 6px; --rc: calc(var(--r1) - 40px); --rh: calc(var(--r1) - 10px); --zw: calc(var(--cx) + var(--R) + 44px); --mh: clamp(240px, 50vh, 500px); position: fixed; z-index: 25; inset: var(--tg-top) 0 0 0; background: var(--tg-bg); outline: none; overscroll-behavior: contain; overflow-x: hidden; overflow-y: auto; }
+.tg-disc { --step: 16deg; --R: clamp(260px, calc((100vh - var(--tg-top) - var(--tg-bar)) / 2 - 22px), 470px); --r1: calc(var(--R) * 0.26); --W: calc(var(--R) - var(--r1)); --cx: calc(var(--r1) * -0.32); --gap: 6px; --rc: calc(var(--r1) - 40px); --rh: calc(var(--r1) - 10px); --zw: calc(var(--cx) + var(--R) + 44px); --mh: clamp(240px, calc(100vh - var(--tg-top) - var(--tg-bar) - 260px), 640px); position: fixed; z-index: 25; inset: var(--tg-top) 0 0 0; background: var(--tg-bg); outline: none; overscroll-behavior: contain; overflow-x: hidden; overflow-y: auto; }
 .tg-disc__field { position: relative; min-height: 100%; }
 .tg-disc__back { position: fixed; z-index: 5; left: 18px; top: calc(var(--tg-top) + 18px); display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-1); transition: transform 200ms var(--tg-ease), border-color 150ms; }
 .tg-disc__back:hover { border-color: var(--tg-pine); transform: translateX(-3px); }
@@ -37,8 +37,8 @@
 .tg-disc__check { position: absolute; z-index: 1; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-pine); color: #fff; }
 
 /* active place */
-.tg-disc__main { box-sizing: border-box; min-height: 100%; margin-left: var(--zw); max-width: 1080px; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 24px var(--tg-gutter) calc(var(--tg-bar) + 32px) 24px; }
-.tg-disc__show { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 32px; align-items: center; animation: tg-pop 420ms var(--tg-ease); }
+.tg-disc__main { box-sizing: border-box; min-height: calc(100vh - var(--tg-top)); margin-left: var(--zw); max-width: 1080px; display: flex; flex-direction: column; justify-content: flex-start; gap: 14px; padding: 24px var(--tg-gutter) calc(var(--tg-bar) + 32px) 24px; }
+.tg-disc__show { margin: auto 0; display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 32px; align-items: center; animation: tg-pop 420ms var(--tg-ease); }
 .tg-disc__copy { display: grid; justify-items: start; gap: 12px; min-width: 0; }
 .tg-disc__kick { display: flex; align-items: center; gap: 10px; font: 600 0.72rem/1.3 var(--tg-sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--tg-ink-3); }
 .tg-disc__kick i { flex: none; width: 26px; height: 2px; background: var(--tg-pine); }
