@@ -6,6 +6,7 @@ import { flushSync } from 'react-dom'
 import { navigate } from '../../router'
 import { prefetchSnapshot, type Cover } from '../../data/store'
 import { fetchLandscape } from '../landing/bin'
+import { hasGpu } from '../landing/device'
 import raw from '../landing/places.json'
 import stats from '../landing/stats.json'
 import type { DalatScene, ScenePlace, SceneState } from '../landing/scene'
@@ -54,6 +55,10 @@ const FLY: { name: string; lat: number; lng: number; dist: number }[] = [
   { name: 'Cầu Đất', lat: 11.872, lng: 108.556, dist: 90 },
   { name: 'Trại Mát', lat: 11.948, lng: 108.505, dist: 70 },
 ]
+// the hint at the foot of the stage: always says there is more below, and what comes next
+const HINTS = ['Cuộn để xem cách hoạt động', 'Cuộn tiếp: Lựa chọn', 'Cuộn tiếp: lý do từng nơi', 'Cuộn tiếp: Lịch trình', 'Cuộn tiếp: Đánh giá', 'Còn nữa bên dưới: ảnh thật']
+// The light version (no GPU): one picture per chapter, taken from the 3D model itself (web/scripts/shots_plates.mjs)
+const PLATES = ['/img/landing-poster.webp', '/img/landing-p1.webp', '/img/landing-p2.webp', '/img/landing-p3.webp', '/img/landing-p4.webp', '/img/landing-p5.webp']
 const num = (n: number) => n.toLocaleString('vi-VN')
 const km = (a: ScenePlace, b: ScenePlace) => {
   const R = 6371, r = Math.PI / 180
@@ -72,7 +77,7 @@ export function Landing() {
   const areaEls = useRef<HTMLElement[]>([])
   const lenisRef = useRef<Lenis | null>(null)
   const [still] = useState(reducedMotion)
-  const [flat, setFlat] = useState(false) // no WebGL: the poster stays as the backdrop
+  const [flat, setFlat] = useState(() => !hasGpu()) // no GPU (or too slow): chapter pictures instead of the live model
   const [live, setLive] = useState(false) // the 3D model has drawn its first frame: the poster fades out
   const [active, setActive] = useState(0)
   const [used, setUsed] = useState(false) // the visitor has turned the model: the hint steps aside
@@ -177,13 +182,14 @@ export function Landing() {
     void document.fonts?.ready.then(fit)
     fit()
     // three.js and the 1.7k coordinates load only here, so phones (GetApp) never fetch them
-    Promise.all([import('../landing/scene'), import('../landing/points.json'), fetchLandscape()]).then(([{ DalatScene }, { default: points }, land]) => {
+    if (!flat) Promise.all([import('../landing/scene'), import('../landing/points.json'), fetchLandscape()]).then(([{ DalatScene }, { default: points }, land]) => {
       if (gone) return
       performance.mark('tg-scene-start')
       scene = DalatScene.create(cv, { points: points as [number, number][], five: SCENE_FIVE, focus: FOCUS, land }, still)
       performance.mark('tg-scene-built')
       if (!scene) { setFlat(true); return }
       scene.onReady = () => { performance.mark('tg-scene-first-frame'); setLive(true) }
+      scene.onGiveUp = () => { setFlat(true); setLive(false); scene?.setRunning(false); sceneRef.current = null }
       sceneRef.current = scene
       scene.onTurn = () => setUsed(true)
       if (!still) hintTimer = window.setTimeout(() => scene?.hintTurn(), 2000)
@@ -361,6 +367,7 @@ export function Landing() {
       <section className="tg-l3" ref={story} aria-label="Cách TripGuardian lên một chuyến Đà Lạt">
         <div className={`tg-l3__stage ${flat ? 'is-flat' : ''} ${live ? 'is-live' : ''} ${exploring ? 'is-exploring' : ''}`} ref={stage}>
           <div className="tg-l3__poster" aria-hidden="true" />
+          {flat && <div className="tg-l3__plates" aria-hidden="true">{PLATES.map((src, i) => <img key={src} src={src} alt="" decoding="async" loading={i ? 'lazy' : 'eager'} className={i === Math.min(active, PLATES.length - 1) ? 'is-on' : ''} />)}</div>}
           <canvas ref={canvas} className="tg-l3__cv" role="img" aria-label={`Mô hình 3D Đà Lạt theo địa hình thật, kéo để xoay 360 độ: ${num(stats.places)} địa điểm trong dữ liệu; năm nơi được chọn nối thành một tuyến đi`} />
           <div className="tg-l3__veil" aria-hidden="true" />
           <div className="tg-l3__labels" aria-hidden="true">
@@ -375,7 +382,8 @@ export function Landing() {
               <p className="tg-l3__poem">Sương sớm, tiếng thông reo, và một chuyến đi vừa với bạn.</p>
               <div className="tg-l3__start">
                 <button type="button" className="tg-btn tg-btn--primary tg-l3__cta" onClick={begin}>Trải nghiệm đi <Icon name="arrow" size={20} /></button>
-                <button type="button" className="tg-btn tg-btn--ghost tg-l3__roam" disabled={!live} onClick={explore}><Icon name="compass" size={18} />Khám phá Đà Lạt 3D</button>
+                {!flat && <button type="button" className="tg-btn tg-btn--ghost tg-l3__roam" disabled={!live} onClick={explore}><Icon name="compass" size={18} />Khám phá Đà Lạt 3D</button>}
+                {flat && window.__tgGL !== 'none' && <button type="button" className="tg-btn tg-btn--ghost tg-l3__roam" onClick={() => { location.search = '?3d=on' }} title="Máy của bạn không có card đồ họa, bản 3D có thể chậm"><Icon name="compass" size={18} />Thử bản 3D</button>}
               </div>
               <p className="tg-l3__proof"><b>{num(stats.places)}</b> địa điểm có thật<i aria-hidden="true" /><b>{num(stats.withPhotos)}</b> nơi có ảnh thực tế<i aria-hidden="true" />Không cần tài khoản</p>
             </div>
@@ -480,21 +488,23 @@ export function Landing() {
               {RAIL.map(([c, beat]) => <button key={c} type="button" aria-current={stepOf(active) === beat ? 'step' : undefined} onClick={() => toChapter(beat)}><span>{c}</span><i /></button>)}
             </nav>
           )}
-          {!still && <button type="button" className={`tg-l3__down ${active ? 'is-gone' : ''}`} onClick={() => toChapter(1)}><Icon name="chevronDown" size={18} />Cuộn để xem cách hoạt động</button>}
+          {!still && <button type="button" className="tg-l3__down" key={active} onClick={() => (active < BEATS - 1 ? toChapter(active + 1) : toId('tg-photos'))}><Icon name="chevronDown" size={18} />{HINTS[Math.min(active, BEATS - 1)]}</button>}
         </div>
       </section>
 
       <section className="tg-l4" id="tg-photos" aria-labelledby="tg-l4-h">
         <div className="tg-l__head"><p className="tg-kicker">Ảnh thật</p><h2 id="tg-l4-h">Nơi có thật, ảnh có thật.</h2><p className="tg-muted">Ảnh chụp từ Google Maps, ghi rõ tên nơi. Không dùng ảnh minh họa cho một địa điểm cụ thể.</p></div>
         <div className="tg-l4__grid">{mosaic.map((p, i) => <figure key={p.id} className={`tg-l4__tile t${i}`}><Photo photo={p.photos[0]} alt={p.name} sizes={i ? '(max-width: 900px) 50vw, 440px' : '(max-width: 900px) 100vw, 900px'} /><figcaption><b>{p.name}</b><span>Ảnh: Google Maps</span></figcaption></figure>)}</div>
+        <button type="button" className="tg-l__more" onClick={() => toId('tg-faq')}><Icon name="chevronDown" size={18} />Còn nữa: hỏi nhanh và sắp có</button>
       </section>
 
       <section className="tg-l5" id="tg-faq" aria-label="Hỏi nhanh và sắp có">
         <div className="tg-faq"><h2>Hỏi nhanh</h2>{FAQ.map(([q, a], i) => <div key={q} className="tg-faq__i"><button type="button" aria-expanded={faq === i} onClick={() => setFaq(faq === i ? -1 : i)}>{q}<Icon name={faq === i ? 'minus' : 'plus'} size={18} /></button>{faq === i && <p className="tg-muted">{a}</p>}</div>)}</div>
         <aside className="tg-soon" aria-labelledby="tg-soon-h"><h2 id="tg-soon-h">Sắp có</h2>{[['compass', 'Khám phá Đà Lạt', 'Danh sách dựng sẵn theo khu và theo thời tiết'], ['bookmark', 'Nhật ký chuyến đi', 'Nhìn lại chuyến đã đi, dùng lại gu'], ['phone', 'Ứng dụng điện thoại', 'Mang lịch trình theo suốt chuyến'], ['map', 'Thêm thành phố', 'Khi trải nghiệm Đà Lạt đã hoàn thiện']].map(([ic, a, b]) => <div key={a} className="tg-soon__c"><Icon name={ic as 'map'} size={20} /><span><b>{a}</b><small className="tg-muted">{b}</small></span><span className="tg-tag tg-tag--warn">chưa mở</span></div>)}</aside>
+        <button type="button" className="tg-l__more" onClick={() => toId('tg-cta')}><Icon name="chevronDown" size={18} />Còn nữa: bắt đầu chuyến của bạn</button>
       </section>
 
-      <section className="tg-cta" aria-labelledby="tg-cta-h">
+      <section className="tg-cta" id="tg-cta" aria-labelledby="tg-cta-h">
         <div className="tg-cta__img" aria-hidden="true" />
         <div className="tg-cta__in"><h2 id="tg-cta-h">Bắt đầu chuyến Đà Lạt của bạn.</h2><button type="button" className="tg-btn tg-btn--sun tg-cta__btn" onClick={begin}>Trải nghiệm đi <Icon name="arrow" size={20} /></button><p>Miễn phí, không cần tài khoản.</p></div>
       </section>

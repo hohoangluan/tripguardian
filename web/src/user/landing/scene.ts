@@ -166,6 +166,7 @@ export class DalatScene {
   private dpr = 1
   private slow = { ema: 16, level: 0, calm: 0 }
   onReady: (() => void) | null = null
+  onGiveUp: (() => void) | null = null
   // Free exploration: an orbit camera the visitor drives (target, distance, yaw, pitch); `blend` mixes it over the
   // story's own camera, so entering and leaving fly smoothly.
   private free = {
@@ -833,7 +834,12 @@ export class DalatScene {
     if (this.frames < 30) return // shader compiles and texture uploads
     g.ema = g.ema * 0.92 + raw * 0.08
     if (g.ema < 28) { g.calm = 0; return }
-    if (++g.calm < 40 || g.level >= 3) return
+    if (g.level >= 3) {
+      // even the lowest quality cannot keep up: hand the page its light version
+      if (++g.calm >= 90 && this.onGiveUp) { const f = this.onGiveUp; this.onGiveUp = null; f() }
+      return
+    }
+    if (++g.calm < 40) return
     g.calm = 0
     g.level++
     g.ema = 16
@@ -891,7 +897,9 @@ export class DalatScene {
     this.cards.forEach(({ group, ring }, n) => {
       const r = clamp01(this.effFive * 1.6 - n * 0.15)
       const k = 1 - Math.pow(1 - r, 3)
-      group.scale.setScalar(k || 0.0001)
+      // exploring: the postcards shrink (and more the closer the visitor flies) so they never bury the places beside them
+      const small = 1 + (clamp01(this.free.d / 130) * 0.4 + 0.32 - 1) * bl
+      group.scale.setScalar(k * small || 0.0001)
       group.visible = r > 0
       group.position.y = ring.position.y - 0.08 + (this.still ? 0 : Math.sin(t * 0.9 + n) * 0.25)
       const pulse = this.still ? 0.5 : (Math.sin(t * 2.2 - n) + 1) / 2

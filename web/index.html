@@ -11,10 +11,30 @@
     <meta property="og:image" content="/img/share.webp" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230f5f5a'/%3E%3Cpath d='M16 6l8 11h-5l5 7H8l5-7H8l8-11Z' fill='%23fff'/%3E%3Ccircle cx='24' cy='8' r='2.4' fill='%23e8590c'/%3E%3C/svg%3E" />
     <script>
-      // Landing on a desktop: start the baked landscape download and the poster before any script has loaded.
+      // Landing on a desktop: find out whether this machine can draw the 3D model well (a real GPU), then start the
+      // landscape download and the poster before any script has loaded. No WebGL or a software renderer (SwiftShader,
+      // llvmpipe, Basic Render Driver) gets the light version: chapter pictures instead of the live model.
+      // ?3d=on / ?3d=off forces either, for testing.
       if (location.pathname === '/' && !/iPhone|iPod|Android.+Mobile|Windows Phone|Mobi/i.test(navigator.userAgent)) {
-        window.__tgLand = fetch('/world/dalat.bin').then(function (r) { if (!r.ok) throw new Error('landscape'); return r.arrayBuffer() })
-        window.__tgLand.catch(function () { window.__tgLand = undefined })
+        var mode = 'none'
+        try {
+          var cv = document.createElement('canvas')
+          var gl = cv.getContext('webgl2') || cv.getContext('webgl')
+          if (gl) {
+            var info = gl.getExtension('WEBGL_debug_renderer_info')
+            var name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : ''
+            mode = /swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i.test(name) ? 'soft' : 'gpu'
+            var lose = gl.getExtension('WEBGL_lose_context')
+            if (lose) lose.loseContext()
+          }
+        } catch (e) {}
+        var force = /[?&]3d=(on|off)/.exec(location.search)
+        if (force) mode = force[1] === 'on' ? 'gpu' : 'none'
+        window.__tgGL = mode
+        if (mode === 'gpu') {
+          window.__tgLand = fetch('/world/dalat.bin').then(function (r) { if (!r.ok) throw new Error('landscape'); return r.arrayBuffer() })
+          window.__tgLand.catch(function () { window.__tgLand = undefined })
+        }
         var l = document.createElement('link')
         l.rel = 'preload'; l.as = 'image'; l.href = '/img/landing-poster.webp'; l.setAttribute('fetchpriority', 'high')
         document.head.appendChild(l)

@@ -1,9 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { usePath } from './router'
-import { isPhone } from './user/landing/device'
+import { hasGpu, isPhone } from './user/landing/device'
 
 // The landing's 3D chunk and data start downloading now, in parallel with the page's own code, not after it.
-if (location.pathname === '/' && !isPhone()) {
+if (location.pathname === '/' && !isPhone() && hasGpu()) {
   void import('./user/landing/scene')
   void import('./user/landing/points.json')
 }

@@ -47,11 +47,14 @@ Landing không có ô nhập. Mọi nút `Trải nghiệm đi` (thanh trên, M�
 **Chuyển động**
 - **Chữ vừa màn hình:** mỗi chương tự thu nhỏ (`zoom`, tối thiểu 0,6) nếu cao hơn khung nhìn trừ 150 px; cỡ chữ tiêu đề theo cả `vh`, nên cửa sổ laptop thấp (~700 px) không bị cắt chữ. Mỗi chương nhiều nhất một dòng phụ.
 - **Sang trang home:** bấm `Trải nghiệm đi` thì chữ nhấc lên và mờ, thung lũng phóng nhẹ (~0,4 s), rồi trình duyệt chuyển mờ dần sang `/app` bằng View Transitions (`startViewTransition` + `flushSync`, 0,5 s); trình duyệt không có thì chuyển thẳng. Giảm chuyển động: chuyển thẳng, không hiệu ứng.
+- **Gợi ý cuộn:** ở mọi chương có một nút nổi ở chân sân khấu nói rõ còn gì ở dưới (`Cuộn để xem cách hoạt động` → `Cuộn tiếp: Lựa chọn` → … → `Còn nữa bên dưới: ảnh thật`), bấm là nhảy tới chương kế; cuối phần Ảnh thật và Hỏi nhanh có nút `Còn nữa: …` dẫn xuống phần sau.
 - Mọi chuyển động dẫn bằng cuộn (`scrub` + Lenis); mỗi chương đủ hình trước khi tới điểm dừng của nó và giữ một nhịp trước khi đổi.
 - Cảnh 3D tự làm mượt theo thời gian thực (không phụ thuộc FPS), chỉ vẽ khi sân khấu trong màn hình và tab đang mở.
 - `prefers-reduced-motion: reduce`: không Lenis, không timeline; cảnh vẽ một khung tĩnh kể trọn câu chuyện (góc nhìn đoạn Đánh giá: đốm mờ + 5 bưu thiếp + tuyến), các đoạn 1–5 xếp lưới bên dưới ở trạng thái cuối.
 - Nhãn không bao giờ nằm dưới cột chữ hay sát mép khung.
 - Cửa sổ máy tính hẹp hơn 900px: chữ thành thẻ nền giấy ở đáy sân khấu, ẩn thanh bước.
+
+**Máy không có GPU** (không WebGL, hoặc trình vẽ phần mềm như SwiftShader / llvmpipe / Microsoft Basic Render, phát hiện trong `index.html` trước khi tải gì): trang chạy **bản nhẹ** — không tải three.js và dữ liệu địa hình, sân khấu hiện 6 ảnh chụp từ chính mô hình 3D (`landing-poster.webp`, `landing-p1..p5.webp`, ~90 KB mỗi ảnh, tạo bằng `web/scripts/shots_plates.mjs`) đổi mờ dần theo chương kèm một chuyển động trôi chậm; chữ, cuộn, gợi ý và nút `Trải nghiệm đi` giữ nguyên, nút xoay / khám phá ẩn. Máy chỉ có phần mềm vẽ được hiện thêm nút `Thử bản 3D` (`?3d=on`). Máy có GPU nhưng quá yếu: bộ tự hạ chất lượng (mục 6) đã hết nấc mà vẫn chậm thì tự chuyển sang bản nhẹ. `?3d=off` buộc bản nhẹ, `?3d=on` buộc 3D (dùng khi kiểm thử).
 
 **Vào trang nhanh, không giật** (máy tính; điện thoại và `/app/...` không tải gì của landing)
 1. **Ảnh nền có ngay:** `index.html` cho `html.tg-boot #root:empty` nền là `web/public/img/landing-poster.webp` (~70 KB, chụp từ chính cảnh 3D ở góc nhìn đầu, không chữ) và preload nó, nên trang không trắng trong lúc mã tải. Sân khấu giữ ảnh này (`.tg-l3__poster`), cảnh 3D mờ dần chồng lên sau khung hình đầu tiên (`is-live`). Không có WebGL: ảnh nền ở lại, các nút xoay ẩn.

@@ -119,7 +119,9 @@
 .tg-l3__rail [aria-current] i { height: 24px; background: var(--tg-pine); }
 .tg-l3__down { position: absolute; z-index: 4; left: 50%; bottom: 24px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.88); box-shadow: var(--tg-sh-1); font-size: 0.84rem; font-weight: 600; color: var(--tg-ink-2); transition: opacity 300ms, transform 300ms var(--tg-ease); }
 .tg-l3__down svg { animation: tg-bob 2.4s ease-in-out infinite; }
-.tg-l3__down.is-gone { opacity: 0; transform: translate(-50%, 10px); pointer-events: none; }
+/* the foot hint re-enters with every chapter, so the visitor sees there is always more below */
+.tg-l3__down { animation: tg-nudge 700ms var(--tg-ease) both; }
+@keyframes tg-nudge { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes tg-bob { 50% { transform: translateY(3px); } }
 
 /* reduced motion: one still frame of the model, every chapter laid out below it */
@@ -267,3 +269,20 @@
 .tg-l.is-leaving .tg-l3__veil { opacity: 0; transition: opacity 400ms ease; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 520ms; animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); }
 @media (prefers-reduced-motion: reduce) { .tg-l.is-leaving * { transition: none !important; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+
+/* the cue closing a page section: more below */
+.tg-l__more { display: flex; align-items: center; gap: 8px; margin: 8px auto 0; min-height: 44px; padding: 0 18px; border-radius: 999px; font-size: 0.88rem; font-weight: 600; color: var(--tg-ink-2); background: rgba(255, 255, 255, 0.8); border: 1px solid var(--tg-line); transition: border-color 150ms, color 150ms; }
+.tg-l__more:hover { border-color: var(--tg-pine-line); color: var(--tg-pine); }
+.tg-l__more svg { animation: tg-bob 2.4s ease-in-out infinite; }
+.tg-l4 > .tg-l__more, .tg-l5 > .tg-l__more { grid-column: 1 / -1; }
+@media (prefers-reduced-motion: reduce) { .tg-l__more svg, .tg-l3__down svg, .tg-l3__down { animation: none; } }
+
+/* the light version: a picture per chapter, cross-fading as the story moves, with a slow drift so it is never still */
+.tg-l3__plates { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.tg-l3__plates img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 62% center; opacity: 0; transform: scale(1.06); transition: opacity 900ms ease, transform 9s ease-out; }
+.tg-l3__plates img.is-on { opacity: 1; transform: scale(1); }
+.tg-l3__stage.is-flat .tg-l3__cv { display: none; }
+@media (prefers-reduced-motion: reduce) { .tg-l3__plates img { transition: opacity 200ms; transform: none; } }
+
+/* the hint's entrance animation must not outrank the rules that hide it */
+.tg-l3__stage.is-exploring .tg-l3__down, .tg-l.is-leaving .tg-l3__down { animation: none; opacity: 0; }

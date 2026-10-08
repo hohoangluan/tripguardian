@@ -20,3 +20,9 @@ export function isPhone() {
   const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches
   return touchOnly && Math.min(screen.width, screen.height) < 600
 }
+
+// Can this machine draw the 3D model well? index.html decides before anything downloads (window.__tgGL):
+// 'gpu' = a real GPU, 'soft' = software rendering, 'none' = no WebGL (or ?3d=off). Anything but 'gpu' gets the light
+// version of the landing: one picture per chapter instead of the live model.
+declare global { interface Window { __tgGL?: 'gpu' | 'soft' | 'none' } }
+export const hasGpu = () => (typeof window === 'undefined' ? true : window.__tgGL !== 'soft' && window.__tgGL !== 'none')
