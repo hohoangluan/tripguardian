@@ -5,8 +5,9 @@ import { fmtRange, info, priceText } from '../lib'
 import { useDecision } from '../pd/decision'
 import type { Card, Group } from '../pd/types'
 import { toggleSaved, useUi } from '../store'
-import { go, Hint, Photo, placeHref } from './common'
+import { Hint, Photo } from './common'
 import { HeartFill, Icon, type IconName } from './icons'
+import { openPlace } from './PlaceSheet'
 
 const BLADES = 7 // wedges on the half disc at most (3 above, the active one, 3 below): each photo stays large and clear;
 // fewer places get wider wedges (180° / count, up to MAX_STEP)
@@ -34,6 +35,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
   const root = useRef<HTMLDivElement>(null)
   const zone = useRef<HTMLDivElement>(null)
   const wheel = useRef<HTMLDivElement>(null)
+  const bigRef = useRef<HTMLDivElement>(null)
   const acc = useRef(0)
   const last = useRef(0)
   const drag = useRef<{ y: number; moved: boolean } | null>(null)
@@ -172,9 +174,9 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
             return (
               <div key={id} id={`tg-disc-${id}`} role="option" aria-selected={on} data-k={k}
                 className={`tg-disc__wedge ${on ? 'is-on' : ''} ${jump ? 'is-jump' : ''}`}
-                style={{ '--d': d, '--fade': on ? 1 : Math.max(0.42, 1 - Math.abs(d) * 0.11) } as CSSProperties}>
+                style={{ '--d': d, '--fade': on ? 1 : Math.max(0.82, 1 - Math.abs(d) * 0.05) } as CSSProperties}>
                 <button type="button" className="tg-disc__cut" onClick={() => { if (!drag.current?.moved) show(k) }} tabIndex={-1} aria-label={on ? pl.name : `Xoay tới ${pl.name}`}>
-                  <Photo photo={ph} alt="" className="tg-disc__ph" eager />
+                  <Photo photo={ph} alt="" className="tg-disc__ph" eager sizes="(max-width: 900px) 168px, 560px" />
                   <span className="tg-disc__nm">{pl.name}</span>
                   {pl.chosen && <i className="tg-disc__check"><Icon name="check" size={12} /></i>}
                 </button>
@@ -197,7 +199,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
             </p>
             {c.tradeoffs[0] && <p className="tg-disc__trade"><Icon name="warn" size={15} />{c.tradeoffs[0].text}</p>}
             <div className="tg-disc__act">
-              <button type="button" className="tg-disc__cta" onClick={() => go(placeHref(c.id))}>Xem chi tiết <Icon name="arrow" size={18} /></button>
+              <button type="button" className="tg-disc__cta" onClick={() => openPlace(c.id, bigRef.current)}>Xem chi tiết <Icon name="arrow" size={18} /></button>
               <button type="button" className={`tg-disc__ic ${isSel ? 'is-sel' : ''}`} onClick={() => (isSel ? onDrop(c) : act({ type: 'select', place_id: c.id }))} disabled={busy || (c.anchor && isSel)} aria-pressed={isSel} aria-label={isSel ? 'Bỏ khỏi chuyến' : 'Thêm vào chuyến'} title={isSel ? 'Đã trong chuyến, bấm để bỏ' : 'Thêm vào chuyến'}><Icon name={isSel ? 'check' : 'plus'} size={20} /></button>
               <button type="button" className={`tg-disc__ic ${saved.includes(c.id) ? 'is-on' : ''}`} onClick={() => toggleSaved(c.id, c.name)} aria-pressed={saved.includes(c.id)} aria-label="Lưu" title="Lưu">{saved.includes(c.id) ? <HeartFill size={18} /> : <Icon name="heart" size={18} />}</button>
               <Popover.Root>
@@ -214,7 +216,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
           </div>
 
           <div className="tg-disc__media">
-            <div className="tg-disc__big">
+            <div className="tg-disc__big" ref={bigRef}>
               <Photo key={g} photo={photos[g]} alt={`${c.name}, ảnh ${g + 1} trên ${shots}`} className="tg-disc__ph is-fade" eager sizes="(max-width: 900px) 92vw, 640px" />
               {isSel && <i className="tg-disc__chip"><Icon name="check" size={14} /> Đã chọn</i>}
               {shots > 0 && <span className="tg-disc__credit">Ảnh: {photos[g].credit} · {g + 1}/{shots}</span>}

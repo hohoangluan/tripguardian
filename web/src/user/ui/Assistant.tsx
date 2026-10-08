@@ -6,7 +6,8 @@ import { useDecision } from '../pd/decision'
 import { editMsg, dismissNudge, openAssistant, pinAssistant, pushMsg, useUi } from '../store'
 import { useTrip } from '../trip'
 import { searchPlaces } from '../tu/api'
-import { go, placeHref, PlacePhoto } from './common'
+import { PlacePhoto } from './common'
+import { openPlace } from './PlaceSheet'
 import { Icon } from './icons'
 
 const CHIPS = ['Yên tĩnh hơn', 'Ít di chuyển hơn', 'Thêm một chỗ ăn trưa', 'Vì sao không gợi ý Langbiang?']
@@ -69,7 +70,7 @@ function Body({ pinned, inDialog = false }: { pinned: boolean; inDialog?: boolea
         {a.msgs.map((m) => (
           <div key={m.id} className={`tg-msg is-${m.role}`}>
             <p>{m.text || (m.role === 'bot' ? '…' : '')}</p>
-            {m.places && <div className="tg-msg__chips">{m.places.map((id) => <button key={id} type="button" className="tg-pchip" onClick={() => go(placeHref(id))}><PlacePhoto id={id} className="tg-pchip__ph" />{info(id)?.name ?? 'Xem nơi này'}</button>)}</div>}
+            {m.places && <div className="tg-msg__chips">{m.places.map((id) => <button key={id} type="button" className="tg-pchip" onClick={() => openPlace(id)}><PlacePhoto id={id} className="tg-pchip__ph" />{info(id)?.name ?? 'Xem nơi này'}</button>)}</div>}
           </div>
         ))}
         <div ref={endRef} />

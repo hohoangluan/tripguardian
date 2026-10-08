@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { STATUS_LABEL } from '../data/labels'
 import { coversOf, type Confidence } from '../data/store'
 import type { Status, Video } from '../data/types'
-import { story } from '../scene/story'
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // ---------- icons (stroke, currentColor) ----------
 
@@ -156,7 +156,7 @@ export function Page({ children, className = '' }: { children: ReactNode; classN
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const el = ref.current
-    if (!el || story.reducedMotion) return
+    if (!el || reducedMotion()) return
     const ctx = gsap.context(() => {
       gsap.fromTo(el, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', clearProps: 'transform' })
     }, el)

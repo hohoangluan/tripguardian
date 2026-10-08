@@ -1,56 +1,57 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { navigate } from '../../router'
-import { Icon, Page, Segmented, Sheet } from '../../ui/bits'
-import { WHO_LABEL, useTrip, type Who } from '../trip'
-import { fromSearchInput } from '../tu/adapter'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { consumeStageEntry, enterStage, mutateJourney, resumeJourney } from '../journey'
-import type { SearchInput } from '../tu/types'
-import { ApiError, createSession, getSession, searchPlaces, sendTurn } from '../tu/api'
-import { CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softText, valueText } from '../tu/labels'
-import type { Card, Chip, HardRow, Row, TurnInput, Understanding } from '../tu/types'
+import { rememberTrip } from '../store'
+import { STEPS, useTrip, type StepId } from '../trip'
+import { fromSearchInput } from '../tu/adapter'
+import { ApiError, createSession, geoSearch, getSession, lodgingSuggest, sendTurn } from '../tu/api'
+import { placesDelta } from '../tu/labels'
+import type { Card, Chip, GeoHit, LodgingHit, SearchInput, TurnInput, Understanding } from '../tu/types'
+import { ArtHills, Busy, Empty, go, PlacePhoto } from '../ui/common'
+import { Icon, type IconName } from '../ui/icons'
+import { PlaceInput, type InputRow } from '../ui/PlaceInput'
+import { FlowBar, Page, useTitle } from '../ui/Shell'
+import { countRows, PlaceSearch, TicketFull, TicketMenu, type Source, type Turn } from '../ui/Ticket'
+import { TransitPick, transitLabel } from '../ui/TransitPick'
+import { GREET, TripChat, type ChatMsg, type Read } from './TripChat'
 
-// docs/UI_SPEC_USER_WEB.md §4 Trang 3. The agent decides the intents, how many questions each takes and their order;
+// docs/UI_SPEC_USER_WEB.md Trang 3. The agent decides the intents, how many questions each takes and their order;
 // this page only shows the turn being asked and what has already happened. Never a fraction, never what comes next.
+// The opening question is a conversation (TripChat); the deck of short questions starts once the user agrees.
 
 const KEY = 'tg.tu.v1'
 const HIST = (sid: string) => `tg.tu.hist.${sid}`
 
-// One answered question: which intent it served and what it changed on the ticket.
-interface Turn {
-  n: number
-  intent: string
-  text: string
-  answer: string
-  targets: string[]
-}
-
 const store = {
   get(k: string) {
-    try {
-      return localStorage.getItem(k)
-    } catch {
-      return null
-    }
+    try { return localStorage.getItem(k) } catch { return null }
   },
   set(k: string, v: string | null) {
-    try {
-      if (v === null) localStorage.removeItem(k)
-      else localStorage.setItem(k, v)
-    } catch {
-      /* storage blocked: the session lasts until reload */
-    }
+    try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch { /* the session lasts until reload */ }
   },
 }
 
 const QID_INTENT: Record<string, string> = {
   frame: 'Chuyến đi', days: 'Số ngày', dates: 'Ngày đi', mobility: 'Đi lại', base: 'Chỗ ở', times: 'Giờ đến, giờ đi',
   entry_exit: 'Giờ đến, giờ đi', purpose: 'Mục đích', ready: 'Sẵn sàng', show_first: 'Sẵn sàng',
+  origin: 'Xuất phát', arrival_mode: 'Phương tiện', inbound: 'Chuyến đi', outbound: 'Chuyến về', lodging_booked: 'Chỗ ở',
 }
 const GROUP_INTENT: Record<string, string> = {
-  A: 'Chuyến đi', B: 'Đi với ai', C: 'Điều cần lưu ý', D: 'Ngân sách', E: 'Nơi muốn đến', F: 'Nhịp độ', G: 'Gu chuyến đi',
-  H: 'Mới hay quen', I: 'Làm rõ',
+  A: 'Chuyến đi', B: 'Đi với ai', C: 'Điều cần lưu ý', D: 'Ngân sách', E: 'Nơi muốn đến', F: 'Nhịp độ', G: 'Gu chuyến đi', H: 'Mới hay quen', I: 'Làm rõ',
 }
+const GROUP_ICON: Record<string, IconName> = { A: 'calendar', B: 'users', C: 'shield', D: 'bolt', E: 'pin', F: 'walk', G: 'heart', H: 'compass', I: 'info' }
 const intentOf = (c: Card) => QID_INTENT[c.qid] ?? GROUP_INTENT[c.group] ?? 'Câu hỏi'
+const QID_ICON: Record<string, IconName> = {
+  dates: 'calendar', days: 'calendar', mobility: 'bike', base: 'bed', lodging_booked: 'bed', ready: 'sparkle', show_first: 'sparkle', origin: 'home', arrival_mode: 'route',
+}
+const iconOf = (c: Card): IconName => (c.input === 'transit' ? (c.params?.mode === 'bus' ? 'bus' : 'plane') : QID_ICON[c.qid] ?? GROUP_ICON[c.group] ?? 'sparkle')
+// Rows of the two type-ahead inputs (docs/plans contract: /geo, /lodging/suggest).
+const geoRow = (g: GeoHit): InputRow => ({
+  key: `${g.lat},${g.lng}`, icon: 'pin', name: g.text,
+  sub: g.province && !g.address.includes(g.province) && g.province !== g.text ? [g.address, g.province].filter(Boolean).join(' · ') : g.address,
+})
+const lodgingRow = (h: LodgingHit): InputRow => ({
+  key: h.id ?? `${h.lat},${h.lng}`, icon: h.kind === 'address' ? 'pin' : /homestay|villa|nhà/i.test(h.text) ? 'home' : 'bed', name: h.text, sub: h.address, rating: h.rating,
+})
 
 // Flatten the understanding so two snapshots can be compared target by target.
 function flat(u: Understanding | null): Record<string, string> {
@@ -60,34 +61,74 @@ function flat(u: Understanding | null): Record<string, string> {
   ;[u.purpose, u.pace, u.max_leg_min, u.crowd_tolerance, u.novelty, u.budget_vnd, ...u.trip, ...u.anchors, ...u.hard, ...u.soft].forEach(put)
   return out
 }
-
-function changed(a: Understanding | null, b: Understanding) {
+const DROP_MS = 380
+const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+const changed = (a: Understanding | null, b: Understanding) => {
   const x = flat(a)
   const y = flat(b)
   return Object.keys(y).filter((k) => x[k] !== y[k])
 }
 
 export function Understand() {
+  useTitle('Tìm hiểu')
   const { trip, dispatch } = useTrip()
   const [sid, setSid] = useState<string | null>(null)
   const [card, setCard] = useState<Card | null>(null)
   const [u, setU] = useState<Understanding | null>(null)
   const [hist, setHist] = useState<Turn[]>([])
-  const [said, setSaid] = useState<Record<string, string>>({}) // target -> where it came from, besides answers
+  const [said, setSaid] = useState<Record<string, string>>({})
   const [remark, setRemark] = useState('')
   const [busy, setBusy] = useState(false)
+  const [handing, setHanding] = useState(false)
   const [preview, setPreview] = useState<Set<string>>(new Set())
   const [offline, setOffline] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [full, setFull] = useState(false)
-  const [focus, setFocus] = useState<string | null>(null) // row to open for editing in the full ticket
-  const [sheet, setSheet] = useState(false)
+  const [focus, setFocus] = useState<string | null>(null)
+  // Key of the card being dropped while its answer is sent ('chat' for the conversation card).
+  const [leaving, setLeaving] = useState<string | null>(null)
+  const [seq, setSeq] = useState(0)
+  // The opening conversation. What the user wrote on the landing page is already their first message.
+  const [chat, setChat] = useState(() => !trip.journeyId && !!trip.startText)
+  const [msgs, setMsgs] = useState<ChatMsg[]>(() => (!trip.journeyId && trip.startText ? [{ who: 'ai', text: GREET }, { who: 'me', text: trip.startText }] : []))
+  const [reads, setReads] = useState<Read[]>([])
+  // What the user did last and how it moved the "Đang hợp với bạn" count: the newest few, newest first.
+  const lastAct = useRef('')
+  const lastMatch = useRef<number | null>(null)
+  const [moves, setMoves] = useState<{ key: number; label: string; delta: number }[]>([])
+  useEffect(() => {
+    if (u?.matching === undefined) return
+    const before = lastMatch.current
+    lastMatch.current = u.matching
+    if (before === null || before === u.matching) return
+    setMoves((m) => [{ key: Date.now(), label: lastAct.current || 'Cập nhật', delta: u.matching - before }, ...m].slice(0, 4))
+  }, [u?.matching])
+  const shownMatch = useTween(u?.matching ?? 0)
+  const [quotes, setQuotes] = useState<Record<string, string>>({})
   const uRef = useRef<Understanding | null>(null)
+  const cardRef = useRef<Card | null>(null)
+  const sayRef = useRef('')
+  const dropUntil = useRef(0)
   const mounted = useRef(true)
   uRef.current = u
+  cardRef.current = card
+  // A new card waits for the answered one to finish falling.
+  const deliver = (fn: () => void) => {
+    const wait = dropUntil.current - Date.now()
+    if (wait > 0) window.setTimeout(fn, wait)
+    else fn()
+  }
+
+  // Where the hand-off lands: Lựa chọn, or the step the user jumped to from the step bar.
+  const ahead = useRef('/explore')
+  const handOff = useCallback((si: SearchInput, jid: string) => {
+    dispatch({ type: 'set', patch: { ...fromSearchInput(si), journeyId: jid, decisionId: jid, planningId: null } })
+    store.set(KEY, null)
+    go(ahead.current)
+  }, [dispatch])
 
   const open = useCallback(
-    async (fresh: boolean) => {
+    async (fresh: boolean, alive: () => boolean = () => mounted.current) => {
       try {
         const origin = location.pathname + location.search
         const old = fresh ? null : trip.journeyId ?? store.get(KEY)
@@ -104,74 +145,96 @@ export function Understand() {
           if (!mounted.current || origin !== location.pathname + location.search) return null
         }
         if (recovery?.view.stage === 'trip' && recovery.view.outputs.trip) {
+          setHanding(true)
           const j = await mutateJourney(recovery.view.id, 'trip', 'advance')
           if (!mounted.current || origin !== location.pathname + location.search) return null
-          dispatch({ type: 'set', patch: { ...fromSearchInput(recovery.view.outputs.trip as SearchInput), journeyId: j.id, decisionId: j.id, planningId: null } })
-          store.set(KEY, null)
-          navigate('/app/shortlist')
+          handOff(recovery.view.outputs.trip as SearchInput, j.id)
           return null
         }
         if (recovery && recovery.view.stage !== 'trip') {
           const j = recovery.view
           dispatch({ type: 'set', patch: { journeyId: j.id, decisionId: j.id, planningId: j.stage === 'planning' ? j.id : null } })
-          navigate(j.stage === 'planning' ? '/app/plan' : '/app/shortlist')
+          go(j.stage === 'planning' ? '/plan' : '/explore')
           return null
         }
         const resumed = recovery ? await getSession(recovery.view.id) : null
         if (!mounted.current || origin !== location.pathname + location.search) return null
         const v = resumed ?? (await createSession(trip.experience, trip.startWith))
+        if (!alive() || origin !== location.pathname + location.search) return null
         store.set(KEY, v.id)
+        rememberTrip(v.id)
         setSid(v.id)
         dispatch({ type: 'set', patch: { journeyId: v.id, decisionId: null, planningId: null } })
+        let saved: Turn[] = []
+        try {
+          saved = resumed ? JSON.parse(store.get(HIST(v.id)) ?? '[]') : []
+        } catch { /* start the history again */ }
         setCard(v.card)
         setU(v.understanding)
-        try {
-          setHist(resumed ? JSON.parse(store.get(HIST(v.id)) ?? '[]') : [])
-        } catch {
-          setHist([])
-        }
+        setHist(saved)
+        const talk = v.card?.qid === 'frame' && !saved.length
+        setChat(talk)
+        if (talk) setMsgs((m) => (m.length ? m : [{ who: 'ai', text: GREET }]))
         return v.id
       } catch {
         setOffline(true)
         return null
       }
     },
-    [trip.experience, trip.startWith],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trip.experience, trip.startWith, trip.journeyId],
   )
 
   const send = useCallback(
-    async (input: TurnInput, turn?: Omit<Turn, 'targets'>, id = sid) => {
-      if (!id) return
+    async (input: TurnInput, turn?: Omit<Turn, 'targets'>, id = sid): Promise<string> => {
+      if (!id) return ''
       setBusy(true)
       setNotice(null)
       setRemark('')
+      setReads([])
+      sayRef.current = ''
+      // The answered turn joins the history at once, so the next card already counts it.
+      if (turn) setHist((h) => [...h, { ...turn, targets: [] }])
       const origin = location.pathname + location.search
       const before = uRef.current
       let touched: string[] = []
       let compiled: SearchInput | null = null
       try {
         await sendTurn(id, input, {
-          preview: (p) => setPreview(new Set(p.fields.map((f) => f.target))),
-          say: (d) => setRemark((r) => (d.replace !== undefined ? d.replace : r + (d.delta ?? ''))),
+          preview: (p) => {
+            setPreview(new Set(p.fields.map((f) => f.target)))
+            const got = p.fields.filter((f) => f.quote)
+            if (!got.length) return
+            setReads((r) => [...r.filter((x) => !got.some((f) => f.target === x.target)), ...got.map((f) => ({ target: f.target, quote: f.quote }))])
+            setQuotes((q) => ({ ...q, ...Object.fromEntries(got.map((f) => [f.target, f.quote])) }))
+          },
+          say: (d) => {
+            sayRef.current = d.replace !== undefined ? d.replace : sayRef.current + (d.delta ?? '')
+            setRemark(sayRef.current)
+          },
           state: (s) => {
             touched = changed(before, s.understanding)
             setU(s.understanding)
             setPreview(new Set())
           },
-          card: (c) => setCard(c),
+          card: (c) => deliver(() => {
+            const was = cardRef.current
+            if (c?.qid !== was?.qid || c?.text !== was?.text) setSeq((n) => n + 1)
+            setCard(c)
+            setLeaving(null)
+          }),
           done: (d) => { compiled = d.search_input },
           error: (e) => setNotice(e.message),
         })
         if (compiled && mounted.current && origin === location.pathname + location.search) {
+          setHanding(true)
           const r = await mutateJourney(id, 'trip', 'advance')
-          if (!mounted.current || origin !== location.pathname + location.search) return
-          dispatch({ type: 'set', patch: { ...fromSearchInput(compiled), journeyId: r.id, decisionId: r.id, planningId: null } })
-          store.set(KEY, null)
-          navigate('/app/shortlist')
+          if (!mounted.current || origin !== location.pathname + location.search) return ''
+          handOff(compiled, r.id)
         }
         if (turn) {
           setHist((h) => {
-            const next = [...h, { ...turn, targets: touched }]
+            const next = h.map((t) => (t.n === turn.n ? { ...t, targets: touched } : t))
             store.set(HIST(id), JSON.stringify(next))
             return next
           })
@@ -180,28 +243,34 @@ export function Understand() {
           setSaid((s) => ({ ...s, ...Object.fromEntries(touched.map((t) => [t, from])) }))
         }
       } catch (e) {
+        if (turn) setHist((h) => h.filter((t) => t.n !== turn.n))
+        setHanding(false)
         if (e instanceof ApiError && e.status === 404) {
           store.set(KEY, null)
-          setNotice('Phiên này đã hết. Bấm “Đặt lại toàn bộ” để bắt đầu lại.')
+          setNotice('Phiên này đã hết. Bấm “Đặt lại toàn bộ” trong vé để bắt đầu lại.')
         } else setOffline(true)
       } finally {
         setBusy(false)
         setPreview(new Set())
+        // No new card came back (an error, or the same question): the dropped card is dealt again.
+        deliver(() => setLeaving(null))
       }
+      return sayRef.current
     },
-    [sid, dispatch],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sid, handOff],
   )
 
-  // Opens once per mount. What the user typed on the start page becomes the first turn.
+  // Opens once per mount. What the user typed on Khám phá becomes the first turn.
   useEffect(() => {
     mounted.current = true
     let alive = true
     ;(async () => {
-      const id = await open(false)
+      const id = await open(!trip.journeyId && !!(trip.startText || trip.startWith), () => alive)
       if (alive && id && trip.startText) {
         const text = trip.startText
         dispatch({ type: 'set', patch: { startText: null } })
-        await send({ kind: 'text', text }, undefined, id)
+        await tell(text, id, true)
       }
     })()
     return () => {
@@ -211,27 +280,70 @@ export function Understand() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Esc closes the full ticket.
+  // The opening question (qid frame) is the conversation itself; it is never dealt again as a card.
+  const talk = chat || (card?.qid === 'frame' && !msgs.some((m) => m.who === 'me'))
+  const cardKey = card ? `${card.qid}:${seq}` : 'none'
+  // A long conversation leaves the page scrolled down: bring each newly dealt card's top back into view.
+  const deck = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!full) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFull(false)
-    addEventListener('keydown', onKey)
-    return () => removeEventListener('keydown', onKey)
-  }, [full])
-
+    const el = deck.current
+    if (talk || !el || el.getBoundingClientRect().top >= 80) return
+    el.scrollIntoView({ block: 'start', behavior: still() ? 'auto' : 'smooth' })
+  }, [cardKey, talk])
+  // The answered card drops away at once while the answer is sent; the next one is dealt from behind when it arrives.
+  const drop = (key: string) => {
+    if (still()) return
+    dropUntil.current = Date.now() + DROP_MS
+    setLeaving(key)
+  }
   const answer = (chips: string[], value?: string | null, label?: string) => {
-    if (!card || busy) return
+    if (!card || busy || leaving) return
     const names = card.chips.filter((c) => chips.includes(c.id)).map((c) => c.label)
     const text = label ?? (chips.includes('skip') ? 'Bỏ qua' : chips.includes('unsure') ? 'Chưa chắc' : [...names, value ?? ''].filter(Boolean).join(', '))
+    lastAct.current = text
+    drop(cardKey)
     send({ kind: 'answer', qid: card.qid, chips, value: value ?? null }, { n: hist.length + 1, intent: intentOf(card), text: card.text, answer: text })
   }
-  const edit = (target: string, value: string | null) => send({ kind: 'edit', target, value })
+  const typed = (text: string) => {
+    if (busy || leaving) return
+    lastAct.current = quoteOf(text)
+    drop(cardKey)
+    send({ kind: 'text', text })
+  }
+  // One message of the opening conversation; the agent's reply joins the thread when the turn ends.
+  const tell = async (text: string, id = sid, echoed = false) => {
+    if (!echoed) setMsgs((m) => [...m, { who: 'me', text }])
+    lastAct.current = quoteOf(text)
+    const reply = await send({ kind: 'text', text }, undefined, id)
+    if (mounted.current) setMsgs((m) => [...m, { who: 'ai', text: reply || 'Mình ghi lại được như dưới đây.' }])
+  }
+  // The user agrees with what was understood: the conversation card drops and the first short question is dealt.
+  const proceed = () => {
+    if (busy || leaving) return
+    setRemark('')
+    if (!card) return show()
+    if (still()) return setChat(false)
+    setLeaving('chat')
+    window.setTimeout(() => { setChat(false); setLeaving(null) }, DROP_MS)
+  }
+  const edit = (target: string, value: string | null) => {
+    lastAct.current = value === null ? 'Bỏ một dòng trên vé' : 'Sửa vé chuyến'
+    return send({ kind: 'edit', target, value })
+  }
   const show = () => send({ kind: 'show' })
+  // A later step chosen on the step bar before the questions are done: search with what is known so far.
+  const jump = (target: StepId) => {
+    if (!sid || busy) return
+    ahead.current = target === 'explore' ? '/explore' : STEPS.find((x) => x.id === target)?.path ?? '/explore'
+    show()
+  }
   const reset = async () => {
     if (!confirm('Đặt lại toàn bộ những gì mình đã hiểu về chuyến này?')) return
     if (sid) store.set(HIST(sid), null)
     setFull(false)
     setSaid({})
+    setMsgs([])
+    setQuotes({})
     await open(true)
   }
   const openRow = (target: string | null) => {
@@ -241,15 +353,20 @@ export function Understand() {
 
   if (offline)
     return (
-      <Page className="page--narrow">
-        <p className="notice notice--bad" role="alert">
-          <Icon name="alert" /> Chưa kết nối được trợ lý. Chạy <code>python -m trip serve</code> rồi tải lại trang.
-        </p>
-      </Page>
+      <>
+        <FlowBar step="understand" />
+        <Page narrow><Empty art={<ArtHills />} title="Chưa kết nối được trợ lý" body="Máy chủ hành trình chưa trả lời. Thử lại sau ít phút; những gì bạn đã trả lời vẫn còn." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => location.reload()}><Icon name="refresh" size={18} /> Thử lại</button>} /></Page>
+      </>
     )
-  if (!u || !sid) return <div className="loading">Đang mở cuộc hỏi</div>
+  if (handing || (!talk && (!u || !sid)))
+    return (
+      <>
+        <FlowBar step="understand" />
+        <Page><Busy text={handing ? 'Mình đủ hiểu rồi, đang chuẩn bị gợi ý cho chuyến của bạn…' : 'Đang mở cuộc hỏi…'} /></Page>
+      </>
+    )
 
-  const intent = card ? intentOf(card) : null
+  const intent = card && !talk ? intentOf(card) : null
   // The chain: questions just answered for the intent still being asked.
   const chain: Turn[] = []
   for (let i = hist.length - 1; i >= 0 && intent && hist[i].intent === intent; i--) chain.unshift(hist[i])
@@ -260,150 +377,123 @@ export function Understand() {
     if (said[target]) return { text: said[target], turns: [] }
     return { text: mark ? 'mình suy ra, sửa được' : 'bạn nói', turns: [] }
   }
+  const ticket = u && { u, intent, busy, preview, source, onEdit: edit, onShow: show }
+  const done = hist.filter((t, i) => hist.findIndex((x) => x.intent === t.intent) === i && t.intent !== intent)
+  const told = msgs.find((m) => m.who === 'me')
+  const waiting = !talk && !!leaving && leaving === cardKey
 
-  const ask = (
-    <Ask
-      card={card}
-      intent={intent}
-      n={hist.length + 1}
-      chain={chain}
-      u={u}
-      busy={busy}
-      remark={remark}
-      notice={notice}
-      onAnswer={answer}
-      onText={(text) => send({ kind: 'text', text })}
-      onEdit={(t) => openRow(t)}
-    />
-  )
-
-  return (
-    <Page className={`tu${full ? ' tu--full' : ''}`}>
-      <section className="tu__ask" aria-label="Câu hỏi">
-        {ask}
-      </section>
-      <aside className="tu__ticket" aria-label="Vé chuyến này">
-        {full ? (
-          <FullTicket u={u} intent={intent} chain={chain} busy={busy} preview={preview} focus={focus} source={source} onFocus={setFocus} onEdit={edit} onShow={show} onReset={reset} onClose={() => setFull(false)} />
-        ) : (
-          <Ticket u={u} intent={intent} busy={busy} preview={preview} source={source} onEdit={edit} onShow={show} onOpen={openRow} />
-        )}
-      </aside>
-      <button type="button" className="tu__bar" onClick={() => setSheet(true)}>
-        <span>Vé chuyến này · đã ghi {countRows(u)} mục</span>
-        <Icon name="chevron-up" size={16} />
-      </button>
-      <Sheet open={sheet} onClose={() => setSheet(false)} label="Vé chuyến này">
-        <FullTicket u={u} intent={intent} chain={chain} busy={busy} preview={preview} focus={focus} source={source} onFocus={setFocus} onEdit={edit} onShow={show} onReset={reset} onClose={() => setSheet(false)} />
-      </Sheet>
-    </Page>
-  )
-}
-
-interface Source {
-  text: string
-  turns: Turn[]
-}
-
-// ---------- left column: the turn being asked ----------
-
-function Ask({
-  card,
-  intent,
-  n,
-  chain,
-  u,
-  busy,
-  remark,
-  notice,
-  onAnswer,
-  onText,
-  onEdit,
-}: {
-  card: Card | null
-  intent: string | null
-  n: number
-  chain: Turn[]
-  u: Understanding
-  busy: boolean
-  remark: string
-  notice: string | null
-  onAnswer: (chips: string[], value?: string | null, label?: string) => void
-  onText: (text: string) => void
-  onEdit: (target: string | null) => void
-}) {
-  const multi = chain.length > 0
-  const share = u.total ? u.matching / u.total : 0
   return (
     <>
-      <div className="ask__top">
-        {intent && <span className="ask__intent">{intent}</span>}
-        {card && <span className="ask__n">câu {n}</span>}
-        <p className="ask__count">
-          Có <b>{u.matching.toLocaleString('vi-VN')}</b> nơi đang hợp với nhu cầu của bạn
-          <span className="ask__bar" aria-hidden="true">
-            <i style={{ width: `${Math.max(2, share * 100)}%` }} />
-          </span>
-        </p>
-        {multi && card?.exits && (
-          <button className="link ask__skipall" disabled={busy} onClick={() => onAnswer(['skip'])}>
-            Bỏ qua phần này
-          </button>
-        )}
-      </div>
+      <FlowBar step="understand" onAhead={jump} aside={ticket ? <TicketMenu {...ticket} onOpen={openRow} /> : undefined} />
+      <Page className="tg-und">
+        <div className="tg-und__grid has-sides">
+          <nav className="tg-qrail" aria-label="Những điều mình đã hiểu">
+            <h2 className="tg-side__h">Mình đang hiểu</h2>
+            <ol>
+              {!talk && told && (
+                <li className="is-done">
+                  <button type="button" onClick={() => openRow(null)} aria-label="Xem lại điều bạn kể"><i aria-hidden="true"><Icon name="check" size={13} /></i><span><small>Bạn kể</small><b className="tg-qrail__told">{told.text}</b></span></button>
+                </li>
+              )}
+              {done.map((t) => (
+                <li key={t.intent} className="is-done">
+                  <button type="button" onClick={() => openRow(t.targets[0] ?? null)} aria-label={`Sửa ${t.intent}`}><i aria-hidden="true"><Icon name="check" size={13} /></i><span><small>{t.intent}</small><b>{hist.filter((x) => x.intent === t.intent).map((x) => x.answer).join(' · ')}</b></span></button>
+                </li>
+              ))}
+              {talk && <li className="is-now" aria-current="step"><div><i aria-hidden="true" /><span><small>Trò chuyện</small><b>bạn kể, mình ghi</b></span></div></li>}
+              {intent && <li className="is-now" aria-current="step"><div><i aria-hidden="true" /><span><small>{intent}</small><b>đang hỏi</b></span></div></li>}
+              {!talk && !told && !done.length && !intent && <li className="is-next"><div><i aria-hidden="true" /><span><small>Chưa có câu nào</small></span></div></li>}
+            </ol>
+          </nav>
 
-      {(remark || busy) && (
-        <p className={`ask__remark${busy ? ' is-live' : ''}`} aria-live="polite">
-          {remark || 'Mình đang ghi lại…'}
-        </p>
-      )}
-      {notice && (
-        <p className="notice notice--bad" role="status">
-          <Icon name="alert" size={16} /> {notice}
-        </p>
-      )}
+          <section className="tg-ask" aria-live="polite">
+            {hist.length > 0 && (
+              <ul className="tg-hist">
+                {done.map((t) => (
+                  <li key={t.intent}><Icon name="check" size={15} /><span className="tg-faint">{t.intent}</span><b className="tg-chip tg-chip--soft">{hist.filter((x) => x.intent === t.intent).map((x) => x.answer).join(' · ')}</b><button type="button" className="tg-link" onClick={() => openRow(t.targets[0] ?? null)}>Sửa</button></li>
+                ))}
+              </ul>
+            )}
+            {notice && <p className="tg-alert" role="alert"><Icon name="warn" size={16} /> {notice}</p>}
+            {!talk && !card && u ? (
+              <div className="tg-ask__done tg-stage">
+                <span className="tg-chip tg-chip--soft"><Icon name="check" size={14} /> ĐỦ ĐỂ TÌM</span>
+                <h1>Mình đủ hiểu để gợi ý rồi.</h1>
+                <p className="tg-muted">Mình đã ghi {countRows(u)} điều về chuyến này. Bạn vẫn sửa được ở vé bất cứ lúc nào.</p>
+                {(remark || busy) && <p className="tg-ask__say">{remark || 'Mình đang ghi lại…'}</p>}
+                <div className="tg-ask__ctas"><button type="button" className="tg-btn tg-btn--primary" disabled={busy} onClick={show}>Bắt đầu tìm <Icon name="arrow" size={18} /></button><button type="button" className="tg-btn tg-btn--ghost" onClick={() => openRow(null)}>Xem lại vé</button></div>
+              </div>
+            ) : (
+              <div ref={deck} className={`tg-deck ${waiting ? 'is-waiting' : ''} ${talk ? 'is-chat' : ''}`}>
+                <i className="tg-deck__ghost tg-deck__ghost--1" aria-hidden="true" />
+                <i className="tg-deck__ghost tg-deck__ghost--2" aria-hidden="true" />
+                {waiting && (
+                  <div className="tg-deck__wait" role="status">
+                    <span className="tg-dots" aria-hidden="true"><i /><i /><i /></span>
+                    <p>{remark || 'Mình đang ghi lại câu trả lời…'}</p>
+                  </div>
+                )}
+                {talk ? (
+                  <TripChat key="chat" msgs={msgs.length ? msgs : [{ who: 'ai', text: GREET }]} ready={!!sid} busy={busy} live={remark} reads={reads} quotes={quotes} u={u} card={card} preview={preview} leaving={leaving === 'chat'} onTell={(t) => tell(t)} onOpen={openRow} onEdit={edit} onGo={proceed} />
+                ) : card && u && (
+                  <div className={`tg-stage tg-ask__card ${chain.length ? 'tg-ask__chain' : ''} ${leaving === cardKey ? 'is-leaving' : ''}`} key={cardKey} aria-busy={busy || !!leaving}>
+                    <div className="tg-ask__top">
+                      <span className="tg-ask__ico" aria-hidden="true"><Icon name={iconOf(card)} size={18} /></span>
+                      <span className="tg-ask__intent"><b>{intent?.toUpperCase()}</b><span className="tg-mono">câu {hist.length + (leaving === cardKey ? 0 : 1)}</span></span>
+                      {card.exits && <button type="button" className="tg-ask__skip" disabled={busy} aria-label="Bỏ qua câu này" title="Bỏ qua câu này" onClick={() => answer(['skip'])}><Icon name="arrow" size={16} /></button>}
+                    </div>
+                    {chain.length > 0 && (
+                      <ul className="tg-ask__prev">
+                        {chain.map((t) => <li key={t.n}><Icon name="check" size={14} /><span>{t.text}</span><b>{t.answer}</b><button type="button" className="tg-link" onClick={() => openRow(t.targets[0] ?? null)}>Sửa</button></li>)}
+                      </ul>
+                    )}
+                    <Question card={card} busy={busy} onAnswer={answer} onText={typed} u={u} />
+                    <div className="tg-ask__note">
+                      {busy && !leaving && <p className="tg-ask__say">{remark || 'Mình đang ghi lại…'}</p>}
+                      {!busy && remark && <p className="tg-ask__say">{remark}</p>}
+                      {card.reason && <p className="tg-ask__why"><Icon name="info" size={13} /> {card.reason}</p>}
+                      <p className="tg-faint">{chain.length ? 'Mình hỏi thêm nếu còn chưa rõ, xong sẽ gộp thành một dòng trên vé.' : 'Mình hỏi tiếp tuỳ câu trả lời của bạn.'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="tg-ask__space" />
+          </section>
 
-      {!card ? (
-        <p className="ask__idle">Mình đã ghi lại hết. Soát vé bên cạnh rồi bấm Bắt đầu tìm.</p>
-      ) : multi ? (
-        <div className="ask__chain">
-          {chain.map((t) => (
-            <div className="ask__done" key={t.n}>
-              <span className="ask__q">{t.text}</span>
-              <span className="ask__a">{t.answer}</span>
-              <button className="link" onClick={() => onEdit(t.targets[0] ?? null)}>
-                Sửa
-              </button>
-            </div>
-          ))}
-          <div className="ask__live">
-            <Question key={card.qid} card={card} busy={busy} small onAnswer={onAnswer} onText={onText} multi />
-          </div>
+          <aside className="tg-match" aria-label="Nơi đang hợp với bạn">
+            {u && (
+              <>
+                <h2 className="tg-side__h">Đang hợp với bạn</h2>
+                <p className="tg-match__n"><b className="tg-mono">{shownMatch.toLocaleString('vi-VN')}</b> nơi{moves[0] && <span key={moves[0].key} className={`tg-match__delta tg-mono ${moves[0].delta < 0 ? 'is-down' : 'is-up'}`}>{placesDelta(moves[0].delta)}</span>}</p>
+                <span className="tg-ask__meter tg-match__meter" aria-hidden="true"><i style={{ width: `${Math.max(2, (u.matching / Math.max(1, u.total)) * 100)}%` }} /></span>
+                <p className="tg-faint tg-match__of">trên {u.total.toLocaleString('vi-VN')} nơi ở Đà Lạt qua được giới hạn của bạn và có dấu hiệu hợp gu. Danh sách cụ thể hiện ở bước Lựa chọn.</p>
+                {moves.length > 0 && (
+                  <ol className="tg-match__moves" aria-label="Lựa chọn gần đây làm đổi số nơi">
+                    {moves.map((m, i) => <li key={m.key} className={i === 0 ? 'is-new' : undefined}><span>{m.label}</span><b className={`tg-mono ${m.delta < 0 ? 'is-down' : 'is-up'}`}>{placesDelta(m.delta)}</b></li>)}
+                  </ol>
+                )}
+                {u.anchors.some((a) => a.place_id) && (
+                  <ul className="tg-match__list">
+                    {u.anchors.filter((a) => a.place_id).map((a) => (
+                      <li key={a.target}><PlacePhoto id={a.place_id!} className="tg-match__ph" /><span><b>{a.name}</b><small>{a.priority === 'must' ? 'nhất định đến' : 'muốn đến'}</small></span></li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </aside>
         </div>
-      ) : (
-        <Question key={card.qid} card={card} busy={busy} onAnswer={onAnswer} onText={onText} />
-      )}
+      </Page>
+      {ticket && <TicketFull {...ticket} open={full} onClose={() => setFull(false)} focus={focus} onFocus={setFocus} onReset={reset} />}
     </>
   )
 }
 
-function Question({
-  card,
-  busy,
-  small,
-  multi,
-  onAnswer,
-  onText,
-}: {
-  card: Card
-  busy: boolean
-  small?: boolean
-  multi?: boolean
-  onAnswer: (chips: string[], value?: string | null, label?: string) => void
-  onText: (text: string) => void
-}) {
+function Question({ card, busy, u, onAnswer, onText }: { card: Card; busy: boolean; u: Understanding; onAnswer: (chips: string[], value?: string | null, label?: string) => void; onText: (text: string) => void }) {
   const [picked, setPicked] = useState<string[]>([])
   const [date, setDate] = useState('')
+  const [text, setText] = useState('')
   const instant = !card.multi && card.input !== 'date'
   const rows: { row: string | null; chips: Chip[] }[] = []
   for (const c of card.chips) {
@@ -411,9 +501,9 @@ function Question({
     if (r) r.chips.push(c)
     else rows.push({ row: c.row, chips: [c] })
   }
-  // "Ready" turns are a decision to move on, not a preference: plain buttons.
-  const go = card.qid === 'ready' || card.qid === 'show_first'
-  const asCards = rows.length === 1 && !rows[0].row && card.chips.length <= 6
+  const asCards = rows.length === 1 && !rows[0].row && card.chips.length <= 6 && card.input !== 'lodging'
+  // The search box / trip list is the answer; a typed sentence would not pick a point or a trip.
+  const logistics = card.input === 'geo' || card.input === 'transit' || card.input === 'lodging'
   const toggle = (c: Chip) => {
     if (busy) return
     if (instant) return onAnswer([c.id])
@@ -434,659 +524,107 @@ function Question({
     addEventListener('keydown', onKey)
     return () => removeEventListener('keydown', onKey)
   })
-  const canDone = picked.length > 0 || !!date
+  const submit = () => {
+    const t = text.trim()
+    if (!t || busy) return
+    onText(t)
+    setText('')
+  }
   // A long question keeps its first sentence as the headline; the rest reads as a normal line.
   const cut = card.text.length > 70 ? card.text.search(/[.:?!]\s/) : -1
   const head = cut > 0 ? card.text.slice(0, cut + 1).replace(/:$/, '?') : card.text
   const rest = cut > 0 ? card.text.slice(cut + 2) : ''
   let k = 0
   return (
-    <div className={`q${small ? ' q--small' : ''}`}>
-      <h1 className="q__text">{head}</h1>
-      {rest && <p className="q__more">{rest}</p>}
-      {card.reason && <p className="q__why">Vì sao hỏi: {card.reason}</p>}
-
-      {go ? (
-        <div className="q__go">
-          {card.chips.map((c, i) => (
-            <button key={c.id} type="button" className={`btn${i ? ' btn--ghost' : ' btn--stub'}`} disabled={busy} onClick={() => onAnswer([c.id])}>
-              {c.label}
-            </button>
-          ))}
-        </div>
-      ) : asCards ? (
-        <div className="q__cards">
-          {card.chips.map((c) => {
-            k += 1
-            const on = picked.includes(c.id)
-            return (
-              <button key={c.id} type="button" className={`qcard${on ? ' is-on' : ''}`} aria-pressed={card.multi ? on : undefined} disabled={busy} onClick={() => toggle(c)}>
-                <b>{c.label}</b>
-                {k <= 9 && <kbd aria-hidden="true">{k}</kbd>}
-              </button>
-            )
-          })}
-          {card.exits && (
-            <button type="button" className="qcard qcard--unsure" disabled={busy} onClick={() => onAnswer(['unsure'])}>
-              <b>Chưa chắc</b>
-              <span>để mình hỏi tiếp</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="q__rows">
-          {rows.map((r) => (
-            <div className={`q__row${r.row ? '' : ' q__row--plain'}`} key={r.row ?? '_'}>
-              {r.row && <span className="q__rowlabel">{r.row}</span>}
-              <div className="chips">
-                {r.chips.map((c) => {
-                  k += 1
-                  const on = picked.includes(c.id)
-                  return (
-                    <button key={c.id} type="button" className={`chip${on ? ' is-on' : ''}`} aria-pressed={on} disabled={busy} onClick={() => toggle(c)}>
-                      {c.label}
-                    </button>
-                  )
-                })}
+    <>
+      <h1 className="tg-ask__q">{head}</h1>
+      {rest && <p className="tg-ask__more">{rest}</p>}
+      <div className="tg-ask__panel">
+        {asCards ? (
+          <div className="tg-opts" role="group" aria-label="Lựa chọn">
+            {card.chips.map((c) => {
+              k += 1
+              const on = picked.includes(c.id)
+              return <button key={c.id} type="button" className={`tg-opt ${on ? 'is-on' : ''}`} aria-pressed={card.multi ? on : undefined} disabled={busy} onClick={() => toggle(c)}><b>{c.label}</b>{c.effect ? <Effect n={c.effect} /> : null}{k <= 9 && <kbd aria-hidden="true">{k}</kbd>}</button>
+            })}
+            {card.exits && !logistics && <button type="button" className="tg-opt is-soft" disabled={busy} onClick={() => onAnswer(['unsure'])}><b>Chưa chắc</b></button>}
+          </div>
+        ) : card.chips.length > 0 && card.input !== 'lodging' && (
+          <div className="tg-basics">
+            {rows.map((r) => (
+              <div className="tg-basics__row" key={r.row ?? '_'}>
+                {r.row && <h3>{r.row}</h3>}
+                <div className="tg-basics__chips" role="group" aria-label={r.row ?? 'Lựa chọn'}>
+                  {r.chips.map((c) => <button key={c.id} type="button" className="tg-chip" aria-pressed={picked.includes(c.id)} disabled={busy} onClick={() => toggle(c)}>{c.label}{c.effect ? <Effect n={c.effect} /> : null}</button>)}
+                </div>
               </div>
-            </div>
-          ))}
-          {card.exits && (
-            <button type="button" className="chip chip--unsure" disabled={busy} onClick={() => onAnswer(['unsure'])}>
-              Chưa chắc
-            </button>
-          )}
-        </div>
-      )}
-
-      {card.input === 'date' && (
-        <label className="field q__date">
-          <span>Ngày đến</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
-      )}
-      {card.input === 'place' && <PlaceSearch placeholder="Tìm một nơi gần chỗ ở" onPick={(p) => onAnswer([], p.id, p.name)} />}
-      {(card.multi || card.input === 'date') && (
-        <button className="btn q__done" disabled={busy || !canDone} onClick={() => onAnswer(picked, date || null, date ? new Date(date + 'T00:00').toLocaleDateString('vi-VN') : undefined)}>
-          Xong câu này
-        </button>
-      )}
-
-      <LineInput busy={busy} big={card.input === 'text'} onSend={onText} />
-
-      <div className="q__foot">
-        {card.exits ? (
-          <button className="link" disabled={busy} onClick={() => onAnswer(['skip'])}>
-            Bỏ qua câu này
-          </button>
-        ) : (
-          <span />
+            ))}
+            {card.exits && <button type="button" className="tg-chip tg-chip--dash" disabled={busy} onClick={() => onAnswer(['unsure'])}>Chưa chắc</button>}
+          </div>
         )}
-        <p>{multi ? 'Mình hỏi thêm nếu còn chưa rõ, xong sẽ gộp thành một dòng trên vé.' : 'Mình hỏi tiếp tuỳ câu trả lời của bạn.'}</p>
+        {card.input === 'date' && <label className="tg-ask__date"><span>Ngày đến</span><input className="tg-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>}
+        {card.input === 'place' && <PlaceSearch placeholder="Tìm một nơi gần chỗ ở" onPick={(p) => onAnswer([], p.id, p.name)} />}
+        {card.input === 'geo' && (
+          <div className="tg-ask__find">
+            <PlaceInput<GeoHit> label="Nơi bạn khởi hành" placeholder="Thành phố, quận hoặc địa chỉ" icon="home" autoFocus disabled={busy} fetcher={geoSearch} row={geoRow}
+              onPick={(g) => onAnswer([], JSON.stringify({ text: g.text, lat: g.lat, lng: g.lng, province: g.province }), g.text)} />
+            {card.exits && <button type="button" className="tg-chip tg-chip--dash" disabled={busy} onClick={() => onAnswer(['skip'])}>Bỏ qua</button>}
+          </div>
+        )}
+        {card.input === 'lodging' && (
+          <div className="tg-ask__find">
+            <PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" autoFocus disabled={busy} fetcher={lodgingSuggest} row={lodgingRow}
+              onPick={(h) => onAnswer([], JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }), h.text)} />
+            <div className="tg-basics__chips" role="group" aria-label="Chưa đặt chỗ ở">
+              {card.chips.map((c) => <button key={c.id} type="button" className="tg-chip" disabled={busy} onClick={() => onAnswer([c.id])}><Icon name="sparkle" size={15} /> {c.label}</button>)}
+              {card.exits && <button type="button" className="tg-chip tg-chip--dash" disabled={busy} onClick={() => onAnswer(['skip'])}>Bỏ qua</button>}
+            </div>
+          </div>
+        )}
+        {card.input === 'transit' && card.params && (
+          <TransitPick params={card.params} way={card.qid === 'outbound' ? 'outbound' : 'inbound'} busy={busy}
+            onPick={(t) => onAnswer([], JSON.stringify(t), transitLabel(t))}
+            onTime={(hhmm) => onAnswer([], JSON.stringify({ time: hhmm }), hhmm)}
+            onSkip={() => onAnswer(['skip'], null, 'Tôi tự lo')} />
+        )}
+        {(card.multi || card.input === 'date') && (
+          <button type="button" className="tg-btn tg-btn--primary tg-ask__ok" disabled={busy || !(picked.length || date)} onClick={() => onAnswer(picked, date || null, date ? new Date(date + 'T00:00').toLocaleDateString('vi-VN') : undefined)}>Xong câu này</button>
+        )}
+        {!logistics && <label className="tg-ask__free">
+          <span className="tg-sr">Hoặc gõ câu trả lời của bạn</span>
+          <textarea className="tg-line-input" rows={card.input === 'text' ? 2 : 1} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }} placeholder={card.input === 'text' ? 'Ví dụ: 3 ngày cuối tuần với người yêu, đi xe máy, muốn săn mây và ngồi cà phê view đồi' : 'Đáp án khác? Gõ vào đây, ví dụ: không thích đông'} />
+          <kbd>Enter</kbd>
+        </label>}
+        <span className="tg-ask__pill"><b className="tg-mono">{u.matching.toLocaleString('vi-VN')}</b> nơi đang hợp<span className="tg-ask__meter" aria-hidden="true"><i style={{ width: `${Math.max(2, (u.matching / Math.max(1, u.total)) * 100)}%` }} /></span></span>
       </div>
-    </div>
+    </>
   )
 }
 
-function LineInput({ busy, big, onSend }: { busy: boolean; big?: boolean; onSend: (text: string) => void }) {
-  const [text, setText] = useState('')
-  const submit = () => {
-    if (!text.trim() || busy) return
-    onSend(text.trim())
-    setText('')
-  }
-  return (
-    <form
-      className="lineinput q__input"
-      onSubmit={(e) => {
-        e.preventDefault()
-        submit()
-      }}
-    >
-      <textarea
-        rows={1}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            submit()
-          }
-        }}
-        placeholder={big ? 'Gõ tự nhiên, ví dụ: 3 ngày cuối tuần, đi với người yêu, xe máy, mê cà phê view đồi' : 'hoặc viết theo cách của bạn'}
-        aria-label="Trả lời bằng lời của bạn"
-      />
-      <kbd>Enter để gửi</kbd>
-    </form>
-  )
+// How a chip would move the "Đang hợp với bạn" count if it alone were chosen now.
+function Effect({ n }: { n: number }) {
+  return <small className={`tg-opt__fx tg-mono ${n < 0 ? 'is-down' : 'is-up'}`} title="Số nơi hợp với bạn đổi chừng này nếu chỉ chọn ý này">{placesDelta(n)}</small>
 }
 
-function PlaceSearch({ onPick, placeholder }: { onPick: (p: { id: string; name: string }) => void; placeholder: string }) {
-  const [q, setQ] = useState('')
-  const [hits, setHits] = useState<{ id: string; name: string; category: string | null }[]>([])
+const quoteOf = (t: string) => `“${t.length > 42 ? `${t.slice(0, 40).trimEnd()}…` : t}”`
+
+// A number that runs to its new value in ~400 ms instead of jumping; reduced motion jumps.
+function useTween(value: number) {
+  const [shown, setShown] = useState(value)
+  const from = useRef(value)
   useEffect(() => {
-    if (q.trim().length < 2) return setHits([])
-    const t = setTimeout(() => searchPlaces(q).then(setHits).catch(() => setHits([])), 180)
-    return () => clearTimeout(t)
-  }, [q])
-  return (
-    <div className="picker">
-      <label className="lineinput">
-        <Icon name="search" size={16} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} aria-label={placeholder} />
-      </label>
-      {hits.length > 0 && (
-        <ul className="picker__list">
-          {hits.map((p) => (
-            <li key={p.id}>
-              <button type="button" onClick={() => onPick(p)}>
-                <b>{p.name}</b>
-                <small>{p.category}</small>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-// ---------- the ticket: only what is already there ----------
-
-type TripRows = Record<string, Row>
-const tripOf = (u: Understanding) => Object.fromEntries(u.trip.map((r) => [r.target, r])) as TripRows
-
-function dateLine(t: TripRows) {
-  const days = t.days?.value as number | undefined
-  const bits: string[] = []
-  if (t.start_date) {
-    const a = new Date(t.start_date.value + 'T00:00')
-    if (days) {
-      const b = new Date(a)
-      b.setDate(a.getDate() + days - 1)
-      bits.push(a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()}/${a.getMonth() + 1}` : `${a.getDate()}/${a.getMonth() + 1}–${b.getDate()}/${b.getMonth() + 1}`)
-    } else bits.push(a.toLocaleDateString('vi-VN'))
-  } else if (t.month) bits.push(`tháng ${t.month.value}`)
-  if (days) bits.push(`${days} ngày`)
-  return bits.join(' · ')
-}
-
-function whoText(t: TripRows) {
-  const who = t.companions ? valueText('companions', t.companions.value).toLowerCase() : ''
-  const people = t.people ? `${t.people.value} người` : ''
-  return [people, who].filter(Boolean).join(' · ')
-}
-
-function timesText(t: TripRows) {
-  return [t.arrive_at && `tới ${t.arrive_at.value}`, t.leave_at && `rời ${t.leave_at.value}`, t.day_end && `xong trước ${t.day_end.value}`].filter(Boolean).join(' · ')
-}
-
-function paceText(u: Understanding) {
-  return [u.pace && valueText('pace', u.pace.value).toLowerCase(), u.max_leg_min && `≤ ${u.max_leg_min.value}′ mỗi chặng`, u.crowd_tolerance && `chỗ đông: ${valueText('crowd_tolerance', u.crowd_tolerance.value).toLowerCase()}`]
-    .filter(Boolean)
-    .join(' · ')
-}
-
-// Excluded right now by one hard limit: failed, plus unknown unless the user chose to see those flagged.
-const excluding = (h: HardRow) => h.coverage.failed + (h.unknown_policy === 'flag' ? 0 : h.coverage.unknown)
-
-interface Line {
-  key: string
-  label: string
-  value: ReactNode
-  target: string
-  mark?: boolean
-}
-
-function lines(u: Understanding): { trip: Line[]; way: Line[] } {
-  const t = tripOf(u)
-  const trip: Line[] = []
-  if (t.companions || t.people) trip.push({ key: 'who', label: 'Đi với', value: whoText(t), target: 'companions', mark: t.companions?.mark })
-  if (t.mobility) trip.push({ key: 'mobility', label: 'Phương tiện', value: valueText('mobility', t.mobility.value).toLowerCase(), target: 'mobility', mark: t.mobility.mark })
-  if (t.base) trip.push({ key: 'base', label: 'Chỗ ở', value: valueText('base', t.base.value), target: 'base', mark: t.base.mark })
-  if (t.arrive_at || t.leave_at || t.day_end) trip.push({ key: 'times', label: 'Giờ giấc', value: timesText(t), target: 'arrive_at' })
-  const way: Line[] = []
-  if (u.purpose) way.push({ key: 'purpose', label: 'Mục đích', value: valueText('purpose', u.purpose.value).toLowerCase(), target: 'purpose', mark: u.purpose.mark })
-  if (u.pace || u.max_leg_min || u.crowd_tolerance) way.push({ key: 'pace', label: 'Nhịp độ', value: paceText(u), target: 'pace', mark: u.pace?.mark })
-  if (u.novelty) way.push({ key: 'novelty', label: 'Mới hay quen', value: valueText('novelty', u.novelty.value).toLowerCase(), target: 'novelty', mark: u.novelty.mark })
-  if (u.budget_vnd) way.push({ key: 'budget', label: 'Ngân sách', value: valueText('budget_vnd', u.budget_vnd.value), target: 'budget_vnd', mark: u.budget_vnd.mark })
-  return { trip, way }
-}
-
-function countRows(u: Understanding) {
-  const l = lines(u)
-  return l.trip.length + l.way.length + u.anchors.length + u.hard.length + u.soft.length + (u.trip.some((r) => ['start_date', 'month', 'days'].includes(r.target)) ? 1 : 0)
-}
-
-function unknownLabel(k: string) {
-  return (FIELD_LABEL[k] ?? k).toLowerCase()
-}
-
-function Ticket({
-  u,
-  intent,
-  busy,
-  preview,
-  source,
-  onEdit,
-  onShow,
-  onOpen,
-}: {
-  u: Understanding
-  intent: string | null
-  busy: boolean
-  preview: Set<string>
-  source: (t: string, mark?: boolean) => Source
-  onEdit: (t: string, v: string | null) => void
-  onShow: () => void
-  onOpen: (target: string | null) => void
-}) {
-  const t = tripOf(u)
-  const { trip, way } = lines(u)
-  const live = (target: string) => (preview.has(target) ? ' is-preview' : '')
-  return (
-    <div className={`ticket${busy ? ' is-busy' : ''}`}>
-      <header className="ticket__head">
-        <h2>Đà Lạt</h2>
-        {dateLine(t) && <p className="mono">{dateLine(t)}</p>}
-      </header>
-
-      {trip.length > 0 && (
-        <TSection title="Chuyến đi">
-          {trip.map((l) => (
-            <div key={l.key} className={`trow${live(l.target)}`}>
-              <span>{l.label}</span>
-              <b>{l.value}</b>
-            </div>
-          ))}
-        </TSection>
-      )}
-
-      {u.anchors.length > 0 && (
-        <TSection title="Nhất định đến">
-          {u.anchors.map((a) => (
-            <div key={a.target} className={`tanchor${a.state !== 'matched' ? ' is-open' : ''}`}>
-              <Icon name={a.state === 'matched' ? (a.priority === 'must' ? 'lock' : 'pin') : 'alert'} size={15} />
-              <span>
-                {a.name ?? a.text}
-                {a.state === 'choose' && <small> · cần bạn chọn</small>}
-                {a.state === 'missing' && <small> · chưa tìm thấy</small>}
-              </span>
-            </div>
-          ))}
-        </TSection>
-      )}
-
-      {u.hard.length > 0 && (
-        <TSection title="Giới hạn cứng">
-          <div className="tstamps">
-            {u.hard.map((h) => (
-              <span key={h.target} className={`stamp${h.unknown_policy === 'flag' ? ' is-relaxed' : ''}${live(h.target)}`}>
-                {hardText(h)}
-              </span>
-            ))}
-          </div>
-        </TSection>
-      )}
-
-      {u.soft.length > 0 && (
-        <TSection title="Sở thích">
-          <div className="twishes">
-            {u.soft.map((s) => (
-              <span key={s.target} className={`wish${s.weight === 'avoid' ? ' wish--avoid' : ''}${live('soft')}`}>
-                <span className="wish__chip">
-                  {softText(s)}
-                  <button type="button" className="wish__x" aria-label={`Bỏ ${softText(s)}`} onClick={() => onEdit(s.target, null)}>
-                    <Icon name="x" size={12} />
-                  </button>
-                </span>
-                <small>{source(s.target, s.mark).text}</small>
-              </span>
-            ))}
-          </div>
-        </TSection>
-      )}
-
-      {way.length > 0 && (
-        <TSection title="Cách đi">
-          {way.map((l) => (
-            <div key={l.key} className={`trow${live(l.target)}`}>
-              <span>{l.label}</span>
-              <b>{l.value}</b>
-            </div>
-          ))}
-        </TSection>
-      )}
-
-      {intent && intent !== 'Sẵn sàng' && (
-        <div className="trow trow--asking">
-          <span>{intent}</span>
-          <b className="mono">đang hỏi</b>
-        </div>
-      )}
-
-      {countRows(u) > 0 && (u.unknowns.length > 0 || u.safety_pending) && (
-        <TSection title="Còn chưa rõ">
-          {u.safety_pending && (
-            <div className="topen">
-              <Icon name="alert" size={15} />
-              <span>một câu về an toàn</span>
-            </div>
-          )}
-          {u.unknowns.slice(0, 4).map((k) => (
-            <div className="topen" key={k}>
-              <Icon name="alert" size={15} />
-              <span>{unknownLabel(k)}</span>
-              <button className="link" onClick={() => onOpen(k)}>
-                Trả lời
-              </button>
-            </div>
-          ))}
-          {u.unknowns.length > 4 && (
-            <button className="link topen__more" onClick={() => onOpen(null)}>
-              và {u.unknowns.length - 4} điều nữa
-            </button>
-          )}
-        </TSection>
-      )}
-
-      <footer className="ticket__foot">
-        <span className="mono">đã ghi {countRows(u)} mục</span>
-        <button className="btn btn--stub" disabled={busy} onClick={onShow}>
-          Bắt đầu tìm
-        </button>
-        <button className="link" onClick={() => onOpen(null)}>
-          Xem đầy đủ
-        </button>
-      </footer>
-    </div>
-  )
-}
-
-function TSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="tsec">
-      <h3>{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-// ---------- Xem đầy đủ: review and edit every line, see the questions behind each conclusion ----------
-
-function FullTicket({
-  u,
-  intent,
-  chain,
-  busy,
-  preview,
-  focus,
-  source,
-  onFocus,
-  onEdit,
-  onShow,
-  onReset,
-  onClose,
-}: {
-  u: Understanding
-  intent: string | null
-  chain: Turn[]
-  busy: boolean
-  preview: Set<string>
-  focus: string | null
-  source: (t: string, mark?: boolean) => Source
-  onFocus: (t: string | null) => void
-  onEdit: (t: string, v: string | null) => void
-  onShow: () => void
-  onReset: () => void
-  onClose: () => void
-}) {
-  const t = tripOf(u)
-  const [opened, setOpened] = useState<string | null>(null)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (focus) ref.current?.querySelector(`[data-row="${focus}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }, [focus])
-
-  const row = (key: string, label: string, value: ReactNode, target: string, mark?: boolean, editor?: ReactNode) => {
-    const src = source(target, mark)
-    const editing = focus === key || focus === target
-    const chainOpen = opened === key
-    return (
-      <div className={`frow${preview.has(target) ? ' is-preview' : ''}${editing ? ' is-editing' : ''}`} data-row={key} key={key}>
-        <span className="frow__k">{label}</span>
-        <div className="frow__v">
-          <b>{value ?? <span className="muted">—</span>}</b>
-          {value ? <small className="source">{src.text}</small> : null}
-          {chainOpen && src.turns.length > 1 && (
-            <ol className="frow__chain">
-              {src.turns.map((x, i) => (
-                <li key={x.n}>
-                  <span className="mono">{String(i + 1).padStart(2, '0')}</span>
-                  <span>{x.text}</span>
-                  <b>{x.answer}</b>
-                </li>
-              ))}
-              <li className="frow__rule">Chỉ dòng kết luận được dùng để gợi ý.</li>
-            </ol>
-          )}
-          {editing && editor && <div className="frow__edit">{editor}</div>}
-        </div>
-        <span className="frow__act">
-          {src.turns.length > 1 && (
-            <button className="iconbtn iconbtn--sm" aria-expanded={chainOpen} aria-label="Xem các câu đã hỏi" onClick={() => setOpened(chainOpen ? null : key)}>
-              <Icon name={chainOpen ? 'chevron-up' : 'next'} size={13} />
-            </button>
-          )}
-          {editor && (
-            <button className="link" onClick={() => onFocus(editing ? null : key)}>
-              {editing ? 'Xong' : value ? 'Sửa' : 'Trả lời'}
-            </button>
-          )}
-        </span>
-      </div>
-    )
-  }
-
-  const companions: Who[] = t.companions?.value ?? []
-  const toggleWho = (w: Who) => onEdit('companions', (companions.includes(w) ? companions.filter((x) => x !== w) : [...companions, w]).join(','))
-  const seg = <T extends string | number>(target: string, label: string, value: T | null, options: { value: T; label: string }[]) => (
-    <Segmented label={label} value={value} onChange={(v) => onEdit(target, String(v))} options={options} />
-  )
-
-  return (
-    <div className={`fticket${busy ? ' is-busy' : ''}`} ref={ref}>
-      <header className="fticket__head">
-        <div>
-          <h2>Vé chuyến này</h2>
-          <p className="mono">Đà Lạt{dateLine(t) ? ` · ${dateLine(t)}` : ''}</p>
-          <small className="source">Xem lại và sửa bất cứ dòng nào.</small>
-        </div>
-        <button className="link fticket__close" onClick={onClose}>
-          Thu gọn <kbd>Esc</kbd>
-        </button>
-      </header>
-
-      <div className="fticket__body">
-        {row('dates', 'Ngày đi', dateLine(t) || null, t.start_date ? 'start_date' : 'days', t.start_date?.mark, (
-          <div className="frow__pair">
-            <input type="date" value={t.start_date?.value ?? ''} onChange={(e) => onEdit('start_date', e.target.value || null)} aria-label="Ngày đi" />
-            {seg('days', 'Số ngày', t.days?.value ?? null, [1, 2, 3, 4, 5].map((d) => ({ value: d, label: `${d} ngày` })))}
-          </div>
-        ))}
-        {row('who', 'Đi với', whoText(t) || null, 'companions', t.companions?.mark, (
-          <div className="chips">
-            {(Object.keys(WHO_LABEL) as Who[]).map((w) => (
-              <button key={w} type="button" className={`chip${companions.includes(w) ? ' is-on' : ''}`} aria-pressed={companions.includes(w)} onClick={() => toggleWho(w)}>
-                {WHO_LABEL[w]}
-              </button>
-            ))}
-          </div>
-        ))}
-        {row('mobility', 'Phương tiện', t.mobility ? valueText('mobility', t.mobility.value).toLowerCase() : null, 'mobility', t.mobility?.mark,
-          seg('mobility', 'Đi lại', t.mobility?.value ?? null, [
-            { value: 'motorbike', label: 'Xe máy' },
-            { value: 'car', label: 'Ô tô' },
-            { value: 'ride', label: 'Xe công nghệ' },
-          ]),
-        )}
-        {row('base', 'Chỗ ở', t.base ? valueText('base', t.base.value) : null, 'base', t.base?.mark, <PlaceSearch placeholder="Chọn nơi gần chỗ ở" onPick={(p) => onEdit('base', p.id)} />)}
-        {row('times', 'Giờ giấc', timesText(t) || null, 'arrive_at', false, (
-          <div className="frow__times">
-            {(['arrive_at', 'leave_at', 'day_end'] as const).map((k) => (
-              <label key={k} className="field">
-                <span>{FIELD_LABEL[k]}</span>
-                <input type="time" value={t[k]?.value ?? ''} onChange={(e) => onEdit(k, e.target.value || null)} />
-              </label>
-            ))}
-          </div>
-        ))}
-
-        {intent && intent !== 'Sẵn sàng' && (
-          <div className="frow frow--asking">
-            <span className="frow__k">{intent}</span>
-            <div className="frow__v">
-              <b>đang hỏi</b>
-              <ol className="frow__chain">
-                {chain.map((x, i) => (
-                  <li key={x.n}>
-                    <span className="mono">{String(i + 1).padStart(2, '0')}</span>
-                    <span>{x.text}</span>
-                    <b>{x.answer}</b>
-                  </li>
-                ))}
-                <li>
-                  <span className="mono">{String(chain.length + 1).padStart(2, '0')}</span>
-                  <span>…</span>
-                </li>
-              </ol>
-            </div>
-            <span className="frow__act">
-              <button className="link" onClick={onClose}>
-                Trả lời tiếp
-              </button>
-            </span>
-          </div>
-        )}
-
-        {u.anchors.length > 0 && (
-          <div className="fgroup">
-            <span className="frow__k">Nhất định đến</span>
-            <ul>
-              {u.anchors.map((a) => (
-                <li key={a.target}>
-                  <Icon name={a.state === 'matched' ? 'lock' : 'alert'} size={15} />
-                  <span>
-                    {a.name ?? a.text}
-                    {a.state === 'missing' && <small className="unsure"> · chưa tìm thấy, không dùng để xếp lịch</small>}
-                    {a.priority === 'want' && <small className="muted"> · bỏ được nếu thiếu giờ</small>}
-                  </span>
-                  <button className="link" onClick={() => onEdit(a.target, null)}>
-                    Bỏ
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {u.hard.length > 0 && (
-          <div className="fgroup">
-            <span className="frow__k">Giới hạn cứng</span>
-            <ul>
-              {u.hard.map((h) => (
-                <li key={h.target} className={preview.has(h.target) ? 'is-preview' : ''}>
-                  <span className={`stamp${h.unknown_policy === 'flag' ? ' is-relaxed' : ''}`}>{hardText(h)}</span>
-                  <span className="mono fgroup__cost">
-                    {h.unknown_policy === 'flag' ? `đã nới · xem cả ${h.coverage.unknown} nơi chưa rõ` : `đang loại ${excluding(h)} nơi`}
-                  </span>
-                  <button className="link" onClick={() => onEdit(h.target, h.unknown_policy === 'flag' ? 'exclude' : 'flag')}>
-                    {h.unknown_policy === 'flag' ? 'Siết lại' : 'Nới'}
-                  </button>
-                  <button className="link" onClick={() => onEdit(h.target, null)}>
-                    Bỏ
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="fgroup">
-          <span className="frow__k">Sở thích</span>
-          {u.soft.length ? (
-            <div className="twishes">
-              {u.soft.map((s) => (
-                <span key={s.target} className={`wish${s.weight === 'avoid' ? ' wish--avoid' : ''}`}>
-                  <span className="wish__chip">
-                    <button type="button" title="Đổi thích / tránh" onClick={() => onEdit(s.target, s.weight === 'love' ? 'avoid' : 'love')}>
-                      {softText(s)}
-                    </button>
-                    <button type="button" className="wish__x" aria-label={`Bỏ ${softText(s)}`} onClick={() => onEdit(s.target, null)}>
-                      <Icon name="x" size={12} />
-                    </button>
-                  </span>
-                  <small>{source(s.target, s.mark).text}</small>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">—</p>
-          )}
-        </div>
-
-        {row('purpose', 'Mục đích', u.purpose ? valueText('purpose', u.purpose.value).toLowerCase() : null, 'purpose', u.purpose?.mark,
-          seg('purpose', 'Mục đích', u.purpose?.value ?? null, Object.entries(PURPOSE_LABEL).map(([value, label]) => ({ value, label }))),
-        )}
-        {row('pace', 'Nhịp độ', paceText(u) || null, 'pace', u.pace?.mark, (
-          <div className="frow__stack">
-            {seg('pace', 'Nhịp độ', u.pace?.value ?? null, Object.entries(PACE_LABEL).map(([value, label]) => ({ value, label })))}
-            {seg('max_leg_min', 'Mỗi chặng tối đa', u.max_leg_min?.value ?? null, [15, 30, 45, 60].map((m) => ({ value: m, label: `≤ ${m}′ mỗi chặng` })))}
-            {seg('crowd_tolerance', 'Chỗ đông', u.crowd_tolerance?.value ?? null, Object.entries(CROWD_LABEL).map(([value, label]) => ({ value, label: `Chỗ đông: ${label.toLowerCase()}` })))}
-          </div>
-        ))}
-        {row('novelty', 'Mới hay quen', u.novelty ? valueText('novelty', u.novelty.value).toLowerCase() : null, 'novelty', u.novelty?.mark,
-          seg('novelty', 'Mới hay quen', u.novelty?.value ?? null, Object.entries(NOVELTY_LABEL).map(([value, label]) => ({ value, label }))),
-        )}
-        {u.budget_vnd && row('budget', 'Ngân sách', `${valueText('budget_vnd', u.budget_vnd.value)} · chưa kiểm được bằng dữ liệu`, 'budget_vnd', u.budget_vnd.mark)}
-
-        {(u.unknowns.length > 0 || u.unmapped.length > 0) && (
-          <div className="fgroup">
-            <span className="frow__k">Còn chưa rõ</span>
-            <ul>
-              {u.unknowns.map((k) => (
-                <li key={k} className="topen">
-                  <Icon name="alert" size={15} />
-                  <span>{unknownLabel(k)}</span>
-                </li>
-              ))}
-              {u.unmapped.map((x) => (
-                <Fragment key={x.target}>
-                  <li>
-                    <Icon name="info" size={15} />
-                    <span>
-                      “{x.phrase}” <small className="muted">· chưa kiểm được bằng dữ liệu, chỉ nêu trong lời giải thích</small>
-                    </span>
-                    <button className="link" onClick={() => onEdit(x.target, null)}>
-                      Bỏ
-                    </button>
-                  </li>
-                </Fragment>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      <footer className="fticket__foot">
-        <span className="mono">đã ghi {countRows(u)} mục</span>
-        <button className="btn btn--stub" disabled={busy} onClick={onShow}>
-          Bắt đầu tìm
-        </button>
-        <button className="link link--quiet" onClick={onReset}>
-          Đặt lại toàn bộ
-        </button>
-      </footer>
-    </div>
-  )
+    const start = from.current
+    from.current = value
+    if (start === value || matchMedia('(prefers-reduced-motion: reduce)').matches) { setShown(value); return }
+    const t0 = performance.now()
+    let raf = 0
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / 400)
+      setShown(Math.round(start + (value - start) * (1 - (1 - k) ** 3)))
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value])
+  return shown
 }

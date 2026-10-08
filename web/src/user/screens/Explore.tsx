@@ -3,11 +3,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useDecision } from '../pd/decision'
 import type { Card } from '../pd/types'
 import { requestStageEntry } from '../journey'
-import { nudge, openAssistant, setUi, useUi } from '../store'
-import { DROP_LABEL, useTrip, type DropReason } from '../trip'
+import { nudge, openAssistant, setUi, toggleCmp, useUi } from '../store'
+import { DROP_LABEL, STEPS, useTrip, type DropReason } from '../trip'
 import { placesDelta } from '../tu/labels'
 import { AssistantFloat, AssistantPinned } from '../ui/Assistant'
-import { ArtHills, Empty, go, placeHref, PlacePhoto } from '../ui/common'
+import { ArtHills, Empty, go, PlacePhoto } from '../ui/common'
+import { openPlace } from '../ui/PlaceSheet'
 import { DiscPicker } from '../ui/DiscPicker'
 import { Icon } from '../ui/icons'
 import { PlaceCard } from '../ui/PlaceCard'
@@ -44,11 +45,11 @@ export function useEditTicket() {
 }
 
 export function Explore() {
-  useTitle('Chọn nơi')
+  useTitle('Lựa chọn')
   const { trip } = useTrip()
-  const { view, error, act, busy, reload, more, loadingMore } = useDecision()
+  const { view, error, act, busy, reload, more, loadingMore, toPlan } = useDecision()
   const tab = useUi((u) => u.tab)
-  const [cmp, setCmp] = useState<string[]>([])
+  const cmp = useUi((u) => u.cmp)
   const [dropFor, setDropFor] = useState<Card | null>(null)
   const [exOpen, setExOpen] = useState(false)
   const [mode, setMode] = useState<'grid' | 'disc'>('grid')
@@ -59,7 +60,7 @@ export function Explore() {
   const current = groups.find((g) => g.id === tab) ?? groups[0]
   const foodSel = view ? view.groups.flatMap((g) => g.cards).filter((c) => c.chosen && /cà phê|coffee|cafe/i.test(c.category ?? '')).length : 0
   useEffect(() => { if (foodSel >= 3) nudge(`Bạn đã chọn ${foodSel} quán cà phê. Thêm một chỗ ăn trưa chứ?`) }, [foodSel])
-  const onCmp = (id: string) => setCmp((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= 3 ? [...c.slice(1), id] : [...c, id]))
+  const onCmp = toggleCmp
   const goCompare = (ids: string[]) => go(`/explore/compare/${ids.map(encodeURIComponent).join(',')}`)
   // The header count moved (a chat wish, an edited ticket): show by how much next to it.
   const listed = view ? view.groups.filter((g) => g.id !== 'anchors').reduce((n, g) => n + g.total, 0) : null
@@ -116,7 +117,7 @@ export function Explore() {
     return (
       <>
         <FlowBar step="explore" />
-        <Page narrow><Empty art={<ArtHills />} title="Chưa có gợi ý" body={error ?? 'Bắt đầu từ bước Hiểu chuyến đi, chỉ vài câu thôi.'} action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/understand')}>Hiểu chuyến đi</button>} /></Page>
+        <Page narrow><Empty art={<ArtHills />} title="Chưa có gợi ý" body={error ?? 'Bắt đầu từ bước Tìm hiểu, chỉ vài câu thôi.'} action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/understand')}>Tìm hiểu</button>} /></Page>
       </>
     )
   if (!view)
@@ -151,13 +152,13 @@ export function Explore() {
   )
   return (
     <>
-      <FlowBar step="explore" />
+      <FlowBar step="explore" onAhead={(t) => { if (t === 'plan' && view?.selected.length) void toPlan(); else go(STEPS.find((x) => x.id === t)!.path) }} />
       <Page>
         <div className={`tg-xlayout ${pinned ? 'is-pinned' : ''}`}>
           <div className="tg-xmain">
             <header className="tg-xhead">
               <div>
-                <p className="tg-kicker">Bước 2 · Chọn nơi</p>
+                <p className="tg-kicker">Bước 2 · Lựa chọn</p>
                 <h1>Gợi ý cho chuyến của bạn</h1>
                 <p>{total - anchors.length} nơi hợp với chuyến của bạn{listMove && <span key={listMove.key} className={`tg-xhead__delta tg-mono ${listMove.delta < 0 ? 'is-down' : 'is-up'}`}>{placesDelta(listMove.delta)}</span>}, xếp từ hợp nhất. <button type="button" className="tg-link" onClick={() => openAssistant(true)}>Chat để thu hẹp</button></p>
               </div>
@@ -182,7 +183,7 @@ export function Explore() {
                 {anchors.length > 0 && (
                   <section className="tg-req" aria-labelledby="tg-req-h">
                     <div><h2 id="tg-req-h">Nơi bắt buộc đến</h2><p>Mình xếp cả chuyến quanh các nơi này.</p></div>
-                    <div className="tg-req__row">{anchors.map((c) => <button key={c.id} type="button" className="tg-req__row" onClick={() => go(placeHref(c.id))}><PlacePhoto id={c.id} name={c.name} /><span><b>{c.name}</b><br /><small className="tg-muted">{c.area ?? c.category}</small></span></button>)}</div>
+                    <div className="tg-req__row">{anchors.map((c) => <button key={c.id} type="button" className="tg-req__row" onClick={(e) => openPlace(c.id, e.currentTarget.querySelector('figure'))}><PlacePhoto id={c.id} name={c.name} /><span><b>{c.name}</b><br /><small className="tg-muted">{c.area ?? c.category}</small></span></button>)}</div>
                   </section>
                 )}
                 {mode === 'disc' && current ? (

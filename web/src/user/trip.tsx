@@ -158,20 +158,21 @@ export function useTrip() {
   return c
 }
 
-// The four steps of the flow (top bar stepper, home progress).
+// The three steps of the flow (top bar stepper, trip progress). Paths are relative to /app.
 export const STEPS = [
-  { path: '/app/understand', label: 'Hiểu chuyến đi' },
-  { path: '/app/shortlist', label: 'Chọn nơi' },
-  { path: '/app/feasibility', label: 'Khả thi' },
-  { path: '/app/plan', label: 'Lịch trình' },
+  { id: 'understand', path: '/understand', label: 'Tìm hiểu' },
+  { id: 'explore', path: '/explore', label: 'Lựa chọn' },
+  { id: 'plan', path: '/plan', label: 'Lịch trình' },
+  { id: 'review', path: '/done', label: 'Đánh giá' },
 ] as const
+export type StepId = (typeof STEPS)[number]['id']
 
 // A trip exists once the understanding step has handed something on.
 export const hasTrip = (t: TripState) => !!(t.decisionId || t.planningId || t.searchInput)
 
-// The step a trip stopped on: where "Đi tiếp" and "Chuyến đi" lead.
+// The step a trip stopped on: where "Đi tiếp" leads.
 export function stepOf(t: TripState) {
-  const i = t.planningId ? 3 : t.decisionId ? (t.selected.length ? 2 : 1) : 0
+  const i = t.planningId ? 2 : t.decisionId ? 1 : 0
   return { index: i, ...STEPS[i] }
 }
 

@@ -11,6 +11,7 @@ interface PlanningCtx {
   busy: boolean
   act: (a: Action) => Promise<void>
   confirm: () => Promise<PlanOutput | null>
+  optimize: () => Promise<void>
   reload: () => void
 }
 
@@ -89,8 +90,21 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     }
   }, [id])
 
+  // Ask the Planning Agent for one better layout; the server keeps it only if it passes the checks.
+  const optimize = useCallback(async () => {
+    if (!id) return
+    setBusy(true)
+    try {
+      const r = await api.runRecommend(id, view)
+      if (r) setView(r.view)
+      else setError(OFFLINE)
+    } finally {
+      setBusy(false)
+    }
+  }, [id, view])
+
   return (
-    <Ctx.Provider value={{ view, diff, lodgingProgress, error, busy, act, confirm, reload: () => setTick((t) => t + 1) }}>
+    <Ctx.Provider value={{ view, diff, lodgingProgress, error, busy, act, confirm, optimize, reload: () => setTick((t) => t + 1) }}>
       {children}
     </Ctx.Provider>
   )

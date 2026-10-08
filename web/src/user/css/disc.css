@@ -1,7 +1,7 @@
 /* rotary wheel picker: a full-screen layer that scrolls like a page; the wheel is fixed to the left edge (wedges fanned
    over a half disc around a still hub), the active place and the group tabs beside it. The wheel sets --step (180° / wedges shown).
    Colors come from tokens only. */
-.tg-disc { --step: 16deg; --R: clamp(260px, calc((100vh - var(--tg-top) - var(--tg-bar)) / 2 - 22px), 470px); --r1: calc(var(--R) * 0.26); --W: calc(var(--R) - var(--r1)); --cx: calc(var(--r1) * -0.32); --gap: 6px; --rc: calc(var(--r1) - 40px); --rh: calc(var(--r1) - 10px); --zw: calc(var(--cx) + var(--R) + 44px); --mh: clamp(240px, calc(100vh - var(--tg-top) - var(--tg-bar) - 260px), 640px); position: fixed; z-index: 25; inset: var(--tg-top) 0 0 0; background: var(--tg-bg); outline: none; overscroll-behavior: contain; overflow-x: hidden; overflow-y: auto; }
+.tg-disc { --step: 16deg; --R: clamp(300px, calc((100vh - var(--tg-top) - var(--tg-bar)) * 0.6), 560px); --r1: calc(var(--R) * 0.34); --W: calc(var(--R) - var(--r1)); --cx: calc(var(--r1) * -0.32); --gap: 6px; --rc: calc(var(--r1) - 40px); --rh: calc(var(--r1) - 10px); --zw: calc(var(--cx) + var(--R) + 44px); --mh: clamp(240px, calc(100vh - var(--tg-top) - var(--tg-bar) - 260px), 640px); position: fixed; z-index: 25; inset: var(--tg-top) 0 0 0; background: var(--tg-bg); outline: none; overscroll-behavior: contain; overflow-x: hidden; overflow-y: auto; }
 .tg-disc__field { position: relative; min-height: 100%; }
 .tg-disc__back { position: fixed; z-index: 5; left: 18px; top: calc(var(--tg-top) + 18px); display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-1); transition: transform 200ms var(--tg-ease), border-color 150ms; }
 .tg-disc__back:hover { border-color: var(--tg-pine); transform: translateX(-3px); }
@@ -18,7 +18,7 @@
    a wedge is a trapezoid cut from a box that starts at radius --r1. */
 .tg-disc__wheel { --hs: calc(var(--step) / 2); --g: 8px; --ho: calc(var(--R) * 2 * tan(var(--hs))); --x0: calc(var(--r1) * cos(var(--hs)) - 6px); position: absolute; left: var(--cx); top: 50%; width: 0; height: 0; z-index: 1; animation: tg-fade 360ms; }
 .tg-disc__wedge { position: absolute; left: var(--x0); top: calc(var(--ho) / -2); width: calc(var(--R) - var(--x0)); height: var(--ho); transform-origin: calc(var(--x0) * -1) 50%; rotate: calc(var(--d) * var(--step)); opacity: var(--fade, 1); transition: rotate 460ms var(--tg-ease), opacity 400ms; filter: drop-shadow(0 6px 8px rgba(27, 42, 47, 0.16)); }
-.tg-disc__wedge.is-jump { transition: none; animation: tg-fade 300ms; }
+.tg-disc__wedge.is-jump, .tg-disc__wedge.is-jump .tg-disc__nm { transition: none; animation: tg-fade 300ms; }
 .tg-disc__wedge.is-on { z-index: 2; filter: drop-shadow(2px 0 0 var(--tg-pine)) drop-shadow(-2px 0 0 var(--tg-pine)) drop-shadow(0 2px 0 var(--tg-pine)) drop-shadow(0 -2px 0 var(--tg-pine)) drop-shadow(0 12px 18px rgba(27, 42, 47, 0.28)); }
 .tg-disc__cut { position: absolute; inset: 0; display: block; overflow: hidden; background: #e9e2d4; text-align: left; --ix: calc(var(--r1) * cos(var(--hs)) + var(--g) * sin(var(--hs)) / 2 - var(--x0)); --iy: calc(var(--r1) * sin(var(--hs)) - var(--g) * cos(var(--hs)) / 2); --ox: calc(var(--R) * cos(var(--hs)) + var(--g) * sin(var(--hs)) / 2 - var(--x0)); --oy: calc(var(--R) * sin(var(--hs)) - var(--g) * cos(var(--hs)) / 2); clip-path: polygon(var(--ix) calc(50% - var(--iy)), var(--ox) calc(50% - var(--oy)), var(--ox) calc(50% + var(--oy)), var(--ix) calc(50% + var(--iy))); transition: translate 560ms var(--tg-ease), filter 200ms; }
 /* a wedge is a piece of a ring: its outer edge on the circle of radius --R, its inner edge on --r1, its sides a gap --g
@@ -30,10 +30,10 @@
 }
 .tg-disc__wedge.is-on .tg-disc__cut { translate: none; }
 .tg-disc__wedge:not(.is-on) .tg-disc__cut:hover { filter: brightness(1.08); }
-.tg-disc__cut::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 20, 22, 0.58), rgba(8, 20, 22, 0.08) 62%, transparent); pointer-events: none; }
+.tg-disc__cut::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 20, 22, 0.34), rgba(8, 20, 22, 0.12) 55%, transparent 85%); pointer-events: none; }
 .tg-disc__ph { position: absolute !important; inset: 0; }
 .tg-disc__ph.is-fade img { animation: tg-fade 420ms; }
-.tg-disc__nm { position: absolute; z-index: 1; left: 18px; top: 50%; translate: 0 -50%; width: calc(62% - 18px); font: 700 clamp(0.86rem, calc(var(--ho) / 11), 1.2rem)/1.2 var(--tg-sans); color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tg-disc__nm { position: absolute; z-index: 1; left: 38%; top: 50%; translate: 0 -50%; width: 56%; rotate: calc(var(--d) * var(--step) * -1); transition: rotate 460ms var(--tg-ease); font: 700 clamp(0.95rem, calc(var(--ho) / 9), 1.35rem)/1.2 var(--tg-sans); color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 2px 12px rgba(0, 0, 0, 0.45); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tg-disc__check { position: absolute; z-index: 1; right: 10px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-pine); color: #fff; }
 
 /* active place */
@@ -98,7 +98,7 @@
   .tg-disc__wedge.is-on { filter: none; }
   .tg-disc__cut { clip-path: none; border-radius: 16px; }
   .tg-disc__wedge.is-on .tg-disc__cut { translate: none; outline: 3px solid var(--tg-pine); outline-offset: -3px; }
-  .tg-disc__nm { left: 12px; width: calc(100% - 40px); }
+  .tg-disc__nm { left: 12px; width: calc(100% - 40px); rotate: none; }
   .tg-disc__main { min-height: 0; margin-left: 0; max-width: none; padding: 6px 18px 4px; }
   .tg-disc__show { grid-template-columns: minmax(0, 1fr); }
   .tg-disc__media { order: -1; height: 240px; }
@@ -110,64 +110,4 @@
 @media (max-width: 640px) { .tg-disc__media { height: 200px; } }
 @media (prefers-reduced-motion: reduce) { .tg-disc__wheel, .tg-disc__cut, .tg-disc__wedge, .tg-disc__thumb { transition: none; } .tg-disc__wheel, .tg-disc__show, .tg-disc__ph.is-fade img { animation: none; } }
 
-/* "Xem chi tiết" sheet */
-.tg-ddov { position: fixed; inset: 0; z-index: 70; background: rgba(20, 38, 43, 0.42); backdrop-filter: blur(3px); animation: tg-fade 200ms; }
-.tg-dd { --tint: var(--tg-pine); position: fixed; z-index: 71; left: 50%; top: 50%; translate: -50% -50%; width: min(1080px, calc(100vw - 48px)); max-height: calc(100vh - 56px); overflow-y: auto; padding: 24px 32px 32px; border-radius: 26px; background: var(--tg-bg); box-shadow: var(--tg-sh-2); outline: none; animation: tg-pop 260ms var(--tg-ease); }
-.tg-dd__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.tg-dd__back { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--tg-pine-soft); color: var(--tg-pine); font: 600 0.9rem var(--tg-sans); transition: background 150ms; }
-.tg-dd__back:hover { background: var(--tg-pine-line); }
-.tg-dd__x { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--tg-pine-soft); color: var(--tg-pine); transition: background 150ms; }
-.tg-dd__x:hover { background: var(--tg-pine-line); }
-.tg-dd__head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: center; margin-top: 18px; }
-.tg-dd__lead { display: grid; justify-items: start; gap: 12px; min-width: 0; }
-.tg-dd__kick { display: flex; align-items: center; gap: 10px; font: 600 0.72rem/1.3 var(--tg-sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--tg-ink-3); }
-.tg-dd__kick i { flex: none; width: 26px; height: 2px; background: var(--tg-pine); }
-.tg-dd__lead h2 { font-size: clamp(2.4rem, 4.4vw, 3.8rem); line-height: 1.04; overflow-wrap: anywhere; }
-.tg-dd__quote { font-size: 1rem; line-height: 1.5; color: var(--tg-ink-2); display: grid; gap: 3px; }
-.tg-dd__quote small { font-size: 0.76rem; color: var(--tg-ink-3); }
-.tg-dd__fit { font-size: 0.9rem; color: var(--tg-ink-2); }
-.tg-dd__fit b { color: var(--tg-ink); }
-.tg-dd__facts { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; border-top: 1px solid var(--tg-line); border-bottom: 1px solid var(--tg-line); padding: 12px 0; }
-.tg-dd__facts > div { padding: 0 18px; border-left: 1px solid var(--tg-line); }
-.tg-dd__facts > div:first-child { padding-left: 0; border-left: 0; }
-.tg-dd__facts dt { font-size: 0.74rem; color: var(--tg-ink-3); margin-bottom: 3px; }
-.tg-dd__facts dd { margin: 0; font-size: 0.9rem; font-weight: 600; }
-.tg-dd__cta { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 999px; background: var(--tg-pine); color: #fff; font: 700 1rem var(--tg-sans); box-shadow: 0 8px 20px rgba(15, 95, 90, 0.26); transition: background 150ms; }
-.tg-dd__cta:hover:not(:disabled) { background: var(--tg-pine-d); }
-.tg-dd__cta.is-on { background: var(--tg-pine-soft); color: var(--tg-pine); box-shadow: none; }
-.tg-dd__fan { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; height: 320px; }
-.tg-dd__fan button { position: relative; flex: none; width: 19%; height: 62%; overflow: hidden; border-radius: 14px; background: #e9e2d4; box-shadow: 0 12px 28px rgba(27, 42, 47, 0.18); transition: transform 300ms var(--tg-ease); }
-.tg-dd__fan button:nth-child(1) { rotate: -2.5deg; translate: 0 18px; }
-.tg-dd__fan button:nth-child(2) { width: 31%; height: 100%; z-index: 1; }
-.tg-dd__fan button:nth-child(3) { width: 23%; height: 76%; rotate: 2.5deg; translate: 0 26px; }
-.tg-dd__fan button:nth-child(4) { width: 17%; height: 58%; rotate: -3deg; translate: 0 8px; }
-.tg-dd__fan button:hover { transform: translateY(-6px); }
-.tg-dd__ph { position: absolute !important; inset: 0; }
-.tg-dd__tabs { display: flex; flex-wrap: wrap; gap: 6px 28px; margin-top: 26px; border-top: 1px solid var(--tg-line); border-bottom: 1px solid var(--tg-line); }
-.tg-dd__tabs button { position: relative; min-height: 48px; font: 600 0.95rem var(--tg-sans); color: var(--tg-ink-3); transition: color 150ms; }
-.tg-dd__tabs button:hover { color: var(--tg-ink); }
-.tg-dd__tabs button[aria-selected='true'] { color: var(--tg-ink); }
-.tg-dd__tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--tg-pine); }
-.tg-dd__pane { padding-top: 22px; min-height: 260px; }
-.tg-dd__pane h3 { font-size: 1.7rem; margin-bottom: 14px; }
-.tg-dd__ov { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: start; }
-.tg-dd__rows { display: grid; }
-.tg-dd__rows > div { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--tg-line); }
-.tg-dd__rows dt { font-size: 0.86rem; color: var(--tg-ink-3); }
-.tg-dd__rows dd { margin: 0; font-weight: 600; }
-.tg-dd__rows ul { display: grid; gap: 4px; padding-left: 18px; font-weight: 500; }
-.tg-dd__mini { display: grid; grid-template-columns: repeat(2, 120px); gap: 10px; }
-.tg-dd__mini button { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 12px; border: 2px solid transparent; }
-.tg-dd__mini button[aria-pressed='true'] { border-color: var(--tg-pine); }
-.tg-dd__full { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; }
-.tg-dd__gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
-.tg-dd__gal li { display: grid; gap: 6px; }
-.tg-dd__gal li.is-on .tg-dd__gp { outline: 2px solid var(--tg-pine); outline-offset: 2px; }
-.tg-dd__gp { position: relative; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 14px; }
-.tg-dd__gal small { font-size: 0.78rem; color: var(--tg-ink-3); }
-.tg-dd__rev { display: grid; gap: 14px; }
-.tg-dd__rev li { display: grid; gap: 4px; padding: 14px 16px; border-radius: 14px; background: var(--tg-surface); border: 1px solid var(--tg-line); }
-.tg-dd__rev small { font-size: 0.78rem; color: var(--tg-ink-3); }
-@media (max-width: 860px) { .tg-dd { padding: 16px 18px 24px; } .tg-dd__head { grid-template-columns: minmax(0, 1fr); } .tg-dd__fan { height: 220px; order: -1; } .tg-dd__ov { grid-template-columns: minmax(0, 1fr); } .tg-dd__mini { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tg-dd__rows > div { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
-@media (prefers-reduced-motion: reduce) { .tg-dd, .tg-ddov { animation: none; } .tg-dd__fan button { transition: none; } }
 .tg-disc__top { position: static; }

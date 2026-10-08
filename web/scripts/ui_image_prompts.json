@@ -1,0 +1,32 @@
+{
+  "hero": {
+    "model": "cx/gpt-6.1-sol",
+    "size": "1792x1024",
+    "prompt": "Cinematic wide landscape of Da Lat, Vietnam at sunrise: layered pine-covered hills fading into soft white morning mist, warm golden light from the right, a calm lake in the valley, airy and bright, light warm palette (cream, soft teal-green pines, peach sky). Left third calm and uncluttered for headline text. No people, no text, no logos, photographic editorial look."
+  },
+  "journey-travel": {
+    "model": "cx/gpt-6.1-sol",
+    "size": "1792x1024",
+    "prompt": "Quiet winding road through tall pine forest in the Da Lat highlands on a misty morning, soft diffused light, calm and slow mood, muted green and cream palette, shallow depth of field. No people, no vehicles, no text, no logos, photographic editorial look."
+  },
+  "journey-experience": {
+    "model": "cx/gpt-6.1-sol",
+    "size": "1792x1024",
+    "prompt": "Golden sunrise above a sea of clouds between green hills in the Vietnamese highlands, dramatic warm light rays, vivid but natural colors, a wooden viewing deck in the foreground silhouette without people. No text, no logos, photographic editorial look."
+  },
+  "journey-budget": {
+    "model": "cx/gpt-6.1-sol",
+    "size": "1792x1024",
+    "prompt": "Cozy homestay terrace surrounded by pine trees in Da Lat at late afternoon, warm sunlight, wooden table with two coffee cups, soft mist in the background hills, inviting and relaxed. No people, no text, no logos, photographic editorial look."
+  },
+  "dusk": {
+    "model": "cx/gpt-6.1-sol",
+    "size": "1792x1024",
+    "prompt": "Da Lat lake at blue hour, warm street lights reflecting on calm water, pine silhouettes and a small city skyline in distance, soft pink and teal sky, tranquil evening mood. No people, no text, no logos, photographic editorial look."
+  },
+  "hero-alt": {
+    "model": "ag/gemini-3.8-flash",
+    "size": "1792x1024",
+    "prompt": "Wide morning view of coffee plantations and pine hills near Da Lat, Vietnam, thin mist rising, warm sunlight, light airy colors, empty space on the left for text. No people, no text, no logos, photographic."
+  }
+}

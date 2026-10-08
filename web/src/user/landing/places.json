@@ -1,0 +1,2165 @@
+[
+ {
+  "id": "0x3135ada9c96648d1:0x98dad6f654523be5",
+  "name": "Đỉnh đèo Ngoạn Mục",
+  "group": "sight",
+  "category": "Điểm thu hút khách du lịch",
+  "area": "Đèo Ngoạn Mục",
+  "lat": 11.8342605,
+  "lng": 108.6450845,
+  "rating": 4.5,
+  "reviews": 665,
+  "voices": 393,
+  "crowd": {
+   "weekday": {
+    "night": 23,
+    "early_morning": 20,
+    "morning": 46,
+    "noon": 58,
+    "afternoon": 50,
+    "evening": 31
+   },
+   "weekend": {
+    "night": 25,
+    "early_morning": 25,
+    "morning": 52,
+    "noon": 67,
+    "afternoon": 62,
+    "evening": 43
+   },
+   "peak": {
+    "day": "fri",
+    "hour": 10,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x3135ada9c96648d1_0x98dad6f654523be5/photos/CIABIhDvmsQxZHNpR6M_8rH6wAo0.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3135ada9c96648d1_0x98dad6f654523be5/photos/CIABIhCxOJgvd9ecgFFyet4XO4Ow.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3135ada9c96648d1_0x98dad6f654523be5/photos/CIABIhDs8b8lBiI7-YXzNMSk7OLF.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3135ada9c96648d1_0x98dad6f654523be5/photos/CIABIhCxapXd6xV83JKlL1Zs5n32.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   }
+  ],
+  "quotes": [
+   {
+    "text": "cảnh vật rất hùng vĩ, nhiều điểm ngắm cảnh từ tren cao nhìn xuống bao quát cả một vùng rộng lớn bên dưới",
+    "date": "2017-10-09",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "ngắm toàn cảnh đèo Ngoạn Mục, ở đây những ngày trời trong có thể nhìn rõ thành phố Phan Rang Tháp Chàm",
+    "date": "2020-10-08",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@bn.th.cng.gio.vic/video/7591074747987856648",
+    "handle": "bn.th.cng.gio.vic",
+    "desc": "Chinh phục cung đường Đèo Ngoạn Mục 1 trong những con đèo quanh co nổi tiếng và nguy hiểm nhất Đà Lạt"
+   },
+   {
+    "url": "https://www.tiktok.com/@tamkingstar/video/7648576048061320468",
+    "handle": "tamkingstar",
+    "desc": "#tiktokshop66 Đèo Ngoạn Mục là một trong những con đường đẹp nhất Dalat"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/%C4%90%E1%BB%89nh+%C4%91%C3%A8o+Ngo%E1%BA%A1n+M%E1%BB%A5c/data=!4m7!3m6!1s0x3135ada9c96648d1:0x98dad6f654523be5!8m2!3d11.8342605!4d108.6450845!16s%2Fg%2F11hzlkt361!19sChIJ0UhmyamtNTER5TtSVPbW2pg?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyOC4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x317117b206cd49bb:0x8c54c53d4a078609",
+  "name": "Thiên Đường Săn Mây Cầu Đất",
+  "group": "sight",
+  "category": "Điểm thu hút khách du lịch",
+  "area": "Cầu Đất",
+  "lat": 11.8922897,
+  "lng": 108.5684294,
+  "rating": 4.3,
+  "reviews": 1176,
+  "voices": 634,
+  "hours": "04:30–18:00",
+  "crowd": {
+   "weekday": {
+    "early_morning": 40,
+    "morning": 34,
+    "noon": 7,
+    "afternoon": 6,
+    "evening": 6
+   },
+   "weekend": {
+    "early_morning": 55,
+    "morning": 44,
+    "noon": 8,
+    "afternoon": 8,
+    "evening": 8
+   },
+   "peak": {
+    "day": "fri",
+    "hour": 6,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317117b206cd49bb_0x8c54c53d4a078609/photos/CIABIhAhwEsJHi6WOw1sUbZXjZ7u.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317117b206cd49bb_0x8c54c53d4a078609/photos/CIABIhAklKvry34eJJUSZEajW1-d.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317117b206cd49bb_0x8c54c53d4a078609/photos/CIABIhCpu_5UsDmecGireqZvZk2u.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317117b206cd49bb_0x8c54c53d4a078609/photos/CIABIhBylkVyOjVibfDOuEcMVzf9.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Thời gian chờ đồ uống lâu hơn so với ở Hàn Quốc.",
+    "date": "2024-10-07",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Không phải xếp hàng quá lâu",
+    "date": "2025-10-07",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@sanmaycaugo_binhminh/video/7632177887696686356",
+    "handle": "sanmaycaugo_binhminh",
+    "desc": "Tại sao nên chọn săn mây tại Đồi Chè Cầu Đất ⛅️. #sanmaycaugobinhminh #dalat #sanmay #sanmaycaudat #sanmaydalat"
+   },
+   {
+    "url": "https://www.tiktok.com/@phuoctour/video/7604417894751145234",
+    "handle": "phuoctour",
+    "desc": "Tour săn mây Cầu Đất trọn gói chỉ với 199k , tham khảo ib em tư vấn nhé.#sanmaydalat #toursanmaydalat #phuocvosanmay #xh #xuhuongtiktok"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Thi%C3%AAn+%C4%90%C6%B0%E1%BB%9Dng+S%C4%83n+M%C3%A2y+C%E1%BA%A7u+%C4%90%E1%BA%A5t/data=!4m7!3m6!1s0x317117b206cd49bb:0x8c54c53d4a078609!8m2!3d11.8922897!4d108.5684294!16s%2Fg%2F11lkf8x764!19sChIJu0nNBrIXcTERCYYHSj3FVIw?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x3171173e2cd837c9:0x3794b1a3f09509f4",
+  "name": "Euro Garden Cầu Đất",
+  "group": "sight",
+  "category": "Công viên giải trí",
+  "area": "Cầu Đất",
+  "lat": 11.8807965,
+  "lng": 108.5628551,
+  "rating": 4.7,
+  "reviews": 1275,
+  "voices": 572,
+  "hours": "08:00–17:00",
+  "crowd": {
+   "weekday": {
+    "morning": 47,
+    "noon": 34,
+    "afternoon": 22
+   },
+   "weekend": {
+    "morning": 77,
+    "noon": 49,
+    "afternoon": 28
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 9,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x3171173e2cd837c9_0x3794b1a3f09509f4/photos/CIABIhCXHuiYl_T1lKLXTGVF1F4w.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171173e2cd837c9_0x3794b1a3f09509f4/photos/CIABIhCYbVdWCrpUASDj32Pa5J2x.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171173e2cd837c9_0x3794b1a3f09509f4/photos/CIABIhDRpIzQmlGwZg81_-WiRaCc.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171173e2cd837c9_0x3794b1a3f09509f4/photos/CIABIhDyCtslF7deM5FGp0jc_wMk.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "người hướng dẫn nhiệt tình và dễ thương",
+    "date": "2025-11-11",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "nhân viên còn nhiệt tình hỗ trợ nữa",
+    "date": "2026-01-10",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@nehexinchao/video/7612657433470864648",
+    "handle": "nehexinchao",
+    "desc": "Nhìn thì tưởng vùng ngoại ô Châu Âu nhưng thật ra đây là một khu tham quan ở Cầu Đất - Đà Lạt. #eurogarden #dalat #nehedalat #dalattrip #xh"
+   },
+   {
+    "url": "https://www.tiktok.com/@andh_kah1/video/7467545989319118087",
+    "handle": "andh_kah1",
+    "desc": "Cứ ngỡ như nước ngoài _ Euro Garden Cầu Đất #onggiao #nhac #bantinhoi #lamdong #dalat #eurogarden #canhdep #xuhuong #thinhhanh"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Euro+Garden+C%E1%BA%A7u+%C4%90%E1%BA%A5t/data=!4m7!3m6!1s0x3171173e2cd837c9:0x3794b1a3f09509f4!8m2!3d11.8807965!4d108.5628551!16s%2Fg%2F11vpdcy1wf!19sChIJyTfYLD4XcTER9AmV8KOxlDc?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyOC4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x31716b4c43ac569b:0x815f9db8b832aadc",
+  "name": "Hồ Tuyền Lâm",
+  "group": "sight",
+  "category": "Hồ",
+  "area": "Tuyền Lâm",
+  "lat": 11.8998298,
+  "lng": 108.4298302,
+  "rating": 4.6,
+  "reviews": 2381,
+  "voices": 129,
+  "photos": [
+   {
+    "src": "/media/tiktok/7691181454956580114/frames/f2.jpg",
+    "credit": "@bananhp",
+    "kind": "tiktok",
+    "w": 512,
+    "h": 910,
+    "url": "https://www.tiktok.com/@bananhp/video/7691181454956580114"
+   },
+   {
+    "src": "/media/tiktok/7691181454956580114/frames/f3.jpg",
+    "credit": "@bananhp",
+    "kind": "tiktok",
+    "w": 512,
+    "h": 910,
+    "url": "https://www.tiktok.com/@bananhp/video/7691181454956580114"
+   },
+   {
+    "src": "/media/tiktok/7617782456581672213/frames/f2.jpg",
+    "credit": "@dihetdalat",
+    "kind": "tiktok",
+    "w": 512,
+    "h": 910,
+    "url": "https://www.tiktok.com/@dihetdalat/video/7617782456581672213"
+   },
+   {
+    "src": "/media/tiktok/7621721403657686279/frames/f1.jpg",
+    "credit": "@dicungdalat",
+    "kind": "tiktok",
+    "w": 512,
+    "h": 910,
+    "url": "https://www.tiktok.com/@dicungdalat/video/7621721403657686279"
+   }
+  ],
+  "quotes": [
+   {
+    "text": "phong cảnh hữu tình đẹp như tranh vẽ",
+    "date": "2026-01-02",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "sương mù giăng dày đặc trên mặt nước",
+    "date": "2026-07-31",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@bananhp/video/7691181454956580114",
+    "handle": "bananhp",
+    "desc": "Đi ăn bbq giữa rừng thông và cạnh hồ Tuyền Lâm ở Đà Lạt. #banandalat #ancungtiktok"
+   },
+   {
+    "url": "https://www.tiktok.com/@dihetdalat/video/7617782456581672213",
+    "handle": "dihetdalat",
+    "desc": "6 địa điểm check in tại hồ Tuyền Lâm bạn đã ghé qua hết chưa? #dalat #checkindalat #dulichdalat #dihetdalat"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/H%E1%BB%93+Tuy%E1%BB%81n+L%C3%A2m/data=!4m7!3m6!1s0x31716b4c43ac569b:0x815f9db8b832aadc!8m2!3d11.8998298!4d108.4298302!16s%2Fg%2F122ysswc!19sChIJm1asQ0xrcTER3KoyuLidX4E?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-02"
+ },
+ {
+  "id": "0x317112bd43e6a173:0xb9470f91635c71f6",
+  "name": "Thung lũng Tình Yêu",
+  "group": "sight",
+  "category": "Điểm thu hút khách du lịch",
+  "area": "Trung tâm",
+  "lat": 11.9788096,
+  "lng": 108.4483081,
+  "rating": 4.4,
+  "reviews": 20224,
+  "voices": 217,
+  "hours": "07:30–17:00",
+  "crowd": {
+   "weekday": {
+    "morning": 48,
+    "noon": 56,
+    "afternoon": 46
+   },
+   "weekend": {
+    "morning": 65,
+    "noon": 79,
+    "afternoon": 55
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 10,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317112bd43e6a173_0xb9470f91635c71f6/photos/CIABIhBAm9gFneJjxag74hgG2JkO.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   },
+   {
+    "src": "/media/gmaps/0x317112bd43e6a173_0xb9470f91635c71f6/photos/CIABIhCBAK98tJ68Jk2-Vegmp_3a.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317112bd43e6a173_0xb9470f91635c71f6/photos/CIABIhCd3zZE6FOPbHxkP4Ey64qe.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317112bd43e6a173_0xb9470f91635c71f6/photos/CIABIhBCdqnWrOvXXEHDJejFstG5.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Giá vé 350/ người có buffet. Cầu kính 200k/ người, chụp hình rửa 100k/ tấm. Chụp hình với bồ câu 10k/ con",
+    "date": "2024-09-29",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Vé lẻ 250k, vé kèm buffet 390k 1 người M mua combo vé vào, buffet, xe trượt núi là 440k 1 người",
+    "date": "2026-07-01",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@kellyhuynh.85/video/7673071236972399892",
+    "handle": "kellyhuynh.85",
+    "desc": "Thung Lũng Tình Yêu Đà Lạt phiên bản mới đầy đủ các hoạt động vui chơi, checkin, ăn uống. Ai du lịch Đà Lạt nhớ ghé trải nghiệm nhé.  #dalat"
+   },
+   {
+    "url": "https://www.tiktok.com/@dalatdreamer/video/7652957252256632072",
+    "handle": "dalatdreamer",
+    "desc": "Thung Lũng Tình Yêu như một Đà Lạt thu nhỏ với nhiều trải nghiệm thú vị không thể bỏ qua #dalat #chill #reviewdalat #thunglungtinhyeu"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Thung+l%C5%A9ng+T%C3%ACnh+Y%C3%AAu/data=!4m7!3m6!1s0x317112bd43e6a173:0xb9470f91635c71f6!8m2!3d11.9788096!4d108.4483081!16s%2Fg%2F122z_vxt!19sChIJc6HmQ70ScTER9nFcY5EPR7k?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-05"
+ },
+ {
+  "id": "0x31710d6744fd66e3:0x76b1f8d0601f2eba",
+  "name": "Langbiang Land",
+  "group": "sight",
+  "category": "Công viên",
+  "area": "Lạc Dương",
+  "lat": 12.0195968,
+  "lng": 108.4350209,
+  "rating": 4.5,
+  "reviews": 1354,
+  "voices": 484,
+  "hours": "07:00–20:00",
+  "crowd": {
+   "weekday": {
+    "morning": 32,
+    "noon": 29,
+    "afternoon": 31,
+    "evening": 21
+   },
+   "weekend": {
+    "morning": 56,
+    "noon": 53,
+    "afternoon": 46,
+    "evening": 38
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 10,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31710d6744fd66e3_0x76b1f8d0601f2eba/photos/CIABIhDEDyZk_QnKAEamQUNyGLaU.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31710d6744fd66e3_0x76b1f8d0601f2eba/photos/CIABIhDV3QrvuvrFR6oq3bEbCzOn.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31710d6744fd66e3_0x76b1f8d0601f2eba/photos/CIABIhDQRzkrjnQDZFHxMgCkrYhi.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31710d6744fd66e3_0x76b1f8d0601f2eba/photos/CIABIhCohabWuWbE0pominDqtR2S.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   }
+  ],
+  "quotes": [
+   {
+    "text": "có cả vườn thú với rất nhiều con thú kỳ lạ, cũng có cả những con thú quen thuộc mà trẻ con có thể tham gia chơi được",
+    "date": "2026-09-23",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Những con vật trong khu vực sở thú (kiểu vậy) rất tuyệt, kiểu tóc của những con dê rất đẹp",
+    "date": "2025-10-07",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@reviewdalat.toidandalat/video/7634471304212516104",
+    "handle": "reviewdalat.toidandalat",
+    "desc": "Trải nghiệm trọn vẹn ở Đà Lạt #dalat #langbiangland #langbiang #1phutdalat #fypシ゚"
+   },
+   {
+    "url": "https://www.tiktok.com/@chuyn.th.nh.langb/video/7643305386509978900",
+    "handle": "chuyn.th.nh.langb",
+    "desc": "Cứ đến LangBiang Land là sẽ có rất nhiều thứ để trải nghiệm 🤤😋 #langbiangland #langbianglandchill #dalat #xh"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/LANGBIANG+LAND+Khu+du+l%E1%BB%8Bch+vui+ch%C6%A1i+gi%E1%BA%A3i+tr%C3%AD/data=!4m7!3m6!1s0x31710d6744fd66e3:0x76b1f8d0601f2eba!8m2!3d12.0195968!4d108.4350209!16s%2Fg%2F11vxjcv43z!19sChIJ42b9RGcNcTERui4fYND4sXY?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x317114a1a4b93341:0xf8ce8eb72915c065",
+  "name": "Thác Datanla",
+  "group": "sight",
+  "category": "Điểm thu hút khách du lịch",
+  "area": "Tuyền Lâm",
+  "lat": 11.9034324,
+  "lng": 108.4496999,
+  "rating": 4.4,
+  "reviews": 25365,
+  "voices": 195,
+  "hours": "07:30–16:30",
+  "price": {
+   "level": "moderate"
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 52,
+    "noon": 79,
+    "afternoon": 58
+   },
+   "weekend": {
+    "morning": 63,
+    "noon": 90,
+    "afternoon": 63
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 11,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317114a1a4b93341_0xf8ce8eb72915c065/photos/CIABIhCn2wm3Nr0edjFKA-eFVsWh.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 432,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317114a1a4b93341_0xf8ce8eb72915c065/photos/CIABIhCqkoTVO2V_v07rgqRwNO7M.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 432,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317114a1a4b93341_0xf8ce8eb72915c065/photos/CIABIhBVrE-w4TaspvL2OYPVEsfY.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 432,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317114a1a4b93341_0xf8ce8eb72915c065/photos/CIABIhCb-BENLXYHn3Do7TbsOHhR.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 432,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "thời gian đợi quá lâu! Đợi mua vé và xếp hàng mất 1 tiếng",
+    "date": "2026-08-01",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "We waited nearly an hour to get on the coaster",
+    "date": "2026-06-02",
+    "source": "gmaps_review"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Khu+du+l%E1%BB%8Bch+Th%C3%A1c+Datanla/data=!4m7!3m6!1s0x317114a1a4b93341:0xf8ce8eb72915c065!8m2!3d11.9034324!4d108.4496999!16s%2Fg%2F1hb_d7my5!19sChIJQTO5pKEUcTERZcAVKbeOzvg?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x31711321284ed77f:0x7752634a02e162e9",
+  "name": "Hồ Xuân Hương",
+  "group": "sight",
+  "category": "Hồ",
+  "area": "Trung tâm",
+  "lat": 11.9407361,
+  "lng": 108.4415404,
+  "rating": 4.7,
+  "reviews": 2812,
+  "voices": 408,
+  "crowd": {
+   "weekday": {
+    "night": 26,
+    "early_morning": 20,
+    "morning": 29,
+    "noon": 28,
+    "afternoon": 48,
+    "evening": 61
+   },
+   "weekend": {
+    "night": 34,
+    "early_morning": 27,
+    "morning": 44,
+    "noon": 40,
+    "afternoon": 49,
+    "evening": 84
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 17,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31711321284ed77f_0x7752634a02e162e9/photos/CIABIhDiu2nO2klDnBBAvl6Lr3iQ.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   },
+   {
+    "src": "/media/gmaps/0x31711321284ed77f_0x7752634a02e162e9/photos/CIABIhCOUi6oWBK1aOiwvS1T86A7.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 512
+   },
+   {
+    "src": "/media/gmaps/0x31711321284ed77f_0x7752634a02e162e9/photos/CIHM0ogKEICAgIDLjb6LwgE.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 735
+   },
+   {
+    "src": "/media/gmaps/0x31711321284ed77f_0x7752634a02e162e9/photos/CIABIhB04DH36qrBOGK8rDYDDra0.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Mặt hồ phẳng lặng như chiếc gương cổ, in bóng những rặng sa mộc già lặng lẽ đứng gác dưới làn sương mờ ảo vắt ngang đồi",
+    "date": "2026-08-30",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Hồ Xuân Hương là một hồ nước rất đẹp",
+    "date": "2026-03-03",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@cong_hau.3660/video/7679965359046233364",
+    "handle": "cong_hau.3660",
+    "desc": "# Đà Lạt chưa bao giờ hết đẹp và thơ mộng #hoxuanhuong#canhdepdalat#"
+   },
+   {
+    "url": "https://www.tiktok.com/@tuanlinh656595/video/7689843252295372053",
+    "handle": "tuanlinh656595",
+    "desc": "Vậy là sau 16 năm! Hồ Xuân Hương - Trái Tim của Đà Lạt sẽ tiếp tục được nạo vét,chỉnh trang lại trong vòng 2 năm.Cùng chờ những đổi thay,tấm"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/H%E1%BB%93+Xu%C3%A2n+H%C6%B0%C6%A1ng/data=!4m7!3m6!1s0x31711321284ed77f:0x7752634a02e162e9!8m2!3d11.9407361!4d108.4415404!16s%2Fg%2F11bc65vxcf!19sChIJf9dOKCETcTER6WLhAkpjUnc?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x31711324a3fe0629:0x66eb8ed37afe5989",
+  "name": "Quảng trường Lâm Viên",
+  "group": "sight",
+  "category": "Quảng trường",
+  "area": "Trung tâm",
+  "lat": 11.9393622,
+  "lng": 108.445203,
+  "rating": 4.5,
+  "reviews": 14672,
+  "voices": 262,
+  "crowd": {
+   "weekday": {
+    "night": 19,
+    "early_morning": 3,
+    "morning": 15,
+    "noon": 16,
+    "afternoon": 30,
+    "evening": 59
+   },
+   "weekend": {
+    "night": 25,
+    "early_morning": 4,
+    "morning": 24,
+    "noon": 24,
+    "afternoon": 43,
+    "evening": 80
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 19,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31711324a3fe0629_0x66eb8ed37afe5989/photos/CIABIhCn8WalnaY1MzeyfmFkRL4z.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   },
+   {
+    "src": "/media/gmaps/0x31711324a3fe0629_0x66eb8ed37afe5989/photos/CIABIhDY_NKh3kAJiSUYuYJKgYOO.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   },
+   {
+    "src": "/media/gmaps/0x31711324a3fe0629_0x66eb8ed37afe5989/photos/CIABIhBbioQfkAZNl2vXUdQ3ULzU.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   },
+   {
+    "src": "/media/gmaps/0x31711324a3fe0629_0x66eb8ed37afe5989/photos/CIABIhCPCeWyn6EJa-bt8VK3O3R5.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Không gian rất rộng rãi, sạch sẽ và thoáng mát",
+    "date": "2026-07-31",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "không gian rộng rãi, thoáng đãng",
+    "date": "2026-03-03",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@chuyen_tour_ghep/video/7690522244044328200",
+    "handle": "chuyen_tour_ghep",
+    "desc": "Quảng Trường Lâm Viên - Đến Đà Lạt nhất định phải check-in biểu tượng này #quangtruonglamvien #dulich #tourdulich #muahe #foryou #xuhuong #t"
+   },
+   {
+    "url": "https://www.tiktok.com/@.lt.3605/video/7661107936743165191",
+    "handle": ".lt.3605",
+    "desc": "Đà Lạt ngày cuối tuần thật nhộn nhịp 😍#quangtruonglamvien #canhdepdalat #dalat360 #djimavic4pro #fypシ゚"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Qu%E1%BA%A3ng+tr%C6%B0%E1%BB%9Dng+L%C3%A2m+Vi%C3%AAn/data=!4m7!3m6!1s0x31711324a3fe0629:0x66eb8ed37afe5989!8m2!3d11.9393622!4d108.445203!16s%2Fg%2F11f2sw5q3l!19sChIJKQb-oyQTcTERiVn-etOO62Y?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x317113353ac6af0f:0xdaa1ac573fa04a4f",
+  "name": "Dinh III Bảo Đại",
+  "group": "sight",
+  "category": "Điểm thu hút khách du lịch",
+  "area": "Trung tâm",
+  "lat": 11.9299576,
+  "lng": 108.4296378,
+  "rating": 4.2,
+  "reviews": 9635,
+  "voices": 148,
+  "hours": "07:00–17:30",
+  "crowd": {
+   "weekday": {
+    "morning": 46,
+    "noon": 65,
+    "afternoon": 75,
+    "evening": 57
+   },
+   "weekend": {
+    "morning": 61,
+    "noon": 77,
+    "afternoon": 83,
+    "evening": 64
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 15,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317113353ac6af0f_0xdaa1ac573fa04a4f/photos/CIABIhAswPScPuZcVPJcn3mdazD4.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113353ac6af0f_0xdaa1ac573fa04a4f/photos/CIABIhC8h0dsps8R-OW1GMFfQy0s.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113353ac6af0f_0xdaa1ac573fa04a4f/photos/CIABIhBxwXRYYhmiDnD8SfVXU6s2.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113353ac6af0f_0xdaa1ac573fa04a4f/photos/CIABIhCfJ-G_LlWJNTqJKWcX9IDp.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Vé vào cổng: 60.000đ/người lớn Trẻ em 1.2m trở lên: 40.000đ/ người Em bé dưới 1.2m: miễn phí",
+    "date": "2026-05-03",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "vé khoảng 40.000 đ/người lớn, trẻ em khoảng 20.000 đ và trẻ em dưới 1m miễn phí",
+    "date": "2026-01-03",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@travip/video/7420041187610004744",
+    "handle": "travip",
+    "desc": "Tìm hiểu những câu chuyện đằng sau Dinh III của Vua Bảo Đại ở Đà Lạt. #travip #yeumaybay"
+   },
+   {
+    "url": "https://www.tiktok.com/@quinnpham0929/video/7679055338498198785",
+    "handle": "quinnpham0929",
+    "desc": "Hướng dẫn chụp ảnh tại Dinh III (Dinh Bảo Đại) ở Đà Lạt. Dịp lễ này nhất định mấy bà phải có ảnh đẹp mang về nha! #quinnpham0929 #learnontik"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Dinh+III+B%E1%BA%A3o+%C4%90%E1%BA%A1i/data=!4m7!3m6!1s0x317113353ac6af0f:0xdaa1ac573fa04a4f!8m2!3d11.9299576!4d108.4296378!16s%2Fg%2F1229l3mq!19sChIJD6_GOjUTcTERT0qgP1esodo?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyOC4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-05"
+ },
+ {
+  "id": "0x317113ff4e41e7c3:0x21cff9ad21a7243c",
+  "name": "Chợ Đêm Đà Lạt",
+  "group": "shop",
+  "category": "Chợ đêm",
+  "area": "Trung tâm",
+  "lat": 11.9414015,
+  "lng": 108.4372912,
+  "rating": 4.2,
+  "reviews": 19143,
+  "voices": 153,
+  "hours": "17:30–00:00",
+  "crowd": {
+   "weekday": {
+    "evening": 48,
+    "night": 38
+   },
+   "weekend": {
+    "evening": 61,
+    "night": 52
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 20,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317113ff4e41e7c3_0x21cff9ad21a7243c/photos/CIABIhDEswhpDWHhSjtojcEOdZo5.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113ff4e41e7c3_0x21cff9ad21a7243c/photos/CIABIhBxeE8pkb5XSU5Q0PSRe5te.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113ff4e41e7c3_0x21cff9ad21a7243c/photos/CIABIhC29u9QhchskP4okQELQAvx.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113ff4e41e7c3_0x21cff9ad21a7243c/photos/CIABIhBZx8oRy1GWQOJwqU2H53Ra.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Đông và vui là 2 từ diễn tả chợ đêm của Đà Lạt. Ra chợ buổi chiều",
+    "date": "2026-05-02",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Buổi tối, nơi đây đông đúc và nhộn nhịp hơn hẳn ban ngày",
+    "date": "2025-09-29",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@matcha.latte282/video/7687625834139618580",
+    "handle": "matcha.latte282",
+    "desc": "Kinh nghiệm đi chợ đêm Đà Lạt #dalatreview #matchalatte #dalatstory #dalatreviewcotam #dalat"
+   },
+   {
+    "url": "https://www.tiktok.com/@dalatcham/video/7691650518795537684",
+    "handle": "dalatcham",
+    "desc": "Bao lâu rồi bạn không đi chợ đêm Đà Lat? #dalatcham"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Ch%E1%BB%A3+%C4%90%C3%AAm+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x317113ff4e41e7c3:0x21cff9ad21a7243c!8m2!3d11.9414015!4d108.4372912!16s%2Fg%2F11hylzhqyv!19sChIJw-dBTv8TcTERPCSnIa35zyE?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-02"
+ },
+ {
+  "id": "0x3171132a3f334c1f:0x2d831c6a07e1a1f9",
+  "name": "Tiệm cà phê Thênh Thang",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trại Mát",
+  "lat": 11.936993,
+  "lng": 108.4791359,
+  "rating": 4.9,
+  "reviews": 1100,
+  "voices": 993,
+  "hours": "06:30–19:00",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 24
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 42,
+    "noon": 43,
+    "afternoon": 43,
+    "evening": 48
+   },
+   "weekend": {
+    "morning": 61,
+    "noon": 70,
+    "afternoon": 57,
+    "evening": 70
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 17,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x3171132a3f334c1f_0x2d831c6a07e1a1f9/photos/CIABIhDgq5EuOI0g2QclyMC9i0Cm.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   },
+   {
+    "src": "/media/gmaps/0x3171132a3f334c1f_0x2d831c6a07e1a1f9/photos/CIABIhDQlFuY53aRNcJfjr5r0d1k.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3171132a3f334c1f_0x2d831c6a07e1a1f9/photos/CIABIhBIpjOtDEy5qTCsdq9sDK7V.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171132a3f334c1f_0x2d831c6a07e1a1f9/photos/CIABIhCI3YShyKg_dlWhtaamAtHV.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 354,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "chủ cất hết đồ đạc mình vào và không thông báo hay gì hết. Trải nghiệm khá tệ",
+    "date": "2025-10-07",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "để đó đi chụp ảnh đâu được 10-15’ quay lại nv dẹp hết nước luôn",
+    "date": "2026-09-07",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@tiemcaphethenhthang/video/7677186531538242824",
+    "handle": "tiemcaphethenhthang",
+    "desc": "Vũ điệu của thiên nhiên chữa lành đây ạ.. #dalat #reviewdalat #tiemcaphethenhthang #quancaphedalatviewdep #binhyen"
+   },
+   {
+    "url": "https://www.tiktok.com/@caphethenhthang/video/7686456864980110600",
+    "handle": "caphethenhthang",
+    "desc": "Một chiều mờ sương ở Thênh Thang.. #dalat #reviewdalat #tiemcaphethenhthang #quancaphedalatviewdep #binhyen"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Ti%E1%BB%87m+c%C3%A0+ph%C3%AA+Th%C3%AAnh+Thang/data=!4m7!3m6!1s0x3171132a3f334c1f:0x2d831c6a07e1a1f9!8m2!3d11.936993!4d108.4791359!16s%2Fg%2F11x06t2fx6!19sChIJH0wzPyoTcTER-aHhB2ocgy0?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x317113affdffa0c3:0xbb47c65b7e6748a9",
+  "name": "Quán Của Thời Thanh Xuân",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trung tâm",
+  "lat": 11.9308749,
+  "lng": 108.4283069,
+  "rating": 4.9,
+  "reviews": 3129,
+  "voices": 223,
+  "hours": "07:30–22:00",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 234
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 28,
+    "noon": 30,
+    "afternoon": 25,
+    "evening": 46,
+    "night": 40
+   },
+   "weekend": {
+    "morning": 50,
+    "noon": 47,
+    "afternoon": 44,
+    "evening": 71,
+    "night": 50
+   },
+   "peak": {
+    "day": "fri",
+    "hour": 19,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317113affdffa0c3_0xbb47c65b7e6748a9/photos/CIABIhBZHt13LxuAMZWWOUUJy-zL.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113affdffa0c3_0xbb47c65b7e6748a9/photos/CIABIhA0c0X8Oco2gUBYbl_5OIpf.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113affdffa0c3_0xbb47c65b7e6748a9/photos/CIABIhBZk3kciHLUqSXHcug7Qlv1.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113affdffa0c3_0xbb47c65b7e6748a9/photos/CIABIhBoQZ6Je_7VIXx7RbAmCKSq.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Bánh của quán được làm với các bạn khuyết tật khá ngon",
+    "date": "2026-03-04",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "bánh tráng nướng, các món ăn vặt nóng hổi và rất ngon",
+    "date": "2026-05-03",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@duy.dalat/video/7683512410312887560",
+    "handle": "duy.dalat",
+    "desc": "Coffee Thời Thanh Xuân – nơi lưu giữ những ký ức của bạn. Địa chỉ : Số 9 Triệu Việt Vương  #thoithanhxuan #duydalat #reviewcafe #caphengon #"
+   },
+   {
+    "url": "https://www.tiktok.com/@lahannn.203/video/7682018534435884308",
+    "handle": "lahannn.203",
+    "desc": "Mê quán cafe này lắm í, nhẹ nhàng mà yên tĩnh🍃 #dalat #reviewcoffee #quancuathoithanhxuan #fyp #viral"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Qu%C3%A1n+C%E1%BB%A7a+Th%E1%BB%9Di+Thanh+Xu%C3%A2n/data=!4m7!3m6!1s0x317113affdffa0c3:0xbb47c65b7e6748a9!8m2!3d11.9308749!4d108.4283069!16s%2Fg%2F11lhb4bwfj!19sChIJw6D__a8TcTERqUhnflvGR7s?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-05"
+ },
+ {
+  "id": "0x3171138c4d192647:0xbceedf0395611573",
+  "name": "Hôm Nào Cà Phê?",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trại Mát",
+  "lat": 11.941281,
+  "lng": 108.47656,
+  "rating": 4.9,
+  "reviews": 2345,
+  "voices": 325,
+  "hours": "07:00–20:00",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 81
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 40,
+    "noon": 48,
+    "afternoon": 45,
+    "evening": 51
+   },
+   "weekend": {
+    "morning": 68,
+    "noon": 65,
+    "afternoon": 58,
+    "evening": 65
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 10,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x3171138c4d192647_0xbceedf0395611573/photos/CIABIhBtj44PSpev4_hfgft5TrOf.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171138c4d192647_0xbceedf0395611573/photos/CIABIhCZRUjNVWP789H0b2elRybt.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171138c4d192647_0xbceedf0395611573/photos/CIABIhC8kp2nexHDGU-pTmK1FBbT.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171138c4d192647_0xbceedf0395611573/photos/CIABIhCYBnvCzeR1PeL5bCYLRvYO.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 512,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "các bạn nhân viên từ quản lý đến order đều take care tận tình",
+    "date": "2026-06-02",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "dịch vụ của quán rất nhiệt tình, thân thiện, gần gũi, chu đáo",
+    "date": "2026-07-02",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@108homnaocaphe/video/7688963589285121332",
+    "handle": "108homnaocaphe",
+    "desc": "Một quán mà mình nghĩ bạn không nên bỏ lỡ khi đến Đà Lạt 🍃🌸 Không gian xanh mát, nhiều góc xinh, ngồi một buổi chiều ngắm Đà Lạt cũng đủ thấ"
+   },
+   {
+    "url": "https://www.tiktok.com/@108homnaocaphe/video/7686755461915299093",
+    "handle": "108homnaocaphe",
+    "desc": "[𝐸𝑛𝑔𝑙𝑖𝑠ℎ 𝑏𝑒𝑙𝑜𝑤] 𝑯𝒐̂𝒎 𝑵𝒂̀𝒐 – 𝑴𝒐̣̂𝒕 𝒈𝒐́𝒄 𝒏𝒉𝒐̉ 𝒄𝒉𝒐 𝒏𝒉𝒖̛̃𝒏𝒈 𝒏𝒈𝒂̀𝒚 𝒎𝒖𝒐̂́𝒏 𝒄𝒉𝒂̣̂𝒎 𝒍𝒂̣𝒊 𝒈𝒊𝒖̛̃𝒂 Đ𝒂̀ 𝑳𝒂̣𝒕. 🌿☕ Đà Lạt vốn chẳng vội. Có những buổi sán"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/H%C3%B4m+N%C3%A0o+C%C3%A0+Ph%C3%AA%3F/data=!4m7!3m6!1s0x3171138c4d192647:0xbceedf0395611573!8m2!3d11.941281!4d108.47656!16s%2Fg%2F11ltv1wyq7!19sChIJRyYZTYwTcTERcxVhlQPf7rw?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-05"
+ },
+ {
+  "id": "0x317113003024db49:0xfe01de722531878e",
+  "name": "Tiệm cà phê Vùng Ngoại Ô",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trại Mát",
+  "lat": 11.9299258,
+  "lng": 108.5121744,
+  "rating": 4.9,
+  "reviews": 2044,
+  "voices": 225,
+  "hours": "05:00–19:00",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 182
+  },
+  "crowd": {
+   "weekday": {
+    "early_morning": 40,
+    "morning": 57,
+    "noon": 52,
+    "afternoon": 55,
+    "evening": 60
+   },
+   "weekend": {
+    "early_morning": 71,
+    "morning": 89,
+    "noon": 75,
+    "afternoon": 63,
+    "evening": 68
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 10,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317113003024db49_0xfe01de722531878e/photos/CIABIhDrtZuBbv8ipHzhpesrpkmb.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113003024db49_0xfe01de722531878e/photos/CIABIhC7HzBUq7jgca5g1Kqw2B_N.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113003024db49_0xfe01de722531878e/photos/CIABIhC5dVivu25gnuyjM5m0HceP.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113003024db49_0xfe01de722531878e/photos/CIABIhAmKpUKt39cehLk5_vk2sH2.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "view quán rất đẹp và chill. Hôm mình đi trời mưa có cả sương mù nên view siu đẹp",
+    "date": "2026-08-31",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "view đồi núi, rừng thông , điện gió",
+    "date": "2026-09-16",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@meowbui_/video/7679830607014153493",
+    "handle": "meowbui_",
+    "desc": "Tìm được chỗ nằm săn mây cực chill ở ĐL ✨ #dalat #dalatcoffee #tiemcaphevungngoaio #caphesanmaydalat #meowdilac"
+   },
+   {
+    "url": "https://www.tiktok.com/@chamdidaudo/video/7678163291843120402",
+    "handle": "chamdidaudo",
+    "desc": "@Cà phê Vùng Ngoại Ô Đà Lạt Chỗ dừng chân cho khách 4-5h sáng tới Đà Lạt, Phương Trang trung chuyển tận nơi #chamdidaudo #dalat #vungngoaio"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Ti%E1%BB%87m+c%C3%A0+ph%C3%AA+V%C3%B9ng+Ngo%E1%BA%A1i+%C3%94/data=!4m7!3m6!1s0x317113003024db49:0xfe01de722531878e!8m2!3d11.9299258!4d108.5121744!16s%2Fg%2F11wmhmfj2s!19sChIJSdskMAATcTERjocxJXLeAf4?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-02"
+ },
+ {
+  "id": "0x3171136f916e0e5b:0x3d6585d44cf56584",
+  "name": "Nhà Bên Rừng",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trại Mát",
+  "lat": 11.9341893,
+  "lng": 108.4774209,
+  "rating": 4.8,
+  "reviews": 3142,
+  "voices": 180,
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 89
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 33,
+    "noon": 49,
+    "afternoon": 46,
+    "evening": 40
+   },
+   "weekend": {
+    "morning": 54,
+    "noon": 82,
+    "afternoon": 56,
+    "evening": 54
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 11,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x3171136f916e0e5b_0x3d6585d44cf56584/photos/CIABIhCNZtt8Q6ru9C9MmVQqGbUT.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3171136f916e0e5b_0x3d6585d44cf56584/photos/CIABIhAgTd7uS4K27Gwp-wZM4KqJ.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3171136f916e0e5b_0x3d6585d44cf56584/photos/CIABIhBJsy6gF4WzZXHMO7Dan-Qy.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 535,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171136f916e0e5b_0x3d6585d44cf56584/photos/CIABIhDQ9Xp7kPJpMx0mlW8gRKN9.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Cung cách phục vụ 10/10 vì sự thân thiện, nhiệt tình và chu đáo",
+    "date": "2026-01-03",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Quán cà phê có các bạn pha chế thân thiện, chu đáo",
+    "date": "2026-02-02",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@nhabenrung.coffee/video/7678664996158557458",
+    "handle": "nhabenrung.coffee",
+    "desc": "Tạm rời xa phố thị, tìm một nơi để lòng được thở. #dalat #reviewdalat #tiemcaphenhabenrung #quancaphedalatviewdep #binhyen"
+   },
+   {
+    "url": "https://www.tiktok.com/@tiemcaphenhabenrung/video/7643439879271075079",
+    "handle": "tiemcaphenhabenrung",
+    "desc": "Mình đã thực hiện giùm ước mơ của các bạn bỏ phố về rừng là dựng một căn nhà gỗ mộng mơ ntn ạ. Homestay Nhà Bên Rừng #dalat #reviewdalat #ti"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Nh%C3%A0+B%C3%AAn+R%E1%BB%ABng/data=!4m7!3m6!1s0x3171136f916e0e5b:0x3d6585d44cf56584!8m2!3d11.9341893!4d108.4774209!16s%2Fg%2F11rw9dk_bx!19sChIJWw5ukW8TcTERhGX1TNSFZT0?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-04"
+ },
+ {
+  "id": "0x31711530fba11667:0x23bdc675b8224e9c",
+  "name": "An - Tuyền Lâm",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Tuyền Lâm",
+  "lat": 11.8988988,
+  "lng": 108.4377292,
+  "rating": 4.7,
+  "reviews": 1232,
+  "voices": 544,
+  "hours": "08:00–19:00",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 43
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 30,
+    "noon": 28,
+    "afternoon": 45,
+    "evening": 48
+   },
+   "weekend": {
+    "morning": 52,
+    "noon": 48,
+    "afternoon": 66,
+    "evening": 70
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 16,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31711530fba11667_0x23bdc675b8224e9c/photos/CIABIhBQU_STEHfgFde57ki1tdnk.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31711530fba11667_0x23bdc675b8224e9c/photos/CIABIhAt_A947Umq1SxHj9cbB2io.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31711530fba11667_0x23bdc675b8224e9c/photos/CIABIhCl0U6_GHlLc4_AElF9aPig.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31711530fba11667_0x23bdc675b8224e9c/photos/CIABIhAt1XeJYvv5bCEsLki82yuO.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   }
+  ],
+  "quotes": [
+   {
+    "text": "phục vụ thì tệ và thiếu chuyên nghiệp",
+    "date": "2026-02-09",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "NV Order rất chán, ko cần khách",
+    "date": "2025-10-07",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@an_tuyenlamcoffe/video/7576223575581953301",
+    "handle": "an_tuyenlamcoffe",
+    "desc": "#an_tuyenlam #xuhuongtiktok #tuyenlamlake #fyp #xuhuong"
+   },
+   {
+    "url": "https://www.tiktok.com/@an_tuyenlamcoffe7/video/7643105397376601364",
+    "handle": "an_tuyenlamcoffe7",
+    "desc": "* We appreciate all the love and support from our customers ❤️ #xuhuong #fyp #antuyenlam #coffe #dalat"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/An+-+Tuy%E1%BB%81n+L%C3%A2m/data=!4m7!3m6!1s0x31711530fba11667:0x23bdc675b8224e9c!8m2!3d11.8988988!4d108.4377292!16s%2Fg%2F11y30r0v6f!19sChIJZxah-zAVcTERnE4iuHXGvSM?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x317113408018ab01:0x373cef5677f1ba07",
+  "name": "Nhà Lồng Coffee",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trung tâm",
+  "lat": 11.9361248,
+  "lng": 108.4442214,
+  "rating": 4.7,
+  "reviews": 1601,
+  "voices": 631,
+  "hours": "06:30–13:00",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 52
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 58,
+    "noon": 56
+   },
+   "weekend": {
+    "morning": 63,
+    "noon": 52
+   },
+   "peak": {
+    "day": "sun",
+    "hour": 9,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317113408018ab01_0x373cef5677f1ba07/photos/CIABIhA_1OYxHLPMPUG4QEhtxjiF.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113408018ab01_0x373cef5677f1ba07/photos/CIABIhAwgFl_Rs-Ng1mn92QytkOk.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x317113408018ab01_0x373cef5677f1ba07/photos/CIABIhCJu9LWFiFbsUvUEJS5_32O.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 577
+   },
+   {
+    "src": "/media/gmaps/0x317113408018ab01_0x373cef5677f1ba07/photos/CIABIhD4vIIKqCrYqcCmo-zJ8yBt.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 432
+   }
+  ],
+  "quotes": [
+   {
+    "text": "khách vào hơn 10 phút vẫn chưa dọn dẹp ly cũ trên bàn, gọi nhân viên dọn dẹp và lau bàn rất lâu",
+    "date": "2025-10-07",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "bảo nhân viên đi dọn dẹp bàn mà ngồi chờ hơn 30 phút mà chưa thấy 1 nhân viên nào ra dọn dẹp",
+    "date": "2025-10-07",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@lahannn.203/video/7687942427843284244",
+    "handle": "lahannn.203",
+    "desc": "Lại có thêm 1 quán chill buổi tối nữa nè #dalat #reviewcoffee #fyp #viral #viewnhalongdalat"
+   },
+   {
+    "url": "https://www.tiktok.com/@yenluong2019/video/7687864423075269909",
+    "handle": "yenluong2019",
+    "desc": "View.chill.chill.nhà lồng đây ạ..#đàlạt #cafe #coffee"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Nh%C3%A0+L%E1%BB%93ng+Coffee/data=!4m7!3m6!1s0x317113408018ab01:0x373cef5677f1ba07!8m2!3d11.9361248!4d108.4442214!16s%2Fg%2F11gwml7bct!19sChIJAasYgEATcTERB7rxd1bvPDc?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+  "name": "Coffee Em và Trịnh",
+  "group": "food",
+  "category": "Quán cà phê",
+  "area": "Trung tâm",
+  "lat": 11.9375798,
+  "lng": 108.4484238,
+  "rating": 4.8,
+  "reviews": 1688,
+  "voices": 215,
+  "hours": "06:30–22:30",
+  "price": {
+   "min_vnd": 1,
+   "max_vnd": 100000,
+   "per": "person",
+   "reports": 112
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 36,
+    "noon": 44,
+    "afternoon": 48,
+    "evening": 61,
+    "night": 56
+   },
+   "weekend": {
+    "morning": 44,
+    "noon": 48,
+    "afternoon": 52,
+    "evening": 79,
+    "night": 60
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 19,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31711332f9d5e579_0x1877f002ad5b9bda/photos/CIABIhDjEkX17irBfvGgYRuv1TNM.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31711332f9d5e579_0x1877f002ad5b9bda/photos/CIABIhByH5N-juneR8-dDQfjRB7G.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31711332f9d5e579_0x1877f002ad5b9bda/photos/CIABIhDbhzbK_E_Q2PK6fEHF0AUI.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31711332f9d5e579_0x1877f002ad5b9bda/photos/CIABIhB1DgDxtLf5aQrdpctoGTEN.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 432,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Bé cún Két đón khách siu thân thiện mừi đỉm, bạn chủ quán nhiệt tình",
+    "date": "2026-09-02",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "“Nhân viên” thái độ với khách, nằm lên người khách, vuốt đùi khách",
+    "date": "2025-09-30",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@tongpwewhzy/video/7690004003609922834",
+    "handle": "tongpwewhzy",
+    "desc": "không thể tin ở quán coffee Em Và Trịnh Đà Lạt lại có 1 em nhân viên 4 chân thân thiện đến lạ #dalat #cafedalat #emvatrinh #reviewdalat #đàl"
+   },
+   {
+    "url": "https://www.tiktok.com/@tongpwewhzy/video/7670453201761488135",
+    "handle": "tongpwewhzy",
+    "desc": "Các bạn cho ý kiến khi nhân viên tại Coffee Em Và Trịnh Đà Lạt mình trả lương rất ổn mà làm như không trả xúc xích ko bằng 😁😂#tiktok #dalat "
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Coffee+Em+v%C3%A0+Tr%E1%BB%8Bnh/data=!4m7!3m6!1s0x31711332f9d5e579:0x1877f002ad5b9bda!8m2!3d11.9375798!4d108.4484238!16s%2Fg%2F11k39hbvm4!19sChIJeeXV-TITcTER2ptbrQLwdxg?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-05"
+ },
+ {
+  "id": "0x317113a2926faaa5:0x855b3aa8d5653283",
+  "name": "Nậm Nướng Đà Lạt",
+  "group": "food",
+  "category": "Nhà hàng món nướng",
+  "area": "Trung tâm",
+  "lat": 11.9425409,
+  "lng": 108.430686,
+  "rating": 4.9,
+  "reviews": 11656,
+  "voices": 219,
+  "hours": "16:00–23:00",
+  "price": {
+   "min_vnd": 100000,
+   "max_vnd": 600000,
+   "per": "person",
+   "reports": 433
+  },
+  "crowd": {
+   "weekday": {
+    "afternoon": 30,
+    "evening": 65,
+    "night": 41
+   },
+   "weekend": {
+    "afternoon": 36,
+    "evening": 78,
+    "night": 49
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 19,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x317113a2926faaa5_0x855b3aa8d5653283/photos/CIABIhDXkwgTYrk_q2qAoJA5jAFc.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113a2926faaa5_0x855b3aa8d5653283/photos/CIABIhCgab0NIApVyocRIMkYQCqT.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x317113a2926faaa5_0x855b3aa8d5653283/photos/CIABIhBsmtIL0-S4wwyhOwK22_Hj.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/tiktok/7611482151594249493/frames/f1.jpg",
+    "credit": "@namnuongdalat",
+    "kind": "tiktok",
+    "w": 512,
+    "h": 910,
+    "url": "https://www.tiktok.com/@namnuongdalat/video/7611482151594249493"
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Đồ ăn ngon, khá lạ đối với các quán nướng thông thường.. ướp gia vị rất vừa…",
+    "date": "2026-05-03",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Những món ăn được chế biến tỉ mỉ đều có hương vị vô cùng hài",
+    "date": "2026-09-26",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@namnuongdalat/video/7611482151594249493",
+    "handle": "namnuongdalat",
+    "desc": "😚😚😚 Lên Đà Lạt. Ăn Nậm Nướng #namnuong #donuongdalat #viral #localdalat #localdalat"
+   },
+   {
+    "url": "https://www.tiktok.com/@namnuongdalat/video/7648248418988592402",
+    "handle": "namnuongdalat",
+    "desc": "Đi ăn quán thì chắc chắn không quên “đổ bê tông” cho cái bụng được no nê nhe 🥹 Gọi thử món cơm tôm phủ trứng nhà Nậm Nướng đi, đảm bảo ghiền"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/N%E1%BA%ADm+N%C6%B0%E1%BB%9Bng+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x317113a2926faaa5:0x855b3aa8d5653283!8m2!3d11.9425409!4d108.430686!16s%2Fg%2F11fsvg99t5!19sChIJpapvkqITcTERgzJl1ag6W4U?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-02"
+ },
+ {
+  "id": "0x3171138db4afc62b:0xc5ee078a042bbc17",
+  "name": "Hoàng hôn 3000",
+  "group": "food",
+  "category": "Nhà hàng món nướng",
+  "area": "Trung tâm",
+  "lat": 11.9719841,
+  "lng": 108.4514667,
+  "rating": 4.8,
+  "reviews": 1423,
+  "voices": 462,
+  "hours": "10:00–23:00",
+  "price": {
+   "min_vnd": 200000,
+   "max_vnd": 500000,
+   "per": "person",
+   "reports": 26
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 41,
+    "noon": 47,
+    "afternoon": 55,
+    "evening": 57,
+    "night": 58
+   },
+   "weekend": {
+    "morning": 66,
+    "noon": 43,
+    "afternoon": 66,
+    "evening": 61,
+    "night": 70
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 15,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x3171138db4afc62b_0xc5ee078a042bbc17/photos/CIABIhCZAfXXXLGDZ0UcSRXO7lcD.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3171138db4afc62b_0xc5ee078a042bbc17/photos/CIABIhAiqW6lLEQ-2tS7e1za0oai.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x3171138db4afc62b_0xc5ee078a042bbc17/photos/CIHM0ogKEM-mo7qTp-v3aw.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x3171138db4afc62b_0xc5ee078a042bbc17/photos/CIHM0ogKEOWKtqm7nu_isAE.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "không hề nhận được lời xin lỗi nào về cách phục vụ của quán",
+    "date": "2026-07-09",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "vô k ai ngó ngàn kêu đồ ăn chẳng ai gọi đồ ăn",
+    "date": "2026-06-09",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@hoanghon3000.dalat/video/7625120540637940999",
+    "handle": "hoanghon3000.dalat",
+    "desc": "Đà Lạt đi bộ đưa món là xưa rồi giờ đi bằng thuyền nó mới lạ #dalat #hoanghon3000dalat #dalatacoustic #tiemgatuktuk #chonanchilltuktuk"
+   },
+   {
+    "url": "https://www.tiktok.com/@dalatangi.1phutdalat/video/7615208052240829703",
+    "handle": "dalatangi.1phutdalat",
+    "desc": "Một chiếc quán vừa có ngắm hoàng hôn vừa có đồ ăn ngon còn có hát acoustic tại Đà Lạt #dalatangi #amthucdalat #dalat #hoanghon3000 #1phutdal"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/Ho%C3%A0ng+h%C3%B4n+3000/data=!4m7!3m6!1s0x3171138db4afc62b:0xc5ee078a042bbc17!8m2!3d11.9719841!4d108.4514667!16s%2Fg%2F11kc7062dq!19sChIJK8avtI0TcTERF7wrBIoH7sU?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-07"
+ },
+ {
+  "id": "0x31711356f1391261:0x8a232446c7d3216a",
+  "name": "DEEM Cocktail Bar",
+  "group": "food",
+  "category": "Quán bar cocktail",
+  "area": "Trung tâm",
+  "lat": 11.929297,
+  "lng": 108.4472266,
+  "rating": 5.0,
+  "reviews": 1721,
+  "voices": 254,
+  "hours": "18:00–02:00",
+  "price": {
+   "min_vnd": 100000,
+   "max_vnd": 200000,
+   "per": "person",
+   "reports": 420
+  },
+  "crowd": {
+   "weekday": {
+    "night": 53,
+    "evening": 53
+   },
+   "weekend": {
+    "night": 67,
+    "evening": 70
+   },
+   "peak": {
+    "day": "fri",
+    "hour": 21,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31711356f1391261_0x8a232446c7d3216a/photos/CIABIhA3eG1-lyuDnFzJuFs-WcPH.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31711356f1391261_0x8a232446c7d3216a/photos/CIABIhD5r3ftcpNrFgPYjVMnsJkF.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31711356f1391261_0x8a232446c7d3216a/photos/CIABIhB0hBYGB84fE7OqOFGRGogX.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/tiktok/7683125527271591188/frames/f1.jpg",
+    "credit": "@deemcocktailbardalat",
+    "kind": "tiktok",
+    "w": 512,
+    "h": 910,
+    "url": "https://www.tiktok.com/@deemcocktailbardalat/video/7683125527271591188"
+   }
+  ],
+  "quotes": [
+   {
+    "text": "nhân viên tư vấn kỹ theo sở thích và làm theo gu của khách và phục vụ rất tốt",
+    "date": "2026-06-02",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "các bạn nhân viên take care rất tốt",
+    "date": "2026-09-24",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@deemcocktailbardalat/video/7689088894473637141",
+    "handle": "deemcocktailbardalat",
+    "desc": "Đêm có những góc nhỏ chẳng cần trang trí quá nhiều. Chỉ cần ánh đèn vàng, một chút âm nhạc và vài người bạn ngồi cạnh nhau, vậy là đủ thành "
+   },
+   {
+    "url": "https://www.tiktok.com/@deemcocktailbardalat/video/7693160278678080789",
+    "handle": "deemcocktailbardalat",
+    "desc": "She chose to leave. The cocktail chose you. DEEM (ĐÊM) 📍 Số 1 hẻm 20D đường 3/4, P. Xuân Hương, Đà Lạt 📞 0.868.1111.49 🕰️ 18:30 - 2:00 #DEEM"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/DEEM+%28%C4%90%C3%8AM%29+Cocktail+Bar+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x31711356f1391261:0x8a232446c7d3216a!8m2!3d11.929297!4d108.4472266!16s%2Fg%2F11ydw__bq8!19sChIJYRI58VYTcTERaiHTx0YkI4o?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-02"
+ },
+ {
+  "id": "0x31711382e390736f:0x5ecde5d36976cade",
+  "name": "Củi Bakery",
+  "group": "food",
+  "category": "Tiệm bánh",
+  "area": "Trung tâm",
+  "lat": 11.9400687,
+  "lng": 108.4285324,
+  "rating": 4.9,
+  "reviews": 1310,
+  "voices": 949,
+  "hours": "08:00–21:30",
+  "price": {
+   "min_vnd": 100000,
+   "max_vnd": 400000,
+   "per": "person",
+   "reports": 77
+  },
+  "crowd": {
+   "weekday": {
+    "morning": 80,
+    "noon": 58,
+    "afternoon": 52,
+    "evening": 65,
+    "night": 37
+   },
+   "weekend": {
+    "morning": 89,
+    "noon": 63,
+    "afternoon": 57,
+    "evening": 68,
+    "night": 46
+   },
+   "peak": {
+    "day": "sun",
+    "hour": 9,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31711382e390736f_0x5ecde5d36976cade/photos/CIABIhBGJlxy4uH55STT-L8o_PtU.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31711382e390736f_0x5ecde5d36976cade/photos/CIABIhDNaSxj9XW9e9kYL9adpeCs.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31711382e390736f_0x5ecde5d36976cade/photos/CIABIhC5Vpd5oWJvopxEl4D3KOkO.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31711382e390736f_0x5ecde5d36976cade/photos/CIABIhBaujEtIYoUUe_BSJW1hdG9.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "Bánh ngon nha shop, cốt bánh siêu mềm ẩm dù đã để tủ lạnh, kem sữa chua ngon cực luôn nè",
+    "date": "2026-02-08",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "vị bánh dâu tằm của tiệm, không bị ngọt gắt, thanh thanh chua chua k gây ngấy",
+    "date": "2026-08-07",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@cuibakery.com/video/7693468055258647828",
+    "handle": "cuibakery.com",
+    "desc": "#trendmớinhấttiktok Một chiếc bánh đẹp chưa chắc cần thật nhiều chi tiết. 🎂✨ Đúng màu, đúng kiểu, đúng người nhận — vậy là đủ xinh rồi. 🤎 =="
+   },
+   {
+    "url": "https://www.tiktok.com/@cuibakery.com/video/7668568999441042708",
+    "handle": "cuibakery.com",
+    "desc": "🍫 Choco Rhum – Chiếc bánh đang được yêu thích nhất tại Củi Bakery.  Cốt Chocolate Devil's Food Cake mềm ẩm, đậm vị cacao, kết hợp kem  bơ ch"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/C%E1%BB%A7i+Bakery-+Ti%E1%BB%87m+b%C3%A1nh+kem+sinh+nh%E1%BA%ADt+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x31711382e390736f:0x5ecde5d36976cade!8m2!3d11.9400687!4d108.4285324!16s%2Fg%2F11fr76cfyn!19sChIJb3OQ44ITcTER3sp2adPlzV4?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-06"
+ },
+ {
+  "id": "0x31721fd5c96bc025:0x942a3d4c953e6f31",
+  "name": "CHẠM — kem bơ",
+  "group": "shop",
+  "category": "Cửa hàng kem",
+  "area": "Trung tâm",
+  "lat": 11.9440831,
+  "lng": 108.4358314,
+  "rating": 4.8,
+  "reviews": 5005,
+  "voices": 204,
+  "hours": "07:30–22:00",
+  "crowd": {
+   "weekday": {
+    "morning": 18,
+    "noon": 21,
+    "afternoon": 23,
+    "evening": 38,
+    "night": 42
+   },
+   "weekend": {
+    "morning": 28,
+    "noon": 33,
+    "afternoon": 31,
+    "evening": 61,
+    "night": 72
+   },
+   "peak": {
+    "day": "sat",
+    "hour": 20,
+    "pct": 100
+   }
+  },
+  "photos": [
+   {
+    "src": "/media/gmaps/0x31721fd5c96bc025_0x942a3d4c953e6f31/photos/CIABIhCb9K3Rr9KPvhsoWLRK9BYN.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 480
+   },
+   {
+    "src": "/media/gmaps/0x31721fd5c96bc025_0x942a3d4c953e6f31/photos/CIABIhC-C91rnyCqNWywghASYNTi.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 768
+   },
+   {
+    "src": "/media/gmaps/0x31721fd5c96bc025_0x942a3d4c953e6f31/photos/CIABIhBjsmjyP_2ASVluvCO2Czdp.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 768,
+    "h": 576
+   },
+   {
+    "src": "/media/gmaps/0x31721fd5c96bc025_0x942a3d4c953e6f31/photos/CIABIhAngVgD_YA_V8M-tpVgZpi8.jpg",
+    "credit": "Google Maps",
+    "kind": "gmaps",
+    "w": 576,
+    "h": 768
+   }
+  ],
+  "quotes": [
+   {
+    "text": "ăn kem bơ sầu có vị đắng đem ra chảy tầy hầy, bánh waffle như bánh cũ rất khô và cứng không xốp mềm",
+    "date": "2026-02-02",
+    "source": "gmaps_review"
+   },
+   {
+    "text": "Kem bơ là món nhất định phải thử! Béo ngậy, đậm đà và đầy hương vị bơ tự nhiên",
+    "date": "2026-08-31",
+    "source": "gmaps_review"
+   }
+  ],
+  "videos": [
+   {
+    "url": "https://www.tiktok.com/@dalatcham/video/7671059798535884052",
+    "handle": "dalatcham",
+    "desc": "Có phải ai đến Đà Lạt cũng muốn một lần ngồi ngắm chuyến tàu lặng lẽ đi qua?#dalatcham"
+   },
+   {
+    "url": "https://www.tiktok.com/@dalatcham/video/7693700314163055892",
+    "handle": "dalatcham",
+    "desc": "Bạn đã thử dậy sớm săn mây Đà Lạt chưa ?#dalatcham"
+   }
+  ],
+  "mapsUrl": "https://www.google.com/maps/place/CH%E1%BA%A0M/data=!4m7!3m6!1s0x31721fd5c96bc025:0x942a3d4c953e6f31!8m2!3d11.9440831!4d108.4358314!16s%2Fg%2F11t7kzqb03!19sChIJJcBrydUfcjERMW8-lUw9KpQ?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "asof": "2026-10-05"
+ }
+]

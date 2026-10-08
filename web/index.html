@@ -3,19 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#FFF9F8" />
+    <meta name="theme-color" content="#FAF7F2" />
     <title>TripGuardian Đà Lạt</title>
     <meta name="description" content="Chọn đúng nơi cho chuyến Đà Lạt 2–4 ngày, hiểu vì sao chọn, và chắc rằng các nơi đó đi chung được." />
     <meta property="og:title" content="TripGuardian Đà Lạt" />
     <meta property="og:description" content="Đà Lạt có cả nghìn chỗ đẹp. Chuyến này của bạn cần mấy chỗ?" />
     <meta property="og:image" content="/img/share.webp" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236b3550'/%3E%3Cpath d='M16 5l9 11-9 11-9-11z' fill='%23efb8c4'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230f5f5a'/%3E%3Cpath d='M16 6l8 11h-5l5 7H8l5-7H8l8-11Z' fill='%23fff'/%3E%3Ccircle cx='24' cy='8' r='2.4' fill='%23e8590c'/%3E%3C/svg%3E" />
+    <script>
+      // Landing on a desktop: start the baked landscape download and the poster before any script has loaded.
+      if (location.pathname === '/' && !/iPhone|iPod|Android.+Mobile|Windows Phone|Mobi/i.test(navigator.userAgent)) {
+        window.__tgLand = fetch('/world/dalat.bin').then(function (r) { if (!r.ok) throw new Error('landscape'); return r.arrayBuffer() })
+        window.__tgLand.catch(function () { window.__tgLand = undefined })
+        var l = document.createElement('link')
+        l.rel = 'preload'; l.as = 'image'; l.href = '/img/landing-poster.webp'; l.setAttribute('fetchpriority', 'high')
+        document.head.appendChild(l)
+        document.documentElement.className += ' tg-boot'
+      }
+    </script>
+    <style>
+      /* Before any script runs, the landing shows its own poster (the same image the 3D stage starts from) */
+      html.tg-boot { background: #fff9f8; }
+      html.tg-boot #root:empty { min-height: 100vh; background: url(/img/landing-poster.webp) 62% center / cover, #fff9f8; }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Phudu:wght@500..900&family=Geologica:wght,SHRP@300..800,0..100&family=Space+Mono:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Phudu:wght@500..900&family=Geologica:wght,SHRP@300..800,0..100&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Phudu:wght@500..900&family=Geologica:wght,SHRP@300..800,0..100&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

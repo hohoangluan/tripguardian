@@ -7,8 +7,12 @@ export const FIELD_LABEL: Record<string, string> = {
   dates: 'Ngày đi', start_date: 'Ngày đi', month: 'Tháng', days: 'Số ngày', companions: 'Đi với ai', people: 'Số người',
   base: 'Chỗ ở', mobility: 'Đi lại', arrive_at: 'Ngày đầu tới', leave_at: 'Ngày cuối rời', day_end: 'Mỗi ngày xong trước',
   purpose: 'Mục đích', pace: 'Nhịp độ', max_leg_min: 'Mỗi chặng tối đa', crowd_tolerance: 'Chỗ đông', novelty: 'Mới hay quen',
-  budget_vnd: 'Ngân sách',
+  budget_vnd: 'Ngân sách', origin: 'Xuất phát', arrival_mode: 'Tới Đà Lạt bằng', inbound: 'Chuyến đi', outbound: 'Chuyến về',
+  lodging_booked: 'Chỗ ở', lodging: 'Chỗ ở',
 }
+export const ARRIVAL_LABEL: Record<string, string> = { self: 'Tự đi (xe máy, ô tô)', bus: 'Xe khách', plane: 'Máy bay' }
+const LODGING_BOOKED_LABEL: Record<string, string> = { yes: 'Đã đặt', no: 'Chưa có, nhờ gợi ý' }
+const hhmm = (t: string) => t.slice(11, 16)
 export const PURPOSE_LABEL: Record<string, string> = {
   relax: 'Nghỉ ngơi', bond: 'Gắn kết', photo: 'Chụp ảnh', food_culture: 'Ẩm thực, văn hóa', nature: 'Thiên nhiên',
   explore: 'Khám phá', adventure: 'Mạo hiểm',
@@ -27,7 +31,11 @@ export function valueText(target: string, v: any): string {
   if (target === 'month') return `tháng ${v}`
   if (target === 'days') return `${v} ngày`
   if (target === 'people') return `${v} người`
-  if (target === 'base') return v.name ?? v.text
+  if (target === 'base' || target === 'origin' || target === 'lodging') return v.name ?? v.text
+  if (target === 'arrival_mode') return ARRIVAL_LABEL[v] ?? v
+  if (target === 'lodging_booked') return LODGING_BOOKED_LABEL[v] ?? v
+  // a chosen coach / flight: "Vietjet Air 06:10 → 07:05"
+  if (target === 'inbound' || target === 'outbound') return `${v.carrier} ${hhmm(v.depart_at)} → ${hhmm(v.arrive_at)}`
   if (target === 'max_leg_min') return `${v} phút`
   if (target === 'budget_vnd') return `${Math.round(v / 1000)} nghìn / người / ngày`
   if (target === 'purpose') return PURPOSE_LABEL[v] ?? v

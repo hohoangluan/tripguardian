@@ -4,21 +4,31 @@ import type { DayKey, Place, PriceRange, Signal, Snapshot } from './types'
 let cache: Promise<Snapshot> | null = null
 let ready: Snapshot | null = null
 
+// Both files are fetched at once; the snapshot is published only after the covers are in.
 export function loadSnapshot() {
-  cache ??= fetch('/data/covers.json')
+  if (cache) return cache
+  const c = fetch('/data/covers.json')
     .then((r) => (r.ok ? r.json() : {}))
-    .then((c) => (covers = c), () => {})
-    .then(() => fetch('/data/snapshot.json'))
+    .then((x) => (covers = x), () => {})
+  cache = fetch('/data/snapshot.json')
     .then((r) => {
       if (!r.ok) throw new Error(`snapshot ${r.status}`)
       return r.json() as Promise<Snapshot>
     })
-    .then((s) => {
+    .then(async (s) => {
+      await c
       ready = s
       byId = new Map(s.places.map((p) => [p.id, p]))
       return s
     })
   return cache
+}
+
+// Warm the snapshot while the user is still reading (landing): the next screens need it.
+export function prefetchSnapshot() {
+  const run = () => void loadSnapshot().catch(() => { cache = null })
+  if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 2500 })
+  else setTimeout(run, 1200)
 }
 
 let byId = new Map<string, Place>()
@@ -35,6 +45,26 @@ export interface Cover {
 }
 let covers: Record<string, Cover[]> = {}
 export const coversOf = (id: string): Cover[] => covers[id] ?? []
+
+// A large gallery set is split (pick_covers.py): covers.json then holds only each cover, the rest is in
+// covers/<id>.json, loaded when a place is opened. A place with one photo simply has no such file.
+const fetched = new Set<string>()
+const coverSubs = new Set<() => void>()
+export function useGallery(id: string): Cover[] {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const f = () => tick((n) => n + 1)
+    coverSubs.add(f)
+    if ((covers[id]?.length ?? 0) === 1 && !fetched.has(id)) {
+      fetched.add(id)
+      fetch(`/data/covers/${id.replace(/:/g, '_')}.json`)
+        .then((r) => (r.ok && r.headers.get('content-type')?.includes('json') ? r.json() : null))
+        .then((all: Cover[] | null) => { if (all?.length) { covers = { ...covers, [id]: all }; coverSubs.forEach((g) => g()) } }, () => {})
+    }
+    return () => { coverSubs.delete(f) }
+  }, [id])
+  return coversOf(id)
+}
 
 export function useSnapshot() {
   const [snap, setSnap] = useState<Snapshot | null>(ready)

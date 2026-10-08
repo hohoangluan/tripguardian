@@ -78,7 +78,7 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
         if (!live) return
         if (e instanceof api.DecisionError && (e.status === 404 || e.status === 409)) {
           dispatch({ type: 'set', patch: { decisionId: null } })
-          setError(e.status === 404 ? 'Phiên chọn nơi đã hết. Quay lại bước Hiểu chuyến đi để bắt đầu lại.' : null)
+          setError(e.status === 404 ? 'Phiên chọn nơi đã hết. Quay lại bước Tìm hiểu để bắt đầu lại.' : null)
         } else setError(OFFLINE)
       },
     )

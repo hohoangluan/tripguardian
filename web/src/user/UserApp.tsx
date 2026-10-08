@@ -1,196 +1,112 @@
-import { useEffect } from 'react'
+import { Component, useEffect, type ReactNode } from 'react'
 import { useSnapshot } from '../data/store'
-import { Auth } from '../pages/Auth'
-import { Start } from '../pages/Start'
-import { match, navigate } from '../router'
-import { enterStage, requestStageEntry, resumeJourney, type Stage } from './journey'
-import { Icon } from '../ui/bits'
-import { DecisionProvider, useDecision } from './pd/decision'
+import { match, query } from '../router'
+import { useAccount } from './account'
+import { isPhone } from './landing/device'
+import { DecisionProvider } from './pd/decision'
 import { PlanningProvider } from './planning/planning'
+import { Account, Saved, Trips } from './screens/Account'
+import { Auth } from './screens/Auth'
 import { Compare } from './screens/Compare'
-import { CurateBar } from './screens/Curate'
+import { Discover } from './screens/Discover'
+import { Done } from './screens/Done'
 import { Explore } from './screens/Explore'
-import { Feasibility } from './screens/Feasibility'
-import { Feedback } from './screens/Feedback'
-import { Home } from './screens/Home'
-import { Itinerary } from './screens/Itinerary'
+import { GetApp } from './screens/GetApp'
+import { Landing } from './screens/Landing'
 import { PlaceDetail } from './screens/PlaceDetail'
-import { Profile } from './screens/Profile'
-import { Shortlist } from './screens/Shortlist'
+import { Plan } from './screens/Plan'
 import { Understand } from './screens/Understand'
-import { initialOf, useAccount } from './account'
-import { hasTrip, STEPS, stepOf, TripProvider, useTrip } from './trip'
+import { TripProvider } from './trip'
+import { Busy, Empty, ArtHills, go, Toast } from './ui/common'
+import { PlaceSheet } from './ui/PlaceSheet'
+import { Rail } from './ui/Shell'
+import './css/tokens.css'
 import './css/base.css'
 import './css/shell.css'
+import './css/explore.css'
+import './css/bar.css'
+import './css/assistant.css'
+import './css/disc.css'
+import './css/sheet.css'
 import './css/understand.css'
-import './css/shortlist.css'
-import './css/place.css'
-import './css/check.css'
+import './css/screens.css'
 import './css/plan.css'
-import './css/pages.css'
+import './css/landing.css'
+import './css/app.css'
 
-const NAV = [
-  { path: '/app', label: 'Trang chủ' },
-  { path: '/app/trip', label: 'Chuyến đi' },
-  { path: '/app/explore', label: 'Khám phá' },
-  { path: '/app/profile', label: 'Hồ sơ' },
-]
-
-export function UserApp({ path, onHome }: { path: string; onHome: () => void }) {
+// docs/Role_Web_Functional_Design.md §6: one surface for the landing (/) and the app (/app/...).
+// Phones get the app download page at / instead of the 3D landing.
+export default function UserApp({ path }: { path: string }) {
+  useEffect(() => {
+    document.body.classList.add('tg-body')
+    return () => document.body.classList.remove('tg-body')
+  }, [])
+  const clean = path.split('?')[0].replace(/\/$/, '')
+  if (!clean.startsWith('/app')) {
+    return (
+      <TripProvider>
+        <div className="tg tg-root tg-landing">{isPhone() ? <GetApp /> : <Landing />}</div>
+      </TripProvider>
+    )
+  }
   return (
     <TripProvider>
       <DecisionProvider>
-        <Shell path={path} onHome={onHome} />
+        <Shell p={clean.slice('/app'.length)} sheet={query(path).get('place')} />
       </DecisionProvider>
     </TripProvider>
   )
 }
 
-function Shell({ path, onHome }: { path: string; onHome: () => void }) {
-  const { snap, error } = useSnapshot()
+function Shell({ p, sheet }: { p: string; sheet: string | null }) {
   const account = useAccount()
-  const { trip, dispatch } = useTrip()
-  const { view } = useDecision()
-  const clean = path.split('?')[0]
-  const base = '/' + clean.split('/').filter(Boolean).slice(0, 2).join('/')
-  const returning = hasTrip(trip)
-
-  useEffect(() => {
-    window.scrollTo({ top: 0 })
-  }, [base])
-
-  // "Chuyến đi" in the outer nav resumes the trip at the step it stopped on.
-  useEffect(() => {
-    if (base === '/app/trip') navigate(returning ? stepOf(trip).path : '/app/start', { replace: true })
-  }, [base, returning, trip])
-
-  const step = STEPS.findIndex((s) => base === s.path || (s.path === '/app/shortlist' && ['/app/place', '/app/compare'].includes(base)))
-  const showCurate = ['/app/shortlist', '/app/place', '/app/compare'].includes(base) && (view?.selected.length ?? 0) > 0
-
-  let screen
-  let mode: 'bare' | 'flow' | 'nav' = 'flow'
+  const { snap, error } = useSnapshot()
+  useEffect(() => { window.scrollTo({ top: 0 }) }, [p, account === null])
   let m: Record<string, string> | null
-  if (!account && (clean === '/app' || base === '/app/start' || base === '/app/login')) {
+  let rail = true
+  let screen: ReactNode
+  if ((p === '' && !account) || p === '/login') {
     // First visit: sign in, sign up or go on as a guest. Nothing behind it is locked.
-    screen = <Auth onHome={onHome} onDone={() => navigate(base === '/app/login' ? '/app/profile' : '/app', { replace: true })} />
-    mode = 'bare'
-  } else if (base === '/app/login') {
-    screen = <Auth onHome={onHome} onDone={() => navigate('/app/profile', { replace: true })} />
-    mode = 'bare'
-  } else if (clean === '/app' && returning) {
-    screen = <Home />
-    mode = 'nav'
-  } else if (clean === '/app' || base === '/app/start') screen = <Start onHome={onHome} onDone={() => navigate('/app/understand')} />
-  else if (base === '/app/profile') {
-    screen = <Profile />
-    mode = 'nav'
-  } else if (base === '/app/explore') {
-    screen = <Explore />
-    mode = 'nav'
-  } else if (!snap)
-    screen = (
-      <div className={`loading${error ? ' loading--error' : ''}`} role="status">
-        {error ? `Không tải được dữ liệu địa điểm (${error}). Chạy scripts/export_snapshot.py rồi tải lại.` : 'Đang tải dữ liệu Đà Lạt'}
-      </div>
+    screen = <Auth onDone={() => go(p === '/login' ? '/profile' : '/', { replace: true })} />
+    rail = false
+  } else if (p === '/understand') { screen = <Understand />; rail = false } // talks to the harness only: never waits for the snapshot
+  else if (!snap) {
+    screen = error ? (
+      <Empty art={<ArtHills />} title="Chưa tải được dữ liệu địa điểm" body={`(${error}) Chạy web/scripts/export_snapshot.py rồi tải lại trang.`} action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => location.reload()}>Tải lại</button>} />
+    ) : (
+      <div className="tg-page"><Busy text="Đang tải dữ liệu Đà Lạt…" /></div>
     )
-  else if (base === '/app/understand') screen = <Understand />
-  else if (base === '/app/shortlist') screen = <Shortlist />
-  else if ((m = match(path, '/app/place/:id'))) screen = <PlaceDetail id={m.id} key={m.id} />
-  else if ((m = match(path, '/app/compare/:ids'))) screen = <Compare ids={m.ids.split(',')} key={m.ids} />
-  else if (base === '/app/feasibility') screen = <Feasibility />
-  else if (base === '/app/plan')
-    screen = (
-      <PlanningProvider>
-        <Itinerary />
-      </PlanningProvider>
-    )
-  else if (base === '/app/feedback') screen = <Feedback />
-  else screen = <div className="loading loading--error">Không có trang này.</div>
-
-  const finished = base === '/app/feedback'
-
+  } else if (p === '') screen = <Discover />
+  else if (p === '/explore') { screen = <Explore />; rail = false }
+  else if ((m = match(p, '/explore/place/:id'))) { screen = <PlaceDetail id={m.id} key={m.id} />; rail = false }
+  else if ((m = match(p, '/explore/compare/:ids'))) { screen = <Compare ids={m.ids.split(',')} key={m.ids} />; rail = false }
+  else if (p === '/plan') { screen = <PlanningProvider><Plan /></PlanningProvider>; rail = false }
+  else if (p === '/done') { screen = <Done />; rail = false }
+  else if (p === '/trips') screen = <Trips />
+  else if (p === '/saved') screen = <Saved />
+  else if (p === '/profile') screen = <Account />
+  else screen = <Empty art={<ArtHills />} title="Không có trang này" body="Đường dẫn này không còn dùng nữa." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/')}>Về Khám phá</button>} />
   return (
-    <div className={`uapp uapp--${mode}`}>
-      <header className="ubar">
-        <a
-          className="ubar__mark"
-          href="/"
-          onClick={(e) => {
-            e.preventDefault()
-            if (mode === 'bare') onHome()
-            else navigate('/app')
-          }}
-        >
-          TripGuardian
-        </a>
-        {mode === 'flow' && (
-          <nav className="usteps" aria-label="Bốn bước lập chuyến">
-            <ol>
-              {STEPS.map((s, i) => {
-                const state = finished || i < step ? 'done' : i === step ? 'now' : 'next'
-                return (
-                  <li key={s.path} className={`is-${state}`}>
-              <button type="button" onClick={async () => {
-                const id = trip.journeyId ?? trip.decisionId ?? trip.planningId
-                const origin = location.pathname + location.search
-                const target: Stage = s.path === '/app/understand' ? 'trip' : s.path === '/app/plan' ? 'planning' : 'decision'
-                if (id) {
-                  const current = (await resumeJourney(id)).view
-                  const order = { trip: 0, decision: 1, planning: 2 }
-                  if (origin !== location.pathname + location.search) return
-                  if (order[target] < order[current.stage]) {
-                    await enterStage(id, target)
-                    if (origin !== location.pathname + location.search) return
-                    dispatch({ type: 'set', patch: { planningId: null, ...(target === 'trip' ? { decisionId: null } : {}) } })
-                  }
-                  if (origin !== location.pathname + location.search) return
-                  if (target === 'trip') requestStageEntry(id, 'trip')
-                }
-                navigate(s.path)
-              }} aria-current={state === 'now' ? 'step' : undefined}>
-                      {state === 'done' && (
-                        <span className="usteps__tick" aria-hidden="true">
-                          <Icon name="check" size={11} />
-                        </span>
-                      )}
-                      {s.label}
-                      {state === 'done' && <span className="visually-hidden"> (đã xong)</span>}
-                    </button>
-                  </li>
-                )
-              })}
-            </ol>
-          </nav>
-        )}
-        {mode === 'nav' && (
-          <nav className="unav" aria-label="Điều hướng">
-            {NAV.map((n) => {
-              const on = n.path === '/app' ? clean === '/app' : base === n.path
-              return (
-                <a
-                  key={n.path}
-                  href={n.path}
-                  className={on ? 'is-on' : ''}
-                  aria-current={on ? 'page' : undefined}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    navigate(n.path)
-                  }}
-                >
-                  {n.label}
-                </a>
-              )
-            })}
-          </nav>
-        )}
-        {mode !== 'bare' && (
-          <button type="button" className="ubar__me" aria-label="Hồ sơ của bạn" onClick={() => navigate('/app/profile')}>
-            {initialOf(account) ? <span className="iconbtn__initial">{initialOf(account)}</span> : <Icon name="user" />}
-          </button>
-        )}
-      </header>
-      <main className={`umain${showCurate ? ' has-curate' : ''}`}>{screen}</main>
-      {showCurate && <CurateBar />}
+    <div className="tg tg-root">
+      <a className="tg-skip" href="#tg-main" onClick={(e) => { e.preventDefault(); document.getElementById('tg-main')?.focus() }}>Bỏ qua điều hướng</a>
+      <div className={`tg-app ${rail ? 'has-rail' : ''}`}>
+        {rail && <Rail path={p} />}
+        <main id="tg-main" tabIndex={-1} key={p} className="tg-stage"><Guard>{screen}</Guard></main>
+      </div>
+      {sheet && snap && <PlaceSheet id={sheet} key={sheet} modal />}
+      <Toast />
     </div>
   )
+}
+
+// A screen that fails to render shows a way out instead of a blank page; the trip itself is safe on the server.
+class Guard extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null as string | null }
+  static getDerivedStateFromError(e: unknown) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+  render() {
+    if (!this.state.error) return this.props.children
+    return <Empty art={<ArtHills />} title="Màn này gặp lỗi hiển thị" body="Chuyến đi của bạn vẫn còn nguyên trên máy chủ. Tải lại trang hoặc về Khám phá." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => location.reload()}>Tải lại</button>} />
+  }
 }

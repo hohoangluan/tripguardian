@@ -16,10 +16,69 @@ export interface Card {
   multi: boolean
   single_rows: string[]
   tier: number
-  input: 'none' | 'text' | 'date' | 'place'
+  input: 'none' | 'text' | 'date' | 'place' | 'geo' | 'transit' | 'lodging'
   input_field: string | null
+  params?: TransitParams // transit only
   exits: boolean
   custom: boolean
+}
+
+export interface TransitParams {
+  mode: 'plane' | 'bus'
+  from: string // IATA when flying, a province when by coach
+  to: string
+  date: string // YYYY-MM-DD
+  lat?: number // the origin, by coach: the server picks the nearest Vexere province by distance
+  lng?: number
+}
+
+// One coach or flight from a crawl (src/trip/domain/state.py Transit); times are local "YYYY-MM-DDTHH:MM".
+export interface Transit {
+  mode: 'plane' | 'bus'
+  carrier: string
+  depart_at: string
+  arrive_at: string
+  from_point: string
+  to_point: string
+  price_vnd: number | null
+  source: string
+  fetched_at: string
+}
+
+export interface TransitResult {
+  status: 'ready' | 'pending' | 'unavailable'
+  trips: Transit[]
+  book_url: string | null
+}
+
+// A picked point (Trip State Base): origin, a booked lodging.
+export interface GeoHit {
+  text: string
+  address: string
+  province: string | null
+  lat: number
+  lng: number
+  source: string
+  fetched_at: string
+}
+
+export interface LodgingHit {
+  kind: 'corpus' | 'live' | 'address'
+  id?: string
+  text: string
+  address: string
+  rating?: number | null
+  lat: number
+  lng: number
+}
+
+export interface Base {
+  place_id: string | null
+  text: string
+  lat?: number | null
+  lng?: number | null
+  province?: string | null
+  kind?: 'corpus' | 'live' | 'address' | null
 }
 
 export interface Row {
@@ -95,7 +154,7 @@ export interface SearchInput {
     start_date: string | null
     month: number | null
     days: number | null
-    base: { place_id: string | null; text: string } | null
+    base: Base | null
     mobility: 'motorbike' | 'car' | 'ride' | null
     companions: string[]
     people: number | null
@@ -104,6 +163,12 @@ export interface SearchInput {
     day_end: string | null
     budget_vnd: number | null
     experience: 'first' | 'returning' | null
+    origin?: Base | null
+    arrival_mode?: 'self' | 'bus' | 'plane' | null
+    inbound?: Transit | null
+    outbound?: Transit | null
+    lodging_booked?: 'yes' | 'no' | null
+    lodging?: Base | null
   }
   hard_filters: { feature: string; op: 'ne' | 'eq'; value: string; unknown_policy: 'exclude' | 'flag' }[]
   anchors: { place_id: string; priority: 'must' | 'want' }[]

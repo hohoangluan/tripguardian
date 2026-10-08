@@ -2,10 +2,11 @@ import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { WHO_LABEL, type Who } from '../trip'
-import { searchPlaces } from '../tu/api'
-import { CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softGroups, softText, valueText } from '../tu/labels'
-import type { HardRow, Row, Understanding } from '../tu/types'
+import { geoSearch, lodgingSuggest, searchPlaces } from '../tu/api'
+import { ARRIVAL_LABEL, CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softGroups, softText, valueText } from '../tu/labels'
+import type { GeoHit, HardRow, LodgingHit, Row, Understanding } from '../tu/types'
 import { Icon } from './icons'
+import { PlaceInput } from './PlaceInput'
 
 // One answered question: which intent it served and what it changed on the ticket.
 export interface Turn {
@@ -53,8 +54,15 @@ export function linesOf(u: Understanding): Line[] {
   const date = dateLine(u)
   if (date) out.push({ key: 'dates', label: 'Ngày đi', value: date, target: t.start_date ? 'start_date' : 'days', mark: t.start_date?.mark })
   if (t.companions || t.people) out.push({ key: 'who', label: 'Đi với', value: whoText(t), target: 'companions', mark: t.companions?.mark })
+  if (t.origin) out.push({ key: 'origin', label: 'Xuất phát', value: valueText('origin', t.origin.value), target: 'origin', mark: t.origin.mark })
+  if (t.arrival_mode) out.push({ key: 'arrival_mode', label: 'Tới bằng', value: valueText('arrival_mode', t.arrival_mode.value), target: 'arrival_mode', mark: t.arrival_mode.mark })
+  for (const w of ['inbound', 'outbound'] as const)
+    if (t[w]) out.push({ key: w, label: FIELD_LABEL[w], value: valueText(w, t[w].value), target: w })
   if (t.mobility) out.push({ key: 'mobility', label: 'Phương tiện', value: valueText('mobility', t.mobility.value), target: 'mobility', mark: t.mobility.mark })
-  if (t.base) out.push({ key: 'base', label: 'Chỗ ở', value: valueText('base', t.base.value), target: 'base', mark: t.base.mark })
+  // A booked lodging is the trip's base too: one line, from the lodging.
+  if (t.lodging) out.push({ key: 'lodging', label: 'Chỗ ở', value: valueText('lodging', t.lodging.value), target: 'lodging' })
+  else if (t.base) out.push({ key: 'base', label: 'Chỗ ở', value: valueText('base', t.base.value), target: 'base', mark: t.base.mark })
+  else if (t.lodging_booked) out.push({ key: 'lodging_booked', label: 'Chỗ ở', value: valueText('lodging_booked', t.lodging_booked.value), target: 'lodging_booked' })
   if (t.arrive_at || t.leave_at || t.day_end) out.push({ key: 'times', label: 'Giờ giấc', value: timesText(t), target: 'arrive_at' })
   if (u.purpose) out.push({ key: 'purpose', label: 'Mục đích', value: valueText('purpose', u.purpose.value), target: 'purpose', mark: u.purpose.mark })
   if (u.pace || u.max_leg_min || u.crowd_tolerance) out.push({ key: 'pace', label: 'Nhịp độ', value: paceText(u), target: 'pace', mark: u.pace?.mark })
@@ -138,7 +146,7 @@ export function TicketMenu(props: TicketProps & { onOpen: (target: string | null
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className="tg-tbtn" aria-label={`Vé chuyến này, đã ghi ${count} mục`} title="Vé chuyến này"><Icon name="ticket" size={21} /><b className="tg-tbtn__n tg-mono">{count}</b></button>
+        <button type="button" className="tg-tbtn" aria-label={`Vé chuyến này, đã ghi ${count} mục. Bấm để xem và sửa`} title="Xem và sửa vé chuyến"><Icon name="ticket" size={19} /><span className="tg-tbtn__l">Vé chuyến</span><b key={count} className="tg-tbtn__n tg-mono">{count}</b></button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content className="tg tg-tpop" align="end" sideOffset={10} collisionPadding={16}>
@@ -200,6 +208,20 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
     ),
     mobility: <Seg label="Đi lại" value={t.mobility?.value ?? null} options={[{ value: 'motorbike', label: 'Xe máy' }, { value: 'car', label: 'Ô tô' }, { value: 'ride', label: 'Xe công nghệ' }]} onChange={(v) => onEdit('mobility', v)} />,
     base: <PlaceSearch placeholder="Chọn nơi gần chỗ ở" onPick={(p) => onEdit('base', p.id)} />,
+    origin: <PlaceInput<GeoHit> label="Nơi bạn khởi hành" placeholder="Thành phố, quận hoặc địa chỉ" icon="home" fetcher={geoSearch} row={(g) => ({ key: `${g.lat},${g.lng}`, icon: 'pin', name: g.text, sub: g.address })} onPick={(g) => onEdit('origin', JSON.stringify({ text: g.text, lat: g.lat, lng: g.lng, province: g.province }))} />,
+    arrival_mode: <Seg label="Tới Đà Lạt bằng" value={t.arrival_mode?.value ?? null} options={Object.entries(ARRIVAL_LABEL).map(([value, label]) => ({ value, label }))} onChange={(v) => onEdit('arrival_mode', v)} />,
+    ...Object.fromEntries((['inbound', 'outbound'] as const).map((w) => [w, (
+      <div className="tg-full__edit">
+        <span className="tg-faint">{t[w] ? `${t[w].value.from_point} → ${t[w].value.to_point}` : ''}</span>
+        <button type="button" className="tg-btn tg-btn--sm tg-btn--ghost" onClick={() => onEdit(w, null)}>Bỏ chuyến này</button>
+      </div>
+    )])),
+    ...Object.fromEntries((['lodging', 'lodging_booked'] as const).map((k) => [k, (
+      <div className="tg-full__edit is-stack">
+        <PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" fetcher={lodgingSuggest} row={(h) => ({ key: h.id ?? `${h.lat},${h.lng}`, icon: h.kind === 'address' ? 'pin' : 'bed', name: h.text, sub: h.address, rating: h.rating })} onPick={(h) => onEdit('lodging', JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }))} />
+        <button type="button" className="tg-chip" aria-pressed={t.lodging_booked?.value === 'no'} onClick={() => onEdit('lodging_booked', 'no')}>Chưa có, gợi ý giúp mình</button>
+      </div>
+    )])),
     times: (
       <div className="tg-full__edit">
         {(['arrive_at', 'leave_at', 'day_end'] as const).map((k) => <label key={k} className="tg-full__time"><span className="tg-faint">{FIELD_LABEL[k]}</span><input className="tg-input" type="time" value={t[k]?.value ?? ''} onChange={(e) => onEdit(k, e.target.value || null)} /></label>)}

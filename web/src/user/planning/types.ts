@@ -51,6 +51,13 @@ export interface VariantLodging {
   price_vnd: number | null
 }
 
+// src/planning/backup.py backups(): a stand-in per place that may fail on its day, and what to drop first when late.
+export interface Backups {
+  places: { day: number; place_id: string; name: string; reasons: string[]; text: string; none_text: string | null;
+    alternatives: { id: string; name: string; minutes_rough: number | null; for_this: boolean; reason: string | null }[] }[]
+  on_delay: { day: number; place_id: string; name: string }[]
+}
+
 export interface Variant {
   id: string
   objective: string
@@ -61,7 +68,7 @@ export interface Variant {
   itinerary: ItineraryDay[]
   travel_load: TravelLoadDay[]
   robustness: Robustness
-  backups: Record<string, unknown>[]
+  backups: Backups
   warnings: Warning[]
   lodging: VariantLodging
 }
@@ -70,10 +77,18 @@ export interface LodgingCandidate {
   id: string
   name: string
   price_vnd: number | null
+  // Taste ranking (docs/PLANNING.md ⓐ): absent on an older view, then the screen shows only what is here.
+  source?: 'corpus' | 'live'
+  rating?: number | null
+  reviews?: number | null
+  fit?: { text: string; mentions: number | null; quote: string | null }[] // "hợp vì": a liked feature with evidence
+  unverified?: string[] // hard limits with no evidence either way ("chưa xác minh: …")
+  avg_min?: number | null // mean minutes to the chosen places
+  price_at?: string | null // set when the price is the trip date's live price, read at this time
 }
 
 export interface Lodging {
-  status: 'pending' | 'ready' | 'unavailable'
+  status: 'pending' | 'ready' | 'unavailable' | 'booked' // booked: the user's own lodging (state.lodging_point), no candidates
   candidates: LodgingCandidate[]
 }
 

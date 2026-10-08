@@ -1,0 +1,80 @@
+/* What the live app needs beyond the original screens: inline editors, errors, Google Maps frames, undo links. Tokens only. */
+.tg-alert { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 10px 14px; border-radius: 12px; background: var(--tg-danger-bg); border: 1px solid var(--tg-danger-line); color: var(--tg-danger); font-size: 0.9rem; }
+.tg-chip__x { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: -6px; border-radius: 50%; color: var(--tg-ink-3); }
+.tg-chip__x:hover { background: var(--tg-pine-soft); color: var(--tg-pine); }
+.tg-seg--wrap { flex-wrap: wrap; border-radius: 18px; }
+
+/* understand */
+.tg-ask__more { margin: -10px 8px 16px; text-align: center; color: var(--tg-ink-2); font-size: 0.95rem; }
+.tg-ask__date { display: grid; gap: 6px; font-size: 0.86rem; color: var(--tg-ink-2); }
+.tg-ask__ok { justify-self: start; }
+.tg-opt { position: relative; }
+.tg-opt.is-on { border-color: var(--tg-pine); background: var(--tg-pine-soft); }
+.tg-opt kbd { position: absolute; right: 12px; top: 10px; font: 500 0.7rem var(--tg-mono); color: var(--tg-ink-3); }
+.tg-opt:disabled, .tg-chip:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.tg-qrail .is-next small { color: var(--tg-ink-3); }
+.tg-match__meter { display: block; width: 100%; margin: -6px 0 10px; }
+.tg-match__of { margin-bottom: 18px; font-size: 0.84rem; }
+.tg-picker { position: relative; display: grid; gap: 6px; }
+.tg-picker__in { display: flex; align-items: center; gap: 8px; color: var(--tg-ink-3); }
+.tg-picker__list { position: absolute; z-index: 5; top: 100%; left: 0; right: 0; display: grid; padding: 6px; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 14px; box-shadow: var(--tg-sh-2); }
+.tg-picker__list button { display: grid; width: 100%; padding: 8px 10px; text-align: left; border-radius: 10px; }
+.tg-picker__list button:hover, .tg-picker__list button:focus-visible { background: var(--tg-pine-soft); }
+.tg-full__editor { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--tg-bg); border: 1px solid var(--tg-line); }
+.tg-full__edit { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.tg-full__edit.is-stack { flex-direction: column; align-items: flex-start; }
+.tg-full__edit .tg-input { width: auto; }
+.tg-full__time { display: grid; gap: 4px; font-size: 0.82rem; }
+.tg-full__body.is-busy { opacity: 0.7; }
+.tg-ticket[aria-busy='true'] .tg-ticket__scroll { opacity: 0.75; }
+
+/* explore, bar */
+.tg-narrow__why { flex-basis: 100%; font-size: 0.8rem; }
+.tg-xnote { display: flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 0.86rem; }
+.tg-diff__undo { margin-left: 6px; color: #9fd8d0; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.tg-diff.is-bad { background: var(--tg-danger); }
+.tg-diff.is-bad svg { color: #fff; }
+.tg-listpanel__name { font-weight: 600; text-align: left; }
+.tg-listpanel__warn { display: grid; gap: 6px; padding: 4px 24px 12px; font-size: 0.84rem; color: var(--tg-warn); }
+.tg-listpanel__warn li { display: flex; gap: 8px; align-items: flex-start; }
+
+/* detail, compare */
+.tg-detail__out { display: inline-flex; align-items: center; gap: 8px; max-width: 34ch; font-size: 0.86rem; }
+.tg-facts__hours { display: grid; gap: 2px; font-size: 0.84rem; }
+.tg-minimap iframe { display: block; width: 100%; height: 190px; border: 0; }
+.tg-why-list { display: grid; gap: 8px; font-size: 0.92rem; }
+.tg-why-list li { display: flex; gap: 8px; align-items: flex-start; }
+.tg-why-list li svg { flex: none; margin-top: 3px; color: var(--tg-pine); }
+.tg-why-list li.tg-warn-t svg { color: var(--tg-warn); }
+.tg-cmp__same { grid-column: 1 / -1; padding: 16px 0; }
+.tg-cmp__sac { margin-top: 26px; }
+
+/* plan */
+.tg-map__frame { display: block; width: 100%; height: 460px; border: 0; }
+.tg-map__none { display: grid; place-items: center; height: 460px; }
+
+/* auth, account */
+.tg-auth__err { display: block; margin-top: 4px; color: var(--tg-danger); font-size: 0.82rem; }
+.tg-auth__fine { display: flex; gap: 8px; align-items: flex-start; margin-top: 18px; font-size: 0.82rem; }
+.tg-sv__note { display: block; font-size: 0.82rem; }
+.tg-ask__free .tg-line-input { padding-right: 64px; resize: none; field-sizing: content; max-height: 9lh; } /* grows with the text and the example, never clips it */
+
+/* PlaceInput: type-ahead for the origin, a booked lodging, "Tôi ở chỗ khác" */
+.tg-pin { position: relative; width: 100%; }
+.tg-pin__in { position: relative; display: block; }
+.tg-pin__in > svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--tg-ink-3); pointer-events: none; }
+.tg-pin .tg-input, .tg-full__edit .tg-pin .tg-input { width: 100%; min-height: 52px; padding: 0 44px 0 46px; font-size: 1rem; }
+.tg-pin__spin { position: absolute; right: 16px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; border: 2px solid var(--tg-pine-line); border-top-color: var(--tg-pine); animation: tg-spin 700ms linear infinite; }
+@keyframes tg-spin { to { transform: rotate(360deg); } }
+.tg-pin__list { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; display: grid; gap: 2px; margin: 0; padding: 6px; list-style: none; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 14px; box-shadow: var(--tg-sh-2); animation: tg-pop 160ms var(--tg-ease); }
+.tg-pin__list li[role='option'] { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 6px 10px; border-radius: 10px; cursor: pointer; }
+.tg-pin__list li.is-at { background: var(--tg-pine-soft); }
+.tg-pin__list li > i { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--tg-bg); color: var(--tg-pine); }
+.tg-pin__list li > span { display: grid; min-width: 0; }
+.tg-pin__name { display: -webkit-box; overflow: hidden; font-weight: 400; color: var(--tg-ink); -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.3; }
+.tg-pin__name b { font-weight: 700; }
+.tg-pin__list small { overflow: hidden; color: var(--tg-ink-3); font-size: 0.8rem; text-overflow: ellipsis; white-space: nowrap; }
+.tg-pin__list em { font: 600 0.8rem var(--tg-mono); font-style: normal; color: var(--tg-sun-ink); }
+.tg-pin__note { display: flex; align-items: center; gap: 6px; padding: 12px 10px; color: var(--tg-ink-2); font-size: 0.9rem; }
+.tg-full__edit .tg-pin { align-self: stretch; }
+@media (prefers-reduced-motion: reduce) { .tg-pin__spin { animation: none; } .tg-pin__list { animation: none; } }

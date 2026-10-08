@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { fmtMin, fmtVnd } from '../lib'
 import { useDecision } from '../pd/decision'
 import type { Conflict, Diff, Fix, PreviewVariant } from '../pd/types'
-import { go, placeHref, PlacePhoto } from './common'
+import { PlacePhoto } from './common'
+import { openPlace } from './PlaceSheet'
 import { Icon } from './icons'
 
 export type BarLevel = 'building' | 'ready' | 'attention' | 'blocked'
@@ -114,7 +115,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
                 return (
                   <li key={id}>
                     <PlacePhoto id={id} name={name} className="tg-listpanel__ph" />
-                    <div><button type="button" className="tg-link tg-listpanel__name" onClick={() => { setOpen(false); go(placeHref(id)) }}>{name}</button></div>
+                    <div><button type="button" className="tg-link tg-listpanel__name" onClick={() => { setOpen(false); openPlace(id) }}>{name}</button></div>
                     <button type="button" className={`tg-icon-btn ${isLocked ? 'is-on' : ''}`} disabled={busy} onClick={() => act({ type: isLocked ? 'unlock' : 'lock', place_id: id })} aria-pressed={isLocked} aria-label={isLocked ? 'Bỏ khóa' : 'Khóa'}><Icon name={isLocked ? 'lock' : 'unlock'} size={18} /></button>
                     <button type="button" className="tg-icon-btn" disabled={busy} onClick={() => act({ type: 'drop', place_id: id })} aria-label={`Bỏ ${name}`}><Icon name="x" size={18} /></button>
                   </li>

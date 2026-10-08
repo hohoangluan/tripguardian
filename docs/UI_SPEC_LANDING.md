@@ -1,97 +1,77 @@
 # TripGuardian — Đặc tả UI/UX: Landing
 
-Dành cho designer / Figma và cho người code landing. Landing **giữ nguyên kiến trúc hiện tại** (`web/src/pages/Landing.tsx`: thế giới 3D + 5 beat dính + GSAP ScrollTrigger + Lenis). Tài liệu này nói **đổi gì**: hệ màu sang trắng hồng, và cắt chữ xuống mức tối thiểu để **animation kể chuyện thay chữ**.
+Dành cho designer và người code landing (`/`). Máy tính (laptop, desktop, PC) thấy landing 3D (`web/src/user/screens/Landing.tsx`); điện thoại thấy trang **Dùng ứng dụng** (`web/src/user/screens/GetApp.tsx`, §5). Hệ màu, chữ: `docs/UI_SPEC_USER_WEB.md` §8 — landing không thêm màu nào ngoài token có sẵn.
 
-Đọc kèm: `docs/UX_Design_Brief.md` (nguyên tắc, cách hiển thị dữ liệu) · `docs/UI_SPEC_USER_WEB.md` (app sau khi bấm CTA).
+Đọc kèm: `docs/UX_Design_Brief.md` (nguyên tắc, cách hiển thị dữ liệu) · `docs/UI_SPEC_USER_WEB.md` (app sau khi bấm `Trải nghiệm đi`).
 
 ---
 
-## 1. Nguyên tắc của landing này
+## 1. Nguyên tắc
 
-1. **Landing không giải thích sản phẩm. Nó diễn sản phẩm.** Mỗi beat là một miếng UI thật thu nhỏ, không phải hình minh hoạ tính năng.
-2. **Ngân sách chữ cứng.** Mỗi màn cuộn chỉ được có: 1 nhãn bước (≤4 từ) + 1 tiêu đề (≤6 từ) + **nhiều nhất 1 dòng phụ** (≤16 từ). Hết. Không đoạn văn, không bullet, không lưới tính năng.
-3. **Thứ gì animation nói được thì không viết.** "Quá nhiều lựa chọn" là 842 pin sáng rồi tắt còn 5 — không phải một câu nói rằng có quá nhiều lựa chọn.
-4. **Bản đồ là hình nền.** Thế giới 3D không trang trí; nó mang pin, mang tuyến đường, và nối thẳng sang thẻ sản phẩm bằng đường dẫn.
-5. **Con số phải thật.** Mọi số trên landing lấy từ build thật (`web/public/data/snapshot.json`, `build`), không bịa. Không có số thật thì bỏ con số đó đi.
+1. **Landing không giải thích sản phẩm. Nó diễn sản phẩm.** Sân khấu là thung lũng Đà Lạt 3D lúc bình minh, dựng từ địa hình thật, tông hồng nhạt (trắng + hồng phấn + mận) — không khí du lịch, không phải sa bàn hay bản đồ chiến thuật; mỗi chương cuộn đặt cạnh nó một miếng UI thật thu nhỏ (thẻ thông tin chuyến đi, thẻ lý do, timeline, phiếu đánh giá), dùng chung CSS với app nên đổi app thì landing đổi theo.
+2. **Ngân sách chữ cứng.** Mỗi chương: 1 nhãn (≤4 từ) + 1 tiêu đề (≤6 từ) + nhiều nhất 1 dòng phụ (≤16 từ).
+3. **Thứ gì camera nói được thì không viết.**
+4. **Con số và vị trí phải thật.** Số nơi lấy từ `web/src/user/landing/stats.json`; tên, ảnh, độ đông, bình luận, clip từ `places.json`; mỗi đốm sáng trong thung lũng là toạ độ thật của một nơi trong `points.json`. Cả ba sinh bằng `python web/scripts/pick_landing_places.py` từ `snapshot.json` + `covers.json`. Địa hình là thật: độ cao SRTM 30 m (lấy mẫu ~330 m), viền các hồ, đường trục chính, vùng rừng / nhà kính / phố và vị trí nhà từ OpenStreetMap, tải bằng `python web/scripts/export_landscape.py dem | osm | water` ra `web/scripts/landscape/{dem,osm}.json` (nguồn, chỉ dùng khi dựng), rồi dựng sẵn bằng `npm run bake:landscape --prefix web` ra `web/public/world/dalat.bin` (§3). Dữ liệu đã có sẵn trong repo; chỉ chạy lại khi muốn cập nhật bản đồ. Chỉ có **độ phóng đại chiều cao** (×~3 so với tỷ lệ ngang) và chi tiết nhiễu mịn trên lưới 330 m là minh họa; cây thông, mái nhà là biểu tượng, không phải từng cây từng nhà. Footer ghi rõ. Giờ giấc trong chương Lịch trình là minh họa, có tag *"Ví dụ minh họa"*; khoảng cách giữa các nơi tính từ toạ độ thật.
 
-## 2. Hệ màu — trắng hồng
+## 2. Cấu trúc (máy tính)
 
-| Vai trò | Giá trị | Dùng ở đâu |
-|---|---|---|
-| Nền trang | `#FFF9F8` | ngoài 3D |
-| Bề mặt | `#FFFFFF` | thẻ, top bar, scrim sau chữ |
-| Mực | `#3A2B32` | chữ chính |
-| Hồng phấn | `#EFB8C4` | nút (chữ mận), nhãn bước |
-| Hồng đậm | `#C97890` | pin, tuyến, dòng 2 headline (chỉ chữ ≥24px, 3.2:1) |
-| Hồng nhạt | `#FCEEF1` | khối mềm, rãnh meter |
-| Mận | `#6B3550` | footer, khối quy tắc cứng |
-| Hổ phách | `#A8660F` | **chỉ** cảnh báo |
-| Xanh mực | `#4A6488` | link, dòng nguồn dữ liệu |
-| **Vàng dã quỳ** | `#F2B31B` | **đúng một chỗ trên toàn trang: đĩa mặt trời trong 3D.** Không dùng ở đâu khác |
+Một section cao ~6,4 màn hình; bên trong là sân khấu `sticky` cao 1 màn hình: canvas 3D (`web/src/user/landing/scene.ts`, địa hình `terrain.ts`), nhãn DOM bám theo bưu thiếp và khu, cột chữ bên trái, thanh bước bên phải. Cuộn kéo một timeline GSAP (`scrub`) đẩy trạng thái cảnh (camera, đốm sáng, bưu thiếp, tuyến) và đổi đoạn. Khung hình luôn lệch phải để chừa cột chữ. **Xoay 360°:** kéo chuột (hoặc ngón tay theo chiều ngang) trên mô hình để xoay cả cảnh quanh thung lũng, kéo dọc để nâng / hạ góc nhìn; thả tay có quán tính; camera không bao giờ chui xuống đất. Cuộn sang chương khác thì mô hình tự về góc nhìn của chương đó. Hướng dẫn: sau 2 giây cảnh tự lắc nhẹ một lần, nhãn `Kéo để xoay 360°` (biểu tượng vòng xoay có chấm trượt) nằm cạnh ba nút nhỏ `‹` `↻` `›` (xoay 45° mỗi lần, về góc ban đầu) — nhãn biến mất khi người dùng xoay lần đầu, ba nút ở lại cho người dùng bàn phím.
 
-Giữ vàng một chấm vì đó là màu nhận diện Đà Lạt; bỏ sạch thì landing mất chất địa phương, rải nhiều thì vỡ hệ trắng hồng.
+**Cảnh:** bầu trời bình minh (hồng phấn → trắng hồng → hồng đào ở chân trời, quầng nắng phía đông), sương nằm trong các lòng chảo thật (phố, Tuyền Lâm, Trại Mát, phía Đa Nhim), đồi thông ba lá hồng mận theo vùng rừng thật, các hồ theo viền thật (mỗi hồ một mực nước), đường trục chính màu trắng kem, phố mái hồng theo vị trí nhà thật, nhà thờ Con Gà, đỉnh Langbiang; địa hình xa mờ dần vào chân trời. Mỗi địa điểm là một đốm sáng vàng nhỏ (màu vàng duy nhất trong cảnh). Năm nơi được chọn là **bưu thiếp** in ảnh thật của nơi đó (thumbnail Google Maps), cắm trên que trắng; tuyến đi là **đường chấm trắng** trên mặt đất. Màu lấy từ token (pine, sun, paper và các tông nhạt).
 
-### Thế giới 3D — nhuộm lại, không dựng lại
+Thanh bước bên phải theo đúng các bước sản phẩm: **Mở đầu · Tìm hiểu · Lựa chọn · Lịch trình · Đánh giá**. Đoạn lý do thuộc bước Lựa chọn.
 
-Hình học, camera, animation giữ nguyên. Chỉ đổi màu:
-
-| File | Đổi |
-|---|---|
-| `web/src/scene/Terrain.tsx` §dải cao độ | bờ `#E8CFC6` · đồng `#DCB6AE` · sườn `#B98C92` · rừng sâu `#7E5A68` · đỉnh sương `#C9A7AE` |
-| `web/src/scene/Terrain.tsx` §mặt hồ | `#F3DDE0`, giữ `metalness 0.25` |
-| `web/src/scene/Pines.tsx` §`setHSL` | `0.42±.05 / .28–.40 / .13–.20` → `0.93±.03 / .10–.22 / .22–.32` (thông thành bóng mận xám) |
-| `web/src/scene/Director.tsx` §MIST, CLEAR | `#F6E7E6`, `#FDF3F1` |
-| `web/src/scene/Director.tsx` §đèn | hemisphere `#FFF9F8` / `#6B3550`; nắng `#FFD9CE`; **thêm một đĩa mặt trời `#F2B31B`** |
-| `web/src/scene/Mist.tsx` §points | `#FCEDEC` |
-| `web/src/scene/Pins.tsx` | pin thường `#A98E95` · pin đã chọn `#C97890` · nhãn `#FFFFFF` · quầng sáng `#F2B31B` chỉ quanh mặt trời |
-| `web/src/scene/Route.tsx` | tuyến `#C97890`; đoạn lỗi `#B06A12` |
-| `web/src/styles.css` §`:root` | giữ nguyên **tên** token, đổi giá trị sang bảng trên |
-
-Rủi ro: hồng tương phản thấp hơn xanh–vàng cũ. Bắt buộc giữ **scrim trắng mềm** sau mọi chữ nằm trên 3D, và mực đậm `#3B2630`.
-
-## 3. Cấu trúc — 7 màn cuộn
-
-| # | Màn | Chữ được phép | Animation làm việc gì |
+| # | Đoạn (bước) | Chữ | Cảnh 3D |
 |---|---|---|---|
-| 0 | **Hero** | headline 2 dòng + 1 nút `BẮT ĐẦU` | Camera trôi rất chậm; sương bò trong thung lũng; **hàng chục pin mờ** rải khắp đồi = "nghìn chỗ đẹp" |
-| 1 | **842 → 5** | `842 → 5` (số tự đếm) + 1 dòng | Pin sáng dồn, rồi **tắt dần còn 5 pin** sáng rõ có nhãn; tuyến bắt đầu nối |
-| 2 | **Hiểu chuyến đi** | nhãn + tiêu đề ≤6 từ | Chip quy tắc (có khóa) và chip sở thích (viền đứt) **bay vào thẻ**; hai loại rơi vào hai vùng khác nhau |
-| 3 | **Bằng chứng** | nhãn + `MỖI CÂU, MỘT CLIP.` | Một nhận định mở ra: thanh tỉ lệ chạy tới 74%, số comment **đếm lên**, 3 clip thật trượt vào; đường dẫn nối comment → clip |
-| 4 | **Khả thi** | nhãn + `ĐI ĐƯỢC KHÔNG, NÓI THẲNG.` | Meter **tràn** qua vạch; chọn một cách sửa thì meter **co lại** vừa khung |
-| 5 | **Lịch trình** | nhãn + `MỘT NGÀY ĐI ĐƯỢC TRÔNG NHƯ THẾ NÀY.` | Tuyến **vẽ dần** trên địa hình; thẻ timeline trượt vào; **đường dẫn từ pin số 2 chạy lên đúng dòng số 2** của thẻ |
-| 6 | **CTA** | headline 2 dòng + nút + `Không cần tài khoản.` | Mặt trời lên hẳn, vệt nắng trải trên hồ; tuyến 5 điểm đã hoàn chỉnh |
+| 0 | **Mở đầu** | `Hàng nghìn nơi ở Đà Lạt. Chỉ giữ nơi hợp với bạn.` + dòng phụ + nút `Trải nghiệm đi` + liên kết `Xem cách hoạt động` + dòng số thật | Camera thấp trên đồi phía nam nhìn lên thung lũng, thấy chân trời; đốm sáng hiện dần; nhãn khu (Trung tâm, Langbiang, Cầu Đất, Trại Mát, Tuyền Lâm); sương trôi; camera thở nhẹ và nghiêng theo chuột |
+| 1 | **Tìm hiểu** | `Tách rõ điều bắt buộc và điều mong muốn.` + thẻ Thông tin chuyến đi | Camera lượn sang phía tây phố; con dấu `Bắt buộc` bay vào từ trái, chip `Mong muốn` viền đứt từ phải |
+| 2 | **Lựa chọn** | `Còn lại <số đếm thật → 5> nơi hợp với bạn.` | Camera lên cao; đốm sáng mờ dần, 5 bưu thiếp mọc lên có nhãn số + tên, đường chấm vẽ dần |
+| 3 | **Lựa chọn · lý do** | `Chọn nơi nào cũng có lý do.` + thẻ nơi | Camera bay ngang tầm bưu thiếp Thênh Thang; thanh độ đông chạy tới số thật, clip TikTok thật (bấm để mở), một bình luận Google gốc |
+| 4 | **Lịch trình** | `Một ngày đi kịp từng điểm.` + timeline + `Đã kiểm tra` | Camera lùi ra cả tuyến; một chấm cam chạy dọc đường chấm theo cuộn |
+| 5 | **Đánh giá** | `Chuyến sau hợp gu hơn chuyến này.` + 4 câu của màn Phản hồi (thang 5 chấm, giá trị minh họa) + `Lên lịch cho chuyến của bạn` | Camera nâng lên nhìn lại thung lũng về phía bình minh, cả tuyến và năm bưu thiếp |
 
-Sau màn 6: **Hỏi nhanh** (4 dòng accordion, gập hết, mở sẵn 1) và footer mận. Khối "SẮP CÓ" (Khám phá Đà Lạt · Nhật ký chuyến đi · Thêm thành phố, đều gắn `chưa mở`) đặt **trước** CTA cuối — nó công bố lộ trình mà không hứa hão, và khớp 1-1 với các ô trong Trang chủ của app.
+Thứ tự đi theo luồng sản phẩm: tìm hiểu chuyến đi → lựa chọn (kèm lý do) → lịch trình → đánh giá sau chuyến (`web/src/user/screens/Done.tsx`).
 
-Những thứ **bỏ khỏi landing cũ**: đoạn mô tả dài ở mỗi beat, hai chú thích hai bên mỗi beat (giữ tối đa 2 chú thích **ngắn**, chỉ ở beat 3 và 5), dải 4 clip nhét trong hero (chuyển thành beat 3).
+**Giọng văn:** landing gọi sản phẩm là "TripGuardian" và người đọc là "bạn" (không dùng "mình" để khỏi lẫn ai đang nói). Câu hỏi trong Hỏi nhanh viết bằng giọng người dùng (`TripGuardian có quyết định thay tôi không?`).
 
-## 4. Animation — quy tắc
+**Chữ:** landing dùng Lora (tiêu đề, bộ dấu tiếng Việt đầy đủ, cân ở cỡ lớn) + Be Vietnam Pro (thân bài, thiết kế riêng cho tiếng Việt); ghi đè `--tg-display`, `--tg-sans` trên `.tg-landing`, màu giữ nguyên token. Số dùng chữ số đều (`tabular-nums`) thay cho phông mono.
 
-- **Dẫn động bằng cuộn, không tự chạy.** Người dùng cuộn tới đâu, cảnh chạy tới đó (ScrollTrigger `scrub`). Không có animation vô hạn ngoài sương và trôi camera.
-- **Một ý một beat.** Mỗi beat chỉ có một chuyển động mang nghĩa; mọi thứ khác đứng yên.
-- **Chuyển động phải nói được bằng lời nếu bị hỏi.** "Pin tắt còn 5" = *shortlist*. "Meter co lại" = *cách sửa có giá*. Chuyển động không giải thích được thì bỏ.
-- **`prefers-reduced-motion: reduce`**: tắt scrub, tắt sương, tắt bay chip; mỗi beat về **một ảnh tĩnh ở trạng thái cuối** và vẫn đọc hiểu được trọn vẹn. Đây là bắt buộc, không phải tuỳ chọn.
-- **Ngân sách hiệu năng:** 3D ở 60fps trên laptop tích hợp; rớt dưới ngưỡng thì hạ số pine instance trước, hạ sương sau, **không** hạ độ phân giải chữ.
-- **Mobile:** không chạy 3D. Thay bằng một ảnh tĩnh của chính cảnh đó (render sẵn), các beat vẫn cuộn và vẫn đổi thẻ sản phẩm.
+Sau sân khấu, trang giấy thường: **Ảnh thật** (bento 6 nơi thật, mỗi ô ghi tên + `Ảnh: Google Maps`) → **Hỏi nhanh** cạnh **Sắp có** (`chưa mở`) → CTA cuối → footer.
 
-## 5. Ràng buộc nội dung
+Điều hướng: thanh trên có `Cách hoạt động` · `Ảnh thật` · `Hỏi nhanh` (cuộn tới chỗ), `Đăng nhập`, `Trải nghiệm đi`. Thanh bước bên phải (5 chấm, nhãn hiện khi trỏ / đang ở) bấm được để nhảy tới bước. Nút `Cuộn để xem cách hoạt động` ẩn khi rời Mở đầu.
 
-- Ảnh địa điểm trên landing là **ảnh thật của chính nơi đó** (ảnh Google Maps hoặc frame clip trong `data/tiktok/videos/<id>/frames/`), luôn ghi nguồn (`Ảnh: Google Maps` / `@creator`, clip có link gốc), **không có người chiếm đáng kể khung hình** (`web/scripts/pick_covers.py`). Không ảnh stock, không ảnh AI vẽ nơi có thật.
-- Video demo (`web/public/media/demo.mp4`) quay từ app **cũ** (giấy kem + xanh thông). Sau khi app restyle sang trắng hồng, **phải quay lại** bằng `web/scripts/record_demo.mjs`, nếu không landing hồng mà video xanh.
-- Số trên landing lấy từ build thật. Nếu không có số đối chứng (ví dụ "độ chính xác mẫu kiểm") thì **bỏ ô đó**, không điền số đẹp.
+Landing không có ô nhập. Mọi nút `Trải nghiệm đi` (thanh trên, Mở đầu, đoạn Đánh giá, CTA cuối) chỉ chuyển sang trang home `/app` (Khám phá); câu hỏi chỉ bắt đầu ở đó, khi người dùng kể chuyến đi.
 
-## 6. Ảnh dựng thử
+## 3. Animation và hiệu năng
 
-Trong `docs/design/desktop/v3-rose-photo/`:
+**Chuyển động**
+- Mọi chuyển động dẫn bằng cuộn (`scrub` + Lenis); mỗi chương đủ hình trước khi tới điểm dừng của nó và giữ một nhịp trước khi đổi.
+- Cảnh 3D tự làm mượt theo thời gian thực (không phụ thuộc FPS), chỉ vẽ khi sân khấu trong màn hình và tab đang mở.
+- `prefers-reduced-motion: reduce`: không Lenis, không timeline; cảnh vẽ một khung tĩnh kể trọn câu chuyện (góc nhìn đoạn Đánh giá: đốm mờ + 5 bưu thiếp + tuyến), các đoạn 1–5 xếp lưới bên dưới ở trạng thái cuối.
+- Nhãn không bao giờ nằm dưới cột chữ hay sát mép khung.
+- Cửa sổ máy tính hẹp hơn 900px: chữ thành thẻ nền giấy ở đáy sân khấu, ẩn thanh bước.
 
-| File | Là gì |
-|---|---|
-| `15-landing-hero-3d.png` | hero có 3D nhuộm hồng, bản còn nhiều chữ |
-| `17-hero-min.png` | hero rút chữ tối thiểu + mặt trời vàng |
-| `18-beat-pins.png` | beat `842 → 5`, gần như không chữ |
-| `19-beat-evidence.png` | beat bằng chứng, clip thật |
-| `16-landing-beat-3d.png` | beat lịch trình, đường dẫn pin → thẻ |
-| `20-cta-min.png` | CTA cuối |
-| `13-landing-close.png` | Hỏi nhanh + SẮP CÓ + footer |
+**Vào trang nhanh, không giật** (máy tính; điện thoại và `/app/...` không tải gì của landing)
+1. **Ảnh nền có ngay:** `index.html` cho `html.tg-boot #root:empty` nền là `web/public/img/landing-poster.webp` (~70 KB, chụp từ chính cảnh 3D ở góc nhìn đầu, không chữ) và preload nó, nên trang không trắng trong lúc mã tải. Sân khấu giữ ảnh này (`.tg-l3__poster`), cảnh 3D mờ dần chồng lên sau khung hình đầu tiên (`is-live`). Không có WebGL: ảnh nền ở lại, các nút xoay ẩn.
+2. **Tải song song:** `index.html` bắt đầu tải `/world/dalat.bin` ngay; `App.tsx` bắt đầu tải chunk `scene` và `points.json` ngay từ chunk vào, không chờ `UserApp`. Dữ liệu `covers.json` / snapshot (2,8 MB) chỉ tải sau khi cảnh đã vẽ, để không tranh băng thông.
+3. **Địa hình dựng sẵn:** mọi phép tính nặng (độ cao 122 nghìn đỉnh, màu theo lớp phủ, 15 nghìn cây, 3 nghìn nhà, đường, tam giác hóa mặt hồ) chạy ngoại tuyến trong `web/scripts/landscape/bake.ts` (xác định, có hạt giống) ra một tệp nhị phân ~740 KB (~240 KB brotli); trình duyệt chỉ giải mã mảng (`landing/terrain.ts`, ~150 ms trên máy thử thay cho ~2 s trước đây). Độ cao và màu lưu theo bước chênh với đỉnh kề; cỡ, hướng xoay cây / nhà sinh bằng bộ số ngẫu nhiên có hạt giống, không lưu. Đổi bảng màu hay dữ liệu thì chạy lại `npm run bake:landscape`.
+4. **Bóng đổ vẽ một lần** (`shadowMap.autoUpdate = false`): thung lũng không đổi; tuyến đi không đổ bóng.
+5. **Biên dịch shader không chặn trang:** `compileAsync` trước khung đầu tiên (trình duyệt có `KHR_parallel_shader_compile`).
+6. **Tự hạ chất lượng khi máy yếu** (`DalatScene.govern`): sau 30 khung khởi động, nếu khung trung bình > 28 ms kéo dài, giảm lần lượt: độ phân giải về 1x, tắt cánh hoa / tia sáng / đom đóm, bớt một nửa cây; không bao giờ tăng lại. Màn hình ≥ 2x không bật khử răng cưa; độ phân giải tối đa 1,5x.
+7. Tệp `/world/*`, `/img/*` được lưu đệm 1 ngày; `.bin` có sẵn bản `.br` / `.gz` (`web/scripts/prod_assets.mjs`). Phông chữ Google không chặn lần vẽ đầu (`media="print"` rồi đổi sang `all`).
+8. Đo: `performance.mark` `tg-scene-start`, `tg-build:<bước>`, `tg-scene-built`, `tg-scene-first-frame` (bảng Performance của Chrome). Ngân sách: ảnh nền hiện < 1 s, cảnh 3D sẵn sàng < 3 s trên laptop trung bình, khung hình ổn định 50–60 FPS.
 
-Ảnh là **bản dựng ý tưởng**: bố cục, màu, mật độ chữ để duyệt — không phải asset dùng được.
+## 4. Ảnh
+
+Ảnh nền CTA là ảnh sinh (`web/public/img/gen/`, `web/scripts/gen_ui_images.py`, prompt ở `web/scripts/ui_image_prompts.json`, nguồn gốc ghi trong `manifest.json`). Ảnh nền landing (`landing-poster.webp`, §3) là ảnh chụp từ chính mô hình 3D; chụp lại bằng Playwright mỗi khi đổi cảnh. Ảnh sinh chỉ dùng cho không khí, không bao giờ đại diện một nơi có tên; ảnh một nơi có thật luôn là ảnh Google Maps / frame clip.
+
+## 5. Điện thoại: Dùng ứng dụng
+
+Điện thoại (UA di động, hoặc màn chỉ cảm ứng có cạnh ngắn < 600px — `web/src/user/landing/device.ts`) vào `/` thấy trang Dùng ứng dụng thay cho landing 3D. Các đường `/app/...` (link chuyến được chia sẻ) vẫn mở bình thường.
+
+- Minh họa điện thoại (ảnh nền + 3 ghim + tuyến + `Lịch sẵn sàng`), nhãn `Trên điện thoại`, tiêu đề `Dùng TripGuardian trên ứng dụng.`
+- Hai nút cửa hàng, nền tảng của máy đứng trước. Link lấy từ biến build `VITE_APP_IOS_URL`, `VITE_APP_ANDROID_URL` (`web/.env`):
+  - có link: nút `Tải trên App Store / Google Play` mở cửa hàng;
+  - chưa có: ô viền đứt `Sắp có trên …` + tag `chưa mở`, dòng phụ nói thẳng ứng dụng đang hoàn thiện và gợi ý mở trên máy tính.
+- `Gửi link sang máy tính`: mở bảng chia sẻ của máy, không có thì chép link và báo `Đã chép link…`.
+- Lối thoát nhỏ `Tiếp tục với bản web` → `/app`.

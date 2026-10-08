@@ -4,13 +4,14 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const MEDIA: Record<string, string> = {
+  '/media/thumb': resolve(__dirname, '../data/thumbs'),
   '/media/tiktok': resolve(__dirname, '../data/tiktok/videos'),
   '/media/gmaps': resolve(__dirname, '../data/gmaps/places'),
 }
-const TYPES: Record<string, string> = { mp4: 'video/mp4', jpg: 'image/jpeg' }
+const TYPES: Record<string, string> = { mp4: 'video/mp4', jpg: 'image/jpeg', webp: 'image/webp' }
 
 // Dev only: serves crawled TikTok clips and frames (/media/tiktok/<id>/<file>) and Google Maps photos
-// (/media/gmaps/<place dir>/photos/<file>) from data/, with Range support so the browser can seek.
+// (/media/gmaps/<place dir>/photos/<file>) and their thumbnails (/media/thumb/...) from data/, with Range support so the browser can seek.
 function clips(): Plugin {
   return {
     name: 'tg-media',

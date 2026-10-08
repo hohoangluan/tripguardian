@@ -1,5 +1,6 @@
 // Walks the user web against the real harness (landing -> Khám phá -> Hiểu chuyến đi -> Chọn nơi -> Lịch trình -> Phản hồi)
-// and saves a screenshot per screen. Needs `python -m harness serve` and the Vite dev server running.
+// and saves a screenshot per screen. The logistics questions take the flight path: origin Quận 1 -> Máy bay -> the first
+// flight each way -> no lodging yet -> "Bạn ở đâu?" picks the first lodging before the schedule. Needs `python -m harness serve` and the Vite dev server running.
 // usage: node web/scripts/shots_app.mjs [base url, default http://127.0.0.1:5173] [width, default 1440]
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -38,13 +39,39 @@ try {
   await page.waitForSelector('.tg-ask__card:not(.tg-chat), .tg-ask__done', { timeout: 120000 })
   await shot('understand')
   // Answer whatever the agent asks with the first option (or skip) until it hands over to Chọn nơi.
-  for (let i = 0; i < 14 && !page.url().includes('/explore'); i++) {
+  for (let i = 0; i < 20 && !page.url().includes('/explore'); i++) {
     await page.waitForFunction(() => !document.querySelector('.tg-ask__card[aria-busy="true"], .tg-deck.is-waiting') || location.pathname.includes('/explore'), null, { timeout: 120000 })
     if (page.url().includes('/explore')) break
     const done = await page.$('.tg-ask__done .tg-btn--primary')
     if (done) { step('show'); await done.click(); await page.waitForTimeout(1500); continue }
     const date = await page.$('.tg-ask__date input')
     if (date) { await date.fill('2026-11-12'); await page.click('.tg-ask__ok'); await page.waitForTimeout(1200); continue }
+    const qid = await page.locator('.tg-ask__intent b').innerText().catch(() => '')
+    if (await page.$('.tg-ask__card .tg-pin input')) {
+      // origin (Xuất phát) or a booked lodging (Chỗ ở): type, wait for the suggestions, pick the first
+      const lodging = /CHỖ Ở/.test(qid)
+      if (lodging) { step('lodging: none yet'); await shot('understand-lodging'); await page.getByRole('button', { name: 'Chưa có, gợi ý giúp mình' }).click() }
+      else {
+        step('origin: Quận 1')
+        await page.fill('.tg-ask__card .tg-pin input', 'Quận 1, Hồ Chí Minh')
+        await page.waitForSelector('.tg-pin__list [role="option"]', { timeout: 30000 })
+        await shot('understand-origin')
+        await page.keyboard.press('Enter')
+      }
+      await page.waitForTimeout(1200)
+      continue
+    }
+    if (/PHƯƠNG TIỆN/.test(qid)) { step('arrival: plane'); await page.getByRole('button', { name: /Máy bay/ }).click(); await page.waitForTimeout(1200); continue }
+    if (await page.$('.tg-ask__card .tg-trn')) {
+      step(`transit: ${qid}`)
+      await page.waitForSelector('.tg-trn__row, .tg-trn__none', { timeout: 180000 })
+      await shot(`understand-${/VỀ/.test(qid) ? 'outbound' : 'inbound'}`)
+      const pick = await page.$('.tg-trn__row .tg-btn--primary')
+      if (pick) await pick.click()
+      else { await page.fill('.tg-trn__time input', /VỀ/.test(qid) ? '15:00' : '09:00'); await page.click('.tg-trn__time .tg-btn') }
+      await page.waitForTimeout(1200)
+      continue
+    }
     const opt = await page.$('.tg-ask__card .tg-opt:not(.is-soft), .tg-ask__card .tg-basics__chips .tg-chip')
     if (opt) {
       step(`answer ${i + 1}: ${(await opt.innerText()).split('\n')[0]}`)
@@ -118,10 +145,10 @@ try {
   await shot('selected-panel')
   await page.keyboard.press('Escape')
   await page.click('.tg-pc__open')
-  await page.waitForSelector('.tg-detail', { timeout: 30000 })
-  await shot('place-detail')
-  await page.goBack()
-  await page.waitForSelector('.tg-pc')
+  await page.waitForSelector('.tg-ps.is-modal', { timeout: 30000 })
+  await shot('place-sheet')
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.tg-ps', { state: 'detached', timeout: 10000 })
   const cmps = await page.$$('.tg-pc__ic[title="So sánh"]')
   if (cmps.length >= 2) {
     await cmps[0].click(); await cmps[1].click()
@@ -138,7 +165,16 @@ try {
   if (await go.isEnabled()) {
     await go.click()
     await page.waitForURL(/\/app\/plan/, { timeout: 180000 })
-    await page.waitForSelector('.tg-journey, .tg-plan__cols, .tg-empty', { timeout: 120000 })
+    await page.waitForSelector('.tg-lod, .tg-journey, .tg-plan__cols, .tg-empty', { timeout: 120000 })
+    if (await page.$('.tg-lod')) {
+      step('lodging screen: pick the first')
+      await page.waitForSelector('.tg-lod__card, .tg-lod__empty', { timeout: 180000 })
+      await shot('plan-lodging')
+      const here = await page.$('.tg-lod__card .tg-btn--primary')
+      if (here) await here.click()
+      else await page.getByRole('button', { name: /Cứ xếp giúp/ }).click()
+      await page.waitForSelector('.tg-journey, .tg-plan__cols, .tg-empty', { timeout: 120000 })
+    }
     await shot('plan-choose')
     const j = await page.$('.tg-journey')
     if (j) { await j.click(); await page.waitForSelector('.tg-daytab', { timeout: 60000 }) }
