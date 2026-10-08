@@ -85,18 +85,30 @@ Khi một lượt (chat, sửa vé, chip) làm đổi thứ hạng, mỗi nhóm 
 3. Ngược lại: giữ `keep` đúng vị trí cũ; ô của nơi bị gỡ được lấp bằng nơi mới theo thứ hạng mới (ô trên cùng nhận nơi hợp nhất); dư thì nối cuối. Cửa sổ giữ đúng độ dài cũ.
 4. `top` tính lại theo thứ hạng mới. View mang `change[group] = {kept, added, removed, replaced_all}`; câu báo dùng `diff()` sẵn có: "Lọc theo yên tĩnh: giữ 18 nơi, thay 6".
 
-### 2.3 Chat thu hẹp = Trip Understanding + Place Decision bên dưới
+### 2.3 Chat thu hẹp — bot Place Decision quyết định, Trip Understanding mở rộng làm phần hiểu gu
 
-Người dùng (2026-10-08): ở bước Chọn nơi, người dùng nhắn điều họ muốn bằng lời như lúc Hiểu chuyến đi; chatbot hiểu rồi chạy logic Place Decision bên dưới. Một ô chat, không bắt người dùng quay lại bước trước.
+Người dùng (2026-10-08): ở bước Chọn nơi, người dùng nhắn điều họ muốn bằng lời; **bot Place Decision quyết định** cập nhật Trip State (qua Trip Understanding) hay bỏ những nơi người dùng nói. Ví dụ "Tôi không thích đi quán giống X": agent phải hiểu X là quán như thế nào, cập nhật Trip State, rồi Place Decision cập nhật theo.
 
-Operation mới của harness ở stage `decision`: `refine {text}` (`src/harness/dispatch.py`):
+**Bot Place Decision** (`src/decision/agent.py`, `guard.py`) thêm một op `trip` vào `PlanUpdate` bên cạnh `select / drop / lock / …`:
 
-1. Gửi `text` vào **trip session của chuyến** như một lượt `turn` (`trip.apply(trip_sid, "turn", {kind: "text", text})`): agent Trip Understanding cập nhật Trip State (soft, hard, khu, ngân sách, nhịp, người đi cùng…) và compile lại Search Input. Lượt này không mở lại màn Understand; câu hỏi tiếp theo trip đưa ra (nếu có) chỉ hiện thành tin nhắn của bot kèm chip, bấm chip = `refine` với câu trả lời đó.
-2. Search Input đổi → `decision.rebase(decision_sid, {search_input, trip_session})` → pipeline chạy lại, gộp ít xáo trộn theo §2.2 (cửa sổ `shown` nằm trong state nên rebase giữ được). Nơi đã chọn / đã khóa giữ nguyên như `rebase` hiện tại.
-3. Search Input không đổi (câu nói về một nơi cụ thể: "bỏ quán X", "thêm một chỗ ăn trưa", "vì sao không có Y") → chuyển cho `decision.turn(text)` sẵn có.
-4. Bot trả lời = lời của agent + câu báo thay đổi từ `diff()` ("Lọc theo yên tĩnh: giữ 18 nơi, thay 6"). Không có gì đổi → nói rõ "danh sách vẫn giữ nguyên vì …".
+| Người dùng nói | Bot quyết định | Làm gì |
+|---|---|---|
+| "bỏ quán X", "thêm X", "khóa X" | op nơi | như hiện tại (`curation.apply`) |
+| "muốn yên tĩnh hơn", "không leo dốc", "có món chay", "gần trung tâm thôi" | `trip` | chuyển câu (hoặc phần câu nói về gu) cho Trip Understanding |
+| "không thích quán giống X", "tìm chỗ kiểu X" | `trip` (+ `drop` X nếu X đang được gợi ý) | như trên; Trip Understanding tự tra X |
+| "vì sao không có Y" | không đổi gì | why-not sẵn có |
 
-Web: `Assistant.tsx` gửi `refine` thay cho `say` ở bước Chọn nơi; chip gợi ý giữ như cũ. Nút "Sửa vé chuyến" vẫn có cho ai muốn sửa từng dòng.
+**Op `trip` chạy ở harness** (`src/harness/dispatch.py`, operation `turn` ở stage `decision`): sau khi decision agent trả plan, mỗi update `trip` → `trip.apply(trip_sid, "turn", {kind: "text", text: value})` → Search Input mới → `decision.rebase(...)` → gộp ít xáo trộn §2.2 → rồi mới áp các op nơi còn lại của cùng plan. Nơi đã chọn / đã khóa giữ nguyên như `rebase` hiện tại. Lượt trip này không mở lại màn Understand.
+
+**Trip Understanding mở rộng** (`src/trip/agent/tools.py`): tool mới `place_traits(place_id)` (chỉ đọc catalog) trả các feature `VERIFIED` nổi bật của X so với nơi cùng loại (giá trị + số người nhắc). Agent dùng `search_places` để ra id của X, rồi `place_traits` để biết X "như thế nào", rồi viết draft:
+- "không thích giống X" → soft `avoid` cho các nét nổi bật của X (ví dụ `noise=loud`, `crowd=high`, `tourist_trap=present`);
+- "kiểu X" → soft `love` cho các nét đó.
+
+Guard (`src/trip/domain/guard.py`) chấp nhận draft này khi tên X có trong câu người dùng **và** giá trị nằm trong kết quả `place_traits(X)` của chính lượt đó; draft mang `inferred=True` và nguồn `place:<id>`. Vé chuyến hiện "Tránh: ồn ào, đông (giống X)", sửa / xóa được như mọi dòng. Soft không phải hard: không loại nơi nào, chỉ đổi thứ hạng (User Profile / soft là prior, không phải constraint).
+
+**Bot trả lời**: lời agent + nét đã hiểu về X + câu báo từ `diff()`, ví dụ "Mình hiểu X ồn và đông khách, nên ưu tiên chỗ yên tĩnh, ít người. Giữ 18 nơi, thay 6." kèm chip "Không phải vì ồn" / "Không phải vì đông" (bấm = gỡ đúng draft đó, rebase lại). Trip Understanding hỏi lại (nếu có) → hiện thành tin nhắn của bot kèm chip.
+
+Web: `Assistant.tsx` ở bước Chọn nơi gửi `turn` như cũ; view trả về có thêm `change` để chạy chuyển cảnh §2.4.
 
 ### 2.4 Web
 
@@ -133,12 +145,12 @@ Thứ tự trong Understand, sau khi chat xong và trước `ready`: **xuất ph
 
 ### 3.4 Chỗ ở — `lodging_booked`
 
-Câu hỏi "Bạn đã đặt chỗ ở chưa?" ngay sau phương tiện (hoặc chuyến). Field mới `lodging_booked`.
+Câu hỏi **"Bạn có khách sạn chưa?"** ngay sau phương tiện (hoặc chuyến). Field mới `lodging_booked`.
 
 | Trả lời | Làm gì |
 |---|---|
-| Đã đặt | ô `geosearch` như §3.1 (thêm gợi ý từ các chỗ ở trong corpus §4) → chọn đúng chỗ → `lodging_point` của Planning (`set_lodging` / `pick_lodging`) |
-| Chưa đặt | khi bấm "Xếp lịch" hiện màn chọn khách sạn (§4.3) trước khi lịch hiện ra |
+| Có rồi | ô tìm địa điểm như §3.1 (gợi ý từ chỗ ở trong corpus §4 trước, rồi `geosearch`) → người dùng chọn đúng chỗ, chốt như bình thường → `lodging_point` của Planning (`pick_lodging` / `set_lodging`) |
+| Chưa có | khi bấm "Xếp lịch" hiện màn chọn khách sạn (§4.3) trước khi lịch hiện ra |
 | Bỏ qua | không chỗ ở; mốc = `entry_point` như hiện tại |
 
 ## 4. C' — Khách sạn theo gu, dữ liệu offline
@@ -176,12 +188,12 @@ w_pref > w_loc   (config/planning.yaml lodging_weights; khởi điểm pref 2.0,
 | Phần | Test |
 |---|---|
 | A | `pick_covers.py` trên 3 nơi (dry run, in thứ hạng); `shots_app.mjs` mở modal từ đĩa và từ lưới, chụp từng tab |
-| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore. `src/harness`: `refine` có câu đổi gu → trip state đổi + decision rebase + nơi đã chọn còn nguyên; câu về một nơi → đi `decision.turn` |
+| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore. `src/decision` guard: op `trip` hợp lệ; `src/trip`: "không thích quán giống X" → soft avoid đúng các nét `place_traits(X)`, nét không có trong `place_traits` bị guard từ chối; `src/harness`: plan có `trip` → trip state đổi + rebase + nơi đã chọn còn nguyên, rồi mới áp op nơi |
 | C | `src/trip`: chuỗi `origin → arrival_mode → inbound/outbound → lodging_booked`; chọn chuyến điền `arrive_at`/`leave_at` và bỏ câu `times`; "Tự đi" suy `entry_point` |
 | C live | parser Google Flights / Vexere chạy trên HTML mẫu lưu trong `tests/fixtures/`; cache có → không mở trình duyệt; lỗi crawl → `Unavailable`, không trả chuyến giả; `src/live` không có đường ghi tới `data/intel`, `data/serving`, `data/gmaps` |
 | C' corpus | `gmaps list` giữ chỗ ở vào `<city>_stay.json`, nơi tham quan không lẫn vào; feature ngoài tập `stay` không được ghi cho chỗ ở |
 | C' planning | chỗ ở hợp gu xếp trên chỗ ở gần hơn nhưng không hợp; `unknown` không bị trừ điểm; hard filter có bằng chứng chống thì loại; giá live về muộn không đổi thứ hạng đã hiện trừ khi vượt trần |
-| Toàn luồng | `web/scripts/test_journey.mjs` thêm một chuyến: chat → xuất phát → máy bay → chọn chuyến → chưa đặt chỗ ở → chọn nơi → chọn khách sạn → lịch |
+| Toàn luồng | `web/scripts/test_journey.mjs` thêm một chuyến: chat → xuất phát → máy bay → chọn chuyến → chưa có khách sạn → chọn nơi → chọn khách sạn → lịch |
 
 ## 6. Tài liệu chính thức cần sửa khi xong
 
