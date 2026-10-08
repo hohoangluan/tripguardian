@@ -85,7 +85,20 @@ Khi một lượt (chat, sửa vé, chip) làm đổi thứ hạng, mỗi nhóm 
 3. Ngược lại: giữ `keep` đúng vị trí cũ; ô của nơi bị gỡ được lấp bằng nơi mới theo thứ hạng mới (ô trên cùng nhận nơi hợp nhất); dư thì nối cuối. Cửa sổ giữ đúng độ dài cũ.
 4. `top` tính lại theo thứ hạng mới. View mang `change[group] = {kept, added, removed, replaced_all}`; câu báo dùng `diff()` sẵn có: "Lọc theo yên tĩnh: giữ 18 nơi, thay 6".
 
-### 2.3 Web
+### 2.3 Chat thu hẹp = Trip Understanding + Place Decision bên dưới
+
+Người dùng (2026-10-08): ở bước Chọn nơi, người dùng nhắn điều họ muốn bằng lời như lúc Hiểu chuyến đi; chatbot hiểu rồi chạy logic Place Decision bên dưới. Một ô chat, không bắt người dùng quay lại bước trước.
+
+Operation mới của harness ở stage `decision`: `refine {text}` (`src/harness/dispatch.py`):
+
+1. Gửi `text` vào **trip session của chuyến** như một lượt `turn` (`trip.apply(trip_sid, "turn", {kind: "text", text})`): agent Trip Understanding cập nhật Trip State (soft, hard, khu, ngân sách, nhịp, người đi cùng…) và compile lại Search Input. Lượt này không mở lại màn Understand; câu hỏi tiếp theo trip đưa ra (nếu có) chỉ hiện thành tin nhắn của bot kèm chip, bấm chip = `refine` với câu trả lời đó.
+2. Search Input đổi → `decision.rebase(decision_sid, {search_input, trip_session})` → pipeline chạy lại, gộp ít xáo trộn theo §2.2 (cửa sổ `shown` nằm trong state nên rebase giữ được). Nơi đã chọn / đã khóa giữ nguyên như `rebase` hiện tại.
+3. Search Input không đổi (câu nói về một nơi cụ thể: "bỏ quán X", "thêm một chỗ ăn trưa", "vì sao không có Y") → chuyển cho `decision.turn(text)` sẵn có.
+4. Bot trả lời = lời của agent + câu báo thay đổi từ `diff()` ("Lọc theo yên tĩnh: giữ 18 nơi, thay 6"). Không có gì đổi → nói rõ "danh sách vẫn giữ nguyên vì …".
+
+Web: `Assistant.tsx` gửi `refine` thay cho `say` ở bước Chọn nơi; chip gợi ý giữ như cũ. Nút "Sửa vé chuyến" vẫn có cho ai muốn sửa từng dòng.
+
+### 2.4 Web
 
 - Lưới tự tải thêm khi cuộn (IntersectionObserver ở cuối lưới, skeleton 3 thẻ), không nút "Xem thêm". Header: "N nơi hợp với chuyến của bạn · Chat để thu hẹp" (mở Assistant).
 - Chuyển cảnh khi view đổi: thẻ giữ lại đứng yên (lệch vị trí thì trượt FLIP 280 ms); thẻ bị gỡ fade + thu nhỏ 180 ms; thẻ mới vào ô trống fade-up lệch nhau 40 ms; `replaced_all` → cross-fade cả lưới 240 ms. Đĩa xoay: nơi đang xem còn trong danh sách thì vẫn ở giữa. `prefers-reduced-motion` → chỉ fade.
@@ -163,7 +176,7 @@ w_pref > w_loc   (config/planning.yaml lodging_weights; khởi điểm pref 2.0,
 | Phần | Test |
 |---|---|
 | A | `pick_covers.py` trên 3 nơi (dry run, in thứ hạng); `shots_app.mjs` mở modal từ đĩa và từ lưới, chụp từng tab |
-| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore |
+| B | `src/decision`: trang nối nhau đủ mọi ứng viên qua lọc, không trùng; `top` đúng `k` nơi đầu; nơi gần trùng có mặt; gộp §2.2 (giữ vị trí, lấp ô, thay hết dưới 30%); agent chỉ nhận cửa sổ đang hiện; nhóm `stay` không bao giờ vào Explore. `src/harness`: `refine` có câu đổi gu → trip state đổi + decision rebase + nơi đã chọn còn nguyên; câu về một nơi → đi `decision.turn` |
 | C | `src/trip`: chuỗi `origin → arrival_mode → inbound/outbound → lodging_booked`; chọn chuyến điền `arrive_at`/`leave_at` và bỏ câu `times`; "Tự đi" suy `entry_point` |
 | C live | parser Google Flights / Vexere chạy trên HTML mẫu lưu trong `tests/fixtures/`; cache có → không mở trình duyệt; lỗi crawl → `Unavailable`, không trả chuyến giả; `src/live` không có đường ghi tới `data/intel`, `data/serving`, `data/gmaps` |
 | C' corpus | `gmaps list` giữ chỗ ở vào `<city>_stay.json`, nơi tham quan không lẫn vào; feature ngoài tập `stay` không được ghi cho chỗ ở |
