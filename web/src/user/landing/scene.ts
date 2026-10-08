@@ -166,6 +166,13 @@ export class DalatScene {
   private dpr = 1
   private slow = { ema: 16, level: 0, calm: 0 }
   onReady: (() => void) | null = null
+  // Free exploration: an orbit camera the visitor drives (target, distance, yaw, pitch); `blend` mixes it over the
+  // story's own camera, so entering and leaving fly smoothly.
+  private free = {
+    on: false, blend: 0,
+    t: new THREE.Vector3(), tT: new THREE.Vector3(), d: 100, dT: 100, yaw: 0, yawT: 0, pitch: 0.7, pitchT: 0.7,
+  }
+  private effFive = 0
   private size = { w: 1, h: 1 }
   private raf = 0
   private running = false
@@ -652,8 +659,83 @@ export class DalatScene {
     return Math.abs(this.turn.yawT) > 0.02 || Math.abs(this.turn.pitchT) > 0.02
   }
 
+  // ---- free exploration ----
+  get exploring() {
+    return this.free.on
+  }
+
+  setExplore(on: boolean) {
+    const f = this.free
+    if (on === f.on) return
+    f.on = on
+    if (on) {
+      // start exactly where the story camera is, so nothing jumps
+      const p = this.camera.position, off = this.tmp.copy(p).sub(this.look)
+      f.tT.copy(this.look)
+      f.tT.y = Math.max(groundAt(f.tT.x, f.tT.z), 0)
+      off.copy(p).sub(f.tT)
+      f.dT = Math.min(300, Math.max(26, off.length()))
+      f.yawT = Math.atan2(off.x, off.z)
+      f.pitchT = Math.min(1.3, Math.max(0.18, Math.asin(Math.min(1, Math.max(-1, off.y / (off.length() || 1))))))
+      f.t.copy(f.tT); f.d = f.dT; f.yaw = f.yawT; f.pitch = f.pitchT
+      this.turn.vel = 0
+    }
+    this.kick()
+  }
+
+  // rotate (pixels) or, with `pan`, slide the view over the ground
+  exploreDrag(dx: number, dy: number, pan: boolean) {
+    const f = this.free
+    if (pan) this.explorePan(dx, dy)
+    else {
+      f.yawT -= (dx / this.size.w) * Math.PI * 2
+      f.pitchT = Math.min(1.45, Math.max(0.1, f.pitchT + (dy / this.size.h) * 1.6))
+    }
+    this.kick()
+  }
+
+  explorePan(dxPx: number, dyPx: number) {
+    const f = this.free
+    const k = f.dT * 0.0016
+    const sx = Math.cos(f.yawT), sz = -Math.sin(f.yawT) // screen right on the ground
+    const fx = -Math.sin(f.yawT), fz = -Math.cos(f.yawT) // away from the camera
+    f.tT.x -= (dxPx * sx - dyPx * fx) * k
+    f.tT.z -= (dxPx * sz - dyPx * fz) * k
+    this.clampTarget()
+    this.kick()
+  }
+
+  zoomBy(factor: number) {
+    const f = this.free
+    f.dT = Math.min(300, Math.max(14, f.dT * factor))
+    this.kick()
+  }
+
+  rotateBy(dyaw: number) {
+    this.free.yawT += dyaw
+    this.kick()
+  }
+
+  // glide to a real place: its coordinates, and how close to look
+  flyTo(lat: number, lng: number, dist: number) {
+    const f = this.free
+    const [x, z] = toXZ(lat, lng)
+    f.tT.set(x, groundAt(x, z), z)
+    f.dT = dist
+    f.pitchT = 0.62
+    this.clampTarget()
+    this.kick()
+  }
+
+  private clampTarget() {
+    const t = this.free.tT
+    t.x = Math.min(WORLD.w / 2 - 20, Math.max(-WORLD.w / 2 + 20, t.x))
+    t.z = Math.min(WORLD.d / 2 - 20, Math.max(-WORLD.d / 2 + 20, t.z))
+    t.y = groundAt(t.x, t.z)
+  }
+
   setPointer(x: number, y: number) {
-    if (this.still || this.turn.drag) return
+    if (this.still || this.turn.drag || this.free.on) return
     this.pointer.set(x, y)
     this.kick()
   }
@@ -716,6 +798,17 @@ export class DalatScene {
       tn.yaw += (tn.yawT - tn.yaw) * kt
       tn.pitch += (tn.pitchT - tn.pitch) * kt
     } else tn.pitch += (tn.pitchT - tn.pitch) * 0.35
+    const fr = this.free
+    const kb = this.still ? 1 : 1 - Math.exp(-dt * 3.5), kf = this.still ? 1 : 1 - Math.exp(-dt * 7)
+    const gap = Math.abs(fr.d - fr.dT) + Math.abs(fr.yaw - fr.yawT) + Math.abs(fr.pitch - fr.pitchT) * 10 + fr.t.distanceTo(fr.tT)
+    if (Math.abs((fr.on ? 1 : 0) - fr.blend) > 0.002 || (fr.on && gap > 0.01)) moving = true
+    fr.blend = Math.abs((fr.on ? 1 : 0) - fr.blend) < 0.002 ? (fr.on ? 1 : 0) : fr.blend + ((fr.on ? 1 : 0) - fr.blend) * kb
+    if (fr.on) {
+      fr.t.lerp(fr.tT, kf)
+      fr.d += (fr.dT - fr.d) * kf
+      fr.yaw += (fr.yawT - fr.yaw) * kf
+      fr.pitch += (fr.pitchT - fr.pitch) * kf
+    }
     this.pointerShown.lerp(this.pointer, this.still ? 1 : 1 - Math.exp(-dt * 4))
     if (this.pointerShown.distanceTo(this.pointer) > 0.001) moving = true
     this.apply(t)
@@ -776,16 +869,27 @@ export class DalatScene {
     this.camera.position.x += this.pointerShown.x * 6 + breathe
     this.camera.position.y += this.pointerShown.y * 3
     this.turnRig()
+    const fr = this.free, bl = fr.blend
+    if (bl > 0.001) {
+      // the visitor's camera: an orbit around its target, never under the ground
+      const c = Math.cos(fr.pitch) * fr.d, p = this.tmp.set(fr.t.x + Math.sin(fr.yaw) * c, fr.t.y + Math.sin(fr.pitch) * fr.d, fr.t.z + Math.cos(fr.yaw) * c)
+      p.y = Math.max(p.y, groundAt(p.x, p.z) + 4)
+      const e = bl * bl * (3 - 2 * bl)
+      this.camera.position.lerp(p, e)
+      this.look.lerp(fr.t, e)
+    }
+    this.effFive = Math.max(s.five, bl)
     this.camera.lookAt(this.look)
     const { w, h } = this.size
-    this.camera.setViewOffset(w, h, -s.shift * w, 0, w, h)
+    this.camera.setViewOffset(w, h, -s.shift * (1 - bl) * w, 0, w, h)
     this.camera.updateProjectionMatrix()
 
     // lights fade in on load, then dim to faint grey when the five are chosen
-    this.lightMat.opacity = (this.still ? 1 : Math.min(1, t / 1.6)) * (0.18 + 0.82 * s.dots)
-    this.lightMat.color.set(C.sun).lerp(this.grey, 1 - s.dots)
+    const dots = Math.max(s.dots, bl)
+    this.lightMat.opacity = (this.still ? 1 : Math.min(1, t / 1.6)) * (0.18 + 0.82 * dots)
+    this.lightMat.color.set(C.sun).lerp(this.grey, 1 - dots)
     this.cards.forEach(({ group, ring }, n) => {
-      const r = clamp01(s.five * 1.6 - n * 0.15)
+      const r = clamp01(this.effFive * 1.6 - n * 0.15)
       const k = 1 - Math.pow(1 - r, 3)
       group.scale.setScalar(k || 0.0001)
       group.visible = r > 0
@@ -841,10 +945,11 @@ export class DalatScene {
         this.tmp.set(g.position.x, g.position.y + (STEM + CARD.h) * g.scale.y + 0.6, g.position.z)
       } else this.tmp.copy(l.at)
       this.tmp.project(this.camera)
-      const vis = l.kind === 'five' ? clamp01(this.shown.five * 1.6 - l.i * 0.15 - 0.4) : this.shown.areas
+      const bl = this.free.blend
+      const vis = l.kind === 'five' ? clamp01(this.effFive * 1.6 - l.i * 0.15 - 0.4) : Math.max(this.shown.areas, bl)
       const sx = ((this.tmp.x + 1) / 2) * w
-      // labels never sit under the text column or half off the edge
-      const hidden = this.tmp.z > 1 || sx < w * (this.shown.shift + 0.24) || sx > w - 80
+      // labels never sit under the text column or half off the edge (the column is gone while exploring)
+      const hidden = this.tmp.z > 1 || sx < w * (this.shown.shift + 0.24) * (1 - bl) || sx > w - 80 * (1 - bl)
       l.el.style.transform = `translate3d(${sx}px, ${((1 - this.tmp.y) / 2) * h}px, 0)`
       l.el.style.opacity = hidden ? '0' : String(vis)
     }

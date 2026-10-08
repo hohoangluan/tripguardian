@@ -1,6 +1,6 @@
 # TripGuardian — Đặc tả UI/UX: Landing
 
-Dành cho designer và người code landing (`/`). Máy tính (laptop, desktop, PC) thấy landing 3D (`web/src/user/screens/Landing.tsx`); điện thoại thấy trang **Dùng ứng dụng** (`web/src/user/screens/GetApp.tsx`, §5). Hệ màu, chữ: `docs/UI_SPEC_USER_WEB.md` §8 — landing không thêm màu nào ngoài token có sẵn.
+Dành cho designer và người code landing (`/`). Máy tính (laptop, desktop, PC) thấy landing 3D (`web/src/user/screens/Landing.tsx`); điện thoại thấy trang **Dùng ứng dụng** (`web/src/user/screens/GetApp.tsx`, §5) ở mọi trang người dùng — web không có bản cho điện thoại. Hệ màu, chữ: `docs/UI_SPEC_USER_WEB.md` §8 — landing không thêm màu nào ngoài token có sẵn.
 
 Đọc kèm: `docs/UX_Design_Brief.md` (nguyên tắc, cách hiển thị dữ liệu) · `docs/UI_SPEC_USER_WEB.md` (app sau khi bấm `Trải nghiệm đi`).
 
@@ -15,7 +15,7 @@ Dành cho designer và người code landing (`/`). Máy tính (laptop, desktop,
 
 ## 2. Cấu trúc (máy tính)
 
-Một section cao ~6,4 màn hình; bên trong là sân khấu `sticky` cao 1 màn hình: canvas 3D (`web/src/user/landing/scene.ts`, địa hình `terrain.ts`), nhãn DOM bám theo bưu thiếp và khu, cột chữ bên trái, thanh bước bên phải. Cuộn kéo một timeline GSAP (`scrub`) đẩy trạng thái cảnh (camera, đốm sáng, bưu thiếp, tuyến) và đổi đoạn. Khung hình luôn lệch phải để chừa cột chữ. **Xoay 360°:** kéo chuột (hoặc ngón tay theo chiều ngang) trên mô hình để xoay cả cảnh quanh thung lũng, kéo dọc để nâng / hạ góc nhìn; thả tay có quán tính; camera không bao giờ chui xuống đất. Cuộn sang chương khác thì mô hình tự về góc nhìn của chương đó. Hướng dẫn: sau 2 giây cảnh tự lắc nhẹ một lần, nhãn `Kéo để xoay 360°` (biểu tượng vòng xoay có chấm trượt) nằm cạnh ba nút nhỏ `‹` `↻` `›` (xoay 45° mỗi lần, về góc ban đầu) — nhãn biến mất khi người dùng xoay lần đầu, ba nút ở lại cho người dùng bàn phím.
+Một section cao ~6,4 màn hình; bên trong là sân khấu `sticky` cao 1 màn hình: canvas 3D (`web/src/user/landing/scene.ts`, địa hình `terrain.ts`), nhãn DOM bám theo bưu thiếp và khu, cột chữ bên trái, thanh bước bên phải. Cuộn kéo một timeline GSAP (`scrub`) đẩy trạng thái cảnh (camera, đốm sáng, bưu thiếp, tuyến) và đổi đoạn. Khung hình luôn lệch phải để chừa cột chữ. **Xoay 360°:** kéo chuột (hoặc ngón tay theo chiều ngang) trên mô hình để xoay cả cảnh quanh thung lũng, kéo dọc để nâng / hạ góc nhìn; thả tay có quán tính; camera không bao giờ chui xuống đất. Cuộn sang chương khác thì mô hình tự về góc nhìn của chương đó. **Khám phá tự do:** nút `Khám phá Đà Lạt 3D` (đoạn Mở đầu) hoặc nút la bàn cạnh ba nút xoay ẩn chữ, dừng cuộn trang và trao camera cho người dùng — kéo để xoay và nghiêng, chuột phải / Shift + kéo / hai ngón để dịch chuyển, cuộn chuột / chụm hai ngón để phóng to thu nhỏ (14–300 đơn vị), phím mũi tên / WASD dịch, `+` `-` zoom, Q E xoay, `Esc` hoặc `Thoát` để về câu chuyện (camera bay về góc của chương đang đứng). Chip `Trung tâm · Langbiang · Hồ Tuyền Lâm · Cầu Đất · Trại Mát` bay tới đúng toạ độ thật. Trong chế độ này hiện đủ nhãn khu, đốm sáng và 5 bưu thiếp; camera không chui xuống đất, tâm nhìn không rời bản đồ. Hướng dẫn: sau 2 giây cảnh tự lắc nhẹ một lần, nhãn `Kéo để xoay 360°` (biểu tượng vòng xoay có chấm trượt) nằm cạnh ba nút nhỏ `‹` `↻` `›` (xoay 45° mỗi lần, về góc ban đầu) — nhãn biến mất khi người dùng xoay lần đầu, ba nút ở lại cho người dùng bàn phím.
 
 **Cảnh:** bầu trời bình minh (hồng phấn → trắng hồng → hồng đào ở chân trời, quầng nắng phía đông), sương nằm trong các lòng chảo thật (phố, Tuyền Lâm, Trại Mát, phía Đa Nhim), đồi thông ba lá hồng mận theo vùng rừng thật, các hồ theo viền thật (mỗi hồ một mực nước), đường trục chính màu trắng kem, phố mái hồng theo vị trí nhà thật, nhà thờ Con Gà, đỉnh Langbiang; địa hình xa mờ dần vào chân trời. Mỗi địa điểm là một đốm sáng vàng nhỏ (màu vàng duy nhất trong cảnh). Năm nơi được chọn là **bưu thiếp** in ảnh thật của nơi đó (thumbnail Google Maps), cắm trên que trắng; tuyến đi là **đường chấm trắng** trên mặt đất. Màu lấy từ token (pine, sun, paper và các tông nhạt).
 
@@ -23,7 +23,7 @@ Thanh bước bên phải theo đúng các bước sản phẩm: **Mở đầu �
 
 | # | Đoạn (bước) | Chữ | Cảnh 3D |
 |---|---|---|---|
-| 0 | **Mở đầu** | `Hàng nghìn nơi ở Đà Lạt. Chỉ giữ nơi hợp với bạn.` + dòng phụ + nút `Trải nghiệm đi` + liên kết `Xem cách hoạt động` + dòng số thật | Camera thấp trên đồi phía nam nhìn lên thung lũng, thấy chân trời; đốm sáng hiện dần; nhãn khu (Trung tâm, Langbiang, Cầu Đất, Trại Mát, Tuyền Lâm); sương trôi; camera thở nhẹ và nghiêng theo chuột |
+| 0 | **Mở đầu** | `Hàng nghìn nơi ở Đà Lạt. Chỉ giữ nơi hợp với bạn.` + một dòng thơ + nút `Trải nghiệm đi` + nút `Khám phá Đà Lạt 3D` + dòng số thật | Camera thấp trên đồi phía nam nhìn lên thung lũng, thấy chân trời; đốm sáng hiện dần; nhãn khu (Trung tâm, Langbiang, Cầu Đất, Trại Mát, Tuyền Lâm); sương trôi; camera thở nhẹ và nghiêng theo chuột |
 | 1 | **Tìm hiểu** | `Tách rõ điều bắt buộc và điều mong muốn.` + thẻ Thông tin chuyến đi | Camera lượn sang phía tây phố; con dấu `Bắt buộc` bay vào từ trái, chip `Mong muốn` viền đứt từ phải |
 | 2 | **Lựa chọn** | `Còn lại <số đếm thật → 5> nơi hợp với bạn.` | Camera lên cao; đốm sáng mờ dần, 5 bưu thiếp mọc lên có nhãn số + tên, đường chấm vẽ dần |
 | 3 | **Lựa chọn · lý do** | `Chọn nơi nào cũng có lý do.` + thẻ nơi | Camera bay ngang tầm bưu thiếp Thênh Thang; thanh độ đông chạy tới số thật, clip TikTok thật (bấm để mở), một bình luận Google gốc |
@@ -45,6 +45,8 @@ Landing không có ô nhập. Mọi nút `Trải nghiệm đi` (thanh trên, M�
 ## 3. Animation và hiệu năng
 
 **Chuyển động**
+- **Chữ vừa màn hình:** mỗi chương tự thu nhỏ (`zoom`, tối thiểu 0,6) nếu cao hơn khung nhìn trừ 150 px; cỡ chữ tiêu đề theo cả `vh`, nên cửa sổ laptop thấp (~700 px) không bị cắt chữ. Mỗi chương nhiều nhất một dòng phụ.
+- **Sang trang home:** bấm `Trải nghiệm đi` thì chữ nhấc lên và mờ, thung lũng phóng nhẹ (~0,4 s), rồi trình duyệt chuyển mờ dần sang `/app` bằng View Transitions (`startViewTransition` + `flushSync`, 0,5 s); trình duyệt không có thì chuyển thẳng. Giảm chuyển động: chuyển thẳng, không hiệu ứng.
 - Mọi chuyển động dẫn bằng cuộn (`scrub` + Lenis); mỗi chương đủ hình trước khi tới điểm dừng của nó và giữ một nhịp trước khi đổi.
 - Cảnh 3D tự làm mượt theo thời gian thực (không phụ thuộc FPS), chỉ vẽ khi sân khấu trong màn hình và tab đang mở.
 - `prefers-reduced-motion: reduce`: không Lenis, không timeline; cảnh vẽ một khung tĩnh kể trọn câu chuyện (góc nhìn đoạn Đánh giá: đốm mờ + 5 bưu thiếp + tuyến), các đoạn 1–5 xếp lưới bên dưới ở trạng thái cuối.
@@ -67,11 +69,10 @@ Landing không có ô nhập. Mọi nút `Trải nghiệm đi` (thanh trên, M�
 
 ## 5. Điện thoại: Dùng ứng dụng
 
-Điện thoại (UA di động, hoặc màn chỉ cảm ứng có cạnh ngắn < 600px — `web/src/user/landing/device.ts`) vào `/` thấy trang Dùng ứng dụng thay cho landing 3D. Các đường `/app/...` (link chuyến được chia sẻ) vẫn mở bình thường.
+Điện thoại (UA di động, hoặc màn chỉ cảm ứng có cạnh ngắn < 600px — `web/src/user/landing/device.ts`) vào bất kỳ trang người dùng nào (`/`, `/app/...`, kể cả link được chia sẻ) đều thấy trang Dùng ứng dụng; không có lối vào bản web. `/admin` không đổi.
 
-- Minh họa điện thoại (ảnh nền + 3 ghim + tuyến + `Lịch sẵn sàng`), nhãn `Trên điện thoại`, tiêu đề `Dùng TripGuardian trên ứng dụng.`
+- Minh họa điện thoại (ảnh nền + 3 ghim + tuyến + `Lịch sẵn sàng`), nhãn `Trên điện thoại`, tiêu đề `Tải ứng dụng để dùng TripGuardian trên điện thoại.`
 - Hai nút cửa hàng, nền tảng của máy đứng trước. Link lấy từ biến build `VITE_APP_IOS_URL`, `VITE_APP_ANDROID_URL` (`web/.env`):
   - có link: nút `Tải trên App Store / Google Play` mở cửa hàng;
-  - chưa có: ô viền đứt `Sắp có trên …` + tag `chưa mở`, dòng phụ nói thẳng ứng dụng đang hoàn thiện và gợi ý mở trên máy tính.
-- `Gửi link sang máy tính`: mở bảng chia sẻ của máy, không có thì chép link và báo `Đã chép link…`.
-- Lối thoát nhỏ `Tiếp tục với bản web` → `/app`.
+  - chưa có: ô viền đứt `Sắp có trên …` + tag `chưa mở`, dòng phụ `Ứng dụng sẽ có trong thời gian tới. Hiện tại, bạn mở TripGuardian trên máy tính để có trải nghiệm tốt nhất.`
+- `Gửi link sang máy tính`: chia sẻ đúng trang đang mở (link chuyến, link một nơi) qua bảng chia sẻ của máy, không có thì chép link và báo `Đã chép link…`.

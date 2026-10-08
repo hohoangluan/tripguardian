@@ -42,11 +42,11 @@
 
 /* chapters share one grid cell; GSAP swaps them */
 .tg-l3__chs { position: absolute; inset: 0; z-index: 3; display: grid; align-items: center; padding: 96px var(--pad) 72px; pointer-events: none; }
-.tg-l3__ch { grid-area: 1 / 1; display: grid; gap: 18px; align-content: center; width: min(470px, 40vw); pointer-events: auto; }
-.tg-l3__ch h2 { font-size: clamp(2rem, 3vw, 2.9rem); max-width: 15ch; }
+.tg-l3__ch { grid-area: 1 / 1; display: grid; gap: clamp(10px, 2.2vh, 18px); align-content: center; width: min(470px, 40vw); pointer-events: auto; }
+.tg-l3__ch h2 { font-size: clamp(1.7rem, min(3vw, 6.2vh), 2.9rem); max-width: 15ch; }
 .tg-l3__ch .tg-kicker { display: flex; align-items: center; gap: 10px; }
-.tg-l3__hero { width: min(640px, 50vw); gap: 22px; }
-.tg-l3__hero h1 { font-size: clamp(2.7rem, 4.6vw, 4.6rem); line-height: 1.04; max-width: 13ch; }
+.tg-l3__hero { width: min(640px, 50vw); gap: clamp(12px, 2.6vh, 22px); }
+.tg-l3__hero h1 { font-size: clamp(2.3rem, min(4.6vw, 9vh), 4.6rem); line-height: 1.04; max-width: 13ch; }
 .tg-l3__hero h1 em { display: block; font-style: italic; font-weight: 500; color: var(--tg-pine); }
 .tg-l3__poem { font: italic 500 1.2rem/1.45 var(--tg-display); color: var(--tg-sun-ink); max-width: 34ch; }
 .tg-l3__lead { max-width: 40ch; font-size: 1.08rem; color: var(--tg-ink-2); }
@@ -211,7 +211,6 @@
 .tg-ga__store.is-soon b { color: var(--tg-ink-2); }
 .tg-ga__share { width: 100%; min-height: 52px; }
 .tg-ga__status { min-height: 1.4em; font-size: 0.86rem; color: var(--tg-pine); text-align: center; }
-.tg-ga__web { justify-self: center; display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; font-size: 0.88rem; color: var(--tg-ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--tg-line-2); }
 .tg-ga__foot { margin-top: auto; text-align: center; font-size: 0.78rem; color: var(--tg-ink-3); }
 
 /* turning the model: a hint that teaches the drag, then three small buttons */
@@ -235,3 +234,36 @@
 .tg-l3__stage::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(70% 55% at 78% 8%, rgba(255, 214, 200, 0.42), rgba(255, 214, 200, 0) 70%), radial-gradient(120% 40% at 50% 100%, rgba(255, 249, 248, 0.5), rgba(255, 249, 248, 0) 70%); mix-blend-mode: soft-light; }
 .tg-l3__hero h1 em { color: var(--tg-sun-ink); }
 .tg-l3__hero .tg-kicker { color: var(--tg-sun-ink); }
+
+/* hero: one line under the title, then the two ways in */
+.tg-l3__roam { min-height: 58px; padding: 0 22px; gap: 8px; background: rgba(255, 255, 255, 0.78); backdrop-filter: blur(6px); border: 1px solid var(--tg-line-2); }
+.tg-l3__roam:hover:not(:disabled) { background: #fff; border-color: var(--tg-pine-line); }
+.tg-l3__roam:disabled { opacity: 0.55; }
+@media (max-height: 760px) { .tg-l3__cta, .tg-l3__roam { min-height: 50px; } .tg-l3__poem { font-size: 1.08rem; } }
+.tg-l3__clip { aspect-ratio: 9 / 11; }
+.tg-l3__quote { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-height: 760px) { .tg-l3__ev { padding: 12px; gap: 10px; } .tg-l3__claim { padding: 12px 14px; } .tg-l3__day li { padding-block: 4px; } .tg-l3__rate li { padding-block: 6px; } }
+
+/* free exploration: the story steps aside and the visitor drives the camera */
+.tg-l3__chs, .tg-l3__rail, .tg-l3__down, .tg-l3__turn, .tg-l3__veil { transition: opacity 400ms ease, transform 400ms var(--tg-ease); }
+.tg-l3__stage.is-exploring :is(.tg-l3__chs, .tg-l3__rail, .tg-l3__down, .tg-l3__turn, .tg-l3__veil) { opacity: 0; pointer-events: none; transform: translateY(-8px); }
+.tg-l3__stage.is-exploring .tg-l3__cv { touch-action: none; cursor: grab; }
+.tg-l3__ex { position: absolute; inset: 0; z-index: 5; pointer-events: none; display: grid; grid-template-rows: auto 1fr auto; padding: 88px var(--pad) 28px; animation: tg-pop 400ms var(--tg-ease) both; }
+.tg-l3__ex > * { pointer-events: auto; }
+.tg-l3__ex-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; pointer-events: none; }
+.tg-l3__ex-title { display: grid; gap: 4px; max-width: 46ch; padding: 10px 16px; border-radius: 16px; background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(8px); box-shadow: var(--tg-sh-1); pointer-events: auto; }
+.tg-l3__ex-title p:last-child { font-size: 0.86rem; color: var(--tg-ink-2); }
+.tg-l3__ex-exit { pointer-events: auto; min-height: 46px; padding: 0 18px; gap: 8px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--tg-sh-1); }
+.tg-l3__ex-chips { align-self: end; display: flex; flex-wrap: wrap; gap: 8px; max-width: min(640px, 60vw); padding-bottom: 12px; pointer-events: none; }
+.tg-l3__ex-chips .tg-chip { pointer-events: auto; gap: 6px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--tg-sh-1); }
+.tg-l3__ex-ctl { position: absolute; right: var(--pad); bottom: 28px; display: grid; grid-template-columns: repeat(5, 40px); gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--tg-sh-1); }
+.tg-l3__ex-ctl button { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--tg-ink-2); transition: background 150ms, color 150ms; }
+.tg-l3__ex-ctl button:hover { background: var(--tg-pine-soft); color: var(--tg-pine); }
+@media (max-width: 900px) { .tg-l3__ex-chips { max-width: 100%; } .tg-l3__ex-ctl { bottom: auto; top: 140px; grid-template-columns: 40px; border-radius: 22px; } }
+
+/* leaving for the home page: the text lifts away, the valley leans in, then the browser cross-fades the pages */
+.tg-l.is-leaving .tg-ln, .tg-l.is-leaving .tg-l3__chs, .tg-l.is-leaving .tg-l3__rail, .tg-l.is-leaving .tg-l3__turn, .tg-l.is-leaving .tg-l3__down { opacity: 0; transform: translateY(-14px); transition: opacity 320ms ease, transform 380ms var(--tg-ease); pointer-events: none; }
+.tg-l.is-leaving .tg-l3__cv, .tg-l.is-leaving .tg-l3__poster { transform: scale(1.07); transition: transform 900ms cubic-bezier(0.3, 0, 0.2, 1); }
+.tg-l.is-leaving .tg-l3__veil { opacity: 0; transition: opacity 400ms ease; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 520ms; animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) { .tg-l.is-leaving * { transition: none !important; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }

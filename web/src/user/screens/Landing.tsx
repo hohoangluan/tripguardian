@@ -2,6 +2,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { navigate } from '../../router'
 import { prefetchSnapshot, type Cover } from '../../data/store'
 import { fetchLandscape } from '../landing/bin'
@@ -45,6 +46,14 @@ const FAQ = [
   ['TripGuardian có quyết định thay tôi không?', 'Không. Mỗi gợi ý đi kèm lý do và điều phải đánh đổi; giữ hay bỏ là do bạn chọn.'],
   ['TripGuardian có đặt chỗ ở giúp tôi không?', 'Không. Bạn nhập nơi đang ở hoặc chọn từ danh sách tra trên Google Maps; TripGuardian chỉ dùng nó để tính đường đi.'],
 ]
+// Where the free camera can fly: real places, and how close to look at each
+const FLY: { name: string; lat: number; lng: number; dist: number }[] = [
+  { name: 'Trung tâm', lat: 11.9445, lng: 108.4462, dist: 55 },
+  { name: 'Langbiang', lat: 12.0453, lng: 108.441, dist: 110 },
+  { name: 'Hồ Tuyền Lâm', lat: 11.8916, lng: 108.4227, dist: 80 },
+  { name: 'Cầu Đất', lat: 11.872, lng: 108.556, dist: 90 },
+  { name: 'Trại Mát', lat: 11.948, lng: 108.505, dist: 70 },
+]
 const num = (n: number) => n.toLocaleString('vi-VN')
 const km = (a: ScenePlace, b: ScenePlace) => {
   const R = 6371, r = Math.PI / 180
@@ -68,6 +77,9 @@ export function Landing() {
   const [active, setActive] = useState(0)
   const [used, setUsed] = useState(false) // the visitor has turned the model: the hint steps aside
   const sceneRef = useRef<DalatScene | null>(null)
+  const [exploring, setExploring] = useState(false) // free exploration of the 3D model
+  const [leaving, setLeaving] = useState(false) // on its way to the home page
+  const exploringRef = useRef(false)
   const [faq, setFaq] = useState(0)
   const crowd = ROUTE[FOCUS]
   const crowdPct = crowd.crowd?.weekend ? Math.max(...Object.values(crowd.crowd.weekend)) : null
@@ -97,30 +109,73 @@ export function Landing() {
     const io = new IntersectionObserver(([e]) => scene?.setRunning(e.isIntersecting && !document.hidden))
     const onVis = () => scene?.setRunning(!document.hidden && st.getBoundingClientRect().bottom > 0)
     const onMove = (e: PointerEvent) => scene?.setPointer(e.clientX / innerWidth - 0.5, 0.5 - e.clientY / innerHeight)
-    // turning the model: drag anywhere on it; vertical page scroll on touch screens still works (touch-action: pan-y)
-    let last: { x: number; y: number } | null = null
+    // Story: drag turns the model round the valley (vertical page scroll on touch screens still works, touch-action:
+    // pan-y). Free exploration: drag turns, right-drag / Shift-drag slides, wheel and pinch zoom.
+    const pts = new Map<number, { x: number; y: number }>()
+    let pan = false
+    let pinch = 0
     const down = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return
-      last = { x: e.clientX, y: e.clientY }
+      if (e.pointerType === 'mouse' && e.button > 2) return
+      if (e.pointerType === 'mouse' && e.button === 2 && !exploringRef.current) return
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      pan = e.button === 2 || e.shiftKey || e.ctrlKey
       cv.setPointerCapture(e.pointerId)
       cv.classList.add('is-grabbing')
-      scene?.dragStart()
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()]
+        pinch = Math.hypot(a.x - b.x, a.y - b.y)
+      }
+      if (!exploringRef.current) scene?.dragStart()
     }
     const drag = (e: PointerEvent) => {
-      if (!last) return
-      scene?.dragBy(e.clientX - last.x, e.clientY - last.y)
-      last = { x: e.clientX, y: e.clientY }
+      const prev = pts.get(e.pointerId)
+      if (!prev) return
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (!exploringRef.current) return void scene?.dragBy(dx, dy)
+      if (pts.size >= 2) {
+        // two fingers: the spread zooms, the pair's drift slides
+        const [a, b] = [...pts.values()]
+        const d = Math.hypot(a.x - b.x, a.y - b.y)
+        if (pinch > 0 && d > 0) scene?.zoomBy(pinch / d)
+        pinch = d
+        scene?.explorePan(dx / 2, dy / 2)
+      } else scene?.exploreDrag(dx, dy, pan)
     }
-    const drop = () => {
-      if (!last) return
-      last = null
+    const drop = (e: PointerEvent) => {
+      if (!pts.delete(e.pointerId)) return
+      pinch = 0
+      if (pts.size) return
       cv.classList.remove('is-grabbing')
-      scene?.dragEnd()
+      if (!exploringRef.current) scene?.dragEnd()
     }
+    const wheel = (e: WheelEvent) => {
+      if (!exploringRef.current) return // the page scrolls as usual
+      e.preventDefault()
+      e.stopPropagation() // Lenis listens on the window
+      scene?.zoomBy(Math.exp(Math.max(-120, Math.min(120, e.deltaY)) * 0.0013))
+    }
+    const menu = (e: Event) => { if (exploringRef.current) e.preventDefault() }
     cv.addEventListener('pointerdown', down)
     cv.addEventListener('pointermove', drag)
     cv.addEventListener('pointerup', drop)
     cv.addEventListener('pointercancel', drop)
+    cv.addEventListener('wheel', wheel, { passive: false })
+    cv.addEventListener('contextmenu', menu)
+    // the story's chapters shrink to fit a short window instead of running off the bottom of it
+    const fit = () => {
+      if (still || innerWidth <= 900) return sec.querySelectorAll<HTMLElement>('.tg-l3__ch').forEach((el) => (el.style.zoom = ''))
+      const room = st.clientHeight - 150
+      sec.querySelectorAll<HTMLElement>('.tg-l3__ch').forEach((el) => {
+        el.style.zoom = ''
+        const h = el.offsetHeight
+        if (h > room) el.style.zoom = String(Math.max(0.6, room / h))
+      })
+    }
+    const fitRo = new ResizeObserver(fit)
+    fitRo.observe(st)
+    void document.fonts?.ready.then(fit)
+    fit()
     // three.js and the 1.7k coordinates load only here, so phones (GetApp) never fetch them
     Promise.all([import('../landing/scene'), import('../landing/points.json'), fetchLandscape()]).then(([{ DalatScene }, { default: points }, land]) => {
       if (gone) return
@@ -209,6 +264,10 @@ export function Landing() {
       cv.removeEventListener('pointermove', drag)
       cv.removeEventListener('pointerup', drop)
       cv.removeEventListener('pointercancel', drop)
+      cv.removeEventListener('wheel', wheel)
+      cv.removeEventListener('contextmenu', menu)
+      fitRo.disconnect()
+      document.documentElement.style.overflow = ''
       sceneRef.current = null
       mm.revert()
       ro.disconnect()
@@ -219,11 +278,58 @@ export function Landing() {
     }
   }, [still])
 
-  // Trải nghiệm đi only opens the home page; the questions start there, when the visitor says what the trip is
+  // Trải nghiệm đi only opens the home page; the questions start there, when the visitor says what the trip is.
+  // The landing leans in and fades while the browser cross-fades to the home page (View Transitions where it has them).
   const begin = () => {
-    navigate('/app')
-    window.scrollTo(0, 0)
+    if (leaving) return
+    const go = () => { navigate('/app'); window.scrollTo(0, 0) }
+    const vt = (document as Document & { startViewTransition?: (cb: () => void) => unknown }).startViewTransition
+    if (still || !vt) return go()
+    setLeaving(true)
+    window.setTimeout(() => vt.call(document, () => flushSync(go)), 380)
   }
+
+  // Free exploration: the page stops scrolling, the story steps aside, the visitor drives the camera
+  const lock = (on: boolean) => {
+    exploringRef.current = on
+    document.documentElement.style.overflow = on ? 'hidden' : ''
+    if (on) lenisRef.current?.stop()
+    else lenisRef.current?.start()
+    setExploring(on)
+  }
+  const explore = () => {
+    const sc = sceneRef.current
+    if (!sc) return
+    sc.setExplore(true)
+    setUsed(true)
+    lock(true)
+  }
+  const leaveExplore = () => {
+    sceneRef.current?.setExplore(false)
+    lock(false)
+  }
+  useEffect(() => {
+    if (!exploring) return
+    const onKey = (e: KeyboardEvent) => {
+      const sc = sceneRef.current
+      if (!sc || (e.target as HTMLElement).closest('input, textarea')) return
+      const step = 60
+      const k = e.key.toLowerCase()
+      if (k === 'escape') leaveExplore()
+      else if (k === 'arrowleft' || k === 'a') sc.explorePan(step, 0)
+      else if (k === 'arrowright' || k === 'd') sc.explorePan(-step, 0)
+      else if (k === 'arrowup' || k === 'w') sc.explorePan(0, step)
+      else if (k === 'arrowdown' || k === 's') sc.explorePan(0, -step)
+      else if (k === '+' || k === '=') sc.zoomBy(0.8)
+      else if (k === '-' || k === '_') sc.zoomBy(1.25)
+      else if (k === 'q') sc.rotateBy(-Math.PI / 8)
+      else if (k === 'e') sc.rotateBy(Math.PI / 8)
+      else return
+      e.preventDefault()
+    }
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
+  }, [exploring]) // eslint-disable-line react-hooks/exhaustive-deps
   // chapter i sits at timeline time i, out of STORY_LEN over the section's scroll length
   const toChapter = (i: number) => {
     const sec = story.current
@@ -240,7 +346,7 @@ export function Landing() {
   }
 
   return (
-    <div className={`tg-l ${still ? 'is-still' : ''}`}>
+    <div className={`tg-l ${still ? 'is-still' : ''} ${leaving ? 'is-leaving' : ''}`}>
       <nav className="tg-ln" aria-label="Trang giới thiệu">
         <a href="/" className="tg-ln__logo"><Logo size={30} /><span>TripGuardian</span></a>
         <div className="tg-ln__links">
@@ -253,7 +359,7 @@ export function Landing() {
       </nav>
 
       <section className="tg-l3" ref={story} aria-label="Cách TripGuardian lên một chuyến Đà Lạt">
-        <div className={`tg-l3__stage ${flat ? 'is-flat' : ''} ${live ? 'is-live' : ''}`} ref={stage}>
+        <div className={`tg-l3__stage ${flat ? 'is-flat' : ''} ${live ? 'is-live' : ''} ${exploring ? 'is-exploring' : ''}`} ref={stage}>
           <div className="tg-l3__poster" aria-hidden="true" />
           <canvas ref={canvas} className="tg-l3__cv" role="img" aria-label={`Mô hình 3D Đà Lạt theo địa hình thật, kéo để xoay 360 độ: ${num(stats.places)} địa điểm trong dữ liệu; năm nơi được chọn nối thành một tuyến đi`} />
           <div className="tg-l3__veil" aria-hidden="true" />
@@ -267,10 +373,9 @@ export function Landing() {
               <p className="tg-kicker">TripGuardian · Đà Lạt</p>
               <h1>Hàng nghìn nơi ở Đà Lạt. <em>Chỉ giữ nơi hợp với bạn.</em></h1>
               <p className="tg-l3__poem">Sương sớm, tiếng thông reo, và một chuyến đi vừa với bạn.</p>
-              <p className="tg-l3__lead">Kể chuyến đi của bạn trong một câu. TripGuardian chọn ra vài nơi hợp gu, nói rõ vì sao, rồi xếp thành lịch trình đi được thật.</p>
               <div className="tg-l3__start">
                 <button type="button" className="tg-btn tg-btn--primary tg-l3__cta" onClick={begin}>Trải nghiệm đi <Icon name="arrow" size={20} /></button>
-                <button type="button" className="tg-l3__how" onClick={() => toChapter(1)}>Xem cách hoạt động</button>
+                <button type="button" className="tg-btn tg-btn--ghost tg-l3__roam" disabled={!live} onClick={explore}><Icon name="compass" size={18} />Khám phá Đà Lạt 3D</button>
               </div>
               <p className="tg-l3__proof"><b>{num(stats.places)}</b> địa điểm có thật<i aria-hidden="true" /><b>{num(stats.withPhotos)}</b> nơi có ảnh thực tế<i aria-hidden="true" />Không cần tài khoản</p>
             </div>
@@ -278,7 +383,7 @@ export function Landing() {
             <article className="tg-l3__ch" aria-labelledby="tg-ch1">
               <p className="tg-kicker">Tìm hiểu</p>
               <h2 id="tg-ch1">Tách rõ điều bắt buộc và điều mong muốn.</h2>
-              <p className="tg-muted">Từ câu bạn kể, TripGuardian ghi lại thông tin chuyến đi. Điều bắt buộc được giữ chắc, điều mong muốn cứ để nhẹ như sương.</p>
+              <p className="tg-muted">Điều bắt buộc giữ chắc, điều mong muốn để nhẹ như sương.</p>
               <div className="tg-l3__ticket">
                 <h3 className="tg-ticket__h">Thông tin chuyến đi</h3>
                 <dl>{[['Thời gian', '3 ngày'], ['Số người', '2 người'], ['Phương tiện', 'Xe máy']].map(([a, b]) => <div key={a} className="tg-ticket__row"><dt>{a}</dt><dd>{b}</dd></div>)}</dl>
@@ -290,7 +395,7 @@ export function Landing() {
             <article className="tg-l3__ch" aria-labelledby="tg-ch2">
               <p className="tg-kicker">Lựa chọn</p>
               <h2 id="tg-ch2" aria-label={`Còn lại 5 nơi hợp với bạn, lọc từ ${num(stats.places)} địa điểm`}><span aria-hidden="true">Còn lại <span ref={counter} className="tg-l3__count">{still ? 5 : num(stats.places)}</span> nơi hợp với bạn.</span></h2>
-              <p className="tg-muted">Giữa hàng nghìn ánh đèn, chỉ năm nơi sáng lên cho bạn. Nơi phạm điều bắt buộc bị loại; nơi còn lại xếp theo mức hợp gu, kèm lý do.</p>
+              <p className="tg-muted">Giữa hàng nghìn ánh đèn, chỉ năm nơi sáng lên cho bạn.</p>
               <ul className="tg-l3__legend">
                 <li><i className="is-all" />Mỗi chấm là một địa điểm trong dữ liệu</li>
                 <li><i className="is-five" />Nơi được chọn, nối thành tuyến đi</li>
@@ -300,7 +405,7 @@ export function Landing() {
             <article className="tg-l3__ch" aria-labelledby="tg-ch3">
               <p className="tg-kicker">Lựa chọn · lý do</p>
               <h2 id="tg-ch3">Chọn nơi nào cũng có lý do.</h2>
-              <p className="tg-muted">Mỗi nơi đều có người đã đến, đã kể và đã chụp. Bấm để xem video và bình luận thật.</p>
+              <p className="tg-muted">Mỗi nơi đều có người đã đến, đã kể và đã chụp.</p>
               <div className="tg-l3__ev">
                 <div className="tg-l3__claim">
                   <b>{crowd.name}</b>
@@ -308,7 +413,7 @@ export function Landing() {
                   <small className="tg-faint">Mức đông ~{crowdPct}% giờ cao điểm · tổng hợp từ {crowd.voices} đánh giá</small>
                   <div className="tg-l3__bar" aria-hidden="true"><i className="tg-l3__fill" style={{ width: `${crowdPct ?? 0}%` }} /></div>
                 </div>
-                <div className="tg-l3__clips" style={{ gridTemplateColumns: `repeat(${Math.min(3, crowd.videos?.length ?? 1)}, minmax(0, 120px))` }}>{(crowd.videos ?? []).slice(0, 3).map((v) => <a key={v.url} className="tg-l3__clip" href={v.url} target="_blank" rel="noreferrer"><Photo photo={crowd.photos[1] ?? crowd.photos[0]} alt="" /><span><Icon name="play" size={20} /><b>@{v.handle}</b><small>TikTok</small></span></a>)}</div>
+                <div className="tg-l3__clips" style={{ gridTemplateColumns: `repeat(${Math.min(2, crowd.videos?.length ?? 1)}, minmax(0, 120px))` }}>{(crowd.videos ?? []).slice(0, 2).map((v) => <a key={v.url} className="tg-l3__clip" href={v.url} target="_blank" rel="noreferrer"><Photo photo={crowd.photos[1] ?? crowd.photos[0]} alt="" /><span><Icon name="play" size={20} /><b>@{v.handle}</b><small>TikTok</small></span></a>)}</div>
                 {crowd.quotes?.[0] && <q className="tg-l3__quote">{crowd.quotes[0].text}<small className="tg-faint"> — bình luận trên Google</small></q>}
               </div>
             </article>
@@ -344,11 +449,31 @@ export function Landing() {
           <div className={`tg-l3__turn ${used ? 'is-used' : ''}`}>
             <p className="tg-l3__turnhint"><span className="tg-l3__orbit" aria-hidden="true"><Icon name="turn" size={22} /><i /></span>Kéo để ngắm Đà Lạt từ mọi phía</p>
             <div className="tg-l3__turnbtns" role="group" aria-label="Xoay mô hình">
+              <button type="button" aria-label="Khám phá tự do" title="Khám phá tự do" disabled={!live} onClick={explore}><Icon name="compass" size={18} /></button>
               <button type="button" aria-label="Xoay sang trái" title="Xoay sang trái" onClick={() => sceneRef.current?.turnBy(-Math.PI / 4)}><Icon name="chevronLeft" size={18} /></button>
               <button type="button" aria-label="Về góc nhìn ban đầu" title="Về góc nhìn ban đầu" onClick={() => sceneRef.current?.resetTurn()}><Icon name="refresh" size={18} /></button>
               <button type="button" aria-label="Xoay sang phải" title="Xoay sang phải" onClick={() => sceneRef.current?.turnBy(Math.PI / 4)}><Icon name="chevronRight" size={18} /></button>
             </div>
           </div>
+
+          {exploring && (
+            <div className="tg-l3__ex" role="group" aria-label="Khám phá Đà Lạt 3D">
+              <div className="tg-l3__ex-top">
+                <div className="tg-l3__ex-title"><p className="tg-kicker">Khám phá tự do</p><p>Kéo để xoay · Cuộn để phóng to · Chuột phải để dịch chuyển</p></div>
+                <button type="button" className="tg-btn tg-btn--ghost tg-l3__ex-exit" onClick={leaveExplore} autoFocus>Thoát<Icon name="x" size={18} /></button>
+              </div>
+              <div className="tg-l3__ex-chips" role="group" aria-label="Bay tới">
+                {FLY.map((f) => <button key={f.name} type="button" className="tg-chip" onClick={() => sceneRef.current?.flyTo(f.lat, f.lng, f.dist)}><Icon name="pin" size={14} />{f.name}</button>)}
+              </div>
+              <div className="tg-l3__ex-ctl" role="group" aria-label="Điều khiển camera">
+                <button type="button" aria-label="Phóng to" title="Phóng to (+)" onClick={() => sceneRef.current?.zoomBy(0.75)}><Icon name="plus" size={18} /></button>
+                <button type="button" aria-label="Thu nhỏ" title="Thu nhỏ (−)" onClick={() => sceneRef.current?.zoomBy(1.33)}><Icon name="minus" size={18} /></button>
+                <button type="button" aria-label="Xoay sang trái" title="Xoay trái (Q)" onClick={() => sceneRef.current?.rotateBy(-Math.PI / 6)}><Icon name="chevronLeft" size={18} /></button>
+                <button type="button" aria-label="Xoay sang phải" title="Xoay phải (E)" onClick={() => sceneRef.current?.rotateBy(Math.PI / 6)}><Icon name="chevronRight" size={18} /></button>
+                <button type="button" aria-label="Về trung tâm" title="Về trung tâm" onClick={() => sceneRef.current?.flyTo(11.9445, 108.4462, 110)}><Icon name="refresh" size={18} /></button>
+              </div>
+            </div>
+          )}
 
           {!still && (
             <nav className="tg-l3__rail" aria-label="Các chương">
