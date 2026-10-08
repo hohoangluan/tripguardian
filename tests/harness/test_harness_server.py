@@ -78,3 +78,26 @@ def test_sse_conflict_after_headers_preserves_conflict_status(client):
     events = [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith('data: ')]
     assert events[-1]['event'] == 'error'
     assert events[-1]['data']['status'] == 409
+
+
+def test_preview_and_trip_summaries_are_reads(client):
+    _, view = call(client, "POST", "/api/harness/sessions", {})
+    assert call(client, "GET", f"/api/harness/sessions/{view['id']}/preview")[0] == 409
+    code, body = call(client, "GET", f"/api/harness/trips?ids={view['id']},000000000000")
+    assert code == 200 and [s["id"] for s in body] == [view["id"]]
+
+
+def test_reports_go_to_decision_and_bad_input_is_400(client):
+    body = {"place_id": "place-1", "text": "Quán đóng cửa thứ Hai", "reporter": "browser-123"}
+    assert call(client, "POST", "/api/harness/reports", body) == (200, {"id": "r1", "stored": True})
+    assert call(client, "POST", "/api/harness/reports", {**body, "text": ""})[0] == 400
+
+
+def test_decision_page_is_a_read(client):
+    _, view = call(client, "POST", "/api/harness/sessions", {})
+    base = f"/api/harness/sessions/{view['id']}"
+    req = {"request_id": "t", "stage": "trip", "operation": "turn", "expected_revision": 0, "payload": {"kind": "show"}}
+    call(client, "POST", f"{base}/request", req)
+    call(client, "POST", f"{base}/request", {"request_id": "a", "stage": "trip", "operation": "advance", "expected_revision": 1})
+    code, body = call(client, "GET", f"{base}/read/decision/page?group=chill")
+    assert code == 200 and body == {"operation": "page", "payload": {"group": "chill"}}

@@ -17,30 +17,58 @@ class Tools:
     def load(self, sid):
         return {"id": sid, "view": copy.deepcopy(self.states[sid])}
 
+    def _compiled(self, sid, emit):
+        from trip import SearchInput
+        from corpus.ontology import load
+        search = SearchInput.model_validate({"ontology_version": load().version,
+            "context": {"days": 2, "mobility": "motorbike", "start_date": None, "month": None,
+                "base": None, "companions": [], "people": None, "arrive_at": None, "leave_at": None,
+                "day_end": None}, "hard_filters": [], "anchors": [],
+            "soft_weights": [], "pace": {"level": "normal", "max_leg_min": None, "crowd_tolerance": None},
+            "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []})
+        self.states[sid]["value"] += 1
+        emit("done", {"search_input": search.model_dump(mode="json")})
+        return self.load(sid)
+
     def apply(self, sid, operation, payload, emit):
         self.calls += 1
-        if operation == "turn":
-            from trip import SearchInput
-            from corpus.ontology import load
-            search = SearchInput.model_validate({"ontology_version": load().version,
-                "context": {"days": 2, "mobility": "motorbike", "start_date": None, "month": None,
-                    "base": None, "companions": [], "people": None, "arrive_at": None, "leave_at": None,
-                    "day_end": None}, "hard_filters": [], "anchors": [],
-                "soft_weights": [], "pace": {"level": "normal", "max_leg_min": None, "crowd_tolerance": None},
-                "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []})
+        if self.stage == "decision" and operation == "turn":
+            emit("say", {"delta": "Mình hiểu rồi."})
+            if "yên tĩnh" in payload.get("text", ""):
+                emit("trip", {"texts": ["muốn yên tĩnh hơn"]})
             self.states[sid]["value"] += 1
-            emit("done", {"search_input": search.model_dump(mode="json")})
+            emit("view", {"view": self.load(sid)["view"], "diff": {"added": [], "removed": [], "text": "turn"}})
+            emit("done", {})
+            return self.load(sid)
+        if self.stage == "trip" and operation == "refine":
+            self.states[sid]["refined"] = payload["text"]
+            emit("say", {"delta": "Mình ưu tiên chỗ yên tĩnh."})
+            return self._compiled(sid, emit)
+        if operation == "turn":
+            return self._compiled(sid, emit)
         elif operation == "confirm":
             return {"confirmed": [{"id": "place-1"}], "value": self.states[sid]["value"]}
         else:
             self.states[sid]["value"] += 1
         return self.load(sid)
 
+    def rebase(self, sid, payload):
+        self.states[sid]["rebased"] = payload["search_input"]["context"]["days"]
+        return {**self.load(sid), "diff": {"added": [], "removed": [], "text": "+0 nơi"}}
+
+    def read(self, sid, operation, payload):
+        return {"operation": operation, "payload": payload}
+
     def snapshot(self, sid):
         return copy.deepcopy(self.states[sid])
 
     def restore(self, snapshot):
         self.states[snapshot["id"]] = copy.deepcopy(snapshot)
+
+    def report(self, payload):
+        if not payload.get("text"):
+            raise ValueError("text must be 1-1000 characters")
+        return {"id": "r1", "stored": True}
 
     def forget(self, user_id):
         return user_id == "user-abc-123"
@@ -139,3 +167,101 @@ def test_planning_edits_keep_the_confirmed_decision_input():
     output = copy.deepcopy(view["outputs"]["decision"])
     view = run(h, view, "recommend", "suggest-layout")
     assert view["outputs"]["decision"] == output
+
+
+def preview_tools(tools, draft):
+    tools["decision"].read = lambda sid, op, payload: {"output": draft}
+    tools["planning"].preview = lambda payload: {"ok": True, "days": 2, "variants": [],
+                                                 "input": payload["decision_output"]}
+
+
+def test_preview_builds_a_plan_for_the_current_selection_without_changing_the_journey():
+    h, tools = make()
+    v = decision(h)
+    preview_tools(tools, {"confirmed": [{"id": "place-1"}]})
+    out = h.preview(v["id"])
+    assert out["status"] == "ready" and out["revision"] == v["revision"]
+    assert out["plan"]["input"] == {"confirmed": [{"id": "place-1"}]}
+    after = h.load(v["id"])
+    assert (after["revision"], after["outputs"], after["sessions"]) == (v["revision"], v["outputs"], v["sessions"])
+    assert tools["decision"].calls == 0
+
+
+def test_preview_says_blocked_or_empty_and_needs_the_decision_stage():
+    from harness import Conflict
+    h, tools = make()
+    with pytest.raises(Conflict):
+        h.preview(h.create()["id"])
+    v = decision(h)
+    preview_tools(tools, None)
+    assert h.preview(v["id"]) == {"revision": v["revision"], "status": "blocked", "plan": None}
+    preview_tools(tools, {"confirmed": []})
+    assert h.preview(v["id"])["status"] == "empty"
+
+
+def test_summaries_list_only_the_asked_journeys_with_their_places():
+    h, _ = make()
+    v = run(h, decision(h), "advance", "to-planning")
+    other = h.create()
+    out = h.summaries([v["id"], "000000000000", "../bad", other["id"]])
+    assert [s["id"] for s in out] == [v["id"], other["id"]]
+    assert out[0]["stage"] == "planning" and out[0]["days"] == 2 and out[0]["places"] == ["place-1"]
+    assert out[1]["places"] == [] and out[1]["days"] is None and not out[1]["confirmed"]
+
+
+def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path):
+    import json
+    h, _ = make(tmp_path / "sessions")
+    v = h.create()
+    assert h.feedback(v["id"], {"scores": {"fit": 4}, "more_search": False, "note": " ok "}) == {"stored": True}
+    lines = (tmp_path / "feedback.jsonl").read_text(encoding="utf-8").splitlines()
+    assert json.loads(lines[0])["scores"] == {"fit": 4} and json.loads(lines[0])["note"] == "ok"
+    for bad in ({"scores": {"fit": 6}}, {"scores": {"fit": True}}, {"other": 1}, {"note": "x" * 1001}):
+        with pytest.raises(ValueError):
+            h.feedback(v["id"], bad)
+    with pytest.raises(KeyError):
+        h.feedback("000000000000", {})
+
+
+def test_decision_turn_with_a_trip_wish_refines_trip_then_rebases_decision():
+    h, tools = make()
+    v = decision(h)
+    out = run(h, v, "turn", "chat-1", {"text": "muốn yên tĩnh hơn"})
+    j = h.load(out["id"])
+    trip_sid, dec_sid = h._get(out["id"]).sessions["trip"], h._get(out["id"]).sessions["decision"]
+    assert tools["trip"].states[trip_sid]["refined"] == "muốn yên tĩnh hơn"
+    assert tools["decision"].states[dec_sid]["rebased"] == 2
+    assert out["stage"] == "decision" and j["revision"] == out["revision"]
+
+
+def test_decision_turn_without_a_trip_wish_never_touches_trip():
+    h, tools = make()
+    v = decision(h)
+    before = tools["trip"].calls
+    run(h, v, "turn", "chat-2", {"text": "bỏ quán số 2"})
+    assert tools["trip"].calls == before
+
+
+def test_a_refined_turn_streams_one_rebuilt_view_and_one_reply():
+    from harness import Request
+    h, _ = make()
+    v = decision(h)
+    events = []
+    h.request(v["id"], Request(request_id="chat-3", stage="decision", operation="turn",
+                               expected_revision=v["revision"], payload={"text": "muốn yên tĩnh hơn"}),
+              lambda e, d: events.append((e, d)))
+    names = [e for e, _ in events]
+    assert "trip" not in names and names.count("view") == 1 and names[-1] == "done"
+    assert dict(events)["view"]["diff"]["text"] == "+0 nơi"
+    assert [d for e, d in events if e == "say"][-1] == {"replace": "Mình hiểu rồi. Mình ưu tiên chỗ yên tĩnh."}
+
+
+def test_a_trip_wish_without_a_trip_session_still_finishes_the_turn():
+    h, tools = make()
+    v = decision(h)
+    j = h._get(v["id"])
+    j.sessions.pop("trip")
+    j.snapshots.pop("trip")
+    h.store.save(j)
+    out = run(h, v, "turn", "chat-4", {"text": "muốn yên tĩnh hơn"})
+    assert out["stage"] == "decision" and "rebased" not in tools["decision"].states[j.sessions["decision"]]

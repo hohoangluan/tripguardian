@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from datetime import datetime, timezone
 
 from trip import SearchInput
 
@@ -12,6 +13,15 @@ from .session import Store
 
 class Conflict(ValueError):
     pass
+
+
+def _said(events: list[dict]) -> str:
+    """The reply streamed so far through say events (deltas, or a replace)."""
+    out = ""
+    for e in events:
+        if e["event"] == "say":
+            out = e["data"]["replace"] if "replace" in e["data"] else out + e["data"].get("delta", "")
+    return out
 
 
 def _fingerprint(request: Request) -> str:
@@ -62,6 +72,68 @@ class Harness:
                 raise Conflict(f"no {stage} session")
             return self.tools[stage].read(session.sessions[stage], operation, payload or {})
 
+    def preview(self, jid: str) -> dict:
+        """The schedule the current Decision selection would get, built in the background without confirming it.
+        Reads Decision under the journey lock, then builds outside it; nothing in the journey changes."""
+        with self.store.lock(jid):
+            session = self._get(jid)
+            if session.stage != "decision":
+                raise Conflict("preview needs the decision stage")
+            draft = self.tools["decision"].read(session.sessions["decision"], "draft", {})["output"]
+            revision = session.revision
+        if draft is None:
+            return {"revision": revision, "status": "blocked", "plan": None}
+        if not draft["confirmed"]:
+            return {"revision": revision, "status": "empty", "plan": None}
+        plan = self.tools["planning"].preview({"decision_output": draft})
+        return {"revision": revision, "status": "ready" if plan["ok"] else "failed", "plan": plan}
+
+    def summaries(self, ids: list[str]) -> list[dict]:
+        """One line per journey the browser remembers (no listing of other people's journeys); unknown IDs are skipped."""
+        out = []
+        for jid in ids[:20]:
+            try:
+                with self.store.lock(jid):
+                    session = self._get(jid)
+                    context = (session.outputs.get("trip") or {}).get("context") or {}
+                    if "decision" in session.outputs:
+                        places = [c["id"] for c in session.outputs["decision"].get("confirmed", [])]
+                    elif "decision" in session.sessions:
+                        view = self.tools["decision"].load(session.sessions["decision"]).get("view") or {}
+                        places = list(view.get("selected") or [])
+                    else:
+                        places = []
+            except KeyError:
+                continue
+            out.append({"id": session.id, "stage": session.stage, "revision": session.revision,
+                        "start_date": context.get("start_date"), "days": context.get("days"),
+                        "people": context.get("people"), "places": places,
+                        "confirmed": "planning" in session.outputs})
+        return out
+
+    def feedback(self, jid: str, payload: dict) -> dict:
+        """After-trip answers (1-5 scales, yes/no, a short note), one JSON line per submission next to the sessions."""
+        if set(payload) - {"scores", "more_search", "note"}:
+            raise ValueError("unknown feedback field")
+        scores, more, note = payload.get("scores") or {}, payload.get("more_search"), payload.get("note") or ""
+        if not isinstance(scores, dict) or len(scores) > 10 or any(
+                not isinstance(k, str) or len(k) > 40 or not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 5
+                for k, v in scores.items()):
+            raise ValueError("scores must map up to 10 names to 1-5")
+        if more is not None and not isinstance(more, bool):
+            raise ValueError("more_search must be true, false or null")
+        if not isinstance(note, str) or len(note) > 1000:
+            raise ValueError("note must be at most 1000 characters")
+        with self.store.lock(jid):
+            self._get(jid)
+        record = {"journey": jid, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "scores": scores,
+                  "more_search": more, "note": note.strip()}
+        self.store.append_feedback(record)
+        return {"stored": True}
+
+    def report(self, payload: dict) -> dict:
+        return self.tools["decision"].report(payload)
+
     def places(self, query: str) -> list[dict]:
         return self.tools["trip"].places(query)
 
@@ -107,6 +179,11 @@ class Harness:
                     result = self.tools[session.stage].load(session.sessions[session.stage])
                 else:
                     result = self.tools[stage].apply(session.sessions[stage], request.operation, request.payload, capture)
+                    if stage == "decision" and request.operation == "turn":
+                        texts = [t for e in events if e["event"] == "trip" for t in e["data"]["texts"]]
+                        events[:] = [e for e in events if e["event"] != "trip"]  # internal: the web never sees it
+                        if texts and "trip" in session.sessions:
+                            result = self._refine(session, " ".join(texts), events, capture) or result
                     if stage == "trip" and request.operation == "turn" and not any(e["event"] == "done" for e in events):
                         session.outputs.pop("trip", None)
                     if request.operation in ("act", "turn", "recommend") and stage != "trip":
@@ -132,6 +209,35 @@ class Harness:
                     if event["event"] not in ("say", "preview"):
                         emit(event["event"], event["data"])
             return response
+
+    def _refine(self, session: Journey, text: str, events: list[dict], capture) -> dict | None:
+        """A wish typed at Chọn nơi: Trip Understanding reads it, then Decision is rebuilt on the new Search Input.
+        The rebuilt view replaces the turn's own, and Trip's reply follows Decision's in the same bubble."""
+        said = _said(events)
+        compiled: list[dict] = []
+        reply = ""
+
+        def on_trip(event: str, data: dict) -> None:
+            nonlocal reply
+            if event == "say":
+                reply = data["replace"] if "replace" in data else reply + data.get("delta", "")
+                capture("say", {"replace": f"{said} {reply}".strip()})
+            elif event == "done":
+                compiled.append(data["search_input"])
+
+        self.tools["trip"].apply(session.sessions["trip"], "refine", {"text": text}, on_trip)
+        if not compiled:
+            return None
+        session.outputs["trip"] = SearchInput.model_validate(compiled[-1]).model_dump(mode="json")
+        out = self.tools["decision"].rebase(session.sessions["decision"],
+                                            {"search_input": session.outputs["trip"], "trip_session": session.sessions["trip"]})
+        rebuilt = {"view": out["view"], "diff": out["diff"]}
+        views = [e for e in events if e["event"] == "view"]
+        for e in views:
+            e["data"] = rebuilt
+        if not views:
+            capture("view", rebuilt)
+        return {"id": out["id"], "view": out["view"]}
 
     def _advance(self, session: Journey) -> dict:
         if session.stage == "trip":

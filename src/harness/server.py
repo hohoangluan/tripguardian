@@ -20,8 +20,10 @@ BASE = "/api/harness/sessions"
 PROFILE = re.compile(r"/api/harness/profile/([A-Za-z0-9_-]{8,64})")
 SESSION = re.compile(BASE + r"/([0-9a-f]{12})")
 REQUEST = re.compile(BASE + r"/([0-9a-f]{12})/request")
-READ = re.compile(BASE + r"/([0-9a-f]{12})/read/(decision|planning)/(compare|why-not|lodging|variants)")
+READ = re.compile(BASE + r"/([0-9a-f]{12})/read/(decision|planning)/(compare|why-not|lodging|variants|page)")
 LODGING = re.compile(BASE + r"/([0-9a-f]{12})/planning/lodging/events")
+PREVIEW = re.compile(BASE + r"/([0-9a-f]{12})/preview")
+FEEDBACK = re.compile(BASE + r"/([0-9a-f]{12})/feedback")
 MAX_BODY = 65536
 
 
@@ -80,6 +82,11 @@ def handler(harness):
             query = {k: v[0] for k, v in parse_qs(url.query).items()}
             if url.path == "/api/harness/places":
                 return self._call(lambda: harness.places(query.get("q", "")))
+            if url.path == "/api/harness/trips":
+                ids = [i for i in query.get("ids", "").split(",") if i]
+                return self._call(lambda: harness.summaries(ids))
+            if m := PREVIEW.fullmatch(url.path):
+                return self._call(lambda: harness.preview(m[1]))
             if m := SESSION.fullmatch(url.path):
                 stage = query.get("stage")
                 if stage not in (None, "trip", "decision", "planning"):
@@ -124,6 +131,10 @@ def handler(harness):
                         raise ValueError("bad user_id / remember")
                     return self._call(lambda: harness.create(body.get("experience"), body.get("start_with"),
                                                              body.get("user_id"), body.get("remember", False)))
+                if path == "/api/harness/reports":
+                    return self._call(lambda: harness.report(body))
+                if fb := FEEDBACK.fullmatch(path):
+                    return self._call(lambda: harness.feedback(fb[1], body))
                 m = REQUEST.fullmatch(path)
                 if not m:
                     return self._json(404, {"error": "not found"})
