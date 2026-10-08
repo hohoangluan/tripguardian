@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, sample_trip, small_trip
 
@@ -17,11 +19,18 @@ def engine(records=None, lodging_fn=fake_lodging):
 
 def test_create_returns_variants_right_away_without_waiting_on_lodging():
     d, recs = sample_trip()
+    gate = threading.Event()
+
+    def slow_lodging(*a):  # the crawl runs in the background; create must not wait for it
+        gate.wait(5)
+        return fake_lodging(*a)
+
     e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=lambda *a: pytest.fail("lodging must not block create"))
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=slow_lodging)
     out = e.create(d, None)
     assert out["id"] and out["view"]["ok"] and out["view"]["variants"]
     assert out["view"]["lodging"]["status"] == "pending"
+    gate.set()
 
 
 def test_load_an_unknown_session_is_no_session():
