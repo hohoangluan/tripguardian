@@ -69,6 +69,8 @@
 .tg-tab:hover { border-color: var(--tg-pine); }
 .tg-tab[data-state='active'], .tg-tab[aria-selected='true'] { background: var(--tg-pine); border-color: var(--tg-pine); color: #fff; }
 .tg-tab b { font: 600 0.75rem var(--tg-mono); opacity: 0.8; }
+.tg-tab__new { font: 600 0.68rem/1 var(--tg-sans); font-style: normal; padding: 4px 7px; border-radius: 999px; background: var(--tg-sun-soft); color: var(--tg-sun-ink); }
+.tg-grid__end { grid-column: 1 / -1; text-align: center; padding: 8px 0 4px; font-size: 0.9rem; }
 .tg-req { margin-bottom: 26px; padding: 18px 20px; border-radius: var(--tg-r-l); background: var(--tg-pine-soft); border: 1px solid var(--tg-pine-line); display: grid; grid-template-columns: 200px 1fr; gap: 18px; align-items: center; }
 .tg-req h2 { font-size: 1.1rem; font-family: var(--tg-sans); font-weight: 700; letter-spacing: 0; }
 .tg-req p { font-size: 0.85rem; color: var(--tg-ink-2); margin-top: 4px; }

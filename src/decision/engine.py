@@ -48,7 +48,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def diff(before: dict, after: dict, scope: dict | None) -> dict:
+def _list_text(change: dict) -> str:
+    """How the shown places changed when the whole list was rebuilt (a new Search Input), in one sentence."""
+    added = sum(c["added"] for c in change.values())
+    if any(c["replaced_all"] for c in change.values()):
+        return f"Danh sách đổi theo ý bạn: {added} nơi mới"
+    if not added:
+        return "Các nơi đang gợi ý vẫn hợp, không cần đổi"
+    return f"Giữ {sum(c['kept'] for c in change.values())} nơi, thay {added} nơi hợp hơn"
+
+
+def diff(before: dict, after: dict, scope: dict | None, rebuilt: bool = False) -> dict:
+    """rebuilt: the list was ranked again on a new Search Input, so the text says what happened to the shown places."""
     b, a = set(before["shortlist"]), set(after["shortlist"])
     tb, ta = before["feasibility"]["totals"], after["feasibility"]["totals"]
     delta = {k: ta[k] - tb[k] for k in ("places", "visit", "travel")}
@@ -56,10 +67,13 @@ def diff(before: dict, after: dict, scope: dict | None) -> dict:
     def sign(n: int) -> str:
         return f"+{n}" if n > 0 else str(n)
 
+    parts = [f"{sign(delta['places'])} nơi, {sign(delta['visit'])} phút tham quan, {sign(delta['travel'])} phút đi lại"
+             ] if any(delta.values()) else []
+    if rebuilt:
+        parts.append(_list_text(after.get("change") or {}))
     return {"added": sorted(a - b), "removed": sorted(b - a),
             "status": [before["feasibility"]["status"], after["feasibility"]["status"]], "delta": delta,
-            "text": f"{sign(delta['places'])} nơi, {sign(delta['visit'])} phút tham quan, {sign(delta['travel'])} phút đi lại",
-            "scope": scope}
+            "text": "; ".join(parts), "scope": scope}
 
 
 def _earliest(actions: list[dict]) -> dict:
@@ -258,15 +272,17 @@ class Engine:
 
     # ---------- agent prompt ----------
 
-    @staticmethod
-    def _aliases(view: dict) -> dict[str, dict]:
+    def _aliases(self, view: dict) -> dict[str, dict]:
+        """Every place on screen gets an alias; reasons only for each group's first page and the chosen ones, so the
+        prompt stays small however far the user scrolled."""
         out, seen = {}, set()
         for g in view["groups"]:
-            for c in g["cards"]:
+            for k, c in enumerate(g["cards"]):
                 if c["id"] in seen:
                     continue
                 seen.add(c["id"])
-                notes = "; ".join(t["text"] for t in (c["why"] + c["tradeoffs"])[:3])
+                brief = k < self.cfg.page_size or c["chosen"]
+                notes = "; ".join(t["text"] for t in (c["why"] + c["tradeoffs"])[:3]) if brief else ""
                 out[f"P{len(out) + 1}"] = {"id": c["id"], "name": c["name"], "group": g["label"],
                                            "chosen": c["chosen"], "notes": notes}
         for d in view["dropped"][-5:]:

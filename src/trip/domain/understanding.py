@@ -35,8 +35,10 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
     for key, f in sorted(state.soft.items()):
         if f.known:
             k = SoftKey.parse(key)
+            like = next((e.tool[6:] for e in reversed(f.evidence) if e.tool and e.tool.startswith("place:")), None)
             soft.append({"target": f"soft:{key}", "key": key, "feature": k.feature, "value": k.value,
-                         "context": dict(k.context), "weight": f.value, "mark": f.source in MARKED})
+                         "context": dict(k.context), "weight": f.value, "mark": f.source in MARKED,
+                         "like": catalog.by_id[like].name if like in catalog.by_id else None})
     return {
         "purpose": row("purpose"),
         "trip": [r for r in map(row, TRIP_ROWS) if r],

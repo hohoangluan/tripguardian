@@ -60,6 +60,17 @@ export function Explore() {
   useEffect(() => { if (foodSel >= 3) nudge(`Bạn đã chọn ${foodSel} quán cà phê. Thêm một chỗ ăn trưa chứ?`) }, [foodSel])
   const onCmp = (id: string) => setCmp((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= 3 ? [...c.slice(1), id] : [...c, id]))
   const goCompare = (ids: string[]) => go(`/explore/compare/${ids.map(encodeURIComponent).join(',')}`)
+  // Tabs whose list changed in the last rebuild while the user looked elsewhere: "+N mới" until they open it.
+  const [fresh, setFresh] = useState<Record<string, number>>({})
+  useEffect(() => {
+    const ch = view?.change ?? {}
+    setFresh((f) => {
+      const next = { ...f }
+      for (const [g, c] of Object.entries(ch)) if (c.added > 0 && g !== current?.id) next[g] = c.added
+      return next
+    })
+  }, [view?.change]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (current && fresh[current.id]) setFresh(({ [current.id]: _, ...rest }) => rest) }, [current?.id, fresh]) // eslint-disable-line react-hooks/exhaustive-deps
   const { items, replacing } = useStagedList(current?.id ?? '', current?.cards ?? NO_CARDS, current ? view?.change?.[current.id] : undefined)
 
   // Kept cards that moved slide from where they were (FLIP) instead of jumping.
@@ -172,7 +183,7 @@ export function Explore() {
                       if (e.key === 'ArrowRight') setUi({ tab: groups[(i + 1) % groups.length].id })
                       if (e.key === 'ArrowLeft') setUi({ tab: groups[(i + groups.length - 1) % groups.length].id })
                     }}>
-                      {groups.map((g) => <button key={g.id} type="button" role="tab" aria-selected={current?.id === g.id} tabIndex={current?.id === g.id ? 0 : -1} className="tg-tab" onClick={() => setUi({ tab: g.id })}>{g.label}<b>{g.total}</b></button>)}
+                      {groups.map((g) => <button key={g.id} type="button" role="tab" aria-selected={current?.id === g.id} tabIndex={current?.id === g.id ? 0 : -1} className="tg-tab" onClick={() => setUi({ tab: g.id })}>{g.label}<b>{g.total}</b>{fresh[g.id] ? <i className="tg-tab__new" aria-label={`${fresh[g.id]} nơi mới`}>+{fresh[g.id]} mới</i> : null}</button>)}
                     </div>
                     {!current || current.cards.length === 0 ? (
                       <>
@@ -187,6 +198,7 @@ export function Explore() {
                           if (i === Math.min(4, items.length - 1) && question) out.push(question)
                           return out
                         })}
+                        {!hasMore && current.total > 6 && <p className="tg-grid__end tg-faint" role="status">Đã xem hết {current.total} nơi ở nhóm này. Muốn hẹp hơn? <button type="button" className="tg-link" onClick={() => openAssistant(true)}>Chat để thu hẹp</button></p>}
                         {hasMore && (
                           <div ref={sentinel} className="tg-grid__more" aria-live="polite" aria-busy={loadingMore === current.id}>
                             {loadingMore === current.id && Array.from({ length: 3 }, (_, i) => <div key={i} className="tg-skel-card"><div className="tg-skel" /><div><span className="tg-skel tg-skel-line" style={{ width: '70%' }} /><span className="tg-skel tg-skel-line" style={{ width: '90%' }} /></div></div>)}

@@ -189,7 +189,7 @@ def why_not(res: Result, pid: str, si, cfg) -> dict:
     """Why a place is not in the shortlist (tool explain_exclusion, docs/PLACE_DECISION.md §6.4)."""
     c = res.cands.get(pid)
     if c is None:
-        return {"id": pid, "name": None, "known": False, "status": None, "score": None, "parts": {},
+        return {"id": pid, "name": None, "known": False, "listed": False, "status": None, "score": None, "parts": {},
                 "reasons": ["Nơi này không có trong dữ liệu đang phục vụ hoặc không dùng được cho lịch trình"]}
     v = res.view
     reasons = []
@@ -199,6 +199,10 @@ def why_not(res: Result, pid: str, si, cfg) -> dict:
         reasons.append("Bạn đã bỏ nơi này")
     elif any(w["id"] == pid for w in v["wishlist"]):
         reasons.append("Bạn để nơi này trong danh sách mong muốn")
+    elif (g := next((g for g, ids in res.ranked.items() if pid in ids), None)) is not None:
+        ids = res.ranked[g]
+        reasons.append(f"Nơi này có trong danh sách {cfg.labels['group'][g]}, xếp thứ {ids.index(pid) + 1}/{len(ids)}; "
+                       "cuộn xuống để thấy")
     else:
         info = card(c, si, cfg)
         reasons += [f"Bị loại: {t}" for t in info["failed"]]
@@ -212,5 +216,6 @@ def why_not(res: Result, pid: str, si, cfg) -> dict:
                 reasons.append("Giống một nơi đang gợi ý; nằm trong phương án thay thế của nơi đó")
             else:
                 reasons.append("Điểm phù hợp thấp hơn các nơi đang gợi ý")
-    return {"id": pid, "name": c.name, "known": True, "status": c.status, "reasons": reasons, "score": c.score,
-            "parts": c.parts}
+    listed = pid in v["shortlist"] or any(pid in ids for ids in res.ranked.values())
+    return {"id": pid, "name": c.name, "known": True, "listed": listed, "status": c.status, "reasons": reasons,
+            "score": c.score, "parts": c.parts}

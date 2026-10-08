@@ -212,7 +212,7 @@ class Harness:
 
     def _refine(self, session: Journey, text: str, events: list[dict], capture) -> dict | None:
         """A wish typed at Chọn nơi: Trip Understanding reads it, then Decision is rebuilt on the new Search Input.
-        The rebuilt view replaces the turn's own, and Trip's reply follows Decision's in the same bubble."""
+        The rebuilt view replaces the turn's own; Trip's reply and the list change follow Decision's in the same bubble."""
         said = _said(events)
         compiled: list[dict] = []
         reply = ""
@@ -232,6 +232,8 @@ class Harness:
         out = self.tools["decision"].rebase(session.sessions["decision"],
                                             {"search_input": session.outputs["trip"], "trip_session": session.sessions["trip"]})
         rebuilt = {"view": out["view"], "diff": out["diff"]}
+        if note := out["diff"].get("text"):  # the reply ends with what happened to the list: "Giữ 22 nơi, thay 2 …"
+            capture("say", {"replace": f"{said} {reply} {note}.".replace("  ", " ").strip()})
         views = [e for e in events if e["event"] == "view"]
         for e in views:
             e["data"] = rebuilt

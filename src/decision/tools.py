@@ -97,7 +97,6 @@ class Tools:
         with self.engine.store.lock(sid):
             s = self.engine.store.get(sid)
             s.search_input, s.trip_session, s.output = inp.search_input, inp.trip_session, None
-            s.history = []
             for anchor in inp.search_input.anchors:
                 if anchor.place_id not in s.state.selected:
                     s.state.selected.append(anchor.place_id)
@@ -106,7 +105,7 @@ class Tools:
             self.engine._results.pop(sid, None)
             self.engine.store.save(s)
         out = self.load(sid)
-        return {**out, "diff": diff(before, out["view"], None)}
+        return {**out, "diff": diff(before, out["view"], None, rebuilt=True)}
 
 
 def create_engine(data_root: Path) -> Engine:

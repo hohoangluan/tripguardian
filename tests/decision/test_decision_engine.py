@@ -5,7 +5,7 @@ from fixtures import hard, love, si, srec
 
 from decision.agent import AgentError
 from decision.curation import ActionError
-from decision.engine import Engine, NoSession, NotConfirmable, VersionMismatch
+from decision.engine import Engine, NoSession, NotConfirmable, VersionMismatch, diff
 from decision.guard import PlanUpdate, TurnPlan
 from decision.pipeline import Data
 from decision.session import Store
@@ -178,3 +178,58 @@ def test_turn_with_a_trip_wish_emits_trip_before_view_and_still_applies_place_op
     names = [ev for ev, _ in events]
     assert ("trip", {"texts": ["muốn yên tĩnh hơn"]}) in events and names.index("trip") < names.index("view")
     assert [d.place_id for d in e.store.get(out["id"]).state.dropped] != []
+
+
+def _v(ids, change):
+    return {"shortlist": ids, "feasibility": {"status": "feasible", "totals": {"places": 0, "visit": 0, "travel": 0}},
+            "change": change}
+
+
+def test_rebuilt_diff_says_how_many_shown_places_stayed_and_changed():
+    one = {"chill": {"kept": 23, "added": 1, "removed": 1, "replaced_all": False},
+           "meal": {"kept": 22, "added": 2, "removed": 2, "replaced_all": False}}
+    assert diff(_v(["A"], {}), _v(["B"], one), None, rebuilt=True)["text"] == "Giữ 45 nơi, thay 3 nơi hợp hơn"
+    same = {"chill": {"kept": 24, "added": 0, "removed": 0, "replaced_all": False}}
+    assert diff(_v(["A"], {}), _v(["A"], same), None, rebuilt=True)["text"] == "Các nơi đang gợi ý vẫn hợp, không cần đổi"
+    swap = {"chill": {"kept": 0, "added": 24, "removed": 24, "replaced_all": True}}
+    assert diff(_v(["A"], {}), _v(["B"], swap), None, rebuilt=True)["text"] == "Danh sách đổi theo ý bạn: 24 nơi mới"
+
+
+def test_a_change_that_moves_nothing_has_no_text():
+    assert diff(_v(["A"], {}), _v(["A"], {}), None)["text"] == ""
+
+
+def test_rebase_reports_the_list_change_and_keeps_undo():
+    from decision.tools import Tools
+    t = Tools(engine())
+    sid = t.create({"search_input": trip()})["id"]
+    t.apply(sid, "act", {"type": "select", "place_id": "C1"}, lambda *a: None)
+    wish = trip()
+    wish["soft_weights"].append(love("cozy_decor"))
+    out = t.rebase(sid, {"search_input": wish})
+    assert out["diff"]["text"].startswith(("Giữ", "Các nơi", "Danh sách"))
+    assert len(t.engine.store.get(sid).history) == 1
+    assert t.apply(sid, "act", {"type": "undo"}, lambda *a: None)["view"]["selected"] == []
+
+
+def test_why_not_for_a_listed_place_below_the_loaded_window_says_where_it_is():
+    recs = [srec(f"C{i:02d}", features={"scenic_view": "present", "steep_or_stairs": "absent"}, lng=108.44 + i / 1000)
+            for i in range(60)]
+    e = Engine(Data(recs), CFG, Store(None), None)
+    sid = e.create(trip())["id"]
+    ranked = e._result(e.store.get(sid)).ranked["chill"]
+    r = e.why_not(sid, ranked[40])
+    assert r["reasons"] == ["Nơi này có trong danh sách Cà phê và thư giãn, xếp thứ 41/60; cuộn xuống để thấy"]
+
+
+def test_agent_sees_every_shown_place_but_reasons_only_for_the_first_page():
+    recs = [srec(f"C{i:02d}", features={"scenic_view": "present", "steep_or_stairs": "absent"}, lng=108.44 + i / 1000)
+            for i in range(60)]
+    agent = FakeAgent(TurnPlan(say="Mình hiểu rồi."))
+    e = Engine(Data(recs), CFG, Store(None), agent)
+    sid = e.create(trip())["id"]
+    e.page(sid, "chill")
+    e.turn(sid, "bạn nghĩ sao", lambda *a: None)
+    lines = agent.calls[0]["places"].splitlines()
+    assert len(lines) == 2 * CFG.page_size
+    assert sum(1 for x in lines if x.endswith("| ")) == CFG.page_size

@@ -37,10 +37,29 @@ export function valueText(target: string, v: any): string {
   return String(v)
 }
 
-export function softText(s: SoftRow) {
+function softBase(s: SoftRow) {
   const base = s.value === 'present' ? featureLabel(s.feature) : `${featureLabel(s.feature)}: ${valueLabel(s.value)}`
   const when = Object.values(s.context).map((c) => TIME_VI[c] ?? c)
-  return (s.weight === 'avoid' ? 'Tránh: ' : '') + base + (when.length ? ` · ${when.join(', ')}` : '')
+  return base + (when.length ? ` · ${when.join(', ')}` : '')
+}
+
+export function softText(s: SoftRow) {
+  return (s.weight === 'avoid' ? 'Tránh: ' : '') + softBase(s) + (s.like ? ` (giống ${s.like})` : '')
+}
+
+// Tastes read from one compared place show as one chip: "Tránh: ồn, đông (giống X)"; every other taste is its own chip.
+export function softGroups(rows: SoftRow[]): { key: string; rows: SoftRow[]; text: string }[] {
+  const out: { key: string; rows: SoftRow[]; text: string }[] = []
+  const by = new Map<string, SoftRow[]>()
+  for (const s of rows) {
+    if (!s.like) { out.push({ key: s.target, rows: [s], text: softText(s) }); continue }
+    const k = `${s.like}|${s.weight}`
+    if (!by.has(k)) { const g: SoftRow[] = []; by.set(k, g); out.push({ key: `like:${k}`, rows: g, text: '' }) }
+    by.get(k)!.push(s)
+  }
+  for (const g of out)
+    if (!g.text) g.text = (g.rows[0].weight === 'avoid' ? 'Tránh: ' : '') + g.rows.map(softBase).join(', ') + ` (giống ${g.rows[0].like})`
+  return out
 }
 
 export const hardText = (h: HardRow) =>

@@ -141,6 +141,7 @@ export interface WhyNot {
   id: string
   name: string | null
   known: boolean
+  listed?: boolean // in the suggestions, maybe below what is loaded yet
   status: string | null
   reasons: string[]
 }

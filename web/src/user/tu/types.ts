@@ -54,6 +54,7 @@ export interface SoftRow {
   context: Record<string, string>
   weight: 'love' | 'avoid' | 'off'
   mark: boolean
+  like: string | null // the place the user compared to ("không thích quán giống X"), when this taste came from it
 }
 
 export interface Understanding {

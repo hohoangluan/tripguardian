@@ -148,12 +148,28 @@ class Engine:
         """A wish typed later, at Chọn nơi: read it like any text turn, then compile again. The Understand screen's
         card is left as it was; only say / state / done leave this method."""
         s = self.store.get(sid)
-        quiet = lambda ev, d: None if ev == "card" else emit(ev, d)  # noqa: E731
+        said = ""
+
+        def quiet(ev: str, d: dict) -> None:
+            nonlocal said
+            if ev == "card":
+                return
+            if ev == "say":
+                said = d["replace"] if "replace" in d else said + d.get("delta", "")
+            emit(ev, d)
+
         with s.lock:
             try:
                 card_before = s.card
                 self._text_flow.invoke(s, TurnInput(kind="text", text=text), quiet, None)
                 s.card = card_before
+                plain = drop_questions(said)  # no card follows here, so a question would go unanswered
+                if plain != said:
+                    emit("say", {"replace": plain})
+                    for t in reversed(s.transcript):
+                        if t["role"] == "agent":
+                            t["text"] = plain
+                            break
                 if required(s.state, self.catalog, self.cfg) is None:
                     si = compile_search_input(s.state)
                     emit("done", {"search_input": si.model_dump(mode="json")})

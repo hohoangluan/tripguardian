@@ -59,13 +59,15 @@ def guard(plan: TurnPlan, state: TripState, text: str, turn: int, catalog: Catal
         if not contains(text, u.quote):
             log.append(f"drop {u.field}={u.value!r}: quote {u.quote!r} not in the message")
             continue
-        if u.field == "soft" and u.how == "inferred" and compared:
-            named = [c for c in compared if contains(u.quote, c["name"])]
+        named = [c for c in compared or () if contains(u.quote, c["name"])] \
+            if u.field == "soft" and u.how == "inferred" else []
+        if named:
             key = values.split_weight(u.value)[0].replace(" ", "")
-            if named and key not in {f"{t['feature']}={t['value']}" for c in named for t in c["traits"]}:
+            if key not in {f"{t['feature']}={t['value']}" for c in named for t in c["traits"]}:
                 log.append(f"drop soft={u.value!r}: not a trait of {named[0]['name']!r}")
                 continue
-        ev = Evidence(turn=turn, quote=u.quote)
+        # a taste read from a place the user compared to remembers that place: the ticket says "(giống X)"
+        ev = Evidence(turn=turn, quote=u.quote, tool=f"place:{named[0]['id']}" if named else None)
         said = u.how == "said"
         op = u.op if u.field in LIST_FIELDS else ("remove" if u.op == "remove" else "set")
         try:

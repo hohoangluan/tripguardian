@@ -54,7 +54,7 @@ class Tools:
 
     def rebase(self, sid, payload):
         self.states[sid]["rebased"] = payload["search_input"]["context"]["days"]
-        return {**self.load(sid), "diff": {"added": [], "removed": [], "text": "+0 nơi"}}
+        return {**self.load(sid), "diff": {"added": [], "removed": [], "text": "Giữ 22 nơi, thay 2 nơi hợp hơn"}}
 
     def read(self, sid, operation, payload):
         return {"operation": operation, "payload": payload}
@@ -252,8 +252,9 @@ def test_a_refined_turn_streams_one_rebuilt_view_and_one_reply():
               lambda e, d: events.append((e, d)))
     names = [e for e, _ in events]
     assert "trip" not in names and names.count("view") == 1 and names[-1] == "done"
-    assert dict(events)["view"]["diff"]["text"] == "+0 nơi"
-    assert [d for e, d in events if e == "say"][-1] == {"replace": "Mình hiểu rồi. Mình ưu tiên chỗ yên tĩnh."}
+    assert dict(events)["view"]["diff"]["text"] == "Giữ 22 nơi, thay 2 nơi hợp hơn"
+    assert [d for e, d in events if e == "say"][-1] == {
+        "replace": "Mình hiểu rồi. Mình ưu tiên chỗ yên tĩnh. Giữ 22 nơi, thay 2 nơi hợp hơn."}
 
 
 def test_a_trip_wish_without_a_trip_session_still_finishes_the_turn():

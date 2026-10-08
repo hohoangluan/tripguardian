@@ -116,3 +116,17 @@ def test_say_may_name_the_compared_place_but_no_other(catalog, cfg):
     assert guard(p, framed(), text, 2, catalog, cfg, heard=text, compared=compared).say == "Mình hiểu Quán Nhạc Sống 7 khá ồn."
     other = plan(say="Thử Vườn Phẳng Lặng Xanh nhé.")
     assert guard(other, framed(), text, 2, catalog, cfg, heard=text, compared=compared).say == ""
+
+
+def test_soft_read_from_a_compared_place_records_that_place_and_the_ticket_names_it(catalog, cfg):
+    from trip.domain.understanding import view
+    text = "không thích quán giống Quán Yên Tĩnh Số 1"
+    compared = [{"id": "0x1:0x1", "name": "Quán Yên Tĩnh Số 1", "traits": [{"feature": "noise", "value": "quiet", "n": 5}]}]
+    g = guard(plan(u("soft", "noise=quiet:avoid", text, "add", "inferred")), framed(), text, 2, catalog, cfg,
+              heard=text, compared=compared)
+    assert g.state.soft["noise=quiet"].evidence[-1].tool == "place:0x1:0x1"
+    row = next(r for r in view(g.state, catalog, cfg)["soft"] if r["key"] == "noise=quiet")
+    assert row["like"] == "Quán Yên Tĩnh Số 1"
+    plain = guard(plan(u("soft", "noise=quiet:love", "muốn chỗ yên tĩnh", "add")), framed(), "muốn chỗ yên tĩnh", 2,
+                  catalog, cfg, heard="muốn chỗ yên tĩnh")
+    assert next(r for r in view(plain.state, catalog, cfg)["soft"] if r["key"] == "noise=quiet")["like"] is None

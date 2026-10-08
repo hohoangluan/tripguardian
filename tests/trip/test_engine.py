@@ -321,3 +321,15 @@ def test_refine_updates_the_state_and_emits_done_without_a_card(ready_engine):
     assert "done" in names_ and "card" not in names_
     done = dict(events)["done"]
     assert any(w["feature"] == "noise" for w in done["search_input"]["soft_weights"])
+
+
+def test_refine_never_ends_its_reply_with_a_question_no_card_will_answer(ready_engine):
+    e, sid = ready_engine
+    events = []
+    e.agent = FakeAgent({"say": "Mình ưu tiên chỗ yên tĩnh. Bạn muốn đi buổi sáng hay chiều?", "updates": [
+        {"field": "soft", "op": "add", "value": "noise=quiet:love", "quote": "yên tĩnh hơn", "how": "said"}],
+        "next": {"kind": "ask", "qid": "", "custom_text": "Bạn muốn đi buổi nào?", "custom_chips": ["Sáng", "Chiều"],
+                 "reason": ""}})
+    e.refine(sid, "muốn yên tĩnh hơn", lambda ev, d: events.append((ev, d)))
+    said = [d for ev, d in events if ev == "say"]
+    assert said[-1] == {"replace": "Mình ưu tiên chỗ yên tĩnh."}
