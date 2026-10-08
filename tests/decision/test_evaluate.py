@@ -31,3 +31,12 @@ def test_uncertain_pass_with_warning_is_counted_apart_from_unknown(monkeypatch):
     res = ev.evaluate([shaky])
     assert row["shortlist"] == ["U"] and row["unknown_in_main"] == [] and row["uncertain_in_main"] == ["U"]
     assert res["summary"]["unknown_in_main"] == 0 and res["summary"]["uncertain_in_main"] == 1
+
+
+def test_evaluate_measures_the_top_places_not_the_whole_window(monkeypatch):
+    monkeypatch.setattr(ev, "trips", lambda: (2, [
+        {"id": "flat", "role": "experience", "hard": {"steep_or_stairs": "present"}, "soft": {"scenic_view": 1.0}}]))
+    recs = [srec(f"S{i:02d}", group="nature", features={"steep_or_stairs": "absent", "scenic_view": "present"},
+                 lng=108.44 + i / 1000) for i in range(40)]
+    row = ev.evaluate(recs)["trips"][0]
+    assert 0 < len(row["shortlist"]) < 24

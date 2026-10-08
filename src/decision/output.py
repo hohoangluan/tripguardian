@@ -27,7 +27,7 @@ def build(s, res, cfg) -> dict:
                 backup.append({"id": alt, "name": res.cands[alt].name, "for": pid, "reason": "same_kind"})
     for g in res.view["groups"]:
         for x in g["cards"]:
-            if x["id"] in seen:
+            if x["id"] in seen or not x["top"]:  # the best fits only, not every place the user scrolled past
                 continue
             seen.add(x["id"])
             codes = [f["code"] for f in res.cands[x["id"]].flags if f["code"] in ("rain", "crowded")]

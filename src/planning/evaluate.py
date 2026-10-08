@@ -68,7 +68,7 @@ def decision_outputs(records: list[dict], cfg=None) -> list[tuple[str, dict | No
         created = eng.create(si.model_dump(mode="json"))
         sid = created["id"]
         picked = [c["id"] for g in created["view"]["groups"] if g["id"] != "anchors" for c in g["cards"]
-                 if c["role"] == trip["role"]]
+                 if c["role"] == trip["role"] and c["top"]]
         for pid in picked:
             eng.act(sid, {"type": "select", "place_id": pid})
         try:

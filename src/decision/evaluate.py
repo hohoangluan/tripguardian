@@ -79,7 +79,7 @@ def evaluate(records: list[dict] | None = None, cfg=None) -> dict:
         res = run_pipeline(s, data, cfg)
         ms = round((time.perf_counter() - t0) * 1000)
         picked = [c["id"] for g in res.view["groups"] if g["id"] != "anchors" for c in g["cards"]
-                  if c["role"] == trip["role"]]
+                  if c["role"] == trip["role"] and c["top"]]
         recs = [data.by_id[i] for i in picked]
         violations = [r["id"] for r in recs for f, v in trip["hard"].items() if violates(r, f, v)]
         results = {r["id"]: [hard_result(r, h) for h in si.hard_filters] for r in recs}
