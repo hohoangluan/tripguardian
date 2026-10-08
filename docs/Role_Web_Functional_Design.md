@@ -118,6 +118,7 @@ Xung đột với giới hạn của người dùng → đưa ra "nới giới h
 
 ### 2.10 Lịch trình
 
+- Màn chỉ nhận act, không chat. Planning Agent đề xuất nội bộ từ phương án đã kiểm; “+ Thêm nơi” quay về tuyển chọn trong cùng hành trình.
 - Theo từng ngày: dòng thời gian (giờ đến, khoảng thời gian ở lại, di chuyển giữa các điểm), bản đồ lộ trình, chi phí ước tính, cảnh báo tại đúng điểm dừng.
 - Nhãn độ vững mỗi ngày: Vững / Khả thi / Mong manh, kèm lý do một câu (`docs/PLANNING.md` ⓕ).
 - Phương án dự phòng gắn với điểm nhạy cảm ("Nếu mưa: A → B trong nhà", "Bị trễ: bỏ C trước"); chỉ thay khi người dùng chọn.
@@ -236,11 +237,13 @@ Một app React (`web/`, Vite). `App.tsx` chọn bề mặt theo đường dẫn
 |---|---|---|
 | Landing, Story, Choose (§1) | `web/src/pages/`, `web/src/scene/` (thế giới 3D) | — |
 | Đăng nhập, hai câu mở đầu (§2.1) | `pages/Auth.tsx`, `pages/Start.tsx`, `user/account.ts` | — (bản thử mô phỏng trong trình duyệt) |
-| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/tu/` | `trip` :8766 — `/api/trip` |
-| Shortlist, Chi tiết, So sánh, Tuyển chọn, Khả thi (§2.5–2.9) | `user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`, `user/pd/` | `decision` :8767 — `/api/decision` |
-| Lịch trình (§2.10) | `user/screens/Itinerary.tsx`, `user/planning/` | `planning` :8768 — `/api/planning` |
+| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/tu/` | `harness` :8769 — stage `trip` |
+| Shortlist, Chi tiết, So sánh, Tuyển chọn, Khả thi (§2.5–2.9) | `user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`, `user/pd/` | `harness` :8769 — stage `decision` |
+| Lịch trình (§2.10) | `user/screens/Itinerary.tsx`, `user/planning/` | `harness` :8769 — stage `planning` |
 | Hồ sơ, Phản hồi (§2.11–2.12) | `user/screens/{Profile,Feedback}.tsx` | — |
 | Admin, mọi màn (§3) | `admin/AdminApp.tsx`, `admin/screens/`, `admin/api.ts` | `review` :8765 — `/api/queue`, `/api/labels{,/next,/stats,/photo,/frame}`, `/api/decision{,s}` |
+
+Client hành trình chung: `user/journey.ts`. Contract `/api/harness`, router, handoff và retry ở `docs/AGENT_HARNESS.md`.
 
 Dữ liệu chỉ-đọc của corpus mà cả hai bề mặt dùng để hiển thị địa điểm: `web/public/data/snapshot.json`, sinh bằng `python web/scripts/export_snapshot.py` sau `python -m corpus aggregate`. Không có file đó thì mọi màn báo lỗi tải dữ liệu.
 

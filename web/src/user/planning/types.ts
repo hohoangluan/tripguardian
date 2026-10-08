@@ -94,6 +94,27 @@ export interface SessionState {
   last: string | null
 }
 
+// What the date itself changes (src/planning/conditions.py describe()): facts, never a promise.
+export interface DayConditions {
+  day: number
+  date: string | null
+  weather: 'none' | 'heavy' | 'severe'
+  storm: boolean
+  rain_mm: number | null
+  gust_kmh: number | null
+  day_type: 'weekday' | 'weekend' | 'holiday'
+  crowd: 'normal' | 'busy' | 'peak'
+  crowd_reasons: string[]
+  closure_risk: string | null
+  advisories: { kind: string; severity: string; note: string; source: string }[]
+}
+
+export interface CrowdTip {
+  place_id: string
+  name: string
+  text: string
+}
+
 export interface View {
   ok: boolean
   variants: Variant[]
@@ -103,6 +124,8 @@ export interface View {
   lodging: Lodging
   itinerary: ItineraryDay[] | null
   travel_load: TravelLoadDay[] | null
+  day_conditions?: DayConditions[]
+  crowd_tips?: CrowdTip[]
   state: SessionState
 }
 

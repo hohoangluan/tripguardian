@@ -507,3 +507,24 @@ button.tl__name:hover {
     display: none;
   }
 }
+
+.plan-cond {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-cond li {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--blush);
+  color: var(--ink-2, inherit);
+  font-size: 0.9rem;
+}
+
+.plan-cond li[data-tone='warn'] {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { navigate } from '../../router'
+import { requestStageEntry } from '../journey'
 import { useTrip } from '../trip'
 import * as api from './api'
 import type { Action, Diff, View } from './types'
@@ -15,7 +16,7 @@ interface DecisionCtx {
 }
 
 const Ctx = createContext<DecisionCtx | null>(null)
-const OFFLINE = 'Không kết nối được máy chủ chọn nơi (python -m decision serve).'
+const OFFLINE = 'Không kết nối được máy chủ chọn nơi. Bạn thử lại nhé.'
 
 // One Place Decision session per trip: the backend holds the state, the page only shows its view.
 export function DecisionProvider({ children }: { children: ReactNode }) {
@@ -31,9 +32,15 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
     setView(null)
     if (!id) return
     let live = true
+    const origin = location.pathname + location.search
     api.loadDecision(id).then(
       (r) => {
         if (!live) return
+        if (r.recoveredHandoff && origin === location.pathname + location.search) {
+          dispatch({ type: 'set', patch: { journeyId: r.id, decisionId: r.id, planningId: r.id } })
+          navigate('/app/plan')
+          return
+        }
         setView(r.view)
         setError(null)
       },
@@ -56,10 +63,11 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
       setBusy(true)
       try {
         const r = await api.act(id, a)
+        dispatch({ type: 'set', patch: { planningId: null } })
         setView(r.view)
         setDiff(r.diff)
         setError(null)
-        if (r.goto === 'understand') navigate('/app/understand')
+        if (r.goto === 'understand') { requestStageEntry(id, 'trip'); navigate('/app/understand') }
       } catch (e) {
         setError(e instanceof api.DecisionError ? `Không thực hiện được: ${e.detail || e.status}` : OFFLINE)
       } finally {
@@ -81,6 +89,7 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
             onSay(acc)
           },
           view: (r) => {
+            dispatch({ type: 'set', patch: { planningId: null } })
             setView(r.view)
             setDiff(r.diff)
           },

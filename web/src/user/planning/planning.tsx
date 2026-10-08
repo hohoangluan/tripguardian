@@ -10,13 +10,12 @@ interface PlanningCtx {
   error: string | null
   busy: boolean
   act: (a: Action) => Promise<void>
-  say: (text: string, onSay: (soFar: string) => void) => Promise<void>
   confirm: () => Promise<PlanOutput | null>
   reload: () => void
 }
 
 const Ctx = createContext<PlanningCtx | null>(null)
-const OFFLINE = 'Không kết nối được máy chủ xếp lịch (python -m planning serve).'
+const OFFLINE = 'Không kết nối được máy chủ xếp lịch. Bạn thử lại nhé.'
 
 export function PlanningProvider({ children }: { children: ReactNode }) {
   const { trip } = useTrip()
@@ -75,32 +74,6 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     [id],
   )
 
-  const say = useCallback(
-    async (text: string, onSay: (soFar: string) => void) => {
-      if (!id) return
-      setBusy(true)
-      let acc = ''
-      try {
-        await api.sendText(id, text, {
-          say: (d) => {
-            acc = d.replace !== undefined ? d.replace : acc + (d.delta ?? '')
-            onSay(acc)
-          },
-          view: (r) => {
-            setView(r.view)
-            setDiff(r.diff)
-          },
-          error: (d) => setError(d.message),
-        })
-      } catch {
-        setError(OFFLINE)
-      } finally {
-        setBusy(false)
-      }
-    },
-    [id],
-  )
-
   const confirm = useCallback(async () => {
     if (!id) return null
     setBusy(true)
@@ -117,7 +90,7 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, [id])
 
   return (
-    <Ctx.Provider value={{ view, diff, lodgingProgress, error, busy, act, say, confirm, reload: () => setTick((t) => t + 1) }}>
+    <Ctx.Provider value={{ view, diff, lodgingProgress, error, busy, act, confirm, reload: () => setTick((t) => t + 1) }}>
       {children}
     </Ctx.Provider>
   )

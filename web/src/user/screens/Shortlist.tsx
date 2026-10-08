@@ -6,6 +6,7 @@ import { navigate } from '../../router'
 import { story } from '../../scene/story'
 import { ConfidenceTag, Icon, Page, PlaceCover, Sheet } from '../../ui/bits'
 import { LineArt } from '../../ui/LineArt'
+import { requestStageEntry } from '../journey'
 import { whyNot } from '../pd/api'
 import { useDecision } from '../pd/decision'
 import type { Card, Claim, DropReason, WhyNot } from '../pd/types'
@@ -23,6 +24,10 @@ export function Shortlist() {
   const [tab, setTab] = useState<string | null>(null)
   const [compare, setCompare] = useState<string[]>([])
   const [dropping, setDropping] = useState<Card | null>(null)
+  const editUnderstanding = () => {
+    if (trip.journeyId) requestStageEntry(trip.journeyId, 'trip')
+    navigate('/app/understand')
+  }
 
   if (!trip.decisionId)
     return (
@@ -30,7 +35,7 @@ export function Shortlist() {
         <div className="empty">
           <LineArt variant="spot" />
           <p>{error ?? 'Chưa có gợi ý. Bắt đầu từ bước hiểu chuyến đi, chỉ vài câu thôi.'}</p>
-          <button className="btn" onClick={() => navigate('/app/understand')}>
+          <button className="btn" onClick={editUnderstanding}>
             Hiểu chuyến đi
           </button>
         </div>
@@ -103,7 +108,7 @@ export function Shortlist() {
         <div className="empty">
           <LineArt variant="spot" />
           <p>{total ? 'Nhóm này chưa có nơi nào qua được điều kiện của bạn.' : 'Mọi nơi đều bị một giới hạn của bạn loại. Nới một giới hạn để xem thêm?'}</p>
-          <button className="btn btn--ghost" onClick={() => navigate('/app/understand')}>
+          <button className="btn btn--ghost" onClick={editUnderstanding}>
             Xem lại giới hạn
           </button>
         </div>
@@ -126,7 +131,7 @@ export function Shortlist() {
           <span>
             {r.label} đã loại {r.count} nơi.
           </span>
-          <button className="link" onClick={() => navigate('/app/understand')}>
+          <button className="link" onClick={editUnderstanding}>
             Xem giới hạn này
           </button>
         </div>

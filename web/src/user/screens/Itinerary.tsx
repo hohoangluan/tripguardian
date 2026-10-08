@@ -1,12 +1,13 @@
+import { enterStage } from '../journey'
 import gsap from 'gsap'
-import { type FormEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { fmtDuration, fmtTime, mapsRouteEmbed, mapsRouteLink, placeById, VEHICLE_LABEL } from '../../data/store'
 import { navigate } from '../../router'
 import { story } from '../../scene/story'
 import { GoogleMap, Icon, Page, PlaceCover } from '../../ui/bits'
 import { LineArt } from '../../ui/LineArt'
 import { usePlanning } from '../planning/planning'
-import type { Diff, ItineraryDay, ItineraryItem, Variant } from '../planning/types'
+import type { CrowdTip, DayConditions, Diff, ItineraryDay, ItineraryItem, Variant } from '../planning/types'
 import { useTrip } from '../trip'
 
 // UI spec §4 Trang 8. Times and routes are estimates and say so; warnings sit on the stop they concern.
@@ -179,6 +180,29 @@ function Stop({ it, n, vehicle }: { it: ItineraryItem; n: number; vehicle: strin
   )
 }
 
+const ADVISORY_KIND: Record<string, string> = {
+  storm: 'bão / dông', flood: 'ngập lụt', landslide: 'sạt lở', fire: 'cháy', road_closed: 'đường bị chặn', other: 'khác',
+}
+
+// Facts about the date, from live sources and hand-entered notices; an empty list means none known, not "all clear".
+function ConditionNote({ c, tips }: { c: DayConditions; tips: CrowdTip[] }) {
+  const notes: string[] = []
+  if (c.weather !== 'none') {
+    const what = [c.storm ? 'dông' : '', c.rain_mm ? `mưa ~${Math.round(c.rain_mm)} mm` : '', c.gust_kmh ? `gió giật ~${Math.round(c.gust_kmh)} km/h` : ''].filter(Boolean).join(', ')
+    notes.push(`${c.weather === 'severe' ? 'Thời tiết rất xấu' : 'Mưa lớn hoặc dông'}${what ? ` (${what})` : ''}`)
+  }
+  for (const a of c.advisories) notes.push(`Thông báo ${ADVISORY_KIND[a.kind] ?? a.kind}: ${a.note || 'xem nguồn'} (${a.source})`)
+  if (c.crowd !== 'normal') notes.push(`${c.crowd === 'peak' ? 'Rất đông' : 'Đông hơn thường'}: ${c.crowd_reasons.join(', ')}`)
+  if (c.closure_risk) notes.push(`Dịp ${c.closure_risk}: nhiều quán đóng cửa hoặc đổi giờ, gọi xác nhận trước`)
+  if (!notes.length) return null
+  return (
+    <ul className="plan-cond" aria-label="Điều kiện của ngày này">
+      {notes.map((n) => <li key={n} data-tone={c.weather === 'severe' || c.advisories.length ? 'warn' : 'info'}>{n}</li>)}
+      {c.crowd !== 'normal' && tips.map((t) => <li key={t.place_id} data-tone="info">{t.text}</li>)}
+    </ul>
+  )
+}
+
 function DayView({ day, vehicle }: { day: ItineraryDay; vehicle: string }) {
   const list = useRef<HTMLOListElement>(null)
   useLayoutEffect(() => {
@@ -199,30 +223,9 @@ function DayView({ day, vehicle }: { day: ItineraryDay; vehicle: string }) {
 }
 
 function TurnBar({ busy, diffText, onConfirm }: { busy: boolean; diffText: string; onConfirm: () => void }) {
-  const { say } = usePlanning()
-  const [text, setText] = useState('')
-  const [reply, setReply] = useState<string | null>(null)
-  const send = async (e: FormEvent) => {
-    e.preventDefault()
-    const t = text.trim()
-    if (!t || busy) return
-    setText('')
-    setReply('')
-    await say(t, setReply)
-  }
-  const line = reply || diffText
   return (
     <div className="plan-bar">
-      <form onSubmit={send}>
-        <input value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} placeholder="Nói với mình, ví dụ: Cà phê trước đi, hay: ngày 2 nhiều quá" aria-label="Nhắn để sửa lịch" />
-      </form>
-      {line ? (
-        <p className="plan-bar__diff" aria-live="polite">
-          {line}
-        </p>
-      ) : (
-        <span />
-      )}
+      {diffText ? <p className="plan-bar__diff" aria-live="polite">{diffText}</p> : <span />}
       <button className="btn" disabled={busy} onClick={onConfirm}>
         Chốt kế hoạch này
       </button>
@@ -231,8 +234,14 @@ function TurnBar({ busy, diffText, onConfirm }: { busy: boolean; diffText: strin
 }
 
 export function Itinerary() {
-  const { trip } = useTrip()
+  const { trip, dispatch } = useTrip()
   const { view, diff, error, busy, act, confirm: confirmPlan } = usePlanning()
+  const back = async (path: string) => {
+    if (!trip.planningId) { navigate(path); return }
+    await enterStage(trip.planningId, 'decision')
+    dispatch({ type: 'set', patch: { planningId: null } })
+    navigate(path)
+  }
   const [dayIdx, setDayIdx] = useState(0)
 
   const variant = useMemo(() => view?.variants.find((v) => v.id === view.state.chosen_variant) ?? null, [view])
@@ -245,7 +254,7 @@ export function Itinerary() {
         <div className="empty">
           <LineArt variant="spot" />
           <p>Chưa có lịch trình. Xác nhận khả thi trước đã.</p>
-          <button className="btn" onClick={() => navigate('/app/feasibility')}>
+          <button className="btn" onClick={() => back('/app/feasibility')}>
             Kiểm tra khả thi
           </button>
         </div>
@@ -278,7 +287,7 @@ export function Itinerary() {
         )}
         <div className="pfoot">
           <span />
-          <button className="btn" onClick={() => navigate('/app/shortlist')}>
+          <button className="btn" onClick={() => back('/app/shortlist')}>
             Chọn lại địa điểm
           </button>
         </div>
@@ -372,6 +381,7 @@ export function Itinerary() {
               </button>
             ))}
           </div>
+          {view.day_conditions?.[dayIdx] && <ConditionNote c={view.day_conditions[dayIdx]} tips={view.crowd_tips ?? []} />}
           {d && <DayView day={d} vehicle={vehicle} />}
         </section>
 
@@ -410,7 +420,10 @@ export function Itinerary() {
           <Icon name="alert" size={16} /> {error}
         </p>
       )}
-      <button className="link plan-back" onClick={() => navigate('/app/feasibility')}>
+      <button className="link" disabled={busy} onClick={() => back('/app/shortlist')}>
+        + Thêm nơi
+      </button>
+      <button className="link plan-back" onClick={() => back('/app/feasibility')}>
         Quay lại kiểm tra
       </button>
       <TurnBar busy={busy} diffText={diff ? SCOPE_TEXT[diff.scope] : ''} onConfirm={onConfirm} />

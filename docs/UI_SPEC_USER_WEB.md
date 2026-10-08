@@ -1,6 +1,6 @@
 # TripGuardian — Đặc tả UI/UX: User Web (bản người dùng dùng hằng ngày)
 
-Dành cho designer / Figma. Tài liệu này trả lời **cần thiết kế mấy trang, mỗi trang phải có mục gì, mỗi trang có mấy trạng thái phải vẽ**. Layout, grid, chuyển động, cách sắp đặt, phong cách hình ảnh: **designer toàn quyền**. Mục tiêu là giao diện đẹp, dùng được trên điện thoại một tay.
+Dành cho designer / Figma. Tài liệu này trả lời **cần thiết kế mấy trang, mỗi trang phải có mục gì, mỗi trang có mấy trạng thái phải vẽ**. Bố cục từng màn và luồng chuyển màn: `docs/UI_SPEC_FLOW_LAYOUT.md`. Phong cách hình ảnh, chi tiết grid và vi tương tác: **designer toàn quyền**. Mục tiêu là giao diện đẹp, dùng được trên điện thoại một tay.
 
 Đọc kèm:
 - `docs/UX_Design_Brief.md` — thiết kế cho ai, nguyên tắc, cách hiển thị chất lượng dữ liệu (§4), hệ thị giác đang dùng (§7).
@@ -248,13 +248,13 @@ Mục bắt buộc:
 5. **Panel chỗ nghỉ đêm** — danh sách nơi người dùng đã nhập, giá/đêm nếu có, đổi được; đổi thì giờ di chuyển tính lại.
 6. **Nhãn độ vững mỗi ngày**: Vững / Khả thi / Mong manh + lý do một câu.
 7. **Phương án dự phòng** gắn với điểm nhạy cảm: *"Nếu mưa: A → B trong nhà"*, *"Bị trễ: bỏ C trước"* — chỉ thay khi người dùng chọn.
-8. **Ô nhắn tự do**: *"Nói với mình, ví dụ: Cà phê trước đi, hay: ngày 2 nhiều quá"*, kèm dòng báo đã làm gì (*"Đã xếp lại một vài ngày bị ảnh hưởng"*).
+8. **Không có ô nhắn** — màn này chỉ nhận thao tác (chọn phương án, đổi chỗ nghỉ, dùng dự phòng, `+ Thêm nơi`); mỗi thao tác kèm dòng báo đã làm gì (*"Đã xếp lại một vài ngày bị ảnh hưởng"*).
 9. Thông tin chưa xác nhận vẫn đánh dấu tại chỗ: *"Giờ mở cửa chưa xác nhận — kiểm tra trước khi đi"*.
 10. Chân trang: *Quay lại kiểm tra* · **Chốt kế hoạch này**.
 
 Luôn ghi rõ: *"Giờ giấc và đường đi là ước tính."*
 
-Frame: (1) chọn phương án (chưa chọn) · (2) lịch một ngày đầy đủ · (3) panel chỗ nghỉ + đổi · (4) "Chưa xếp được lịch" (rỗng, có lối quay lại) · (5) sau một lần nhắn: dòng chênh lệch + lịch đã xếp lại.
+Frame: (1) chọn phương án (chưa chọn) · (2) lịch một ngày đầy đủ · (3) panel chỗ nghỉ + đổi · (4) "Chưa xếp được lịch" (rỗng, có lối quay lại) · (5) sau một thao tác: dòng chênh lệch + lịch đã xếp lại.
 
 ### Trang 9 — Hồ sơ và dữ liệu (`/app/profile`)
 

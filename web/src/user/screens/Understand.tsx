@@ -3,7 +3,8 @@ import { navigate } from '../../router'
 import { Icon, Page, Segmented, Sheet } from '../../ui/bits'
 import { WHO_LABEL, useTrip, type Who } from '../trip'
 import { fromSearchInput } from '../tu/adapter'
-import { createDecision } from '../pd/api'
+import { consumeStageEntry, enterStage, mutateJourney, resumeJourney } from '../journey'
+import type { SearchInput } from '../tu/types'
 import { ApiError, createSession, getSession, searchPlaces, sendTurn } from '../tu/api'
 import { CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softText, valueText } from '../tu/labels'
 import type { Card, Chip, HardRow, Row, TurnInput, Understanding } from '../tu/types'
@@ -82,21 +83,46 @@ export function Understand() {
   const [focus, setFocus] = useState<string | null>(null) // row to open for editing in the full ticket
   const [sheet, setSheet] = useState(false)
   const uRef = useRef<Understanding | null>(null)
+  const mounted = useRef(true)
   uRef.current = u
 
   const open = useCallback(
     async (fresh: boolean) => {
       try {
-        const old = fresh ? null : store.get(KEY)
-        const resumed = old
-          ? await getSession(old).catch((e) => {
+        const origin = location.pathname + location.search
+        const old = fresh ? null : trip.journeyId ?? store.get(KEY)
+        const explicitBack = old ? consumeStageEntry(old) === 'trip' : false
+        const recovery = old
+          ? await resumeJourney(old).catch((e) => {
               if (e instanceof ApiError && e.status === 404) return null
               throw e
             })
           : null
+        if (!mounted.current || origin !== location.pathname + location.search) return null
+        if (explicitBack && recovery) {
+          recovery.view = await enterStage(recovery.view.id, 'trip')
+          if (!mounted.current || origin !== location.pathname + location.search) return null
+        }
+        if (recovery?.view.stage === 'trip' && recovery.view.outputs.trip) {
+          const j = await mutateJourney(recovery.view.id, 'trip', 'advance')
+          if (!mounted.current || origin !== location.pathname + location.search) return null
+          dispatch({ type: 'set', patch: { ...fromSearchInput(recovery.view.outputs.trip as SearchInput), journeyId: j.id, decisionId: j.id, planningId: null } })
+          store.set(KEY, null)
+          navigate('/app/shortlist')
+          return null
+        }
+        if (recovery && recovery.view.stage !== 'trip') {
+          const j = recovery.view
+          dispatch({ type: 'set', patch: { journeyId: j.id, decisionId: j.id, planningId: j.stage === 'planning' ? j.id : null } })
+          navigate(j.stage === 'planning' ? '/app/plan' : '/app/shortlist')
+          return null
+        }
+        const resumed = recovery ? await getSession(recovery.view.id) : null
+        if (!mounted.current || origin !== location.pathname + location.search) return null
         const v = resumed ?? (await createSession(trip.experience, trip.startWith))
         store.set(KEY, v.id)
         setSid(v.id)
+        dispatch({ type: 'set', patch: { journeyId: v.id, decisionId: null, planningId: null } })
         setCard(v.card)
         setU(v.understanding)
         try {
@@ -119,8 +145,10 @@ export function Understand() {
       setBusy(true)
       setNotice(null)
       setRemark('')
+      const origin = location.pathname + location.search
       const before = uRef.current
       let touched: string[] = []
+      let compiled: SearchInput | null = null
       try {
         await sendTurn(id, input, {
           preview: (p) => setPreview(new Set(p.fields.map((f) => f.target))),
@@ -131,19 +159,16 @@ export function Understand() {
             setPreview(new Set())
           },
           card: (c) => setCard(c),
-          done: (d) => {
-            dispatch({ type: 'set', patch: fromSearchInput(d.search_input) })
-            store.set(KEY, null)
-            createDecision(d.search_input, null).then(
-              (r) => {
-                dispatch({ type: 'set', patch: { decisionId: r.id } })
-                navigate('/app/shortlist')
-              },
-              () => setNotice('Chưa tạo được gợi ý. Kiểm tra máy chủ chọn nơi (python -m decision serve) rồi thử lại.'),
-            )
-          },
+          done: (d) => { compiled = d.search_input },
           error: (e) => setNotice(e.message),
         })
+        if (compiled && mounted.current && origin === location.pathname + location.search) {
+          const r = await mutateJourney(id, 'trip', 'advance')
+          if (!mounted.current || origin !== location.pathname + location.search) return
+          dispatch({ type: 'set', patch: { ...fromSearchInput(compiled), journeyId: r.id, decisionId: r.id, planningId: null } })
+          store.set(KEY, null)
+          navigate('/app/shortlist')
+        }
         if (turn) {
           setHist((h) => {
             const next = [...h, { ...turn, targets: touched }]
@@ -169,6 +194,7 @@ export function Understand() {
 
   // Opens once per mount. What the user typed on the start page becomes the first turn.
   useEffect(() => {
+    mounted.current = true
     let alive = true
     ;(async () => {
       const id = await open(false)
@@ -180,6 +206,7 @@ export function Understand() {
     })()
     return () => {
       alive = false
+      mounted.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

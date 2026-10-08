@@ -3,6 +3,7 @@ import { useSnapshot } from '../data/store'
 import { Auth } from '../pages/Auth'
 import { Start } from '../pages/Start'
 import { match, navigate } from '../router'
+import { enterStage, requestStageEntry, resumeJourney, type Stage } from './journey'
 import { Icon } from '../ui/bits'
 import { DecisionProvider, useDecision } from './pd/decision'
 import { PlanningProvider } from './planning/planning'
@@ -48,7 +49,7 @@ export function UserApp({ path, onHome }: { path: string; onHome: () => void }) 
 function Shell({ path, onHome }: { path: string; onHome: () => void }) {
   const { snap, error } = useSnapshot()
   const account = useAccount()
-  const { trip } = useTrip()
+  const { trip, dispatch } = useTrip()
   const { view } = useDecision()
   const clean = path.split('?')[0]
   const base = '/' + clean.split('/').filter(Boolean).slice(0, 2).join('/')
@@ -129,7 +130,24 @@ function Shell({ path, onHome }: { path: string; onHome: () => void }) {
                 const state = finished || i < step ? 'done' : i === step ? 'now' : 'next'
                 return (
                   <li key={s.path} className={`is-${state}`}>
-                    <button type="button" onClick={() => navigate(s.path)} aria-current={state === 'now' ? 'step' : undefined}>
+              <button type="button" onClick={async () => {
+                const id = trip.journeyId ?? trip.decisionId ?? trip.planningId
+                const origin = location.pathname + location.search
+                const target: Stage = s.path === '/app/understand' ? 'trip' : s.path === '/app/plan' ? 'planning' : 'decision'
+                if (id) {
+                  const current = (await resumeJourney(id)).view
+                  const order = { trip: 0, decision: 1, planning: 2 }
+                  if (origin !== location.pathname + location.search) return
+                  if (order[target] < order[current.stage]) {
+                    await enterStage(id, target)
+                    if (origin !== location.pathname + location.search) return
+                    dispatch({ type: 'set', patch: { planningId: null, ...(target === 'trip' ? { decisionId: null } : {}) } })
+                  }
+                  if (origin !== location.pathname + location.search) return
+                  if (target === 'trip') requestStageEntry(id, 'trip')
+                }
+                navigate(s.path)
+              }} aria-current={state === 'now' ? 'step' : undefined}>
                       {state === 'done' && (
                         <span className="usteps__tick" aria-hidden="true">
                           <Icon name="check" size={11} />

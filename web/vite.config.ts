@@ -55,6 +55,7 @@ export default defineConfig({
   // /api: `python -m corpus review` (src/corpus/review/server.py): decisions and gold labels.
   server: {
     proxy: {
+      '/api/harness': 'http://127.0.0.1:8769',
       '/api/decision': 'http://127.0.0.1:8767',
       '/api/planning': 'http://127.0.0.1:8768',
       '/api/trip': 'http://127.0.0.1:8766',

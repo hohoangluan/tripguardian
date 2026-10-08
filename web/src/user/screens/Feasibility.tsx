@@ -1,13 +1,13 @@
 import gsap from 'gsap'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fmtDuration } from '../../data/store'
 import { navigate } from '../../router'
 import { story } from '../../scene/story'
 import { Icon, Page } from '../../ui/bits'
 import { LineArt } from '../../ui/LineArt'
-import { confirm } from '../pd/api'
+import { mutateJourney, requestStageEntry } from '../journey'
+import type { DecisionOutput } from '../pd/types'
 import { useDecision } from '../pd/decision'
-import { createPlanning } from '../planning/api'
 import type { Feasibility as F } from '../pd/types'
 import { useTrip } from '../trip'
 
@@ -24,6 +24,8 @@ export function Feasibility() {
   const list = useRef<HTMLDivElement>(null)
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const status = view?.feasibility.status
   const nConflicts = view?.feasibility.conflicts.length ?? 0
 
@@ -63,10 +65,13 @@ export function Feasibility() {
     if (!trip.decisionId) return
     setSending(true)
     setMsg(null)
+    const origin = location.pathname + location.search
     try {
-      const out = await confirm(trip.decisionId)
-      // Hand Planning the Decision Output just returned: no second round-trip to the Decision server.
-      const created = await createPlanning(out)
+      const created = await mutateJourney(trip.decisionId, 'decision', 'advance')
+      if (!mounted.current || origin !== location.pathname + location.search) return
+      const out = created.outputs.decision as DecisionOutput
+      await mutateJourney(created.id, 'planning', 'recommend').catch(() => {})
+      if (!mounted.current || origin !== location.pathname + location.search) return
       dispatch({
         type: 'set',
         patch: {
@@ -115,7 +120,7 @@ export function Feasibility() {
                 <ul className="fixes">
                   {c.fixes.map((x) => (
                     <li key={x.label}>
-                      <button className="fix" disabled={busy} onClick={() => (x.action ? act(x.action) : navigate('/app/understand'))}>
+                      <button className="fix" disabled={busy} onClick={() => { if (x.action) act(x.action); else { if (trip.journeyId) requestStageEntry(trip.journeyId, 'trip'); navigate('/app/understand') } }}>
                         <span className="fix__radio" aria-hidden="true" />
                         <span>
                           <b>{x.label}</b> {x.effect && <small>— {x.effect}</small>}
