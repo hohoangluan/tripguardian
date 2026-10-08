@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 TOOL_ACCESS = {
-    'trip': {'trip.clues': 'read', 'trip.compile': 'read', 'trip.turn': 'write'},
+    'trip': {'trip.clues': 'read', 'trip.compile': 'read', 'trip.turn': 'write', 'trip.refine': 'write'},
     'decision': {'decision.candidates': 'read', 'decision.compare': 'read',
                  'decision.turn': 'write', 'decision.act': 'write', 'decision.confirm': 'write'},
     'planning': {'planning.variants': 'read', 'planning.diagnostics': 'read',
