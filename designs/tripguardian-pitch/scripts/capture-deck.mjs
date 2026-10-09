@@ -19,8 +19,9 @@ page.on("pageerror", (error) => errors.push(error.message));
 await page.goto(url, { waitUntil: "networkidle" });
 await page.evaluate(() => document.querySelector("deck-stage").setAttribute("noscale", ""));
 await fs.mkdir(path.join(project, "shots"), { recursive: true });
+const slideCount = await page.locator("deck-stage > section[data-label]").count();
 
-for (let index = 0; index < 14; index += 1) {
+for (let index = 0; index < slideCount; index += 1) {
   await page.evaluate((slide) => document.querySelector("deck-stage").goTo(slide), index);
   await page.waitForTimeout(1900);
   const target = page.locator("deck-stage > [data-deck-active]");
@@ -37,4 +38,4 @@ if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-console.log("ok: captured 14 slides without console errors or section overflow");
+console.log(`ok: captured ${slideCount} slides without console errors or section overflow`);
