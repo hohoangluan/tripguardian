@@ -47,17 +47,26 @@ Việc user đã từng đến Đà Lạt hay chưa không đổi cách hỏi. N
 
 ```text
 Trip State
-├── Thông tin cơ bản   start_date | month, days, companions, people, base (chỗ ở), mobility, budget_vnd
+├── Thông tin cơ bản   start_date | month (+ month_part đầu / giữa / cuối tháng), days, companions, people, base (chỗ ở),
+│                      mobility, budget_vnd + budget_scope (§Ngân sách)
 ├── Điểm vào / ra      entry_point, exit_point — nơi chuyến đi vào và rời thành phố (bến xe, sân bay, tự lái)
 ├── Hậu cần            origin, arrival_mode, inbound, outbound, lodging_booked, lodging (§Hậu cần)
 ├── Khung giờ          arrive_at, leave_at, day_end
 ├── Anchor             nơi bắt buộc, booking, sự kiện giờ cố định; độ ưu tiên must | want
 ├── Constraint         hard: physical constraint + user hard constraint
 ├── Sở thích           soft: override của chuyến, session profile, mặc định từ long-term profile
+│                      liked_groups: loại nơi muốn đi (nature | sights | chill | meal), theo thứ tự user nói
 ├── Nhịp độ            pace thong thả | cân bằng | đi nhiều  +  max_leg_min, crowd_tolerance
 ├── Novelty            theo gu quen | thử mới | trộn  +  visited (Experience History)
-└── meta               start_with, guidance, effort_budget, control, lượt đã hỏi, đã bỏ qua, từ chủ quan còn chờ làm rõ
+└── meta               start_with, guidance, effort_budget, control, lượt đã hỏi, declined (câu user bấm Bỏ qua /
+                       Chưa chắc, không hỏi lại), từ chủ quan còn chờ làm rõ
 ```
+
+**Loại nơi muốn đi (`liked_groups`).** "Thích cà phê", "ăn uống" là một *loại nơi*, không phải feature của ontology: chúng vào `liked_groups` với giá trị là nhóm hiển thị của Place Decision (`config/decision.yaml` `display_groups`: `nature`, `sights`, `chill`) cộng `meal`. Từ khóa (`prepass` `GROUPS`) và agent đều ghi được; câu phủ định ("không thích bảo tàng") không ghi.
+
+### Ngân sách
+
+`budget_vnd` là số tiền **đúng như user nói** ("5 triệu" → 5 000 000), `budget_scope` là phạm vi của số đó: `trip_total` (cả chuyến), `per_day` (cả nhóm mỗi ngày), `per_person` (mỗi người cả chuyến), `per_person_day`. `prepass` đọc phạm vi trong cùng mệnh đề với số tiền ("cho 2 người", "tổng", "cả chuyến" → `trip_total`; "/người/ngày", "mỗi người … một ngày" → `per_person_day`); agent cũng ghi được. Không ai nói phạm vi thì `domain/budget.py` đoán theo độ lớn (≥ `TOTAL_FROM` 2 triệu → cả chuyến, nhỏ hơn → mỗi người mỗi ngày) và bản hiểu nhu cầu đánh dấu ✎. Chia ra **VND mỗi người mỗi ngày** bằng `days` và số người trả: `people`, hoặc 1 khi `solo`, 2 khi chỉ `partner`; không biết số người hay số ngày (khi phạm vi cần) thì không chia được, Search Input để `budget_vnd = null` và `unknowns` có `budget_vnd`, không đoán.
 
 `entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Lưu text + `place_id`, hoặc tọa độ khi điểm được chọn từ ô tìm (`origin`, `lodging`: `Base.lat/lng/province/kind`); geocode phần còn lại xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
 
@@ -126,27 +135,39 @@ Tool của agent (`agent/tools.py`, function calling gốc trên role Agent, `do
 
 | Tool | Việc | Code kiểm |
 |---|---|---|
-| `record_fact(field, op, value, quote, how)` | Ghi một fact | `quote` phải có nguyên văn trong tin nhắn; `values.parse` hợp lệ. Bị từ chối (kể cả feature sai hoặc sai định dạng) thì trả lỗi kèm định dạng đúng lại cho agent để sửa trong cùng lượt. Mong muốn không feature nào diễn đạt được thì **agent chủ động** ghi `field = unmapped` |
+| `record_fact(field, op, value, quote, how)` | Ghi một fact (cả `budget_scope`, `month_part`, `liked_groups`) | `quote` phải có nguyên văn trong tin nhắn; `values.parse` hợp lệ. Bị từ chối (kể cả feature sai hoặc sai định dạng) thì trả lỗi kèm định dạng đúng lại cho agent để sửa trong cùng lượt. Mong muốn không feature nào diễn đạt được thì **agent chủ động** ghi `field = unmapped` |
 | `resolve_relative_date`, `search_places` | Tra cứu chỉ đọc | argument phải là span trong câu user; chỉ đọc catalog |
 | `search_features(query)` | Tra feature ontology khớp một mong muốn ("thú cưng" → `animals`), tối đa 5 | chỉ đọc ontology; bỏ qua từ quá chung chung |
 | `ask_choice(text, options, multi, reason)` | Thẻ multiple choice 2–6 lựa chọn ≤ 40 ký tự | Dừng lượt |
-| `ask_text(text)` | Câu hỏi mở: thẻ có câu hỏi làm tiêu đề và ô gõ, không chip | Dừng lượt |
+| `ask_text(text, placeholder, kind?)` | Câu hỏi mở: thẻ có câu hỏi làm tiêu đề và ô gõ, không chip. `kind = "date"` khi hỏi ngày khởi hành: thẻ `input = "date"` (lịch chọn ngày + "Chưa chắc") | Dừng lượt; câu user đã `declined` hoặc vừa hỏi bị trả lỗi |
 
-Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một tool dừng thành công, khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
+Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một tool dừng thành công, khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Khối suy nghĩ model viết vào nội dung (`<|channel>…<channel|>` của Gemma, trước hoặc sau câu trả lời) bị bỏ ngay khi stream (`loop.Visible`), không bao giờ hiện cho user. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
 
-Kết quả của lượt thành thẻ cho web (`api/engine.py`): `ask_choice` / `ask_text` → thẻ `custom` (qid `ask:<lượt>`, `ask_text` không có chip; chip hoặc chữ trả lời đi lại qua agent như chữ, `Bỏ qua` / `Không chắc` thành câu "Bỏ qua câu này." / "Mình chưa chắc."); Lượt chỉ trả lời chữ → ô gõ tự do không tiêu đề (`conversation`), không ép câu nào; web chỉ vẽ khung chat cho `frame` / `conversation` trước tin đầu tiên. User không muốn tiếp thì agent trả lời chữ và không hỏi. Lượt không hỏi gì mới (trả lời chữ, mong muốn `unmapped`, agent lỗi) thì thẻ đang mở giữ nguyên thay vì thành ô trống. Phần agent viết trước câu hỏi trong `text` của thẻ (nhận xét, câu trả lời cho user) được tách ra thành chữ trong chat (`guard.split_lead`), thẻ chỉ giữ câu hỏi; lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng một câu trung thực `UNSURE_SAY`, không để trống. Agent lỗi (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận câu `FALLBACK_SAY` và ô gõ tự do; `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent nên không mất thông tin cơ bản.
+Kết quả của lượt thành thẻ cho web (`api/engine.py`): `ask_choice` / `ask_text` → thẻ `custom` (qid `ask:<lượt>`; `ask_text` không có chip). Model hỏi bằng chữ mà không gọi tool (Gemma hay làm vậy) thì câu hỏi cuối lời trả lời thành thẻ như của `ask_text` (log `text_question`), trừ khi user đã bỏ qua hoặc vừa được hỏi câu đó. Khi có thẻ, các câu hỏi trong lời chat bị bỏ (thẻ đã hỏi); phần agent viết trước câu hỏi trong `text` của thẻ được tách ra thành chữ trong chat (`guard.split_lead`). Lượt chỉ trả lời chữ → ô gõ tự do không tiêu đề (`conversation`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent.
 
-**Clef trước Agent.** Mỗi lượt gõ (không áp cho `refine`), `Engine._fixed_reply` hỏi Clef hai câu kèm thẻ đang mở: tin nhắn thuộc loại nào (liên quan / lạc đề / phá hoại) và người dùng có hỏi thông tin nằm ngoài những gì bước này có không. Câu hỏi này liệt kê sẵn thông tin đã có và các công cụ Agent tra được (`HAVE`, `TOOLS`, `MISSING` trong `infrastructure/clef.py`, giữ khớp với `agent/tools.py`); hỏi ngoài danh sách (thời tiết, giá, giờ mở cửa…) thì chặn. Lạc đề hoặc phá hoại với xác suất ≥ `clef_reject_min` (0,88: chặn nhầm tốn hơn bỏ sót) thì trả `REJECT_SAY`; câu hỏi số liệu ≥ `clef_data_min` thì trả `NODATA_SAY` (số liệu thật hiện ở bước Lựa chọn). Cả hai đều không gọi Agent, không ghi gì ngoài những gì bộ từ khóa đã đọc, thẻ đang mở giữ nguyên. Một manh mối bộ từ khóa đọc được thì không bị coi là lạc đề; một ngày hoặc tháng chỉ làm khung cho câu hỏi số liệu thì vẫn bị chặn.
+Trả lời một thẻ:
 
-**Clef quanh Agent (`Judge` trong `infrastructure/clef.py`).** Ngoài chặn trước Agent, Clef làm các kiểm tra có/không rẻ ở những chỗ trước đây phải tốn một vòng model hoặc dựa vào regex. Mọi kiểm tra đều fail open: Clef không cấu hình, chậm hoặc lỗi thì không chặn gì, Agent chạy như cũ. Ngưỡng nằm ở `config/trip.yaml` (`clef_*_min`); chỉ chặn khi Clef chắc, vì chặn nhầm tốn hơn bỏ sót.
-- **Cắt prompt (`clef_plain_min`).** Cùng request với lượt chặn, Clef cho biết tin nhắn chỉ có thông tin chuyến đi (ngày, người, phương tiện…) hay có mong muốn / giới hạn. Chỉ có thông tin chuyến và bộ từ khóa không đọc ra sở thích, không có địa điểm so sánh: system prompt dùng bản không có danh sách FEATURES (hai bản cố định, đều cache được); Agent cần thì gọi `search_features`. Log `clef_lean`.
-- **Gợi ý hỏi gì tiếp (`clef_next_min`).** Khi `still_needed` có từ hai mục, cùng request Clef chọn mục tự nhiên nhất để hỏi tiếp; Agent nhận `suggested_next` trong CURRENT CONTEXT như gợi ý, không phải lệnh.
-- **`search_features`.** Bộ từ khóa không ra gì thì Clef xếp hạng các feature theo mô tả, có lựa chọn `none` để lối thoát cho mong muốn không feature nào diễn đạt được; chỉ lấy từ `clef_feature_min` (0,5; “cá heo bay” ra animals 0,46 nên bị loại). Lợi ích là độ phủ, không tiết kiệm lượt Agent. Log `clef_features`.
-- **`record_fact` (soft, hard, chỉ khi `how` là inferred).** Sau khi câu trích đã khớp tin nhắn, Clef hỏi câu trích có nói điều này không; chắc là không (`clef_verify_min` 0,75: đo thật thì ca không liên quan ra B 0,8–0,9, ca đúng ra B ≤ 0,15; ca ngược nghĩa như “không thích đông” so với “muốn đông” chỉ ra B 0,41 nên Clef không bắt được) thì từ chối như mọi lần từ chối khác để Agent tự sửa. Log `clef_unsupported`.
-- **Lời Agent viết.** Cạnh `bad_say` (số, tên địa điểm), Clef hỏi lời có hứa kết quả hoặc nêu sự thật người dùng chưa nói không (`clef_reply_min`); có thì thay bằng `UNSURE_SAY`.
-- **`ask_choice` / `ask_text`.** Clef hỏi State đã trả lời câu này chưa (`clef_repeat_min`); rồi thì Agent nhận lỗi và hỏi điều khác. Log `clef_repeat`.
+| User làm gì | Xử lý | Gọi model |
+|---|---|---|
+| Bấm `Bỏ qua` / `Chưa chắc` | Field giữ `unknown`; câu hỏi vào `meta.declined` (agent thấy trong `declined_questions`, hỏi lại bị trả lỗi); trả câu cố định `DECLINE_SAY` + điều còn thiếu để tìm chỗ; ô gõ tự do | Không |
+| Chọn ngày trên thẻ `input = "date"` | Ghi `start_date` (`source = user`, tool `date_picker`); ngày đã qua bị từ chối | Không |
+| Bấm một lựa chọn agent viết | Nhãn đi lại agent như chữ; không hỏi Clef (một lựa chọn không lạc đề); agent lỗi → `BUSY_SAY` ("chưa ghi được lựa chọn này, bấm lại") và thẻ giữ nguyên, hoặc `NOTED_SAY` nếu agent đã ghi được | Có |
+| Gõ chữ | Như một lượt gõ | Có |
 
-Chưa làm: bỏ qua Agent khi người dùng bấm chip. Chip do Agent viết là nhãn tự do (không có giá trị có cấu trúc) và câu hỏi tiếp theo cũng do Agent sinh, nên bỏ Agent ở đây cần ngân hàng câu hỏi, thứ đã bị bỏ.
+Thẻ đang mở **đóng** khi đã được trả lời: user bấm lựa chọn (agent đọc được), hoặc agent ghi được giá trị **mới** cho một field (`_learned`: field khác trước lượt). Lượt không trả lời nó (chỉ trả lời chữ, một lời sửa điều đã biết, mong muốn `unmapped`, agent lỗi) thì thẻ giữ nguyên. Lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng `UNSURE_SAY`, không để trống. Agent lỗi trên lượt gõ (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận `FALLBACK_SAY` ("trợ lý đang bận…"); `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent.
+
+**Thẻ chủ đề** (trang Khám phá, `{kind: "theme", value: <id>}`): ghi nguyên danh sách soft và `liked_groups` cố định của chủ đề (`config/trip.yaml` `themes`, `source = user`, độ tin `medium` nên lời nói sau ghi đè được), trả `THEME_SAY`, không đọc câu nào, không gọi model.
+
+**Clef trước Agent.** Mỗi lượt gõ (không áp cho `refine` và cho lựa chọn bấm trên thẻ), `Engine._fixed_reply` hỏi Clef hai câu kèm thẻ đang mở: tin nhắn thuộc loại nào (liên quan / lạc đề / phá hoại) và người dùng có hỏi thông tin nằm ngoài những gì bước này có không. Câu hỏi này liệt kê sẵn thông tin đã có và các công cụ Agent tra được (`HAVE`, `TOOLS`, `MISSING` trong `infrastructure/clef.py`, giữ khớp với `agent/tools.py`); hỏi ngoài danh sách (thời tiết, giá, giờ mở cửa…) thì chặn. Lạc đề hoặc phá hoại với xác suất ≥ `clef_reject_min` (0,88: chặn nhầm tốn hơn bỏ sót) thì trả `REJECT_SAY`; câu hỏi số liệu ≥ `clef_data_min` thì trả `NODATA_SAY` (số liệu thật hiện ở bước Lựa chọn). Cả hai đều không gọi Agent, không ghi gì ngoài những gì bộ từ khóa đã đọc, thẻ đang mở giữ nguyên. Một manh mối bộ từ khóa đọc được thì không bị coi là lạc đề; một ngày hoặc tháng chỉ làm khung cho câu hỏi số liệu thì vẫn bị chặn.
+
+**Clef quanh Agent (`Judge` trong `infrastructure/clef.py`).** Clef làm các kiểm tra có/không rẻ ở những chỗ trước đây phải tốn một vòng model hoặc dựa vào regex. Mọi kiểm tra đều fail open: Clef không cấu hình, chậm hoặc lỗi thì không chặn gì, Agent chạy như cũ. Ngưỡng nằm ở `config/trip.yaml` (`clef_*_min`); chỉ chặn khi Clef chắc, vì chặn nhầm tốn hơn bỏ sót. Một request Clef mất khoảng 0,3–0,4 s dù có 1 hay nhiều câu hỏi, nên các kiểm tra được gửi cùng lúc thay vì nối đuôi:
+- **Clef và Agent chạy song song.** Lượt chặn (lạc đề, phá hoại, số liệu) chạy trong một luồng ngay khi Agent bắt đầu. Trong lúc đó lời Agent chưa hiện ra màn hình. Clef cho qua thì lời đã giữ hiện ra; Clef chặn thì Agent bị hủy, mọi thứ nó đã ghi (state, thẻ, lời) bị bỏ và `REJECT_SAY` / `NODATA_SAY` thay vào. Đổi lại, lượt bị chặn vẫn trả tiền cho phần Agent đã chạy.
+- **Kiểm tra theo từng lời Agent (`TurnTools.prefetch`).** Ngay khi một lời Agent đến, mọi kiểm tra của nó được gửi cùng lúc và chạy trong lúc các tool thực thi: mỗi fact soft / hard `inferred` (câu trích có nói điều này không; chắc là không thì từ chối, `clef_verify_min` 0,75, log `clef_unsupported`), mỗi câu hỏi định gửi (State, kèm các fact chính lời đó ghi, đã trả lời câu này chưa; `clef_repeat_min`, log `clef_repeat`; rồi thì Agent nhận lỗi và hỏi điều khác), và đoạn chữ Agent viết (có hứa kết quả hoặc nêu sự thật chưa ai nói không; `clef_reply_min`; có thì thay bằng `UNSURE_SAY`). Kết quả được dùng lại khi tool chạy, không hỏi lần hai.
+- **`search_features`.** Bộ từ khóa không ra gì thì Clef xếp hạng các feature theo mô tả, có lựa chọn `none` làm lối thoát cho mong muốn không feature nào diễn đạt được; chỉ lấy từ `clef_feature_min` (0,5; “cá heo bay” ra animals 0,46 nên bị loại). Lợi ích là độ phủ, không tiết kiệm lượt Agent. Log `clef_features`.
+
+Số đo thật: ca không liên quan ra B 0,8–0,9, ca đúng ra B ≤ 0,15; ca ngược nghĩa (“không thích đông” so với “muốn đông”) chỉ ra B 0,41 nên kiểm tra câu trích không bắt được lỗi đảo nghĩa.
+
+Lựa chọn do Agent viết là nhãn tự do (không có giá trị có cấu trúc) và câu hỏi tiếp theo cũng do Agent sinh, nên bấm lựa chọn vẫn gọi Agent (không có ngân hàng câu hỏi); chỉ `Bỏ qua` / `Chưa chắc`, ngày chọn trên lịch và thẻ chủ đề đi thẳng vào Trip State. Đo trên host LAN Gemma (09/10/2026): lượt gõ đầu với ~12 fact khoảng 6–7 giây (Clef thêm ~1 giây), bấm lựa chọn 1,5–4 giây, các lượt không gọi model dưới 0,1 giây.
 
 
 Prompt là chuỗi chat: system prompt + ontology bất biến (`agent/prompt.py`; không chứa ngày hôm nay), transcript user/agent của phiên, một message `CURRENT CONTEXT` (Trip State chuẩn hóa kèm nguồn, thẻ đang mở, `keyword_hints` của prepass, `compared_places`, `still_needed`, ngày hôm nay), rồi câu user mới. `CURRENT CONTEXT` là nguồn sự thật khi transcript mâu thuẫn.
@@ -198,7 +219,8 @@ Chưa rõ    ngân sách · ăn uống
 
 - `✎` = từ profile hoặc suy luận. User sửa tại chỗ, kể cả phần lấy từ profile.
 - Sở thích suy từ một nơi người dùng so sánh ghi nguồn `place:<id>` trong evidence; vé gộp chúng thành một dòng "Tránh: ồn, đông (giống X)", xóa dòng đó là xóa cả nhóm.
-- "Đang hợp với bạn" = số nơi qua giới hạn cứng và hợp gu hiện tại (`understanding.matching`). Chip có `drafts` mang `effect` (số nơi tăng / giảm nếu chỉ chọn chip đó, `chip_effects`); thẻ do agent viết không có `drafts` nên không có `effect`.
+- Ngân sách hiện số user nói kèm phạm vi và quy đổi: "5 triệu cho cả chuyến · ≈ 830 nghìn/người/ngày" (`budget_vnd.value = {amount, scope, guessed, per_person_day}`); phạm vi đoán theo độ lớn mang ✎.
+- "Hợp gu bạn" = số nơi qua giới hạn cứng **và** có bằng chứng hợp ít nhất một điều user thích (`understanding.matching`), trên `total` nơi của Place Intelligence. Đây không phải số ở bước Lựa chọn: Place Decision đếm mọi nơi dùng được trong chuyến (vai trò tham quan / ăn, mở cửa ngày đi, qua giới hạn) rồi xếp theo gu, không đòi bằng chứng hợp gu. Chip có `drafts` mang `effect` (số nơi tăng / giảm nếu chỉ chọn chip đó, `chip_effects`); thẻ do agent viết không có `drafts` nên không có `effect`.
 - Sửa ở đây là override **của chuyến này**, không tự ghi vào long-term profile.
 - Mục "Chưa rõ" hiển thị công khai, không giấu.
 
@@ -208,16 +230,18 @@ Output cuối cùng, đầu vào của Place Decision (`docs/PLACE_DECISION.md` 
 
 ```text
 Search Input
-├── context        start_date | month, days, base, entry_point, exit_point, mobility, companions,
-│                  people, arrive_at, leave_at, day_end, budget_vnd, experience,
+├── context        start_date | month, month_part, days, base, entry_point, exit_point, mobility, companions,
+│                  people, arrive_at, leave_at, day_end, budget_vnd (VND mỗi người mỗi ngày, §Ngân sách), experience,
 │                  origin, arrival_mode, inbound, outbound, lodging_booked, lodging
 ├── hard_filters   physical + user hard constraint            → loại ứng viên (fail-closed)
 ├── anchors        nơi bắt buộc + độ ưu tiên                  → giữ; đánh giá xung quanh chúng
 ├── soft_weights   sở thích đã làm rõ, theo feature id         → xếp hạng
 ├── pace           thong thả | cân bằng | đi nhiều + travel/crowd tolerance
 ├── novelty        quen | mới | trộn; danh sách nơi đã đi      → giảm / loại nơi đã đi khi muốn mới
-├── unknowns       field chưa rõ                               → không lọc, xếp hạng trung tính, gắn cờ khi giải thích
-└── unmapped       tên người dùng nêu mà chưa resolve được     → Place Decision hỏi lại
+├── unknowns       field chưa rõ (cả budget_vnd khi chưa chia được) → không lọc, xếp hạng trung tính, gắn cờ khi giải thích
+├── unmapped       tên người dùng nêu mà chưa resolve được     → Place Decision hỏi lại
+└── liked_groups   loại nơi muốn đi, nói trước đứng trước      → Place Decision chọn tab mặc định, ưu tiên nhóm này
+                   (tuple của nature | sights | chill | meal; mặc định rỗng)
 ```
 
 Từ chủ quan phải được biên dịch thành feature trước khi vào `soft_weights`:
@@ -299,6 +323,8 @@ POST   /api/trip/sessions/<id>/turn  SSE: say(delta|replace) · view · done · 
 GET    /api/trip/places?q=<tên>    tra địa điểm cho anchor / nơi đã lưu (chỉ đọc serving index)
 ```
 
+`turn` nhận `{kind: "text", text}`, `{kind: "answer", qid, chips, value?}`, `{kind: "edit", target, value}`, `{kind: "show"}`, `{kind: "theme", value}`. Transcript trong view mang `kind` (user: `text` | `exit` | `answer` | `theme`; agent: `say` | `card` | `done`) để web dựng lại cuộc trò chuyện khi mở lại.
+
 Qua harness, `Tools.apply` nhận thêm operation `refine {text}` (chỉ harness gọi, sau lượt chat ở Chọn nơi): say · state · done, không có card.
 
 Module:
@@ -318,6 +344,7 @@ src/trip/
     coverage.py     hard filter có đủ bằng chứng trong corpus không
     patterns.py     phiếu bầu, phát hiện mẫu, nạp prior vào Trip State (§17)
     readiness.py    điều kiện tối thiểu của Next: `ready`, `missing` (§6)
+    budget.py       phạm vi ngân sách, quy ra VND mỗi người mỗi ngày (§Ngân sách)
     understanding.py bản hiểu nhu cầu (§8)
     compile.py      Trip State → Search Input (§9)
   agent/            loop.py (vòng gọi model + tool), tools.py, prompt.py

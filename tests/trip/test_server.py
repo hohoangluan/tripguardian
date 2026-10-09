@@ -43,7 +43,7 @@ def test_create_turn_and_reload(base):
     assert v["card"]["qid"] == "frame"
     r = post(f"{base}/sessions/{v['id']}/turn", {"kind": "text", "text": "đi 3 ngày"})
     assert r.headers["Content-Type"].startswith("text/event-stream")
-    assert [e for e, _ in sse(r)] == ["preview", "say", "state", "card"]
+    assert [e for e, _ in sse(r)] == ["preview", "state", "say", "state", "card"]
     again = json.load(urllib.request.urlopen(f"{base}/sessions/{v['id']}", timeout=5))
     assert again["card"]["text"] == "Đi cùng ai?"
     places = json.load(urllib.request.urlopen(f"{base}/places?q=V%C6%B0%E1%BB%9Dn", timeout=5))

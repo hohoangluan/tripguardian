@@ -1,5 +1,6 @@
 """Trip State -> Search Input (docs/TRIP_UNDERSTANDING.md §9). Deterministic; refuses while a physical signal is open."""
 
+from .budget import per_person_day
 from .state import (AnchorRef, Context, HardFilter, NoveltySpec, PaceSpec, SearchInput, SoftKey, SoftWeight, TripState,
                     WEIGHT_SIGN, ontology, pending_signals, unknown_fields)
 
@@ -22,13 +23,18 @@ def compile_search_input(state: TripState) -> SearchInput:
             k = SoftKey.parse(key)
             soft.append(SoftWeight(feature=k.feature, value=k.value, context=dict(k.context) or None,
                                    weight=WEIGHT_SIGN[f.value], source=f.source))
+    budget = per_person_day(state)
+    unknowns = unknown_fields(state)
+    if budget is None and "budget_vnd" not in unknowns:  # an amount nobody can split yet (days or party unknown)
+        unknowns.append("budget_vnd")
     return SearchInput(
         ontology_version=ontology().version,
-        context=Context(start_date=v("start_date"), month=v("month"), days=v("days"), base=v("base"),
+        context=Context(start_date=v("start_date"), month=v("month"), month_part=v("month_part"), days=v("days"),
+                        base=v("base"),
                         entry_point=v("entry_point"), exit_point=v("exit_point"),
                         mobility=v("mobility"), companions=tuple(sorted(v("companions") or ())), people=v("people"),
                         arrive_at=v("arrive_at"), leave_at=v("leave_at"), day_end=v("day_end"),
-                        budget_vnd=v("budget_vnd"), experience=state.meta.experience, origin=v("origin"),
+                        budget_vnd=budget, experience=state.meta.experience, origin=v("origin"),
                         arrival_mode=v("arrival_mode"), inbound=v("inbound"), outbound=v("outbound"),
                         lodging_booked=v("lodging_booked"), lodging=v("lodging")),
         hard_filters=tuple(HardFilter(feature=h.feature, op=h.op, value=h.value,
@@ -38,5 +44,6 @@ def compile_search_input(state: TripState) -> SearchInput:
         soft_weights=tuple(soft),
         pace=PaceSpec(level=v("pace"), max_leg_min=v("max_leg_min"), crowd_tolerance=v("crowd_tolerance")),
         novelty=NoveltySpec(level=v("novelty"), visited=state.visited),
-        unknowns=tuple(unknown_fields(state)),
-        unmapped=tuple(u.phrase for u in state.unmapped))
+        unknowns=tuple(unknowns),
+        unmapped=tuple(u.phrase for u in state.unmapped),
+        liked_groups=v("liked_groups") or ())

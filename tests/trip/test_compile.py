@@ -88,3 +88,33 @@ def test_context_carries_budget_and_experience():
 def test_trip_exports_text_helpers():
     from trip import contains, squash
     assert squash("Đồi Chè Cầu Đất!") == "doi che cau dat" and contains("tới đồi chè cầu đất", "Cầu Đất")
+
+
+def test_budget_is_compiled_to_vnd_per_person_per_day_from_the_scope_days_and_party():
+    from trip.domain.budget import per_person_day
+    s = up(up(up(TripState(), "budget_vnd", 5_000_000), "days", 3), "companions", "partner", "add")
+    assert per_person_day(s) == 833_333  # no scope said: an amount this large is read as the whole trip
+    assert per_person_day(up(s, "budget_scope", "per_person")) == 1_666_667
+    assert per_person_day(up(s, "budget_scope", "per_day")) == 2_500_000
+    assert per_person_day(up(up(s, "budget_vnd", 800_000), "budget_scope", "per_person_day")) == 800_000
+    assert per_person_day(up(s, "budget_vnd", 800_000)) == 800_000  # a small amount with no scope: per person per day
+    friends = up(up(TripState(), "budget_vnd", 5_000_000), "companions", "friends", "add")
+    friends = up(friends, "days", 2)
+    assert per_person_day(friends) is None  # who pays is unknown: never guessed
+    assert per_person_day(up(friends, "people", 4)) == 625_000
+
+
+def test_search_input_carries_the_split_budget_month_part_and_liked_kinds():
+    s = up(up(up(up(TripState(), "month", 10), "month_part", "late"), "days", 2), "budget_vnd", 4_000_000)
+    s = up(up(s, "liked_groups", "chill", "add"), "liked_groups", "meal", "add")
+    si = compile_search_input(s)
+    assert si.context.month_part == "late" and si.liked_groups == ("chill", "meal")
+    assert si.context.budget_vnd is None and "budget_vnd" in si.unknowns  # party unknown: the amount cannot be split
+    si = compile_search_input(up(s, "people", 2))
+    assert si.context.budget_vnd == 1_000_000 and "budget_vnd" not in si.unknowns
+    assert compile_search_input(TripState()).liked_groups == ()
+
+
+def test_a_new_month_drops_the_part_said_of_the_old_one():
+    s = up(up(TripState(), "month", 10), "month_part", "late")
+    assert up(s, "month", 10).month_part.value == "late" and not up(s, "month", 11).month_part.known

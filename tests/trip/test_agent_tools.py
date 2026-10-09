@@ -133,3 +133,33 @@ def test_a_card_carries_the_agents_example_answer_for_its_text_box(catalog):
     t = tools(catalog)
     t.run("ask_text", {"text": "Mấy ngày?"})  # optional: the screen falls back to its own example
     assert t.card.placeholder == ""
+
+
+def test_every_clef_check_of_a_reply_is_sent_before_any_tool_runs_and_the_tools_reuse_them(catalog):
+    from trip_fixtures import call
+    asked = []
+
+    class Judge:
+        def unsupported(self, quote, claim):
+            asked.append(("v", quote))
+            return False
+
+        def repeats(self, question, known):
+            asked.append(("r", question))
+            return False
+
+        def bad_reply(self, say):
+            asked.append(("s", say))
+            return None
+
+    t = TurnTools(TripState(), "thích yên tĩnh, đi với bạn", 1, catalog, date(2026, 10, 8), judge=Judge())
+    calls = [call("record_fact", field="soft", op="add", value="noise=quiet:love", quote="yên tĩnh", how="inferred"),
+             call("ask_text", text="Bạn đi mấy ngày?")]
+    t.prefetch(calls, "Mình hiểu rồi.")
+    for c in t.checks.values():
+        c.result()
+    assert sorted(a[0] for a in asked) == ["r", "s", "v"]
+    t.run("record_fact", {"field": "soft", "op": "add", "value": "noise=quiet:love", "quote": "yên tĩnh", "how": "inferred"})
+    t.run("ask_text", {"text": "Bạn đi mấy ngày?", "placeholder": ""})
+    assert len(asked) == 3 and t.reply_problem() is None  # nothing was asked twice
+    t.close()

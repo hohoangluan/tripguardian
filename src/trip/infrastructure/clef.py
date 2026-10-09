@@ -15,8 +15,6 @@ from .settings import ROOT, Settings
 
 SCOPE = "conversation.scope"
 DATA = "conversation.data_question"
-WISHES = "conversation.wishes"
-NEXT = "conversation.next_field"
 FEATURE = "tool.feature_rank"
 NONE = "none"
 SUPPORT = "fact.supported_by_quote"
@@ -54,11 +52,6 @@ QUESTIONS = {
                            "đang mở, nêu mong muốn, hoặc hỏi điều hệ thống có thể trả lời bằng thông tin đã có hay công cụ trên.",
            "criteria": {"A": "hỏi thông tin mà bước này không có và không có công cụ tra", "B": "không, hoặc hệ thống trả lời được",
                         "C": "chưa rõ"}},
-    WISHES: {"type": "choice",
-             "instructions": "Tin nhắn có nêu mong muốn, sở thích hay giới hạn về địa điểm, không khí, tiện nghi, ăn uống, "
-                             "view, độ đông không? Chỉ chọn B khi tin nhắn chỉ nói thông tin chuyến đi như số ngày, ngày hoặc tháng, "
-                             "số người, đi với ai, phương tiện, ngân sách, nơi ở, hoặc là câu trả lời rất ngắn.",
-             "criteria": {"A": "có nêu mong muốn, sở thích hoặc giới hạn", "B": "chỉ là thông tin chuyến đi", "C": "chưa rõ"}},
 }
 
 
@@ -66,8 +59,6 @@ QUESTIONS = {
 class ClefRoute:
     reject: str | None = None  # "off_topic" | "abuse", only when Clef is sure
     asks_data: bool = False    # the user asks for a real-world figure this step has no data for
-    plain: bool = False        # the message only gives trip facts (no taste or limit): FEATURES can stay out of the prompt
-    next_field: str | None = None  # the still-needed field the conversation is heading to, when Clef is sure
 
 
 def ask(state: dict, questions: dict, cfg: Settings) -> dict:
@@ -102,20 +93,27 @@ def prob(answers: dict, name: str, option: str) -> float:
         return 0.0
 
 
-def route(text: str, cfg: Settings, open_question: str | None = None, still_needed: tuple[tuple[str, str], ...] = ()) -> ClefRoute:
-    """Classify a turn. open_question: the card on screen, so a short answer to it is never judged off topic.
-    still_needed: (key, label) the user must still tell; with two or more Clef also says which one comes next."""
-    questions = dict(QUESTIONS)
-    letters = {chr(65 + i): k for i, (k, _) in enumerate(still_needed)}
-    if len(still_needed) >= 2:
-        questions[NEXT] = {"type": "choice",
-                           "instructions": "Từ tin nhắn và câu hỏi đang mở, hỏi tiếp điều nào sẽ tự nhiên nhất?",
-                           "criteria": {chr(65 + i): label for i, (_, label) in enumerate(still_needed)}}
-    answers = ask({"user_message": text, "open_question": open_question or ""}, questions, cfg)
+def feature_question(features) -> dict:
+    """Which features of a place the message asks for. A closed set always picks something: "none" is the way out."""
+    return {"type": "choice",
+            "instructions": "Tin nhắn của khách nêu mong muốn nào về đặc điểm của một địa điểm? Chọn none nếu chỉ nói thông tin "
+                            "chuyến đi (ngày, người, phương tiện, ngân sách) hoặc không đặc điểm nào diễn đạt được.",
+            "criteria": {**{f.id: f"{f.id}: {f.hint[:100]}" for f in features}, NONE: "không đặc điểm nào ở trên diễn đạt được"}}
+
+
+def ranked(answers: dict, ids, at_least: float, top: int) -> tuple[str, ...]:
+    """Feature ids Clef gave at least `at_least`, best first, at most `top`."""
+    probs = (answers.get(FEATURE) or {}).get("probabilities") or {}
+    best = sorted(((float(p), k) for k, p in probs.items() if k in ids), reverse=True)
+    return tuple(k for p, k in best[:top] if p >= at_least)
+
+
+def route(text: str, cfg: Settings, open_question: str | None = None) -> ClefRoute:
+    """Classify a turn. open_question: the card on screen, so a short answer to it is never judged off topic."""
+    answers = ask({"user_message": text, "open_question": open_question or ""}, QUESTIONS, cfg)
     reject = ("off_topic" if prob(answers, SCOPE, "B") >= cfg.clef_reject_min else
               "abuse" if prob(answers, SCOPE, "C") >= cfg.clef_reject_min else None)
-    nxt = next((k for c, k in letters.items() if prob(answers, NEXT, c) >= cfg.clef_next_min), None) if len(letters) >= 2 else None
-    return ClefRoute(reject, prob(answers, DATA, "A") >= cfg.clef_data_min, prob(answers, WISHES, "B") >= cfg.clef_plain_min, nxt)
+    return ClefRoute(reject, prob(answers, DATA, "A") >= cfg.clef_data_min)
 
 
 class Judge:
@@ -126,15 +124,8 @@ class Judge:
 
     def features(self, wish: str, features) -> list[str]:
         """Feature ids that express `wish`, best first (features: the ontology's Feature objects)."""
-        criteria = {f.id: f"{f.id}: {f.hint[:100]}" for f in features}
-        # a closed set always picks something: "none" is the way out for a wish no feature expresses
-        answers = ask({"user_message": wish}, {FEATURE: {
-            "type": "choice", "instructions": "Mong muốn này của khách nói về đặc điểm nào của một địa điểm? "
-                                              "Chọn none nếu không đặc điểm nào diễn đạt được.",
-            "criteria": {**criteria, NONE: "không đặc điểm nào ở trên diễn đạt được mong muốn này"}}}, self.cfg)
-        probs = (answers.get(FEATURE) or {}).get("probabilities") or {}
-        ranked = sorted(((float(p), k) for k, p in probs.items() if k in criteria), reverse=True)
-        return [k for p, k in ranked[:5] if p >= self.cfg.clef_feature_min]
+        answers = ask({"user_message": wish}, {FEATURE: feature_question(features)}, self.cfg)
+        return list(ranked(answers, {f.id for f in features}, self.cfg.clef_feature_min, 5))
 
     def unsupported(self, quote: str, claim: str) -> bool:
         """True only when Clef is sure the user's `quote` does not say `claim`."""

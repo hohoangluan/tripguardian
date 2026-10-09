@@ -66,6 +66,24 @@ HARD = [
     (r"\b(tranh doc|khong leo|ngai leo|ngai bac thang|khong bac thang|it bac thang)\b", "steep_or_stairs"),
     (r"\b(khong di bo xa|ngai di bo|it di bo|khong di bo nhieu)\b", "long_walk"),
 ]
+# What a budget amount covers, read in its own clause (right after it first, then right before it); first match wins.
+WHO_N = r"(?:moi|mot|1|/|tren|dau)\s*(?:nguoi|ng)\b"
+DAY_N = r"(?:moi|mot|1|/|tren)\s*(?:ngay|hom)\b"
+BUDGET_SCOPE = [
+    (rf"{WHO_N}\s*(?:moi|mot|1|/|tren)?\s*(?:ngay|hom)\b|{DAY_N}\s*{WHO_N}", "per_person_day"),
+    (WHO_N, "per_person"),
+    (DAY_N, "per_day"),
+    (r"\b(?:tong|ca chuyen|toan bo|tat ca|ca nhom|ca hai|ca 2|cho (?:\d+|hai|ba|bon|nam|sau) (?:nguoi|ng)|cho ca)\b",
+     "trip_total"),
+]
+MONTH_PART = {"dau": "early", "giua": "mid", "cuoi": "late"}
+# Kinds of place said outright ("thích cà phê", "ăn uống"): Place Decision's display groups (config/decision.yaml) + meal.
+GROUPS = [
+    (r"\b(cafe|ca phe|caphe|coffee)\b", "chill"),
+    (r"\b(an uong|am thuc|quan an|dac san|an ngon|do an|mon an|an vat|nha hang)\b", "meal"),
+    (r"\b(thien nhien|rung thong|thac nuoc|cam trai|glamping|vuon hoa|doi hoa)\b", "nature"),
+    (r"\b(tham quan|bao tang|di tich|nha tho|kien truc)\b", "sights"),
+]
 # Minimal lexicon until the span lexicon exists (docs/TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
 # several = a subjective word to clarify.
 LEXICON = [
@@ -133,9 +151,11 @@ def prepass(text: str, today: date) -> Prepass:
         start = _next_date(int(m[1]), int(m[2]), today)
         if start:
             add("start_date", start, m)
-    for m in re.finditer(r"\bthang\s*(\d{1,2})\b", low):
-        if 1 <= int(m[1]) <= 12:
-            add("month", int(m[1]), m)
+    for m in re.finditer(r"\b(?:(dau|giua|cuoi)\s+)?thang\s*(\d{1,2})\b", low):
+        if 1 <= int(m[2]) <= 12:
+            add("month", int(m[2]), m)
+            if m[1]:  # "cuối tháng 10" is more than "tháng 10"
+                add("month_part", MONTH_PART[m[1]], m)
     if not any(p.field == "days" for p in out):
         m = re.search(r"\b(\d)\s*n\s*(\d)\s*d\b", low)
         if m:
@@ -152,6 +172,19 @@ def prepass(text: str, today: date) -> Prepass:
     for m in re.finditer(r"\b(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)\b", low):
         n = float(m[1].replace(",", "."))
         add("budget_vnd", int(n * (1000 if m[2] in ("k", "nghin", "ngan") else 1_000_000)), m)
+        after = re.split(r"[.,;!?\n]", low[m.end():m.end() + 40])[0]
+        before = re.split(r"[.,;!?\n]", low[max(0, m.start() - 25):m.start()])[-1]
+        hits = []  # (start, end, scope) in the text
+        for part, at in ((after, m.end()), (before, m.start() - len(before))):
+            for pattern, sc in BUDGET_SCOPE:
+                if sm := re.search(pattern, part):
+                    hits.append((at + sm.start(), at + sm.end(), sc))
+                    break
+        if hits:
+            a, b, sc = hits[0]
+            if {h[2] for h in hits} == {"per_person", "per_day"}:  # "mỗi người 1 triệu một ngày"
+                a, b, sc = min(h[0] for h in hits), max(h[1] for h in hits), "per_person_day"
+            out.append(Proposal("budget_scope", "set", sc, raw[a:b]))
         break
     def negated(m) -> bool:
         return bool(NEGATION.search(low[max(0, m.start() - 32):m.start()]))
@@ -176,6 +209,10 @@ def prepass(text: str, today: date) -> Prepass:
             if m:
                 add(field, value, m)
                 break
+    for pattern, group in GROUPS:
+        m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
+        if m:
+            add("liked_groups", group, m, op="add")
     for pattern, feature in HARD:
         for m in re.finditer(pattern, low):
             add("hard", {"feature": feature, "op": "ne", "value": "present"}, m, op="add")

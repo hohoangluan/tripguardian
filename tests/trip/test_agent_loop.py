@@ -63,3 +63,16 @@ def test_an_unmapped_wish_ends_the_loop_without_another_model_call(catalog):
     chat = ScriptedChat(reply(fact("unmapped", "chó", "chó", op="add")), reply(ask("?", "a", "b")))
     tools, _, _ = run(chat, catalog, text="muốn có chó")
     assert chat.calls == 1 and tools.unmapped == ["chó"] and tools.card is None
+
+
+def test_a_reasoning_block_in_front_of_the_reply_is_never_shown():
+    from trip.agent.loop import Visible
+    v = Visible()
+    shown = "".join(v.feed(d) for d in ["<|chan", "nel>thought\n", "kế hoạch<chan", "nel|>Mình ", "hiểu rồi."]) + v.end()
+    assert shown == "Mình hiểu rồi."
+    v = Visible()
+    assert "".join(v.feed(d) for d in ["<", "b>Chào"]) + v.end() == "<b>Chào"  # text that only starts like the marker
+    v = Visible()
+    assert v.feed("<|channel>thought only") + v.end() == ""
+    v = Visible()  # Gemma also writes an empty block after its text
+    assert "".join(v.feed(d) for d in ["Bạn đi mấy ngày?\n\n<|cha", "nnel>thought\n<channel|>"]) + v.end() == "Bạn đi mấy ngày?\n\n"

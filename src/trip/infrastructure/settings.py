@@ -30,8 +30,6 @@ class Settings:
     clef_timeout_s: float = 1.0
     clef_reject_min: float = 0.88
     clef_data_min: float = 0.8
-    clef_plain_min: float = 0.85   # sure a message holds only trip facts: the FEATURES list is left out of that turn's prompt
-    clef_next_min: float = 0.6     # sure which still-needed field comes next: the Agent is told as a hint
     clef_feature_min: float = 0.5  # a feature Clef ranks for a wish counts from this probability
     clef_verify_min: float = 0.75  # sure the quote does not say the fact: the fact is refused
     clef_reply_min: float = 0.9    # sure a reply promises results or states an unsaid fact: it is replaced
@@ -43,6 +41,7 @@ class Settings:
     entry_roads: tuple = ()  # ({from_deg, to_deg, text}, …): the road into the city by the bearing toward the origin
     airports: tuple = ()  # ({iata, name, lat, lng}, …) with direct flights to the city (config/airports.yaml)
     patterns: PatternSettings = field(default_factory=PatternSettings)
+    themes: dict = field(default_factory=dict)  # theme id -> {title, say, soft: [...], groups: [...]} (Khám phá cards)
 
     @property
     def enough(self) -> int:

@@ -27,7 +27,7 @@ def main() -> None:
     data = ROOT / os.environ.get("DATA_DIR", "data")
     catalog = Catalog.load(data, cfg.n_min)
     engine = Engine(catalog, cfg, SessionStore(data / "trip" / "sessions"),
-                    chat=openai_chat(cfg), route=lambda text, card, need: route(text, cfg, card, need),
+                    chat=openai_chat(cfg), route=lambda text, card: route(text, cfg, card),
                     judge=Judge(cfg),
                     profiles=ProfileStore(ROOT / cfg.patterns.dir, cfg.patterns) if cfg.patterns.enabled else None)
     agent = os.environ.get("AGENT_MODEL", "policy fallback")

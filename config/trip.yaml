@@ -7,8 +7,6 @@ total_s: 30         # agent: one model call, first token to last
 clef_timeout_s: 1    # Clef (Cloudflare classifier) limit; slower or failing = it decides nothing
 clef_reject_min: 0.88 # Clef must be this sure a message is off topic / abuse to answer it with the fixed reply (a wrong reject costs more than a miss)
 clef_data_min: 0.8   # ... and this sure the user asks for a real-world figure (weather, price, hours) to answer with the fixed reply
-clef_plain_min: 0.85  # sure a message holds only trip facts (no taste, no limit): FEATURES is left out of that turn's prompt; the Agent still has search_features
-clef_next_min: 0.6    # sure which still-needed field comes next: passed to the Agent as a hint, never forced
 clef_feature_min: 0.5  # search_features, when the keywords find nothing: Clef ranks features, those from this probability are returned
 clef_verify_min: 0.75 # record_fact (an inferred soft / hard fact): Clef must be this sure the quote does not say the fact to refuse it
 clef_reply_min: 0.9   # Clef must be this sure a reply promises results or states an unsaid fact to replace it
@@ -36,3 +34,23 @@ patterns:
   stale_days: 365       # a pattern whose last vote is older than this is dropped
   max_places: 3         # place patterns offered on the prior card
   dir: data/trip/profiles
+
+# Theme cards of Khám phá (web/src/user/tu/themes.ts sends the id): each writes these tastes as they are, no sentence is
+# read. soft: feature=value:love|avoid from config/ontology.yaml; groups: kinds of place (nature | sights | chill | meal).
+# say: what the reply tells the user was written, after "Mình bắt đầu từ chủ đề “<title>”: ".
+themes:
+  area:
+    title: "Săn mây và cà phê Trại Mát"
+    say: "ưu tiên nơi săn mây, có view và quán cà phê"
+    soft: ["cloud_hunting=present:love", "scenic_view=present:love"]
+    groups: [chill, nature]
+  rain:
+    title: "Chỗ trong nhà khi mưa"
+    say: "ưu tiên nơi trong nhà, có mái che, không gian ấm cúng"
+    soft: ["setting=indoor:love", "weather_exposed=sheltered:love", "cozy_decor=present:love"]
+    groups: [chill, sights]
+  hour:
+    title: "Chiều muộn bên hồ"
+    say: "ưu tiên nơi ngắm hoàng hôn, có view và yên tĩnh"
+    soft: ["sunset_view=present:love", "scenic_view=present:love", "noise=quiet:love"]
+    groups: [nature, chill]

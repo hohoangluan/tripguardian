@@ -80,3 +80,21 @@ def test_negated_transport_falls_through_to_the_real_one():
 def test_number_words_still_count_days():
     assert ("days", 7, False) in got("đi bảy ngày")
     assert ("days", 4, False) in got("chuyến 4 ngày")
+
+
+def test_budget_scope_is_read_from_the_words_around_the_amount():
+    def scope(text):
+        return next((p.value, p.quote) for p in prepass(text, TODAY).proposals if p.field == "budget_scope")
+    assert scope("Ngân sách khoảng 5 triệu cho 2 người.") == ("trip_total", "cho 2 người")
+    assert scope("5 triệu là tổng cả chuyến") == ("trip_total", "tổng")
+    assert scope("1,5 triệu/người/ngày") == ("per_person_day", "/người/ngày")
+    assert scope("mỗi người 1tr một ngày") == ("per_person_day", "mỗi người 1tr một ngày")
+    assert scope("không quá 300k/người") == ("per_person", "/người")
+    assert scope("500k mỗi ngày") == ("per_day", "mỗi ngày")
+    assert not any(p.field == "budget_scope" for p in prepass("đi 1 ngày, 800k", TODAY).proposals)
+
+
+def test_part_of_month_and_kinds_of_place():
+    g = got("Cuối tháng 10 đi, thích cà phê và ăn uống, không thích bảo tàng")
+    assert {("month", 10, False), ("month_part", "late", False)} <= g
+    assert {x[1] for x in g if x[0] == "liked_groups"} == {"chill", "meal"}  # a negated kind is not a liking

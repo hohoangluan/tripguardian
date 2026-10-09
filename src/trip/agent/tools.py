@@ -1,6 +1,8 @@
 """The tools the Trip agent calls. Only record_fact writes the Trip State, and only through domain.guard."""
 
+import json
 import re
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import date
 from typing import get_args
 
@@ -18,6 +20,7 @@ from .prompt import summarize
 
 STOPPING = ("ask_choice", "ask_text")
 MAX_OPTIONS, MAX_OPTION_LEN = 6, 40
+MAX_SENT_BACK = 2
 # folded Vietnamese words that match almost every feature hint ("chó" folds to "cho" = "for")
 STOP = {"cho", "co", "la", "va", "de", "o", "voi", "cua", "nhung", "khong", "mot", "cac", "nao", "duoc", "den", "trong",
         "nay", "thi", "muon", "thich", "choi", "di"}
@@ -93,10 +96,12 @@ SPECS = {
                          "for THIS question, in their voice (\"cuối tháng 12\"). Empty if none."}},
         ["text", "options", "multi", "reason", "placeholder"]),
     "ask_text": _fn(
-        "ask_text", "Ask the user ONE open question and wait for typed text. Ends your turn.",
+        "ask_text", "Ask the user ONE open question and wait for typed text, or a picked day. Ends your turn.",
         {"text": {"type": "string", "description": "ONLY the question, one short Vietnamese sentence: no greeting, no praise."},
          "placeholder": {"type": "string", "description": "Example answer the user could type, for THIS question, in their voice "
-                         "(\"cuối tháng 12, hoặc 20/12\")."}},
+                         "(\"cuối tháng 12, hoặc 20/12\")."},
+         "kind": {"type": "string", "enum": ["text", "date"],
+                  "description": "date when the question asks for the start date: the user picks a day on a calendar."}},
         ["text", "placeholder"]),
 }
 
@@ -112,8 +117,54 @@ class TurnTools:
         self.card: Question | None = None
         self.lead = ""  # what the agent wrote in front of a card's question: the engine shows it as chat text
         self.unmapped: list[str] = []  # wishes stored as unmapped this turn: they end the turn with a fixed reply
+        self.recorded: list[str] = []  # fields record_fact wrote this turn
         self.stopped = False
+        self.refused: set[str] = set()  # fields whose last record_fact was refused and not yet corrected
+        self.sent_back = 0  # questions returned to the model while a refused fact stayed unfixed
         self.log: list[str] = []
+        self.pool = ThreadPoolExecutor(max_workers=8) if judge else None
+        self.checks: dict[tuple, Future] = {}  # Clef's checks sent when a reply arrived, read when its tool runs
+        self.replies: list[Future] = []        # Clef's check of each text the model wrote
+        self.transcript = []  # the session transcript, set by engine before tool calls
+    def prefetch(self, calls, content: str) -> None:
+        """Send every Clef check this model reply needs at the same moment, so they cost one round trip together and
+        run while the tools execute: each inferred soft / hard fact, each question asked, and the text written."""
+        if not self.judge:
+            return
+        args = []
+        for c in calls:
+            try:
+                a = json.loads(c.arguments or "{}")
+            except ValueError:
+                continue
+            if isinstance(a, dict):
+                args.append((c.name, a))
+        recorded = [{k: a.get(k) for k in ("field", "value")} for n, a in args if n == "record_fact"]
+        for name, a in args:
+            try:
+                if name == "record_fact" and (claim := self._claim(a)) and contains(self.text, str(a["quote"])):
+                    self.checks[("v", a["field"], str(a["value"]), str(a["quote"]))] = self.pool.submit(
+                        self.judge.unsupported, str(a["quote"]), claim)
+                elif name in ("ask_choice", "ask_text") and str(a.get("text", "")).strip():
+                    question = split_lead(str(a["text"]))[1]
+                    known = summarize(self.state) + " ; this reply also records " + json.dumps(recorded, ensure_ascii=False)
+                    self.checks[("r", question)] = self.pool.submit(self.judge.repeats, question, known)
+            except (KeyError, TypeError):
+                continue
+        if content.strip():
+            self.replies.append(self.pool.submit(self.judge.bad_reply, content))
+
+    def reply_problem(self) -> str | None:
+        """Why Clef thinks the model's text may not be shown, or None."""
+        return next((why for f in self.replies if (why := f.result())), None)
+
+    def close(self) -> None:
+        if self.pool:
+            self.pool.shutdown(wait=False, cancel_futures=True)
+
+    def _checked(self, key: tuple, fallback) -> bool:
+        f = self.checks.get(key)
+        return f.result() if f else fallback()
 
     def specs(self) -> list[dict]:
         return [s for n, s in SPECS.items() if self.may_ask or n not in STOPPING]
@@ -122,11 +173,20 @@ class TurnTools:
         """-> the result the agent reads next. Never raises: a bad call is an error result."""
         if name not in SPECS or (name in STOPPING and not self.may_ask):
             return {"error": f"unknown tool {name!r}"}
+        if name in STOPPING and self.refused and self.sent_back < MAX_SENT_BACK:
+            # a fact was refused and is still not fixed: a question is sent back (twice at most) so the model deals with it
+            self.sent_back += 1
+            self.log.append(f"{name}:refused_first")
+            return {"error": f"your record_fact for {sorted(self.refused)} was refused and is not fixed. Either call record_fact "
+                             "again with a valid value, or, if no valid value fits what the user said, drop it and ask the user "
+                             "about exactly that (ask_choice with the valid values as options)."}
         try:
             result = getattr(self, f"_{name}")(args)
         except (ValueError, ValidationError, KeyError, TypeError) as e:
             result = {"error": str(e).splitlines()[0]}
         detail = f" {args.get('field')}={args.get('value')}" if name == "record_fact" else ""
+        if name == "record_fact":
+            (self.refused.add if "error" in result else self.refused.discard)(args.get("field"))
         self.log.append(name + detail + (":error" if "error" in result else ":unmapped" if args.get("field") == "unmapped" else ""))
         return result
 
@@ -145,13 +205,15 @@ class TurnTools:
 
     def _record_fact(self, a: dict) -> dict:
         claim = self._claim(a) if self.judge and contains(self.text, str(a["quote"])) else None
-        if claim and self.judge.unsupported(str(a["quote"]), claim):
+        if claim and self._checked(("v", a["field"], str(a["value"]), str(a["quote"])),
+                                   lambda: self.judge.unsupported(str(a["quote"]), claim)):
             self.log.append("clef_unsupported")
             raise ValueError(f"the quote {a['quote']!r} does not say this; quote the words that do, or drop the fact")
         self.state, note = record_fact(self.state, a["field"], a["op"], str(a["value"]), a["quote"], a["how"], self.text,
                                        self.turn, self.catalog, self.compared)
         if note.startswith("refused"):
             return {"error": note}
+        self.recorded.append(a["field"])
         if a["field"] == "unmapped":  # only the agent decides a wish is unmapped
             self.unmapped.append(a["quote"])
         return {"ok": True, **({"note": note} if note else {})}
@@ -187,8 +249,25 @@ class TurnTools:
 
     # ---------- stopping tools ----------
 
+    def repeated(self, question: str) -> str | None:
+        """Why this question may not be asked now, read without Clef: the user declined it, or it was just asked."""
+        folded = fold(question)
+        if any(folded == fold(d) for d in self.state.meta.declined):
+            return "declined_repeat"
+        for t in reversed(self.transcript[-6:]):  # the last ~3 agent turns
+            if t["role"] == "agent" and t.get("kind") == "card" and folded in fold(t["text"]):
+                return "clef_repeat:recent"
+        return None
+
     def _already_known(self, question: str) -> None:
-        if self.judge and question.strip() and self.judge.repeats(question, summarize(self.state)):
+        if not question.strip():
+            return
+        if why := self.repeated(question):
+            self.log.append(why)
+            raise ValueError("the user skipped this question (declined_questions); ask something else, or reply in text"
+                             if why == "declined_repeat" else "just asked this question; ask something else, or reply in text")
+        # Also check state if Judge is available
+        if self.judge and self._checked(("r", question), lambda: self.judge.repeats(question, summarize(self.state))):
             self.log.append("clef_repeat")
             raise ValueError("the Trip State already answers this question; ask about something else, or reply in text")
 
@@ -212,7 +291,9 @@ class TurnTools:
             raise ValueError("text is empty")
         self.lead, question = split_lead(str(a["text"]))
         self._already_known(question)
-        self.card = Question(qid=f"ask:{self.turn}", group="I", tier=2, custom=True, input="text", text=question,
-                             placeholder=str(a.get("placeholder", "")).strip()[:120])
+        date_ = a.get("kind") == "date" and not self.state.start_date.known  # a known date is not asked on a calendar
+        self.card = Question(qid=f"ask:{self.turn}", group="A" if date_ else "I", tier=2, custom=True,
+                             input="date" if date_ else "text", input_field="start_date" if date_ else None,
+                             text=question, placeholder=str(a.get("placeholder", "")).strip()[:120])
         self.stopped = True
         return {"ok": True}

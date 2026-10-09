@@ -27,6 +27,12 @@ Purpose = Literal["relax", "bond", "photo", "food_culture", "nature", "explore",
 Pace = Literal["slow", "normal", "packed"]
 Novelty = Literal["familiar", "new", "mix"]
 Crowd = Literal["avoid", "ok_if_worth", "fine"]
+# what a budget amount covers: the whole trip, the whole party per day, one person for the trip, one person per day
+BudgetScope = Literal["trip_total", "per_day", "per_person", "per_person_day"]
+MonthPart = Literal["early", "mid", "late"]  # "đầu / giữa / cuối tháng 10"
+# kinds of place the user says they want (Place Decision's display groups, config/decision.yaml, plus meals): a category
+# interest such as "thích cà phê", which no feature expresses
+Group = Literal["nature", "sights", "chill", "meal"]
 Weight = Literal["love", "avoid", "off"]
 SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "pregnant", "motion_sick", "height", "vegetarian"]
 
@@ -34,9 +40,9 @@ EFFORT_SIGNALS = frozenset({"knee", "elderly", "kids", "wheelchair", "pregnant"}
 OTHER_SIGNALS = frozenset({"motion_sick", "height", "vegetarian"})  # answered by question c_other
 EFFORT_FEATURES = frozenset({"steep_or_stairs", "long_walk"})
 EFFORT_CLASH = frozenset({"hiking", "adventure_activity"})  # what a stored taste may not push once the trip has an effort limit
-SCALARS = ("start_date", "month", "days", "people", "base", "entry_point", "exit_point", "mobility", "arrive_at",
+SCALARS = ("start_date", "month", "month_part", "days", "people", "base", "entry_point", "exit_point", "mobility", "arrive_at",
            "leave_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd",
-           "origin", "arrival_mode", "inbound", "outbound", "lodging_booked", "lodging")
+           "budget_scope", "origin", "arrival_mode", "inbound", "outbound", "lodging_booked", "lodging")
 RANGES = {"month": (1, 12), "days": (1, 7), "people": (1, 20), "max_leg_min": (5, 180),
           "budget_vnd": (10_000, 50_000_000)}
 CLOCKS = ("arrive_at", "leave_at", "day_end")
@@ -208,11 +214,13 @@ class Meta(Frozen):
     user_id: str | None = None  # opaque id whose stored patterns seeded this session
     remember: bool = False  # the user agreed that this session may add to those patterns
     prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/TRIP_UNDERSTANDING.md §17)
+    declined: tuple[str, ...] = ()  # questions the user skipped or was unsure about: never asked again
 
 
 class TripState(Frozen):
     start_date: Field[date] = Field[date]()
     month: Field[int] = Field[int]()
+    month_part: Field[MonthPart] = Field[MonthPart]()
     days: Field[int] = Field[int]()
     companions: Field[frozenset[Who]] = Field[frozenset[Who]]()
     people: Field[int] = Field[int]()
@@ -234,7 +242,9 @@ class TripState(Frozen):
     max_leg_min: Field[int] = Field[int]()
     crowd_tolerance: Field[Crowd] = Field[Crowd]()
     novelty: Field[Novelty] = Field[Novelty]()
-    budget_vnd: Field[int] = Field[int]()
+    budget_vnd: Field[int] = Field[int]()  # the amount as the user said it; budget_scope says what it covers
+    budget_scope: Field[BudgetScope] = Field[BudgetScope]()
+    liked_groups: Field[tuple[Group, ...]] = Field[tuple[Group, ...]]()  # in the order the user said them
     anchors: tuple[Anchor, ...] = ()
     signals: tuple[Signal, ...] = ()
     hard: tuple[Hard, ...] = ()
@@ -284,24 +294,27 @@ def apply(state: TripState, u: Update) -> TripState:
         if f in CLOCKS and not CLOCK.fullmatch(str(u.value)):
             raise ValueError(f"{f}={u.value} is not HH:MM")
         new = _kind(f)(value=u.value, source=u.source, confidence=u.confidence, status=status, evidence=(u.evidence,))
+        if f == "month" and cur.value != u.value:
+            state = state.model_copy(update={"month_part": _kind("month_part")()})  # "cuối" was said of the old month
         state = state.model_copy(update={f: new})
         if f == "lodging":  # a booked lodging is the trip's base too: distances start there
             state = apply(state, u.model_copy(update={"field": "lodging_booked", "value": "yes"}))
             state = apply(state, u.model_copy(update={"field": "base"}))
         return state
-    if f == "companions":
-        cur = state.companions
+    if f in ("companions", "liked_groups"):
+        cur = getattr(state, f)
         if cur.locked and u.source != "user":
             return state
-        have = cur.value or frozenset()
-        vals = frozenset(u.value) if isinstance(u.value, (list, tuple, set, frozenset)) else frozenset({u.value})
+        have = list(cur.value or ())
+        vals = list(u.value) if isinstance(u.value, (list, tuple, set, frozenset)) else [u.value]
         if u.op == "set":
-            new_set = vals
+            new_list = vals
         elif u.op == "add":
-            new_set = have | vals
+            new_list = have + [v for v in vals if v not in have]
         else:
-            new_set = have - vals
-        new = _kind(f)(value=new_set or None, source=u.source, confidence=u.confidence, status=status,
+            new_list = [v for v in have if v not in vals]
+        new_val = (frozenset(new_list) if f == "companions" else tuple(dict.fromkeys(new_list))) or None
+        new = _kind(f)(value=new_val, source=u.source, confidence=u.confidence, status=status,
                        evidence=cur.evidence + (u.evidence,))
         return state.model_copy(update={f: new})
     if f == "soft":
@@ -439,6 +452,7 @@ def unknown_fields(state: TripState) -> list[str]:
 class Context(Frozen):
     start_date: date | None
     month: int | None
+    month_part: MonthPart | None = None
     days: int | None
     base: Base | None
     entry_point: Base | None = None
@@ -449,7 +463,7 @@ class Context(Frozen):
     arrive_at: str | None
     leave_at: str | None
     day_end: str | None
-    budget_vnd: int | None = None
+    budget_vnd: int | None = None  # VND per person per day (domain/budget.py); None when the amount cannot be split
     experience: Literal["first", "returning"] | None = None
     origin: Base | None = None
     arrival_mode: ArrivalMode | None = None
@@ -500,3 +514,4 @@ class SearchInput(Frozen):
     novelty: NoveltySpec
     unknowns: tuple[str, ...]
     unmapped: tuple[str, ...]
+    liked_groups: tuple[Group, ...] = ()  # kinds of place the user asked for, first said first (Place Decision's tabs)

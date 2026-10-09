@@ -94,4 +94,4 @@ def create_engine(data_root: Path) -> Engine:
     profiles = ProfileStore(ROOT / cfg.patterns.dir, cfg.patterns) if cfg.patterns.enabled else None
     return Engine(catalog, cfg, SessionStore(None), openai_chat(cfg),
                   today=lambda: datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date(), profiles=profiles,
-                  route=lambda text, card, need: route(text, cfg, card, need), judge=Judge(cfg))
+                  route=lambda text, card: route(text, cfg, card), judge=Judge(cfg))

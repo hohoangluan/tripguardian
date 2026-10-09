@@ -14,7 +14,21 @@ from .text import fold
 
 MONEY = re.compile(r"(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)?")
 LITERALS = ("companions", "mobility", "purpose", "pace", "novelty", "crowd_tolerance", "signal", "arrival_mode",
-            "lodging_booked")
+            "lodging_booked", "budget_scope", "month_part", "liked_groups")
+ENUM_VALUES = {
+    "companions": ("solo", "partner", "friends", "kids", "parents"),
+    "mobility": ("motorbike", "car", "ride"),
+    "purpose": ("relax", "bond", "photo", "food_culture", "nature", "explore", "adventure"),
+    "pace": ("slow", "normal", "packed"),
+    "novelty": ("familiar", "new", "mix"),
+    "crowd_tolerance": ("avoid", "ok_if_worth", "fine"),
+    "signal": ("knee", "elderly", "kids", "wheelchair", "pregnant", "motion_sick", "height", "vegetarian"),
+    "arrival_mode": ("self", "bus", "plane"),
+    "lodging_booked": ("yes", "no"),
+    "budget_scope": ("trip_total", "per_day", "per_person", "per_person_day"),
+    "month_part": ("early", "mid", "late"),
+    "liked_groups": ("nature", "sights", "chill", "meal"),
+}
 
 
 def clock(raw: str) -> str:
@@ -77,7 +91,11 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
             raise ValueError(f"hard filter {raw!r} is not feature!=value from the ontology")
         return {"feature": m[1], "op": "ne" if m[2] == "!=" else "eq", "value": m[3]}
     if field in LITERALS:
-        return raw.lower()
+        lower = raw.lower()
+        if field in ENUM_VALUES and lower not in ENUM_VALUES[field]:
+            raise ValueError(f"{field}: {lower!r} is not a value; it must be one of {ENUM_VALUES[field]}. "
+                             "If none fits what the user said, record nothing and ask which one applies.")
+        return lower
     if field == "unmapped":
         return raw
     raise ValueError(f"unknown field {field!r}")
@@ -90,7 +108,7 @@ def parse_remove(field: str, raw: str) -> Any:
         return str(SoftKey.parse(split_weight(raw)[0]))
     if field == "hard":
         return re.split(r"!=|=", raw)[0].strip()
-    if field in ("companions", "signal"):
+    if field in ("companions", "signal", "liked_groups"):
         return raw.lower()
     raise ValueError(f"{field}: the agent cannot remove by name")
 

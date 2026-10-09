@@ -48,7 +48,7 @@ def test_the_request_carries_the_message_the_open_card_and_its_questions(cloudfl
     request, timeout = seen[0]
     body = json.loads(request.data)
     assert body["state"] == {"user_message": "tháng 12 lạnh không?", "open_question": "Bạn đi mấy ngày?"}
-    assert set(body["questions"]) == {clef.SCOPE, clef.DATA, clef.WISHES} and timeout == 1.0
+    assert set(body["questions"]) == {clef.SCOPE, clef.DATA} and timeout == 1.0
     assert request.full_url.endswith("/accounts/acc/ai/run/@cf/cloudflare/clef-flash")
 
 
@@ -91,25 +91,6 @@ def test_data_question_lists_every_lookup_tool():
     from trip.agent.tools import SPECS, STOPPING
     from trip.infrastructure.clef import LOOKUPS
     assert set(LOOKUPS) == set(SPECS) - set(STOPPING) - {"record_fact"}
-
-
-def test_next_field_is_asked_only_with_two_or_more_still_needed_and_only_when_sure(cloudflare, monkeypatch):
-    seen = []
-    fake(monkeypatch, [answer(clef.NEXT, "B", 0.8)], seen)
-    r = clef.route("đi 3 ngày", Settings(), None, (("days", "số ngày"), ("mobility", "đi lại bằng gì")))
-    assert r.next_field == "mobility" and clef.NEXT in json.loads(seen[0][0].data)["questions"]
-    fake(monkeypatch, [answer(clef.NEXT, "B", 0.4)])
-    assert clef.route("x", Settings(), None, (("days", "a"), ("mobility", "b"))).next_field is None
-    fake(monkeypatch, [answer(clef.NEXT, "A", 0.99)], seen)
-    assert clef.route("x", Settings(), None, (("days", "a"),)).next_field is None
-    assert clef.NEXT not in json.loads(seen[-1][0].data)["questions"]
-
-
-def test_plain_means_only_trip_facts(cloudflare, monkeypatch):
-    fake(monkeypatch, [answer(clef.WISHES, "B", 0.95)])
-    assert clef.route("3 ngày", Settings()).plain
-    fake(monkeypatch, [answer(clef.WISHES, "B", 0.5)])
-    assert not clef.route("3 ngày", Settings()).plain
 
 
 def test_judge_vetoes_only_when_sure_and_never_when_clef_is_down(cloudflare, monkeypatch):
