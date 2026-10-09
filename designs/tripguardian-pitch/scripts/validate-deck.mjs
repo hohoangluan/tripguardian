@@ -25,6 +25,7 @@ if (sections.length !== 16) errors.push(`expected 16 slides, found ${sections.le
 if (new Set(sections.map((match) => match[1])).size !== 16) errors.push("slide labels must be unique");
 if (anims.length < 8 || anims.length > 18) errors.push(`expected 8-18 meaningful builds, found ${anims.length}`);
 if (!html.includes("section[data-label] > *:not(img):not(picture):not(video):not(svg):not(canvas)")) errors.push("missing slide wrapper fill rule");
+if (!html.includes('deck-stage { font-family: "Be Vietnam Pro", sans-serif; }')) errors.push("deck-stage must set Be Vietnam Pro to override the scaffold host font");
 if (!html.includes("--type-title: 64px")) errors.push("missing 64px title token");
 if (!html.includes("--type-small: 24px")) errors.push("smallest text token must be 24px");
 if (html.includes('id="speaker-notes"')) errors.push("speaker notes are out of scope");

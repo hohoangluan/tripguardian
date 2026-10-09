@@ -16,9 +16,10 @@
     {"showJs":"document.querySelector('deck-stage').goTo(10)","selector":"deck-stage > [data-deck-active]"},
     {"showJs":"document.querySelector('deck-stage').goTo(11)","selector":"deck-stage > [data-deck-active]"},
     {"showJs":"document.querySelector('deck-stage').goTo(12)","selector":"deck-stage > [data-deck-active]"},
-    {"showJs":"document.querySelector('deck-stage').goTo(13)","selector":"deck-stage > [data-deck-active]"}
+    {"showJs":"document.querySelector('deck-stage').goTo(13)","selector":"deck-stage > [data-deck-active]"},
+    {"showJs":"document.querySelector('deck-stage').goTo(14)","selector":"deck-stage > [data-deck-active]"},
+    {"showJs":"document.querySelector('deck-stage').goTo(15)","selector":"deck-stage > [data-deck-active]"}
   ],
   "resetTransformSelector": "deck-stage",
-  "googleFontImports": ["Lora", "Be Vietnam Pro", "JetBrains Mono"],
   "filename": "TripGuardian-Pitch"
 }

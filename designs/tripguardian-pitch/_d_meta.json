@@ -8,8 +8,8 @@
         {
           "path": "TripGuardian Pitch.html",
           "createdAt": "2026-10-09T04:29:53.910Z",
-          "status": "needs-review",
-          "subtitle": "Deck pitching 15 phút",
+          "status": "approved",
+          "subtitle": "Deck pitching 15 phút · 16 slide",
           "viewport": {
             "width": 1920,
             "height": 1080
@@ -20,5 +20,5 @@
     }
   },
   "createdAt": "2026-10-09T04:29:53.910Z",
-  "updatedAt": "2026-10-09T04:29:53.910Z"
+  "updatedAt": "2026-10-09T05:44:36.158Z"
 }
