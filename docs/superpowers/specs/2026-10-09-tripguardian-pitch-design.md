@@ -78,6 +78,7 @@ Không dùng lập luận “công cụ hiện tại chỉ tìm kiếm hoặc si
 | Wanderlog | Tạo chuyến → thêm địa điểm → xếp theo ngày → xem bản đồ/thời gian → tối ưu route; kèm reservation, collaboration, budget | Lắp ráp lịch trình và quản lý chuyến đi |
 | Tripadvisor AI | Mô tả chuyến đi → nhận lựa chọn cá nhân hóa → lưu lịch theo ngày → sửa, sắp xếp, chia sẻ → đi tới booking | AI planning dựa trên review, giá và availability |
 | Mindtrip | Nêu sở thích → khám phá/lưu ý tưởng → dựng và chỉnh itinerary → cộng tác → booking → dùng map trong chuyến đi | Luồng AI travel end-to-end |
+| Layla | Nêu ngày, điểm đến, ngân sách và phong cách → nhận lịch theo ngày dùng giá/availability live → tinh chỉnh với AI hoặc chuyên gia → booking và quản lý | AI planner kết hợp chuyên gia du lịch, nối planning với booking |
 
 Nguồn chính thức, truy cập ngày 09/10/2026:
 
@@ -86,6 +87,7 @@ Nguồn chính thức, truy cập ngày 09/10/2026:
 - Wanderlog: <https://wanderlog.com/> và <https://help.wanderlog.com/hc/en-us/articles/13545624787867-Optimize-route>
 - Tripadvisor AI: <https://www.tripadvisor.com/AIAssistant>
 - Mindtrip Traveler FAQ: <https://resources.mindtrip.ai/travelers/help/traveler-faqs>
+- Layla: <https://layla.ai/>
 
 Kết luận cạnh tranh được phép nói:
 
@@ -112,7 +114,7 @@ Deck có 15 slide chính cho phần trình bày và một slide phụ lục khô
 | 1 | TripGuardian — Chọn đúng nơi trước khi xếp lịch | Sản phẩm là gì? | Tên, định vị một câu, phạm vi Đà Lạt | 0:25 |
 | 2 | Người dùng không thiếu gợi ý; họ thiếu một quyết định có thể kiểm tra | Vấn đề cụ thể là gì? | Nhiều nguồn, đánh đổi, tổ hợp khó khả thi; một ví dụ cụ thể | 0:55 |
 | 3 | Ở Việt Nam, một quyết định du lịch phải ghép nhiều nguồn | Vì sao phù hợp Việt Nam? | 53/47/35/32% và vai trò từng nguồn | 0:55 |
-| 4 | Các công cụ hiện tại giải quyết những phần khác nhau của hành trình | Đối thủ là ai và luồng của họ là gì? | Năm luồng công khai có tên; ghi điều mỗi công cụ làm tốt | 1:25 |
+| 4 | Các công cụ hiện tại giải quyết những phần khác nhau của hành trình | Đối thủ là ai và luồng của họ là gì? | Sáu luồng công khai có tên; ghi điều mỗi công cụ làm tốt | 1:25 |
 | 5 | Khoảng trống nằm ở bước chốt lựa chọn dưới ràng buộc | TripGuardian chen vào đâu? | Hành trình Explore → Shortlist → Validate set → Schedule → Book/Navigate; đặt các công cụ lên đúng đoạn | 1:05 |
 | 6 | TripGuardian bắt đầu từ quyết định, không bắt đầu từ một lịch sinh sẵn | Giá trị khác biệt là gì? | Ba câu hỏi cốt lõi và ranh giới claim | 0:50 |
 | 7 | Từ một câu kể đến danh sách địa điểm do người dùng chốt | Người dùng đi qua sản phẩm như thế nào? | Hiểu → so sánh → kiểm tra tổ hợp → xếp lịch; UI thật | 1:00 |
@@ -132,7 +134,7 @@ Tổng nội dung chính: khoảng 14 phút 35 giây, còn lại dành cho chuy�
 
 ### 5.1. Slide 4 — Luồng thật của công cụ hiện tại
 
-Hình thức: năm hàng ngang, mỗi hàng có tên công cụ, một chuỗi 4–5 bước và một câu “mạnh ở”. Không dùng bảng tính năng với quá nhiều dấu tích.
+Hình thức: lưới hai cột × ba hàng. Mỗi ô có tên công cụ, một chuỗi 3–5 bước và một câu “mạnh ở”. Không dùng bảng tính năng với quá nhiều dấu tích.
 
 Mỗi luồng chỉ trình bày điều nguồn chính thức mô tả. Tên sản phẩm là text; không tải logo nếu không cần.
 
@@ -204,7 +206,7 @@ Cover dùng `web/public/img/landing-poster.webp`, không dùng screenshot có UI
 - HTML không gọi Google Fonts hoặc ảnh ngoài project.
 - Browser báo đủ 16 slide, không lỗi console, không overflow.
 - Mỗi slide được xem ở 1920 × 1080 và thumbnail.
-- Slide 4 trình bày đủ tên và luồng của Google Maps, Traveloka, Wanderlog, Tripadvisor AI, Mindtrip.
+- Slide 4 trình bày đủ tên và luồng của Google Maps, Traveloka, Wanderlog, Tripadvisor AI, Mindtrip và Layla.
 - Slide 5 có disclaimer về nguồn công khai và không dùng khẳng định độc quyền.
 - Slide 8 có khối Planning & Validation và connector đọc được từ trái sang phải.
 - Slide 9/10 có ví dụ cụ thể, không chỉ thuật ngữ.
