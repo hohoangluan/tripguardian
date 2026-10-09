@@ -2,8 +2,8 @@
 
 Phases per source, each reading only earlier phases' files: tiktok search -> list -> filter -> crawl, then per Maps
 place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify
--> comments_crawl (comments only for place_verify's "yes" videos); gmaps search -> filter -> counts -> list -> crawl
--> relevant -> qc -> observe; `all` runs them in order. judge dedup -> status -> audit (corpus.judge) runs after
+-> place_poi -> poi_crawl -> (asr, asr_check, place_verify again) -> clips -> comments_crawl (comments only for
+place_verify's "yes" videos); gmaps search -> filter -> counts -> list -> crawl -> relevant -> qc -> observe; `all` runs them in order. judge dedup -> status -> audit (corpus.judge) runs after
 observe and before aggregate.
 """
 
@@ -26,7 +26,8 @@ from .observe import reports as reports_observe
 from .crawl.tiktok import (asr as tiktok_asr, asr_alt as tiktok_asr_alt, asr_check as tiktok_asr_check,
                            comments_crawl as tiktok_comments_crawl, crawl as tiktok_crawl,
                            filter as tiktok_filter, listing as tiktok_list, place_verify as tiktok_place_verify,
-                           place_crawl as tiktok_place_crawl, place_filter as tiktok_place_filter,
+                           place_crawl as tiktok_place_crawl, place_filter as tiktok_place_filter, place_poi as tiktok_place_poi,
+                           poi_crawl as tiktok_poi_crawl, clips as tiktok_clips,
                            place_search as tiktok_place_search, search as tiktok_search)
 
 PHASES = {  # source -> phase -> (run, needs a browser)
@@ -35,10 +36,11 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "place_filter": (tiktok_place_filter.run, False), "place_crawl": (tiktok_place_crawl.run, True),
                "asr": (tiktok_asr.run, False), "asr_check": (tiktok_asr_check.run, False),
                "asr_alt": (tiktok_asr_alt.run, False),
-               "place_verify": (tiktok_place_verify.run, False),
+               "place_verify": (tiktok_place_verify.run, False), "place_poi": (tiktok_place_poi.run, False),
+               "poi_crawl": (tiktok_poi_crawl.run, True), "clips": (tiktok_clips.run, False),
                "comments_crawl": (tiktok_comments_crawl.run, True),
                "observe": (tiktok_observe.run, False)},
-    "gmaps": {"search": (gmaps_search.run, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
+    "gmaps": {"search": (gmaps_search.run, True), "stay_search": (gmaps_search.run_stay, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
               "list": (gmaps_list.run, False),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "extremes": (gmaps_extremes.run, True),
               "keywords": (gmaps_keywords.run, True), "visit": (gmaps_visit.run, True),
@@ -58,7 +60,10 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
         fn, browser_phase = PHASES[source][p]
         if browser_phase and source == "tiktok":
             out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}),
-                     **({"limit": limit} if p == "place_crawl" else {}))
+                     **({"limit": limit} if p in ("place_crawl", "poi_crawl") else {}))
+        elif source == "gmaps" and p in ("crawl", "relevant", "extremes", "keywords", "photos"):
+            out = fn(city, headed, **({"limit": limit} if p in ("extremes", "keywords", "photos") else {}),
+                     shard=shard, profile_name=profile)
         elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages"):
             out = fn(city, headed, limit=limit)
         elif browser_phase:
@@ -67,6 +72,8 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
             out = fn(city, limit=limit, wait_relevant=wait_relevant)
         elif p in ("observe", "photo_observe"):
             out = fn(city, limit=limit)
+        elif source == "tiktok" and p in ("asr", "asr_alt", "asr_check", "place_verify"):
+            out = fn(city, shard=shard)
         else:
             out = fn(city)
         if asyncio.iscoroutine(out):
@@ -97,14 +104,18 @@ def main() -> None:
         sp.add_argument("phase", choices=[*phases, "all"])
         sp.add_argument("--city", default="dalat")
         sp.add_argument("--headed", action="store_true")
-        sp.add_argument("--limit", type=int, help="observe / photos: only the first N places; place_crawl: only N videos per run")
+        sp.add_argument("--limit", type=int, help="observe / photos: only the first N places; place_crawl: only N videos per run; "
+                                                  "poi_crawl: only N places per run")
         sp.add_argument("--wait-relevant", action="store_true",
                         help="gmaps observe: skip places whose relevant reviews are not crawled yet")
         if source == "tiktok":
             sp.add_argument("--profile", help="second browser profile name, e.g. tiktok2, for a second account "
                                                "(login it first: `python -m corpus login tiktok --profile tiktok2`)")
             sp.add_argument("--shard", help="i/n: only this process's 1/n share of the todo list, for "
-                                             "place_search/place_crawl run in parallel under a second --profile")
+                                             "place_search/place_crawl run in parallel under a second --profile; asr / asr_alt: one GPU each; asr_check / place_verify: one process per Gemma endpoint")
+        if source == "gmaps":  # one Python process saturates one core at ~8 tabs: browser phases split across processes
+            sp.add_argument("--profile", help="crawl / relevant / extremes / keywords / photos: browser profile, one copy per process")
+            sp.add_argument("--shard", help="i/n: this process's 1/n share of the todo list (crawl / relevant / extremes / keywords / photos)")
     args = ap.parse_args()
     try:
         if args.cmd == "login":

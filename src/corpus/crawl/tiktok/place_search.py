@@ -2,7 +2,8 @@
 
 Writes only data/tiktok/place_search/<city>/<fid_dir>.json: {at, fid, name, category, query, items:[{video_id, url,
 author_id, desc, created_at, hashtags, photo}]} in TikTok's search order, at most videos_per_place. A place with a file
-is not searched again (delete it to refresh). A file is written only once TikTok ended the list or the cap was reached;
+is not searched again (delete it to refresh), unless the list stopped at the cap it was written under ("cap", 10 on
+files from before it was kept) and videos_per_place has grown since: TikTok may have more, so it is searched again. A file is written only once TikTok ended the list or the cap was reached;
 a search that stalls is retried and, after the last try, logged to errors.jsonl.
 """
 
@@ -19,6 +20,16 @@ from .page import collect, ensure_login, is_block
 from .search import SEARCH_API, SEARCH_URL, parse_search
 
 ATTEMPTS = 3
+LEGACY_CAP = 10  # videos_per_place of the files written before they recorded their cap
+
+
+def needs_search(file, cap: int) -> bool:
+    """No file yet, or the saved list is full at an older, smaller cap (the list may have been cut off, not ended)."""
+    if not file.exists():
+        return True
+    doc = json.loads(file.read_text(encoding="utf-8"))
+    old = doc.get("cap", LEGACY_CAP)
+    return old < cap and len(doc["items"]) >= old
 
 
 def query_for(name: str, city: str) -> str:
@@ -41,7 +52,7 @@ async def _place(ctx: BrowserContext, row: dict, out, city_name: str, root, c: d
                 if not complete:
                     raise RuntimeError("search list never ended")  # no has_more=0 and under the cap
                 write_json(out, {"at": now(), "fid": row["fid"], "name": row["name"], "category": row.get("category"),
-                                 "query": query, "items": items})
+                                 "query": query, "cap": c["videos_per_place"], "items": items})
                 throttle.success()
                 return
             except LoginRequired:
@@ -65,7 +76,7 @@ async def run(city: str, headed: bool = False, profile=open_profile, profile_nam
         raise SystemExit(f"no {lst}; run `python -m corpus gmaps list --city {city}` first")
     out = root / "place_search" / city
     todo = [r for r in json.loads(lst.read_text(encoding="utf-8"))["items"]
-            if not (out / f"{safe_name(r['fid'])}.json").exists()]
+            if needs_search(out / f"{safe_name(r['fid'])}.json", c["videos_per_place"])]
     if shard:
         i, n = shard
         todo = [r for idx, r in enumerate(todo) if idx % n == i]  # same source order every run: no overlap between shards

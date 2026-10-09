@@ -77,9 +77,9 @@ def test_unsupported_model_on_one_account_rests_briefly():
 
 def test_extractor_on_uit_switch_moves_only_the_extractor(monkeypatch):
     from corpus.llm import roles
-    monkeypatch.setenv("AGENT_API_KEY", "k")
-    monkeypatch.setenv("AGENT_BASE_URL", "https://uit/v1")
-    monkeypatch.setenv("AGENT_MODEL", "uit-gemma")
+    monkeypatch.setenv("UIT_API_KEY", "k")
+    monkeypatch.setenv("UIT_API_BASE_URL", "https://uit/v1")
+    monkeypatch.setenv("UIT_API_MODEL", "uit-gemma")
     monkeypatch.setenv("EXTRACTOR_ON_UIT", "1")
     client, model = roles.EXTRACTOR.client()
     assert str(client.base_url).startswith("https://uit") and model == "uit-gemma" and roles.EXTRACTOR.parallel() == 38

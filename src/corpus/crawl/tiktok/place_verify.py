@@ -11,6 +11,7 @@ asr_check: a video whose transcript is not checked yet is left for the next run.
 import asyncio
 import collections
 import json
+import zlib
 
 from ...llm import PLACE_VIDEO_VERIFY
 from ...review import decisions
@@ -44,10 +45,12 @@ def done(entry: dict | None, t: dict) -> bool:
     return bool(entry) and entry.get("prompt_hash") == PLACE_VIDEO_VERIFY.prompt_hash and entry.get("transcript_at") == t["at"]
 
 
-async def run(city: str) -> dict:
+async def run(city: str, shard: tuple[int, int] | None = None) -> dict:
     name, _ = load_config(city)
     root = data_dir() / "tiktok"
     by_video = places_by_video(city)
+    if shard:  # stable key: shards never overlap, whenever each starts
+        by_video = {v: ps for v, ps in by_video.items() if zlib.crc32(v.encode()) % shard[1] == shard[0]}
     client, model = _client()
     sem = asyncio.Semaphore(PLACE_VIDEO_VERIFY.parallel)
     verdicts = collections.Counter()

@@ -462,6 +462,32 @@ def test_endpoint_client_has_a_short_timeout_and_no_hidden_retries(monkeypatch):
     assert extract.CALL_TIMEOUT_S <= 300
 
 
+
+def test_extractor_also_uit_adds_the_uit_endpoint(monkeypatch):
+    class Client:
+        def __init__(self, name):
+            self.name = name
+
+        def with_options(self, **kw):
+            return self
+
+    role_cls = extract.REVIEW_OBSERVE.role.__class__
+    monkeypatch.setattr(role_cls, "client", lambda self: (Client("lan"), "m"))
+    monkeypatch.setattr(role_cls, "uit_client", staticmethod(lambda: (Client("uit"), "m")))
+
+    async def ok(client, model):
+        return True
+
+    monkeypatch.setattr(extract, "healthy", ok)
+    monkeypatch.delenv("EXTRACTOR_ON_UIT", raising=False)
+    monkeypatch.delenv("EXTRACTOR_ALSO_UIT", raising=False)
+    assert [p[0].name for p in asyncio.run(extract._providers())] == ["lan"]
+    monkeypatch.setenv("EXTRACTOR_ALSO_UIT", "1")
+    providers = asyncio.run(extract._providers())
+    assert [(p[0].name, p[2]) for p in providers][1] == ("uit", extract.UIT_PARALLEL)
+    monkeypatch.setenv("EXTRACTOR_ON_UIT", "1")  # already on UIT: no second copy of it
+    assert len(asyncio.run(extract._providers())) == 1
+
 def test_slots_shrink_on_429_and_grow_back():
     slots = extract.Slots([("c", "m", 8)], min_cap=2)
     assert slots.cap == 8

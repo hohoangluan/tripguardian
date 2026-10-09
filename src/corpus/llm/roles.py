@@ -37,7 +37,7 @@ class Role:
     @staticmethod
     def uit_client() -> tuple[AsyncOpenAI, str]:
         load_dotenv(ROOT / ".env")
-        return AsyncOpenAI(api_key=os.environ["AGENT_API_KEY"], base_url=os.environ["AGENT_BASE_URL"]), os.environ["AGENT_MODEL"]
+        return AsyncOpenAI(api_key=os.environ["UIT_API_KEY"], base_url=os.environ["UIT_API_BASE_URL"]), os.environ["UIT_API_MODEL"]
 
     def client(self) -> tuple[AsyncOpenAI, str]:
         if self._on_uit():
@@ -67,9 +67,9 @@ EXTRACTOR = Role(
     parallel_env="EXTRACTOR_PARALLEL",
 )
 
-# The Judge roles run on the UIT Gemma (the Agent's endpoint and key, docs/LLM_PROVIDER.md §UIT API): the key takes 40
-# concurrent calls, 38 of them here so the live Agent keeps two. No proxy, no second model family.
-UIT = dict(key_env="AGENT_API_KEY", base_url_env="AGENT_BASE_URL", model_env="AGENT_MODEL", default_parallel=38)
+# The Judge roles run on the UIT Gemma (docs/LLM_PROVIDER.md §UIT API): the key takes 40
+# concurrent calls, 38 of them here. The live Agent has its own endpoint and credentials.
+UIT = dict(key_env="UIT_API_KEY", base_url_env="UIT_API_BASE_URL", model_env="UIT_API_MODEL", default_parallel=38)
 
 JUDGE = Role(
     name="judge",

@@ -20,7 +20,7 @@ from urllib.parse import quote
 from playwright.async_api import BrowserContext, Page
 
 from ..common.browser import LoginRequired, open_sessions, pause
-from ..common.files import append_jsonl, data_dir, load_config, log_error, now, slug
+from ..common.files import STAY, append_jsonl, data_dir, load_config, log_error, now, slug
 from ..common.throttle import Throttle
 from .page import more, open_page
 from .tiles import bounds, children, in_area, overlaps, root_tiles
@@ -122,6 +122,55 @@ async def search(ctx: BrowserContext, query: str, limit: int, at: tuple) -> tupl
         return (await parse_feed(page))[:limit], end, await is_hotel_list(page)
     finally:
         await page.close()
+
+
+async def run_stay(city: str, headed: bool = False, sessions=open_sessions) -> None:
+    """Lodging (queries.yaml stay): each query word in each named ward / area of the city, one search each. Maps'
+    hotel list ignores the viewport, so the list is split by area names, not tiles. Writes only
+    data/gmaps/search/<city>_stay/<word>.jsonl in the search file format; listing.build_stay reads it."""
+    name, cfg = load_config(city)
+    s, c, root, area = cfg["stay"], cfg["gmaps"], data_dir() / "gmaps", cfg.get("area")
+    if not area:
+        raise SystemExit(f"config/cities.yaml: {city} has no area")
+    out = root / "search" / f"{city.removesuffix(STAY)}{STAY}"
+    at = (round((area[0] + area[2]) / 2, 6), round((area[1] + area[3]) / 2, 6), cfg["gmaps"]["grid"]["start_zoom"])
+    done = done_tiles(out)
+    throttle = Throttle(root / "search_throttle.json", start=c.get("search_tabs_start", 1), hi=c.get("search_tabs", 1),
+                        cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
+
+    async def one(new_session, word: str, query: str):
+        for attempt in range(1, ATTEMPTS + 1):
+            async with throttle:
+                ctx = None
+                try:
+                    ctx = await new_session()
+                    rows, end, lodging = await search(ctx, query, c["grid"].get("limit", 120), at)
+                    if not end and attempt < ATTEMPTS:
+                        throttle.blocked()
+                        continue
+                    append_jsonl(out / f"{slug(word)}.jsonl", {"at": now(), "query": query, "tile": list(at), "end": end,
+                                                              "lodging": lodging, "items": [r for r in rows if in_area(r.get("lat"), r.get("lng"), area)]})
+                    throttle.success()
+                    return
+                except LoginRequired:
+                    raise
+                except Exception as e:
+                    if attempt < ATTEMPTS and (type(e).__name__ == "TimeoutError" or "net::ERR_" in str(e)):
+                        throttle.blocked()
+                        continue
+                    log_error(root, query, "stay_search", e)
+                    return
+                finally:
+                    if ctx is not None:
+                        await ctx.close()
+                    await pause(*c.get("pause_s", (2.0, 5.0)))
+
+    todo = [(w, f"{w} {a} {name}") for w in s["queries"] for a in s["areas"]]
+    todo = [(w, q) for w, q in todo if (q, at) not in done]
+    print(f"stay_search {city}: {len(todo)} searches left")
+    async with sessions(headed) as ctx, asyncio.TaskGroup() as tg:
+        for w, q in todo:
+            tg.create_task(one(ctx, w, q))
 
 
 def done_tiles(d) -> dict:

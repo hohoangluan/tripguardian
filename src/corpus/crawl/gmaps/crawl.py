@@ -14,8 +14,9 @@ from playwright.async_api import BrowserContext, Page
 from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import author_hash, data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
+from .gate import GateThrottle
 from ...review import retry_ids
-from .page import check_signed_in, ensure_login, more, open_page
+from .page import CaptchaBlocked, check_signed_in, ensure_login, more, open_page, text_only
 
 HOURS_BUTTON = '[role="button"][jsaction*="openhours"][jsaction*="dropdown"]'
 SORT_BUTTON = 'button[aria-haspopup="true"][aria-label="Phù hợp nhất"]'  # label = current review order
@@ -172,10 +173,13 @@ async def scrape_place(ctx: BrowserContext, url: str, max_reviews: int | None, m
                 if not await page.evaluate(EXPAND_JS):
                     break
                 await page.wait_for_timeout(500)
-            loaded = (await parse_reviews(page))[:max_reviews]
+            parsed = await parse_reviews(page)
+            loaded = parsed[:max_reviews]
             reviews = keep_recent(loaded, max_age_months, min_reviews)
             # newest first: once an older one loaded, the kept ones are all the recent ones there are
             place["reviews_age_cut"] = len(reviews) < len(loaded)
+            # every review the place has: ended on the list's own end signal, nothing cut by age or by the cap
+            place["reviews_full"] = complete and not place["reviews_age_cut"] and not (max_reviews and len(parsed) >= max_reviews)
         await check_signed_in(page)  # the Google bar, with its sign-in link, renders well after the title
         return place, reviews
     finally:
@@ -197,6 +201,18 @@ def too_few(n: int, review_count: str | None, c: dict, age_cut: bool) -> bool:
     if age_cut:
         return n < min(total, c.get("min_reviews_per_place") or 0) // 2
     return n < min(total, cap or total) // 2
+
+
+def needs_deeper(p: dict, n: int, c: dict) -> bool:
+    """A saved place the current limits would crawl further: cut by age or by the cap (or saved before those were
+    recorded) and under 90% of the reviews the config now asks for. A place saved whole, or flagged incomplete after
+    its retries, is never crawled again here."""
+    total, cap = count(p.get("review_count")), c.get("max_reviews_per_place")
+    if p.get("reviews_full") or p.get("reviews_complete") is False or cap == 0 or not total:
+        return False
+    if p.get("reviews_age_cut") and c.get("max_review_age_months") is not None:
+        return False  # the age limit still applies: nothing more to take
+    return n < 0.9 * min(total, cap or total)
 
 
 async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Throttle) -> None:
@@ -221,7 +237,7 @@ async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thrott
             except Exception as e:
                 slow = "too few reviews: 0 " in str(e)  # list not loaded yet
                 slow = slow or "incomplete" in str(e)  # a slow batch, not a block: retry without cutting tabs
-                blocked = type(e).__name__ == "TimeoutError" or ("too few reviews" in str(e) and not slow)
+                blocked = type(e).__name__ == "TimeoutError" or isinstance(e, CaptchaBlocked) or ("too few reviews" in str(e) and not slow)
                 if attempt < ATTEMPTS and (slow or blocked):
                     print(f"retry {row['fid']} ({attempt}/{ATTEMPTS}): {str(e).splitlines()[0][:120]}")
                     if blocked:  # a page that never loads is Google throttling; a slow review list is not
@@ -233,7 +249,8 @@ async def _place(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thrott
                 await pause(*c.get("pause_s", (2.0, 5.0)))
 
 
-async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, shard: tuple[int, int] | None = None,
+              profile_name: str | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
     lst = root / "list" / f"{city}.json"
@@ -246,17 +263,20 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
         reviews = json.loads((f.parent / "reviews.json").read_text(encoding="utf-8"))
         age_cut = p.get("reviews_age_cut") or any((age_months(r.get("published_text")) or 0) > (c.get("max_review_age_months") or 10**6)
                                                   for r in reviews)  # older files kept a few old reviews
-        if too_few(len(reviews), p.get("review_count"), c, age_cut):
-            thin.add(p["fid"])  # saved from a signed-out or throttled page
+        if too_few(len(reviews), p.get("review_count"), c, age_cut) or needs_deeper(p, len(reviews), c):
+            thin.add(p["fid"])  # saved from a signed-out or throttled page, or under the current depth
     again = retry_ids("place_reviews", fetched) | thin  # a person asked to crawl these again (review)
     todo = [r for r in json.loads(lst.read_text(encoding="utf-8"))["items"]
             if r["fid"] in again or not (root / "places" / safe_name(r["fid"]) / "place.json").exists()]
     if thin:
-        print(f"crawl {city}: {len(thin)} saved places have too few reviews, crawling them again")
-    print(f"crawl {city}: {len(todo)} places left")
-    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
+        print(f"crawl {city}: {len(thin)} saved places have too few reviews or fewer than the config asks for, crawling them again")
+    if shard:  # one process per shard, each with its own browser (one Python process caps ~8 tabs)
+        todo = todo[shard[0]::shard[1]]
+    print(f"crawl {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
+    throttle = GateThrottle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
-    async with profile("gmaps", headed) as ctx:
+    async with profile(profile_name or "gmaps", headed) as ctx:
+        await text_only(ctx)  # text and aria-labels only: a drawn map kept ~1 core busy per tab (2026-10-07)
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:  # one LoginRequired stops all

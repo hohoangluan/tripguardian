@@ -192,3 +192,14 @@ def test_place_crawl_opens_only_kept_videos_not_yet_saved(tmp_path, monkeypatch)
     monkeypatch.setattr(crawl, "crawl_videos", fake_crawl)
     asyncio.run(place_crawl.run("dalat", profile=fake_profile))
     assert got == ["1"]
+
+
+def test_place_search_again_only_when_the_saved_list_was_cut_by_a_smaller_cap(tmp_path):
+    f = tmp_path / "p.json"
+    assert place_search.needs_search(f, 20)  # no file
+    f.write_text(json.dumps({"items": [{}] * 10}), encoding="utf-8")  # legacy file, cap 10, full: maybe more
+    assert place_search.needs_search(f, 20) and not place_search.needs_search(f, 10)
+    f.write_text(json.dumps({"items": [{}] * 6}), encoding="utf-8")  # legacy file the list ended in
+    assert not place_search.needs_search(f, 20)
+    f.write_text(json.dumps({"cap": 20, "items": [{}] * 20}), encoding="utf-8")
+    assert not place_search.needs_search(f, 20) and place_search.needs_search(f, 30)

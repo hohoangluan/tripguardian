@@ -122,3 +122,25 @@ def test_unfinished_reply_list_is_reported_incomplete(no_person):
 def test_empty_body_means_blocked_at_once(no_person):
     with pytest.raises(RuntimeError, match="empty body"):
         asyncio.run(crawl.comments(FakeCtx(FakePage([""], {"id": "1"})), URL, None))
+
+
+def test_person_solved_reports_a_captcha_that_was_cleared(monkeypatch):
+    from corpus.crawl.tiktok import page as tt_page
+    waited = []
+
+    async def captcha(p):
+        return True
+
+    async def wait(p, source):
+        waited.append(source)
+
+    monkeypatch.setattr(tt_page, "is_captcha", captcha)
+    monkeypatch.setattr(tt_page, "wait_for_person", wait)
+    assert asyncio.run(tt_page._person_solved(object())) and waited == ["tiktok"]
+
+    async def none(p):
+        return False
+
+    monkeypatch.setattr(tt_page, "is_captcha", none)
+    monkeypatch.setattr(tt_page, "CAPTCHA_APPEAR_S", 0.5)
+    assert not asyncio.run(tt_page._person_solved(object())) and waited == ["tiktok"]

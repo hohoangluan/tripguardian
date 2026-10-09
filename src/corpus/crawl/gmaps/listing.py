@@ -2,7 +2,8 @@
 or more (top: at most that many per category, by review-weighted rating; None: no cap).
 
 Writes only data/gmaps/list/<city>.json: {at, stats, items:[{fid, name, url, lat, lng, category, rating, reviews, score,
-queries[]}]}, best score first. Rebuilt from scratch every time, so it always matches the search files. No browser.
+queries[]}]}, best score first, and data/gmaps/list/<city>_stay.json, the lodging list in the same shape (build_stay).
+Rebuilt from scratch every time, so it always matches the search files. No browser.
 
 Dropped: places outside the city area, lodging (users enter their own; Maps' hotel lists and lodging categories),
 places filter.py did not keep ("no", or not judged yet; a person's keep / drop in review overrides the model), places
@@ -23,7 +24,7 @@ import statistics
 import unicodedata
 
 from ...review import decisions
-from ..common.files import data_dir, load_config, now, write_json
+from ..common.files import STAY, data_dir, load_config, now, write_json
 from .tiles import in_area
 
 KEEP = ("yes", "unsure")
@@ -149,7 +150,43 @@ def build(search_dir, area, top: int | None = 100, kept: set[str] | None = None,
     return {"at": now(), "stats": stats, "items": order}
 
 
+def build_stay(search_dirs, area, city: str | None = None, min_reviews: int = 0, same_name_m: float = 0,
+               counts: dict[str, dict] | None = None) -> dict:
+    """The lodging list (docs/CORPUS.md §Phạm vi, group `stay`): every lodging-category place in the area seen by any
+    search (the stay queries of search.run_stay and the lodging the place searches met), min_reviews or more reviews,
+    one row per place. Only Planning reads it; places of other categories never enter it, whatever list they were in."""
+    best: dict[str, dict] = {}
+    queries: dict[str, set[str]] = {}
+    raw = 0
+    for d in search_dirs:
+        for f in sorted(d.glob("*.jsonl")) if d.exists() else []:
+            for line in f.read_text(encoding="utf-8").splitlines():
+                rec = json.loads(line)
+                if "end" not in rec or not all("rating" in r for r in rec["items"]):
+                    continue
+                for r in rec["items"]:
+                    if not is_lodging(r.get("category")) or not in_area(r["lat"], r["lng"], area):
+                        continue
+                    raw += 1
+                    queries.setdefault(r["fid"], set()).add(rec["query"])
+                    if r["fid"] not in best or (r.get("reviews") or 0) > (best[r["fid"]]["reviews"] or 0):
+                        best[r["fid"]] = {k: r.get(k) for k in KEYS}
+    for fid, n in (counts or {}).items():
+        if fid in best and n.get("reviews") is not None:
+            best[fid] = {**best[fid], "rating": n["rating"], "reviews": n["reviews"]}
+    copies = _same_place(list(best.values()), city, same_name_m)
+    for fid, kept in copies.items():
+        queries[kept["fid"]] |= queries.pop(fid)
+        best.pop(fid)
+    few = {fid for fid, r in best.items() if min_reviews and (r["rating"] is None or (r["reviews"] or 0) < min_reviews)}
+    rows = _scored([dict(r) for fid, r in best.items() if fid not in few])
+    items = [{**r, "queries": sorted(queries[r["fid"]])} for r in rows]
+    stats = {"raw": raw, "same_place": len(copies), "few_reviews": len(few), "places": len(items)}
+    return {"at": now(), "stats": stats, "items": items}
+
+
 def run(city: str) -> dict:
+    city = city.removesuffix(STAY)  # one run writes both lists
     name, cfg = load_config(city)
     root = data_dir() / "gmaps"
     if not (root / "filter" / "summary.json").exists():
@@ -161,4 +198,8 @@ def run(city: str) -> dict:
                 name, g.get("min_reviews", 0), g.get("same_name_m", 0), counts)
     write_json(root / "list" / f"{city}.json", lst)
     print(f"list {city}: {lst['stats']}")
+    stay = build_stay([root / "search" / city, root / "search" / f"{city}{STAY}"], cfg.get("area"), name,
+                      cfg.get("stay", {}).get("min_reviews", 0), g.get("same_name_m", 0), counts)
+    write_json(root / "list" / f"{city}{STAY}.json", stay)
+    print(f"list {city}{STAY}: {stay['stats']}")
     return lst["stats"]

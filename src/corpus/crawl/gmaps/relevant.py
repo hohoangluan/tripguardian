@@ -14,8 +14,9 @@ from playwright.async_api import BrowserContext
 from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
+from .gate import GateThrottle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, count, parse_reviews
-from .page import ensure_login, more, open_page
+from .page import CaptchaBlocked, ensure_login, more, open_page, text_only
 
 FILE = "reviews_relevant.json"
 ATTEMPTS = 2
@@ -78,7 +79,7 @@ async def _place(ctx: BrowserContext, d, url: str, n: int, root, c: dict, thrott
                 raise
             except Exception as e:
                 if attempt < ATTEMPTS:
-                    if type(e).__name__ == "TimeoutError":
+                    if type(e).__name__ == "TimeoutError" or isinstance(e, CaptchaBlocked):
                         throttle.blocked()
                     continue
                 log_error(root, d.name, "relevant", e)
@@ -87,7 +88,8 @@ async def _place(ctx: BrowserContext, d, url: str, n: int, root, c: dict, thrott
                 await pause(*c.get("pause_s", (2.0, 5.0)))
 
 
-async def run(city: str, headed: bool = False, profile=open_profile) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, shard: tuple[int, int] | None = None,
+              profile_name: str | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
     n = c.get("relevant_reviews_per_place", 50)
@@ -99,10 +101,13 @@ async def run(city: str, headed: bool = False, profile=open_profile) -> None:
         kept = json.loads((f.parent / "reviews.json").read_text(encoding="utf-8"))
         if wanted(place, len(kept)):
             todo.append((f.parent, place["url"]))
-    print(f"relevant {city}: {len(todo)} places left")
-    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
+    if shard:  # one process per shard, each with its own browser (one Python process caps ~8 tabs)
+        todo = todo[shard[0]::shard[1]]
+    print(f"relevant {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
+    throttle = GateThrottle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
-    async with profile("gmaps", headed) as ctx:
+    async with profile(profile_name or "gmaps", headed) as ctx:
+        await text_only(ctx)  # text and aria-labels only: a drawn map kept ~1 core busy per tab (2026-10-07)
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:

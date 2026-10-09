@@ -38,6 +38,7 @@ from ..observe import CONTEXT_KEYS, TARGETED, targeted_ok
 from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
 from ..judge import merges
 from ..review import decisions, label_key, label_stats, label_verdicts
+from ..categories import group
 from .estimates import estimates
 
 AGREEMENT_MIN = 0.6
@@ -286,10 +287,17 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
     verdicts: label content key -> latest label (person over Judge)."""
     verdicts = verdicts or {}
     as_of = max(date.fromisoformat(f["as_of"]) for f in files)
+    identity = {}
+    for f in files:
+        for k, v in (f.get("place") or {}).items():
+            if v is not None:
+                identity.setdefault(k, v)
+    cg = group(identity.get("category"))["id"]  # lodging keeps only the stay features
     by_feature = collections.defaultdict(list)
     for f in files:
         for o in f["observations"]:
-            if ont.valid(o["feature"], o["value"]) and usable(o, ont.features[o["feature"]], verdicts):
+            if (ont.valid(o["feature"], o["value"]) and ont.applies(o["feature"], o["value"], cg)
+                    and usable(o, ont.features[o["feature"]], verdicts)):
                 by_feature[o["feature"]].append(o)
     voices = sum(f.get("voices") or 0 for f in files)
     voices_targeted = sum(f.get("voices_targeted") or 0 for f in files)  # count only where targeted samples count
@@ -302,8 +310,10 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
                                  voices + voices_targeted if targeted_ok(feat) else voices, verdicts)
             features[fid] = judge(sig, quality.get((fid, sig["top_value"])), reviewed.get(fid))
     for fid in SILENCE_FEATURES:
+        if not ont.applies(fid, "", cg):
+            continue
         said = [o for f in files for o in f["observations"] if o["feature"] == fid and ont.valid(fid, o["value"])
-                and verdicts.get(label_key(o["source_id"], fid, o["value"], o["span"]["quote"])) != "wrong"]
+                and ont.applies(fid, o["value"], cg) and verdicts.get(label_key(o["source_id"], fid, o["value"], o["span"]["quote"])) != "wrong"]
         if not said:
             if voices:  # someone's words were read and none named it
                 features[fid] = inferred(silence_signal(), "silence", None, reviewed.get(fid))
@@ -326,11 +336,6 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
             if v is not None:
                 (official if f.get("source") == "official" else facts).setdefault(k, v)
     hours = merge_hours(facts.get("hours"), official.get("hours"))
-    identity = {}
-    for f in files:
-        for k, v in (f.get("place") or {}).items():
-            if v is not None:
-                identity.setdefault(k, v)
     return {
         "place_fid": files[0]["place_fid"],
         "merged": sorted({f["place_fid"] for f in files} - {files[0]["place_fid"]}),

@@ -15,8 +15,9 @@ from playwright.async_api import BrowserContext
 from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import data_dir, load_config, log_error, now, write_json
 from ..common.throttle import Throttle
+from .gate import GateThrottle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, SORT_BUTTON, count, parse_reviews
-from .page import ensure_login, more, open_page, text_only
+from .page import CaptchaBlocked, ensure_login, more, open_page, text_only
 
 FILE = "reviews_extremes.json"
 ATTEMPTS = 2
@@ -110,7 +111,7 @@ async def _place(ctx: BrowserContext, d, url: str, n: int, root, c: dict, thrott
                 raise
             except Exception as e:
                 if attempt < ATTEMPTS:
-                    if type(e).__name__ == "TimeoutError":
+                    if type(e).__name__ == "TimeoutError" or isinstance(e, CaptchaBlocked):
                         throttle.blocked()
                     continue
                 log_error(root, d.name, "extremes", e)
@@ -119,7 +120,8 @@ async def _place(ctx: BrowserContext, d, url: str, n: int, root, c: dict, thrott
                 await pause(*c.get("pause_s", (2.0, 5.0)))
 
 
-async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None,
+              shard: tuple[int, int] | None = None, profile_name: str | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
     n = c.get("extreme_reviews_per_place", 30)
@@ -130,11 +132,13 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
         place = json.loads(f.read_text(encoding="utf-8"))
         if wanted(place):
             todo.append((f.parent, place["url"]))
+    if shard:
+        todo = todo[shard[0]::shard[1]]
     todo = todo[:limit]
-    print(f"extremes {city}: {len(todo)} places left")
-    throttle = Throttle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
+    print(f"extremes {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
+    throttle = GateThrottle(root / "throttle.json", start=c.get("tabs_start", 1), hi=c.get("tabs", 1),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
-    async with profile("gmaps", headed) as ctx:
+    async with profile(profile_name or "gmaps", headed) as ctx:
         await text_only(ctx)
         await ensure_login(ctx)
         try:

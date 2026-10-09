@@ -3,6 +3,7 @@
 A Maps category goes to the first group whose `match` words it contains (lower case); no match -> the last group.
 """
 
+import unicodedata
 from functools import cache
 
 import yaml
@@ -18,6 +19,6 @@ def defaults() -> dict:
 
 
 def group(category: str | None) -> dict:
-    c = (category or "").casefold()
+    c = unicodedata.normalize("NFC", category or "").casefold()  # Maps sends some categories as NFD
     groups = defaults()["groups"]
     return next((g for g in groups if any(m in c for m in g["match"])), groups[-1])

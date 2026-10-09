@@ -270,3 +270,15 @@ def test_crawl_needs_list(data, monkeypatch):
     monkeypatch.setattr(crawl, "load_config", lambda city: ("Đà Lạt", {"tiktok": {}}))
     with pytest.raises(SystemExit, match="tiktok list"):
         asyncio.run(crawl.run("dalat", profile=fake_profile))
+
+
+def test_a_run_of_empty_video_pages_is_a_block_but_a_lone_one_is_a_dead_video(tmp_path):
+    t = crawl.MissWatchThrottle(tmp_path / "t.json", start=4, hi=8)
+    miss = crawl.NoItemData()
+    for _ in range(4):
+        t.success()
+    assert not crawl.throttled(miss, t)  # one dead video among clean pages
+    flags = [crawl.throttled(miss, t) for _ in range(5)]
+    assert flags == [False, False, False, False, True]  # 6th empty page of the last 10: throttled
+    assert not crawl.throttled(miss, t)  # the window started over
+    assert not crawl.throttled(miss, crawl.Throttle(tmp_path / "u.json", start=4, hi=8))  # plain throttle: never

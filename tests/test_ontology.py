@@ -75,3 +75,17 @@ def test_span_checked_features_state_one_claim_per_value():
 def test_span_check_without_claims_rejected():
     with pytest.raises(ValueError, match="claims"):
         parse({**BASE, "features": [{**A, "check": "span"}]})
+
+
+def test_stay_features_limit_lodging_only():
+    ont = load()
+    assert ont.applies("noise", "loud", "stay") and ont.applies("kids", "suitable", "stay")
+    assert not ont.applies("kids", "unsuitable", "stay") and not ont.applies("food_quality", "good", "stay")
+    assert ont.applies("food_quality", "good", "cafe") and ont.applies("food_quality", "good", None)
+
+
+def test_stay_features_must_exist():
+    raw = {"version": 1, "groups": ["experience"], "contexts": {}, "stay_features": ["noise"],
+           "features": [{"id": "view", "group": "experience", "values": ["present"], "hint": "h"}]}
+    with pytest.raises(ValueError, match="stay_features"):
+        parse(raw)

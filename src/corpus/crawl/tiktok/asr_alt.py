@@ -19,8 +19,9 @@ from .asr import RATE, load_audio
 def todo(root: Path) -> list[Path]:
     out = []
     for doc in sorted((root / "videos").glob("*/video.json")) if (root / "videos").exists() else []:
-        t = json.loads(doc.read_text(encoding="utf-8")).get("transcript") or {}
-        if any(s.get("needs_alt") and "alt_text" not in s for s in t.get("segments", [])):
+        if not (doc.parent / "video.mp4").exists():
+            continue  # clip deleted after place_verify (clip_removed): nothing left to hear again
+        if _pending(json.loads(doc.read_text(encoding="utf-8")).get("transcript") or {}):
             out.append(doc)
     return out
 
@@ -35,13 +36,22 @@ def hear_again(mp4: Path, segments: list[dict], model=asr_model) -> dict[int, st
                 for i, s in enumerate(segments) if s.get("needs_alt") and "alt_text" not in s}
 
 
-def run(city: str) -> dict:
+def _pending(t: dict) -> bool:
+    return any(s.get("needs_alt") and "alt_text" not in s for s in t.get("segments", []))
+
+
+def run(city: str, shard: tuple[int, int] | None = None) -> dict:
+    """shard = (i, n): this process's 1/n of the todo list, so n processes can each take a GPU (CUDA_VISIBLE_DEVICES)."""
     root = data_dir() / "tiktok"
     docs = todo(root)
+    if shard:
+        docs = [d for k, d in enumerate(docs) if k % shard[1] == shard[0]]
     print(f"asr_alt: {len(docs)} videos with segments to hear again")
     done = segs = 0
     for doc in docs:
         v = json.loads(doc.read_text(encoding="utf-8"))
+        if not _pending(v.get("transcript") or {}):
+            continue  # another asr_alt process (other GPU, other shard count) got here first
         try:
             heard = hear_again(doc.parent / "video.mp4", v["transcript"]["segments"])
         except Exception as e:

@@ -20,8 +20,9 @@ from ..common.browser import LoginRequired, open_profile, pause
 from ...categories import group
 from ..common.files import data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
+from .gate import GateThrottle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, count, parse_reviews
-from .page import ensure_login, more, open_page, text_only
+from .page import CaptchaBlocked, ensure_login, more, open_page, text_only
 
 FILE = "reviews_keywords.json"
 ATTEMPTS = 2
@@ -122,7 +123,7 @@ async def _place(ctx: BrowserContext, d, url: str, words, n: int, root, c: dict,
             except Exception as e:
                 if attempt < ATTEMPTS:
                     print(f"retry {d.name}: {type(e).__name__}: {str(e).splitlines()[0][:120]}", flush=True)
-                    if type(e).__name__ == "TimeoutError":
+                    if type(e).__name__ == "TimeoutError" or isinstance(e, CaptchaBlocked):
                         throttle.blocked()
                     continue
                 log_error(root, d.name, "keywords", e)
@@ -131,7 +132,8 @@ async def _place(ctx: BrowserContext, d, url: str, words, n: int, root, c: dict,
                 await gap()
 
 
-async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None,
+              shard: tuple[int, int] | None = None, profile_name: str | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
     sets, n = c.get("keyword_sets", []), c.get("keyword_reviews_per_word", 20)
@@ -147,10 +149,12 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
         if words:
             todo.append((f.parent, place["url"], words))
     todo = todo[:limit]
-    print(f"keywords {city}: {len(todo)} places left")
-    throttle = Throttle(root / "keywords_throttle.json", start=c.get("keyword_tabs_start", 4), hi=c.get("keyword_tabs", 8),
+    if shard:  # one process per shard, each with its own browser (one Python process caps ~8 tabs)
+        todo = todo[shard[0]::shard[1]]
+    print(f"keywords {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
+    throttle = GateThrottle(root / "keywords_throttle.json", start=c.get("keyword_tabs_start", 4), hi=c.get("keyword_tabs", 8),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
-    async with profile("gmaps", headed) as ctx:
+    async with profile(profile_name or "gmaps", headed) as ctx:
         await text_only(ctx)
         await ensure_login(ctx)
         try:

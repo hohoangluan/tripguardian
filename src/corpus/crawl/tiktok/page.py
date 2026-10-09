@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 
 from playwright.async_api import BrowserContext
 
-from ..common.browser import LoginRequired, wait_for_person
+from ..common.browser import LoginRequired, is_captcha, wait_for_person
 
 
 ITEM_JS = """() => { try { return JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__').textContent)
@@ -60,6 +60,25 @@ async def _skip_rendering(route) -> None:
 
 STATE_WAIT_S = 20.0  # page JSON can land well after domcontentloaded, above all right after a captcha
 STATE_POLL_S = 0.5
+
+
+CAPTCHA_APPEAR_S = 12.0  # the slider shows a few seconds after the search API already answered with an empty body
+
+
+async def _person_solved(page) -> bool:
+    """True when the page shows a captcha (given CAPTCHA_APPEAR_S to appear) and a person cleared it (headless runs
+    raise LoginRequired instead)."""
+    for _ in range(max(1, int(CAPTCHA_APPEAR_S / STATE_POLL_S))):
+        try:
+            if await is_captcha(page):
+                await wait_for_person(page, "tiktok")
+                return True
+        except LoginRequired:
+            raise
+        except Exception:
+            return False
+        await asyncio.sleep(STATE_POLL_S)
+    return False
 
 
 async def _wait_state(page, state_js: str):
@@ -175,6 +194,10 @@ async def collect(ctx: BrowserContext, url: str, apis: dict, key: str, limit: in
         complete, seen, stale = False, 0, 0
         while True:
             await _next_response(arrived, ROUND_S)
+            if blocked[0] and await _person_solved(page):  # the empty body was a captcha: lists load again after it
+                blocked[0] = False
+                await page.reload(wait_until="domcontentloaded")
+                continue
             if blocked[0]:
                 raise RuntimeError(f"{urlparse(url).path}: API returned an empty body (blocked)")
             await wait_for_person(page, "tiktok")

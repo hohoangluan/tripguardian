@@ -50,13 +50,19 @@ def todo(root: Path, model_name: str) -> list[Path]:
     return out
 
 
-def run(city: str) -> dict:
+def run(city: str, shard: tuple[int, int] | None = None) -> dict:
+    """shard = (i, n): this process's 1/n of the todo list, so n processes can each take a GPU (CUDA_VISIBLE_DEVICES)."""
     root = data_dir() / "tiktok"
-    docs = todo(root, asr_model.name())
+    name = asr_model.name()
+    docs = todo(root, name)
+    if shard:
+        docs = [d for k, d in enumerate(docs) if k % shard[1] == shard[0]]
     print(f"asr: {len(docs)} videos to transcribe")
     done = 0
     for doc in docs:
         vid = doc.parent.name
+        if (json.loads(doc.read_text(encoding="utf-8")).get("transcript") or {}).get("model") == name:
+            continue  # another asr process (other GPU, other shard count) got here first
         try:
             t = transcribe_video(doc.parent / "video.mp4")
             v = json.loads(doc.read_text(encoding="utf-8"))  # read late: other phases may have written meanwhile

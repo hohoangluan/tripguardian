@@ -404,3 +404,16 @@ def test_travellers_reports_are_an_authoritative_source():
     assert (s["authority"], s["servable"]) == ("hard", True)
     s = aggregate_place([_read(rep + [o(99, "parking", "easy", "a")])], ONT)["features"]["parking"]
     assert s["status"] == "uncertain"  # reviews say otherwise: both sides kept, no longer served as settled
+
+
+def test_lodging_keeps_only_the_stay_features():
+    obs = [o(i, fid, v, a) for i, (fid, v, a) in enumerate([
+        ("noise", "quiet", "a"), ("noise", "quiet", "b"), ("food_quality", "good", "a"), ("food_quality", "good", "b"),
+        ("kids", "unsuitable", "a"), ("kids", "suitable", "b"), ("couples", "suitable", "c")])]
+    hotel = {**f(obs), "place": {"category": "Khách sạn"}}
+    feats = aggregate_place([hotel], ONT)["features"]
+    assert "noise" in feats and "couples" in feats and "food_quality" not in feats
+    assert feats["kids"]["distribution"] == {"suitable": 1}  # only `suitable` counts for who a lodging suits
+    assert "long_walk" not in feats and "rough_road_access" not in feats  # no silence inference outside the stay set
+    cafe = aggregate_place([{**f(obs), "place": {"category": "Quán cà phê"}}], ONT)["features"]
+    assert "food_quality" in cafe

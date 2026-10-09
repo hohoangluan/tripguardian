@@ -16,7 +16,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
+from ...crawl.common.files import append_jsonl, data_dir, listed, load_config, now, safe_name, write_json
 from ...llm import PHOTO_OBSERVE, PHOTO_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import CONTEXT_KEYS, keep_stale, observation
@@ -113,9 +113,9 @@ async def run(city: str, limit: int | None = None) -> dict:
     out = root / OUT_DIR
     ont = load_ontology()
     dirs = sorted(f.parent for f in (root / "places").glob(f"*/{PHOTOS_FILE}"))
-    listed = root / "list" / f"{city}.json"
-    if listed.exists():
-        keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]}
+    items = listed(city)
+    if items is not None:
+        keep = {safe_name(r["fid"]) for r in items}
         dirs = [d for d in dirs if d.name in keep]
     dirs = dirs[:limit] if limit is not None else dirs
     client, model = _client()

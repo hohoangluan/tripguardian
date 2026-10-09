@@ -22,7 +22,7 @@ from pathlib import Path
 
 import openai
 
-from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
+from ...crawl.common.files import append_jsonl, data_dir, listed, load_config, now, safe_name, write_json
 from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import keep_stale, observation
@@ -112,10 +112,16 @@ async def healthy(client, model: str) -> bool:
         return False
 
 
+UIT_PARALLEL = 38
+
+
 async def _providers() -> list[tuple]:
-    client, model = REVIEW_OBSERVE.role.client()
-    client = client.with_options(timeout=CALL_TIMEOUT_S, max_retries=0)  # Task.ask retries with backoff
-    found = [(client, model, REVIEW_OBSERVE.parallel)]
+    role = REVIEW_OBSERVE.role
+    found = [(*role.client(), REVIEW_OBSERVE.parallel)]
+    if role.also_uit():  # the UIT key takes 40 calls; two stay free for the Agent
+        found.append((*role.uit_client(), UIT_PARALLEL))
+    # Task.ask retries with backoff
+    found = [(c.with_options(timeout=CALL_TIMEOUT_S, max_retries=0), m, n) for c, m, n in found]
     ok = await asyncio.gather(*(healthy(c, m) for c, m, _ in found))
     return [p for p, good in zip(found, ok) if good]
 
@@ -439,10 +445,9 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
     out = root / "observations"
     ont = load_ontology()
     dirs = sorted(p.parent for p in (root / "places").glob("*/place.json"))
-    listed = root / "list" / f"{city}.json"
+    items = listed(city)
     categories = {}
-    if listed.exists():  # the list is the place inventory: places it dropped are not evidence for anything
-        items = json.loads(listed.read_text(encoding="utf-8"))["items"]
+    if items is not None:  # the lists are the place inventory: places they dropped are not evidence for anything
         keep = {safe_name(r["fid"]) for r in items}
         categories = {safe_name(r["fid"]): listed_category(r) for r in items}
         dirs = [d for d in dirs if d.name in keep]

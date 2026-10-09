@@ -20,6 +20,7 @@ the engine is back to the Codex Judge, those labels count as not done and the Ju
 
 import asyncio
 import collections
+import contextlib
 import json
 import os
 import random
@@ -117,6 +118,40 @@ def current(records: dict[str, dict], local: bool = False) -> dict[str, str]:
     return {k: r["label"] for k, r in records.items() if stands(r)}
 
 
+class Pool:
+    """Calls of one task spread over endpoints [(client, model, slots)]: each call takes whichever endpoint has a free
+    slot, so a fast endpoint takes more of the work and none ever runs more than its slots."""
+
+    def __init__(self, endpoints: list[tuple]):
+        self.endpoints = endpoints
+        self.free = asyncio.Queue()
+        for k in range(max(n for _, _, n in endpoints)):  # interleaved: the first calls go to every endpoint
+            for i, (_, _, n) in enumerate(endpoints):
+                if k < n:
+                    self.free.put_nowait(i)
+
+    @contextlib.asynccontextmanager
+    async def take(self):
+        i = await self.free.get()
+        try:
+            yield self.endpoints[i][:2]
+        finally:
+            self.free.put_nowait(i)
+
+
+def also_lan() -> bool:
+    """JUDGE_ALSO_LAN=1 on a UIT run (EXTRACTOR_ON_UIT=1): the Gemma audit borrows the LAN host's slots as well (user
+    2026-10-07: the LAN host helps the UIT once its Maps work is done)."""
+    on = lambda k: os.environ.get(k, "").strip() not in ("", "0")
+    return on("JUDGE_ALSO_LAN") and on("EXTRACTOR_ON_UIT")
+
+
+def read_all() -> bool:
+    """JUDGE_READ_ALL=1 (process environment): the audit reads every unlabelled claim, passed strata included (user
+    2026-10-07: the cleanest data first; good claims the Gemma audit drops by mistake are won back later)."""
+    return os.environ.get("JUDGE_READ_ALL", "").strip() not in ("", "0")
+
+
 def gemma() -> bool:
     """JUDGE_ENGINE=gemma in .env: the audit runs on the Extractor's Gemma (no Codex quota needed)."""
     from dotenv import load_dotenv
@@ -134,10 +169,11 @@ def claim_text(feat, value: str) -> str:
     return f"nơi này có: {feat.hint}"
 
 
-def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: set[str] = frozenset()) -> list[tuple]:
+def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: set[str] = frozenset(),
+           read_all: bool = False) -> list[tuple]:
     """Rows to label now: risky features in full, samples elsewhere grown to their next step, and in full every
     stratum that fails the gate. Rows already labelled (by anyone) and repeats of one claim are left out. Rows in
-    `must` are read whatever their stratum's state, a passing one included."""
+    `must` are read whatever their stratum's state, a passing one included. read_all: every stratum in full."""
     rng = random.Random(seed)
     strata = collections.defaultdict(list)
     for r in rows:
@@ -149,7 +185,7 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: se
         labels = collections.Counter(done[k] for k in keyed if k in done)
         todo = [(k, r) for k, r in keyed.items() if k not in done]
         state = verdict(labels["correct"], labels["correct"] + labels["wrong"], sum(labels.values()))
-        if risky(ont.features[fid]) or state == "fail":
+        if read_all or risky(ont.features[fid]) or state == "fail":
             out += [r for _, r in todo]
             continue
         forced = [r for k, r in todo if k in must]
@@ -277,13 +313,14 @@ def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[byt
 
 async def label_with(task, chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1,
                      keep=None) -> tuple[collections.Counter, list[tuple]]:
-    """One call of task over chunk. Verdicts in keep (all when None) are written as labels; the rows of the other
+    """One call of task over chunk (sems: role name -> Pool of its endpoints). Verdicts in keep (all when None) are written as labels; the rows of the other
     verdicts and of items the answer left out are returned for another reader. On the Gemma audit an unsure is
     written as look 2 so aggregate drops it until the Codex Judge reads it again (current)."""
-    client, model = clients[task.role.name]
     single = task is OBS_AUDIT_GEMMA
-    fields, images, refs = render(chunk, ont, claim=single)
-    async with sems[task.role.name]:
+    async with sems[task.role.name].take() as (client, model):
+        # render (disk reads) only once a slot is free: rendering all calls up front starves the event loop when
+        # a read-all run starts tens of thousands of them at once
+        fields, images, refs = render(chunk, ont, claim=single)
         ans = await ask(task, client, model, images=images, city=city, **fields)
     got, rest = collections.Counter(), []
     by = f"judge:{ans.get('_model', model)}"
@@ -374,8 +411,13 @@ async def run(city: str, limit: int | None = None) -> dict:
     tasks = (OBS_AUDIT_GEMMA,) if local else (OBS_AUDIT, OBS_AUDIT_STRONG) + ((OBS_AUDIT_FIRST,) if first_reader() else ())
     clients = {t.role.name: t.role.client() for t in tasks}
     clients = {k: (c.with_options(timeout=300, max_retries=0), m) for k, (c, m) in clients.items()}
-    sems = {t.role.name: asyncio.Semaphore(t.parallel)
-            for t in (OBS_AUDIT, OBS_AUDIT_STRONG, OBS_AUDIT_FIRST, OBS_AUDIT_GEMMA)}
+    sems = {t.role.name: Pool([(*clients[t.role.name], t.parallel)]) for t in tasks}
+    if local and also_lan():
+        lan_client, lan_model = OBS_AUDIT_GEMMA.role.own_client()
+        sems[OBS_AUDIT_GEMMA.role.name] = Pool([(*clients[OBS_AUDIT_GEMMA.role.name], OBS_AUDIT_GEMMA.parallel),
+                                                (lan_client.with_options(timeout=300, max_retries=0), lan_model,
+                                                 OBS_AUDIT_GEMMA.role.own_parallel())])
+        print(f"judge audit {city}: UIT x{OBS_AUDIT_GEMMA.parallel} + LAN x{OBS_AUDIT_GEMMA.role.own_parallel()}", flush=True)
     size = CHUNK_GEMMA if local else None
     total, rounds = collections.Counter(), 0
     while True:  # a sample that misses the gate pulls its whole stratum into the next round
@@ -383,7 +425,7 @@ async def run(city: str, limit: int | None = None) -> dict:
         records = label_records()
         done = current(records, local)
         # on the Gemma engine its own labels stand, so there is nothing to force; the Codex Judge re-reads them all
-        todo = select(rows, ont, done, must=set() if local else pending_gemma(records, done))
+        todo = select(rows, ont, done, must=set() if local else pending_gemma(records, done), read_all=read_all())
         parts = chunks(todo, ont, size)[:limit] if limit is not None else chunks(todo, ont, size)
         if not parts:
             break

@@ -7,6 +7,8 @@
 #   for 16% of restaurants, 37% of cafes, 4% of spas, so `low` is only a ranking hint, never "absent".
 usd_vnd: 26300  # rate for Maps ticket prices shown in US$ (2026-10)
 groups:
+  # Lodging (corpus list <city>_stay.json): only Planning reads it; usable_as [] keeps it out of Place Decision.
+  - {id: stay, match: [khách sạn, nhà nghỉ, nhà khách, nhà trọ, homestay, khu nghỉ dưỡng, resort, biệt thự, villa, căn hộ, chỗ ở, hostel, motel, guest house, guesthouse, lưu trú], visit_minutes: [0, 0, 0], usable_as: [], effort_hint: unknown}
   - {id: spa, match: [spa, mát xa, massage, thẩm mỹ, làm đẹp, xông hơi], visit_minutes: [60, 90, 150], usable_as: [experience, backup], effort_hint: low}
   - {id: camping, match: [cắm trại, glamping, xe dã ngoại], visit_minutes: [180, 360, 1080], usable_as: [experience, anchor], effort_hint: unknown}
   - {id: amusement, match: [công viên giải trí, khu vui chơi, vườn bách thú, sở thú, khu trẻ em, sân chơi, trại thiếu nhi], visit_minutes: [90, 180, 300], usable_as: [experience, anchor], effort_hint: unknown}

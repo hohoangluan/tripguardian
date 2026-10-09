@@ -147,3 +147,24 @@ def test_place_filed_as_lodging_anywhere_is_lodging(tmp_path):
     _write(d, "a.jsonl", [_rec("quán cà phê", [_row("hotel-cafe", category="Quán cà phê"), _row("cafe", category="Quán cà phê")]),
                           _rec("khu cắm trại", [_row("hotel-cafe", category="Khách sạn nghỉ dưỡng")], tile=(2, 2, 13))])
     assert [r["fid"] for r in listing.build(d, AREA, top=None)["items"]] == ["cafe"]
+
+
+def test_stay_list_keeps_lodging_only_from_every_search(tmp_path):
+    places, stay = tmp_path / "search" / "dalat", tmp_path / "search" / "dalat_stay"
+    _write(places, "thac.jsonl", [_rec("thác", [_row("fall"), _row("hotel", category="Khách sạn", reviews=80)])])
+    _write(stay, "homestay.jsonl", [_rec("homestay Phường 1 Đà Lạt", [
+        _row("home", category="Homestay", reviews=40), _row("cafe", category="Quán cà phê"),
+        _row("tiny", category="Nhà nghỉ", reviews=3), _row("far", 10.9, 106.7, category="Khách sạn")], lodging=True)])
+    lst = listing.build_stay([places, stay], AREA, min_reviews=30)
+    by = {r["fid"]: r for r in lst["items"]}
+    assert sorted(by) == ["home", "hotel"]  # the cafe and the waterfall never enter it, the place list never gets hotels
+    assert by["home"]["queries"] == ["homestay Phường 1 Đà Lạt"] and lst["stats"]["few_reviews"] == 1
+    assert "hotel" not in {r["fid"] for r in listing.build(places, AREA, top=100)["items"]}
+
+
+def test_stay_list_merges_one_hotel_seen_twice(tmp_path):
+    stay = tmp_path / "search" / "dalat_stay"
+    _write(stay, "khach-san.jsonl", [_rec("khách sạn Phường 1", [{**_row("h1", category="Khách sạn", reviews=200), "name": "Ana"}]),
+                                     _rec("khách sạn Phường 2", [{**_row("h2", category="Khách sạn", reviews=50), "name": "Ana"}], tile=(2, 2, 13))])
+    (h,) = listing.build_stay([stay], AREA, same_name_m=1000)["items"]  # same name, same point
+    assert h["fid"] == "h1" and h["queries"] == ["khách sạn Phường 1", "khách sạn Phường 2"]

@@ -23,8 +23,9 @@ from playwright.async_api import BrowserContext, Page
 from ..common.browser import LoginRequired, open_profile, pause
 from ..common.files import author_hash, data_dir, load_config, log_error, now, safe_name, write_json
 from ..common.throttle import Throttle
+from .gate import GateThrottle
 from .keywords import category_group
-from .page import ensure_login, more, open_page
+from .page import CaptchaBlocked, ensure_login, more, open_page
 
 FILE = "photos.json"
 TILE = "a[data-photo-index]"
@@ -210,7 +211,7 @@ async def _place(ctx, d, place: dict, n: int, px: int, root, c: dict, throttle: 
                 raise
             except Exception as e:
                 if attempt < ATTEMPTS:
-                    if type(e).__name__ == "TimeoutError":
+                    if type(e).__name__ == "TimeoutError" or isinstance(e, CaptchaBlocked):
                         throttle.blocked()
                     continue
                 log_error(root, d.name, "photos", e)
@@ -219,7 +220,8 @@ async def _place(ctx, d, place: dict, n: int, px: int, root, c: dict, throttle: 
                 await pause(*c.get("pause_s", (2.0, 5.0)))
 
 
-async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None) -> None:
+async def run(city: str, headed: bool = False, profile=open_profile, limit: int | None = None,
+              shard: tuple[int, int] | None = None, profile_name: str | None = None) -> None:
     _, cfg = load_config(city)
     c, root = cfg["gmaps"], data_dir() / "gmaps"
     n, px = c.get("photos_per_place", 20), c.get("photo_px", 768)
@@ -233,10 +235,12 @@ async def run(city: str, headed: bool = False, profile=open_profile, limit: int 
         if needs_fetch(f.parent / FILE, want(place, c), n):
             todo.append((f.parent, place))
     todo = todo[:limit] if limit is not None else todo
-    print(f"photos {city}: {len(todo)} places left")
-    throttle = Throttle(root / "photos_throttle.json", start=c.get("tabs_start", 1), hi=c.get("photo_tabs", 3),
+    if shard:  # one process per shard, each with its own browser (one Python process caps ~8 tabs)
+        todo = todo[shard[0]::shard[1]]
+    print(f"photos {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
+    throttle = GateThrottle(root / "photos_throttle.json", start=c.get("tabs_start", 1), hi=c.get("photo_tabs", 3),
                         cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
-    async with profile("gmaps", headed) as ctx:
+    async with profile(profile_name or "gmaps", headed) as ctx:
         await ensure_login(ctx)
         try:
             async with asyncio.TaskGroup() as tg:

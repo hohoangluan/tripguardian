@@ -60,10 +60,28 @@ def author_hash(id: str) -> str:
     return hashlib.sha256(id.encode()).hexdigest()[:16]
 
 
+STAY = "_stay"  # "<city>_stay": the city's lodging, list/<city>_stay.json (listing.build_stay); same area and config
+
+
+def listed(city: str) -> list[dict] | None:
+    """The city's place inventory for evidence steps: the place list and the lodging list together; None when neither
+    exists yet."""
+    city = city.removesuffix(STAY)
+    files = [data_dir() / "gmaps" / "list" / f"{city}{s}.json" for s in ("", STAY)]
+    if not any(f.exists() for f in files):
+        return None
+    return [r for f in files if f.exists() for r in json.loads(f.read_text(encoding="utf-8"))["items"]]
+
+
 def load_config(city: str) -> tuple[str, dict]:
+    """(city name, config/queries.yaml + the city's area). For "<city>_stay" the stay.gmaps keys override gmaps."""
     cities = yaml.safe_load((ROOT / "config" / "cities.yaml").read_text(encoding="utf-8"))
+    stay = city.endswith(STAY)
+    city = city.removesuffix(STAY)
     if city not in cities:
         raise SystemExit(f"unknown city {city!r}; known: {', '.join(cities)}")
     cfg = yaml.safe_load((ROOT / "config" / "queries.yaml").read_text(encoding="utf-8"))
+    if stay:
+        cfg["gmaps"] = {**cfg["gmaps"], **((cfg.get("stay") or {}).get("gmaps") or {})}
     cfg["area"] = cities[city].get("area")
     return cities[city]["name"], cfg

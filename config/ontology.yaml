@@ -3,6 +3,10 @@
 # Changing ids or values: bump version -> observations are re-extracted (docs/CORPUS.md §7 ledger).
 version: 10
 groups: [experience, environment, service, effort, suitability, operation]
+# Features a lodging (category group `stay`, config/category_defaults.yaml) may carry; aggregate drops the rest.
+# "feature=value" allows that one value only. Not part of the prompt: changing it re-aggregates, never re-observes.
+stay_features: [noise, scenic_view, cozy_decor, cleanliness, service_attitude, value_for_money, parking, steep_or_stairs,
+                nature, couples=suitable, kids=suitable, elderly=suitable, groups=suitable]
 contexts:
   time_of_day: [early_morning, morning, noon, afternoon, evening, night]
   day_type: [weekday, weekend, holiday]

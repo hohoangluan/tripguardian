@@ -57,3 +57,13 @@ def test_load_config_known_and_unknown_city():
         assert "dalat" in str(e)
     else:
         raise AssertionError("unknown city must exit")
+
+
+def test_the_lodging_list_reads_the_same_config_with_its_own_review_cap():
+    from corpus.crawl.common.files import load_config
+    name, places = load_config("dalat")
+    stay_name, stay = load_config("dalat_stay")
+    assert stay_name == name and stay["area"] == places["area"]
+    assert stay["gmaps"]["max_reviews_per_place"] == places["stay"]["gmaps"]["max_reviews_per_place"] == 300
+    assert places["gmaps"]["max_reviews_per_place"] > 300  # the place list keeps its own
+    assert stay["gmaps"]["relevant_reviews_per_place"] == places["gmaps"]["relevant_reviews_per_place"]

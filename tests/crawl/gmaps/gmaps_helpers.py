@@ -25,9 +25,14 @@ def parse_fixture(fixture: str, fn):
     return asyncio.run(run())
 
 
+class _Context:
+    async def new_page(self):  # wrapped by text_only; the fake runs never open a tab
+        raise AssertionError("no tab in a fake profile")
+
+
 @asynccontextmanager
 async def fake_profile(source, headed=False):
-    yield object()
+    yield _Context()
 
 
 class _Session:

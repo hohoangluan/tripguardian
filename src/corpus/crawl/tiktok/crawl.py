@@ -8,11 +8,13 @@ Videos run in parallel tabs (throttle.py); the tab is released before the mp4 do
 import asyncio
 import collections
 import json
+import os
 
+import httpx
 from playwright.async_api import BrowserContext
 
 from ..common.browser import LoginRequired, open_profile, pause
-from ..common.files import author_hash, data_dir, load_config, log_error, now, write_bytes, write_json
+from ..common.files import author_hash, data_dir, load_config, log_error, now, write_json
 from ..common.throttle import Throttle
 from ...review import retry_ids
 from .filter import kept_ids
@@ -25,6 +27,54 @@ COMMENT_BUTTON = '[data-e2e="comment-icon"], :text-is("Bình luận")'
 COMMENT_ITEM = '[class*="DivCommentObjectWrapper"]'
 REPLY_BUTTON = '[class*="DivViewRepliesContainer"]'  # "Xem N câu trả lời" / "Xem thêm" / "Ẩn"
 ATTEMPTS = 3  # per video, when the failure looks like a block
+MISS_WINDOW, MISS_LIMIT = 10, 6  # a block when this many of the last MISS_WINDOW video pages had no item data
+
+
+class NoItemData(RuntimeError):
+    """The video page came back without its item: Akamai's answer to a throttled IP (no captcha, no error page), but
+    also what a deleted or private video gives."""
+
+    def __init__(self):
+        super().__init__("no item data on the video page")
+
+
+class MissWatchThrottle(Throttle):
+    """Throttle that also reads a run of NoItemData as a block: one empty page is a dead video, six of the last ten are
+    a throttled IP. Without it the tabs kept at 8 while every video failed (2026-10-07: 50 videos/min, then 16 errors/min)."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self._recent: collections.deque[bool] = collections.deque(maxlen=MISS_WINDOW)
+
+    def success(self) -> None:
+        self._recent.append(False)
+        super().success()
+
+    def missed(self) -> bool:
+        """Record one empty page; True when the latest ones say the IP is throttled (the window starts over)."""
+        self._recent.append(True)
+        if len(self._recent) == MISS_WINDOW and sum(self._recent) >= MISS_LIMIT:
+            self._recent.clear()
+            return True
+        return False
+
+
+def throttled(e: Exception, throttle: Throttle) -> bool:
+    """True when the failure means the session is throttled: wait it out and try the video again."""
+    if isinstance(e, NoItemData):
+        return isinstance(throttle, MissWatchThrottle) and throttle.missed()
+    return is_block(e)
+
+
+POI_KEYS = ("id", "name", "address", "category")
+
+
+def poi_of(item: dict) -> dict | None:
+    """The TikTok place the video is tagged with (its place page lists more videos shot there); None when untagged."""
+    poi = item.get("poi") or {}
+    return {k: poi.get(k) for k in POI_KEYS} if poi.get("id") else None
+
+
 _COMMENT_KEYS = ("comment_id", "author_hash", "text", "created_at", "likes", "reply_count")  # reply_count: TikTok's own
 
 
@@ -60,7 +110,7 @@ def video_doc(row: dict, item: dict, rows: list[dict], video_path: str, complete
         "video_id": row["video_id"], "video_url": row["url"], "video_path": video_path,
         "caption": item.get("desc", row.get("desc", "")), "hashtags": row.get("hashtags", []),
         "author_id": row.get("author_id") or (item.get("author") or {}).get("uniqueId"), "created_at": item.get("createTime", row.get("created_at")),
-        "stats": item.get("stats") or {}, "queries": row.get("queries", []), "fetched_at": now(),
+        "stats": item.get("stats") or {}, "poi": poi_of(item), "queries": row.get("queries", []), "fetched_at": now(),
         "comments_complete": complete, "comments": top,
     }
 
@@ -84,11 +134,37 @@ async def comments(ctx: BrowserContext, url: str, limit: int | None) -> tuple[di
     return item, rows, complete
 
 
+_ua: dict = {}
+
+
+async def _user_agent(ctx: BrowserContext) -> str:
+    """The browser's own user agent, read once on a blank page (a crawl tab may be navigating)."""
+    if "ua" not in _ua:
+        page = await ctx.new_page()
+        try:
+            _ua["ua"] = (await page.evaluate("navigator.userAgent")).replace("HeadlessChrome", "Chrome")
+        finally:
+            await page.close()
+    return _ua["ua"]
+
+
 async def download_video(ctx: BrowserContext, play_url: str, path) -> None:
-    r = await ctx.request.get(play_url, headers={"Referer": "https://www.tiktok.com/"}, timeout=300_000)  # files reach 50+ MB
-    if not r.ok:
-        raise RuntimeError(f"video HTTP {r.status}")
-    write_bytes(path, await r.body())
+    """Streamed with the context's cookies, not ctx.request: Playwright's Python transport joins a large body chunk by
+    chunk (quadratic), a 55 MB file pinned a core for minutes; streamed it takes ~4 s (2026-10-06)."""
+    cookies = {c["name"]: c["value"] for c in await ctx.cookies(play_url)}
+    headers = {"Referer": "https://www.tiktok.com/", "User-Agent": await _user_agent(ctx)}
+    tmp = path.with_name(path.name + ".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # trust_env=False: .env's SSL_CERT_FILE is a private CA bundle for the model endpoint, not for TikTok's CDN
+    async with httpx.AsyncClient(cookies=cookies, headers=headers, follow_redirects=True, timeout=300,
+                                 trust_env=False) as client:
+        async with client.stream("GET", play_url) as r:  # files reach 50+ MB
+            if r.status_code != 200:
+                raise RuntimeError(f"video HTTP {r.status_code}")
+            with open(tmp, "wb") as f:
+                async for chunk in r.aiter_bytes(1 << 20):
+                    f.write(chunk)
+    os.replace(tmp, path)
 
 
 async def _video(ctx: BrowserContext, row: dict, root, c: dict, throttle: Throttle, downloads: asyncio.Semaphore) -> None:
@@ -98,7 +174,7 @@ async def _video(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thrott
             try:
                 item, cm, complete = await comments(ctx, row["url"], c["max_comments_per_video"])
                 if not item:
-                    raise RuntimeError("no item data on the video page")
+                    raise NoItemData()
                 if not cm and (item.get("stats") or {}).get("commentCount"):
                     raise RuntimeError("no comments captured")  # panel blocked
                 if not complete and attempt < ATTEMPTS:
@@ -115,7 +191,7 @@ async def _video(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thrott
                 raise
             except Exception as e:
                 # a throttled session also gets empty comment API bodies: cool down instead of running through the list
-                if attempt < ATTEMPTS and (is_block(e) or "no comments captured" in str(e) or "incomplete" in str(e)):
+                if attempt < ATTEMPTS and (throttled(e, throttle) or "no comments captured" in str(e) or "incomplete" in str(e)):
                     throttle.blocked()
                     continue
                 log_error(root, row["video_id"], "video", e)
@@ -142,7 +218,7 @@ async def _video_only(ctx: BrowserContext, row: dict, root, c: dict, throttle: T
             try:
                 item = await open_item(ctx, row["url"])
                 if not item:
-                    raise RuntimeError("no item data on the video page")
+                    raise NoItemData()
                 play_url = (item.get("video") or {}).get("playAddr")
                 write_json(d / "info.json", item)
                 write_json(d / "video.json", video_doc(row, item, [], f"tiktok/videos/{row['video_id']}/video.mp4", None))
@@ -151,7 +227,7 @@ async def _video_only(ctx: BrowserContext, row: dict, root, c: dict, throttle: T
             except LoginRequired:
                 raise
             except Exception as e:
-                if attempt < ATTEMPTS and is_block(e):
+                if throttled(e, throttle) and attempt < ATTEMPTS:
                     throttle.blocked()
                     continue
                 log_error(root, row["video_id"], "video", e)
@@ -177,7 +253,7 @@ async def _comments(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thr
             try:
                 item, cm, complete = await comments(ctx, row["url"], c["max_comments_per_video"])
                 if not item:
-                    raise RuntimeError("no item data on the video page")
+                    raise NoItemData()
                 if not cm and (item.get("stats") or {}).get("commentCount"):
                     raise RuntimeError("no comments captured")  # panel blocked
                 if not complete and attempt < ATTEMPTS:
@@ -186,7 +262,7 @@ async def _comments(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thr
                     log_error(root, row["video_id"], "comments", RuntimeError("comments incomplete after retries"))
                 v = json.loads((d / "video.json").read_text(encoding="utf-8"))  # read late: keep other phases' writes
                 doc = video_doc(row, item, cm, v.get("video_path", f"tiktok/videos/{row['video_id']}/video.mp4"), complete)
-                v.update({k: doc[k] for k in ("caption", "hashtags", "author_id", "created_at", "stats",
+                v.update({k: doc[k] for k in ("caption", "hashtags", "author_id", "created_at", "stats", "poi",
                                               "comments_complete", "comments", "fetched_at")})
                 write_json(d / "video.json", v)
                 throttle.success()
@@ -194,7 +270,7 @@ async def _comments(ctx: BrowserContext, row: dict, root, c: dict, throttle: Thr
             except LoginRequired:
                 raise
             except Exception as e:
-                if attempt < ATTEMPTS and (is_block(e) or "no comments captured" in str(e) or "incomplete" in str(e)):
+                if attempt < ATTEMPTS and (throttled(e, throttle) or "no comments captured" in str(e) or "incomplete" in str(e)):
                     throttle.blocked()
                     continue
                 log_error(root, row["video_id"], "comments", e)
@@ -231,8 +307,8 @@ async def crawl_videos(todo: list[dict], c: dict, root, headed: bool, profile, p
     with_comments=False (place_crawl) skips the comment panel: comments_complete is written None, fetched later
     by crawl_comments only for the videos place_verify confirms."""
     suffix = f"_{profile_name}" if profile_name else ""
-    throttle = Throttle(root / f"throttle{suffix}.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
-                        cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
+    throttle = MissWatchThrottle(root / f"throttle{suffix}.json", start=c.get("tabs_start", 2), hi=c.get("tabs", 1),
+                                 cooldown_s=c.get("cooldown_s", 60), max_cooldown_s=c.get("max_cooldown_s", 900))
     downloads = asyncio.Semaphore(c.get("downloads", 4))
     fn = _video if with_comments else _video_only
     async with profile(profile_name or "tiktok", headed) as ctx:

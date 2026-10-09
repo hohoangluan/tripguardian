@@ -85,6 +85,24 @@ def test_asr_run_writes_transcript_next_to_caption_and_skips_done(videos, monkey
     assert seen == ["1"] and v["caption"] == "Máng trượt Datanla" and v["transcript"]["segments"][0]["text"] == "xin chào"
 
 
+def test_asr_skips_a_video_another_process_transcribed_meanwhile(videos, monkeypatch):
+    root, add = videos
+    first, second = add("1"), add("2")
+    monkeypatch.setattr(asr.asr_model, "name", lambda: "asr-test")
+    seen = []
+
+    def transcribe_video(mp4):
+        seen.append(mp4.parent.name)
+        # a second asr process (another GPU) finishes video 2 while this one works on video 1
+        second.write_text(json.dumps({**_read(second), "transcript": {"model": "asr-test", "segments": []}}),
+                          encoding="utf-8")
+        return {"model": "asr-test", "at": "t1", "segments": []}
+
+    monkeypatch.setattr(asr, "transcribe_video", transcribe_video)
+    assert asr.run("dalat") == {"videos": 2, "done": 1}
+    assert seen == ["1"] and _read(first)["transcript"]["model"] == "asr-test"
+
+
 def test_asr_failure_is_logged_and_retried(videos, monkeypatch):
     root, add = videos
     add("1")
@@ -236,6 +254,27 @@ def test_asr_alt_hears_only_marked_segments_once(videos, monkeypatch):
     assert t["alt_model"] == "alt-test"
 
 
+def test_asr_alt_shards_split_videos_and_skip_ones_heard_meanwhile(videos, monkeypatch):
+    root, add = videos
+    segs = [{"start_s": 0, "end_s": 2, "text": "xg", "needs_alt": True}]
+    docs = [add(str(i), transcript={"at": "t1", "total_s": 3, "segments": segs}) for i in range(3)]
+    heard = []
+
+    def hear_again(mp4, s):
+        heard.append(mp4.parent.name)
+        if mp4.parent.name == "0":  # another GPU's process hears video 2 while this one works on video 0
+            v = _read(docs[2])
+            v["transcript"]["segments"][0]["alt_text"] = "khác"
+            docs[2].write_text(json.dumps(v), encoding="utf-8")
+        return {0: "xin chào"}
+
+    monkeypatch.setattr(asr_alt, "hear_again", hear_again)
+    monkeypatch.setattr(asr_alt, "asr_model", types.SimpleNamespace(alt_name=lambda: "alt-test"))
+    assert asr_alt.run("dalat", shard=(1, 3))["done"] == 1 and heard == ["1"]  # only its third of the list
+    assert asr_alt.run("dalat")["done"] == 1  # videos 0 and 2 left; 2 is heard elsewhere meanwhile
+    assert heard == ["1", "0"] and _read(docs[2])["transcript"]["segments"][0]["alt_text"] == "khác"
+
+
 @pytest.fixture
 def verify_env(videos, monkeypatch):
     root, add = videos
@@ -334,3 +373,28 @@ def test_task_tries_again_after_broken_json_and_busy_server(monkeypatch):
     client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
     got = asyncio.run(tasks.VIDEO_FILTER.ask(client, "m", city="Đà Lạt", desc="d", hashtags=""))
     assert got == {"relevance": "yes", "reason": "r"} and answers == []
+
+
+def test_asr_shards_split_the_todo_list_without_overlap(monkeypatch, tmp_path):
+    monkeypatch.setattr(asr, "data_dir", lambda: tmp_path)
+    monkeypatch.setattr(asr_model, "name", lambda: "asr-test")
+    for k in range(5):
+        d = tmp_path / "tiktok" / "videos" / f"v{k}"
+        d.mkdir(parents=True)
+        (d / "video.mp4").write_bytes(b"")
+        (d / "video.json").write_text("{}", encoding="utf-8")
+    seen = []
+    monkeypatch.setattr(asr, "transcribe_video", lambda mp4: seen.append(mp4.parent.name) or {"segments": []})
+    for i in range(2):
+        asr.run("dalat", shard=(i, 2))
+    assert sorted(seen) == [f"v{k}" for k in range(5)]
+
+
+def test_asr_alt_skips_videos_whose_clip_was_deleted(tmp_path):
+    for name, clip in (("kept", True), ("removed", False)):
+        d = tmp_path / "videos" / name
+        d.mkdir(parents=True)
+        (d / "video.json").write_text(json.dumps({"transcript": {"segments": [{"needs_alt": True}]}}), encoding="utf-8")
+        if clip:
+            (d / "video.mp4").write_bytes(b"")
+    assert [p.parent.name for p in asr_alt.todo(tmp_path)] == ["kept"]

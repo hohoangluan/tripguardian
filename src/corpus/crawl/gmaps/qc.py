@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 import openai
 
 from ...llm import PLACE_QC, REVIEW_QC, OutOfQuota
-from ..common.files import data_dir, load_config, now, safe_name, write_json
+from ..common.files import data_dir, listed, load_config, now, safe_name, write_json
 from .crawl import count
 
 CORE = ("name", "category", "address", "rating", "review_count")
@@ -139,8 +139,8 @@ async def run(city: str) -> dict:
     ex_client, ex_model = REVIEW_QC.role.client()
     ex_client = ex_client.with_options(timeout=240, max_retries=0)
     judge_sem, ex_sem = asyncio.Semaphore(PLACE_QC.parallel), asyncio.Semaphore(REVIEW_QC.parallel)
-    listed = root / "list" / f"{city}.json"
-    keep = {safe_name(r["fid"]) for r in json.loads(listed.read_text(encoding="utf-8"))["items"]} if listed.exists() else None
+    items = listed(city)
+    keep = {safe_name(r["fid"]) for r in items} if items is not None else None
 
     async def one(p):
         place = json.loads(p.read_text(encoding="utf-8"))

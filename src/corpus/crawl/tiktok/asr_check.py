@@ -19,6 +19,7 @@ import collections
 import difflib
 import hashlib
 import json
+import zlib
 import re
 import unicodedata
 
@@ -131,10 +132,11 @@ def needs_check(t: dict | None) -> bool:
             or c.get("alt_hash", alt_hash(t["segments"])) != alt_hash(t["segments"]))
 
 
-async def run(city: str) -> dict:
+async def run(city: str, shard: tuple[int, int] | None = None) -> dict:
     name, _ = load_config(city)
     root = data_dir() / "tiktok"
     docs = [d for d in sorted((root / "videos").glob("*/video.json")) if (root / "videos").exists()
+            and (not shard or zlib.crc32(d.parent.name.encode()) % shard[1] == shard[0])  # stable key: shards never overlap
             and needs_check(json.loads(d.read_text(encoding="utf-8")).get("transcript"))]
     places = places_by_video(city)
     client, model = _client()

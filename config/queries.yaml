@@ -1,26 +1,36 @@
 # {city} = city name from config/cities.yaml. Caps keep the crawl bounded and polite.
 tiktok:
-  pause_s: [0.3, 1]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
-  tabs: 5  # ceiling for parallel video tabs; the throttle starts at tabs_start and finds the working level itself
-           # (data/tiktok/throttle.json). Unattended, 2 held clean while 3 got blocked at once (2026-10-02); 4 assumes
-           # someone is at the browser to clear the captcha. 8 hit a MemoryError on a 16 GB machine with low free RAM.
-  tabs_start: 2  # first run only
-  cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks (user reloads the captcha by hand)
-  max_cooldown_s: 10
+  pause_s: [1, 3]  # wait per video tab; [15, 30] was safe but ~32 videos/h; blocks are waited out by the throttle
+  tabs: 3  # ceiling for parallel video tabs PER ACCOUNT (2 accounts = 6 in all); the throttle starts at tabs_start and
+           # finds the working level itself (data/tiktok/throttle*.json). Server, one IP, 2 accounts, place_crawl
+           # (2026-10-06, pause_s [1,3]): 4 tabs 28.8 videos/min clean 12 min; 6 tabs 41.7 clean 7 min; 8 tabs 50/min
+           # clean 9 min, then Akamai answered "no item data" to every page (no captcha): 16 errors/min, tabs never
+           # backed off because only timeouts counted as a block. Now a run of empty pages is a block (crawl.py
+           # MissWatchThrottle) and waits cooldown_s. No level is proven past ~12 min: keep the ceiling low.
+           # 2026-10-07 09:39: 5 per account (search off) blocked within ~8 min, then the throttle climbed back to 5:
+           # ceiling 3, since an Akamai block is no captcha a person can clear.
+  tabs_start: 3  # first run only
+  cooldown_s: 300  # first cooldown after a block; doubles on back-to-back blocks. Akamai let go within 15 min (2026-10-07)
+  max_cooldown_s: 2400
   downloads: 8  # parallel mp4 downloads (no browser tab needed, not subject to the tab-block limit above)
   max_videos_per_query: 30
   max_comments_per_video: 200  # comments + replies, in TikTok's order; null = all (slow)
-  videos_per_place: 10  # place_search: top search results per Maps place; place_filter keeps those about the place
-  crawl_videos_per_place: 5  # place_crawl: each place's own top N "yes" videos actually downloaded; the rest
-                             # (ranked 6-10) stay in place_filter's files, unfetched. 5 matches aggregate's own
-                             # TREND_MIN (place.py) — the minimum authors needed for a trend read — so it's not
-                             # starving the aggregate step, just not fetching evidence past the point it helps.
-                             # Cuts the crawl pool ~36% (6689 -> 4292 videos, measured 2026-10-02).
-  place_search_tabs: 1  # max parallel place searches; working level in data/tiktok/place_search_throttle.json
+  videos_per_place: 20  # place_search: top search results per Maps place; place_filter keeps those about the place
+  poi_list_items: 90  # poi_crawl: first N videos of a place's TikTok place page ranked (page 1 = most popular, 30 per page)
+  poi_download: 10  # poi_crawl: the best N of them downloaded for asr / asr_check / place_verify
+  poi_tabs: 3  # poi_crawl: parallel place pages (logged out, no captcha seen 2026-10-09); working level in poi_crawl_throttle.json
+  poi_tabs_start: 2
+  clips_per_place: 6  # clips: verified videos users can play on a place card (PlaceSheet shows 6)
+  crawl_videos_per_place: null  # place_crawl: each place's own top N "yes" videos actually downloaded; null = every
+                                # "yes" video (2026-10-06: coverage over cost, users want depth). Was 5 (4292 videos);
+                                # 5 matches aggregate's own TREND_MIN (place.py), the minimum authors for a trend read.
+  place_search_tabs: 3  # max parallel place searches (user 2026-10-08: back to 3, page loads slow and captcha failed at 5); working level in data/tiktok/place_search_throttle.json
+                        # 2026-10-07: at 6-8 the search slider came faster than a person could solve it (40
+                        # tabs waiting in 30 min): ceiling 3 per account, solved by hand in DevTools.
                         # this account (tiktok2) got blocked repeatedly even back at tab 1 on 2026-10-02, right
                         # after a network switch (UIT) — a soft IP/account block, not a tab-count problem. Capped
                         # at 1 until it's confirmed to hold clean again; raise once a session runs block-free.
-  place_search_tabs_start: 1  # first run only
+  place_search_tabs_start: 6  # first run only
   place_search_pause_s: [5, 10]  # wait per search tab
   queries:  # groups from docs/CORPUS.md §1
     general: ["{city} có gì chơi", "review du lịch {city}"]
@@ -29,18 +39,27 @@ tiktok:
     audience: ["{city} đi cùng gia đình", "{city} cho người lớn tuổi", "{city} cặp đôi"]
     constraint: ["{city} ngày mưa", "{city} ít đi bộ"]
     trend: ["{city} mới mở"]
+stay:  # lodging for Planning only (gmaps stay_search -> list/<city>_stay.json, docs/CORPUS.md §Phạm vi): each word in each
+  # area, "<word> <area> <city>". Maps' hotel list ignores the map view, so the city is split by area names, not tiles.
+  queries: [khách sạn, homestay, villa, resort, nhà nghỉ]
+  areas: [Phường 1, Phường 2, Phường 3, Phường 4, Phường 5, Phường 6, Phường 7, Phường 8, Phường 9, Phường 10, Phường 11,
+          Phường 12, Xuân Thọ, Xuân Trường, Tà Nung, Trạm Hành, Hồ Tuyền Lâm, Lang Biang]
+  min_reviews: 30  # same evidence bar as the place list (gmaps.min_reviews)
+  gmaps:  # overrides of the gmaps: block below for the lodging list (<city>_stay); phases relevant / extremes unchanged
+    max_reviews_per_place: 300  # the newest 300 (user 2026-10-08): hotels list thousands; relevant (50) + extremes (30) still add the detailed and the low / high-rated ones
+
 gmaps:
   pause_s: [0.2, 0.5]  # wait between pages / per place tab
   search_tabs: 12  # max parallel search tabs (tiles); working level saved in data/gmaps/search_throttle.json
   search_tabs_start: 2  # first run only
-  min_reviews: 50  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut
+  min_reviews: 30  # phase-1 list (listing.py): every place filter kept with this many reviews or more; the only quality cut (user 2026-10-07: 30). 1 = all rated places (50: 1.438 places, 30: 1.779, 10: 2.594, 1: 4.503; observations of the places under 30 kept in data/gmaps/observations_under30_backup/); Hồ Cô Lan, Suối Cam Ly, Công viên Bùi Thị Xuân sit under 10 reviews (2026-10-06)
   same_name_m: 1000  # same name (no accents / case / city name) within this distance = one place listed several times
-  tabs: 10  # max parallel place tabs, fixed by logs/gmaps_runner.py (CORPUS_FIXED_TABS=1); the working level is found automatically (data/gmaps/throttle.json)
+  tabs: 8  # per process: one Python process caps ~8 tabs, so total = shards x 8 (logs/gmaps_shards.sh <n> 8 <tag>). Fixed by gmaps_runner.py (CORPUS_FIXED_TABS=1); the RAM-guard level is saved in data/gmaps/throttle.json
   tabs_start: 3  # first run only
   cooldown_s: 5  # first cooldown after a block; doubles on back-to-back blocks
   max_cooldown_s: 10
-  max_reviews_per_place: 200  # newest first, under the age limit; enough for signals, gaps filled on demand (spec)
-  max_review_age_months: 11  # only reviews under a year old (Maps says "một năm trước" for 12-23 months); older are stale
+  max_reviews_per_place: 5000  # every review the place has, newest first (user 2026-10-07: "crawl hết comment"); only 22 places list more than 5.000 (Maps pages of 10k+ reviews load for hours and crash the tab)
+  max_review_age_months: null  # no age cut: old reviews are evidence of what stays the same (null = keep all); 11 = only under a year (Maps says "một năm trước" for 12-23 months)
   min_reviews_per_place: 40  # the newest 40 are kept even past the age limit: quiet places need evidence too
   relevant_reviews_per_place: 50  # phase relevant: Maps' "most relevant" first (long, detailed), any age; merged by observe
   extreme_reviews_per_place: 30  # phase extremes: Maps' lowest- and highest-rated reviews, any age; merged by observe
@@ -54,13 +73,13 @@ gmaps:
     - words: ["đặt bàn", "đặt trước"]  # booking
       groups: [restaurant, cafe, bar]
   keyword_reviews_per_word: 20  # first hits per word; merged by observe as sample "keywords" (effort / facts only)
-  keyword_tabs: 12  # RAM: ~400 MB per tab + ~1 GB GPU process; 13 filled 15.6 GB with the rest of the machine. 12 drew a captcha headless (2026-10-05); gmaps_runner.py reopens headed for a person
+  keyword_tabs: 8  # per process (one Python process caps ~8 tabs; shards multiply it). 12 drew a captcha headless (2026-10-05)
   keyword_tabs_start: 10  # first run only
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews
   photo_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum]
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
-  photo_tabs: 6  # photos render many images: 10 headed tabs took ~7.5 GB (2026-10-05)
+  photo_tabs: 8  # per process (one Python process caps ~8 tabs; shards multiply it). Photos render many images: 10 headed tabs took ~7.5 GB (2026-10-05), the server has 750 GB
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list
     start_zoom: 13  # hits the cap (~120) is split into 4 tiles one zoom in
     max_zoom: 14  # shallow on purpose: enough candidates for the top_per_category list, bounded time

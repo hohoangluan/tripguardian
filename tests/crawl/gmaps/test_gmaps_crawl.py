@@ -197,3 +197,35 @@ def test_parse_reviews_lodging_layout():
 def test_list_end_signal_on_fixture():
     # The fixture pane ends in an empty div: Maps' loader after the last batch.
     assert parse_fixture("reviews_lodging.html", lambda page: page.evaluate(crawl.LIST_END_JS)) is True
+
+
+DEEP = {"max_reviews_per_place": 5000, "max_review_age_months": None}
+
+
+@pytest.mark.parametrize("place,n,cfg,deeper", [
+    ({"review_count": "900 bài đánh giá", "reviews_age_cut": True}, 40, DEEP, True),  # cut by age, no age limit now
+    ({"review_count": "900 bài đánh giá", "reviews_age_cut": True}, 40, {**DEEP, "max_review_age_months": 11}, False),
+    ({"review_count": "900 bài đánh giá"}, 200, DEEP, True),  # saved before the flags: cut at the old cap
+    ({"review_count": "900 bài đánh giá"}, 200, {"max_reviews_per_place": 200}, False),  # same cap: nothing more
+    ({"review_count": "900 bài đánh giá", "reviews_full": True}, 200, DEEP, False),  # whole already
+    ({"review_count": "900 bài đánh giá", "reviews_complete": False}, 200, DEEP, False),  # failed its retries
+    ({"review_count": "9.636 bài đánh giá"}, 5000, DEEP, False),  # at the new cap
+    ({"review_count": "50 bài đánh giá"}, 47, DEEP, False),  # Maps' count runs a little above the list
+    ({}, 0, DEEP, False),  # no count shown
+])
+def test_needs_deeper(place, n, cfg, deeper):
+    assert crawl.needs_deeper(place, n, cfg) is deeper
+
+
+def test_saved_place_cut_by_the_old_cap_is_crawled_again_and_marked(env, monkeypatch):
+    data, calls, _ = env
+    d = data / "places" / DIR
+    d.mkdir(parents=True)
+    (d / "reviews.json").write_text(json.dumps([{"review_id": f"r{i}", "published_text": "2 tuần trước"} for i in range(200)]), encoding="utf-8")
+    (d / "place.json").write_text(json.dumps({"fid": FID, "review_count": "900 bài đánh giá", "fetched_at": "t"}), encoding="utf-8")
+    calls["result"] = ({"name": "Thác Datanla", "review_count": "900 bài đánh giá", "reviews_full": True}, [{"review_id": f"r{i}"} for i in range(880)])
+    cfg = {"gmaps": {**DEEP, "cooldown_s": 0, "pause_s": [0.1, 0.2]}}
+    monkeypatch.setattr(crawl, "load_config", lambda city: ("Đà Lạt", cfg))
+    asyncio.run(crawl.run("dalat", profile=fake_profile))
+    asyncio.run(crawl.run("dalat", profile=fake_profile))
+    assert calls["scrape"] == 1 and len(json.loads((d / "reviews.json").read_text(encoding="utf-8"))) == 880

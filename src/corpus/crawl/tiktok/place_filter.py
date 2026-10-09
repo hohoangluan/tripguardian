@@ -58,9 +58,17 @@ def kept_videos(city: str, cap_per_place: int | None = None) -> list[dict]:
 
 
 def places_by_video(city: str) -> dict[str, list[dict]]:
-    """video_id -> the places ({fid, name, category, address}) its caption was judged about."""
-    out = data_dir() / "tiktok" / "place_filter"
+    """video_id -> the places ({fid, name, category, address}) its caption was judged about, or whose TikTok place
+    page listed it (poi_crawl)."""
+    root = data_dir() / "tiktok"
     by: dict[str, list[dict]] = {}
+
+    def add(video_id: str, place: dict) -> None:
+        places = by.setdefault(video_id, [])
+        if all(p["fid"] != place["fid"] for p in places):
+            places.append(place)
+
+    out = root / "place_filter"
     for f in sorted(out.glob("*.json")) if out.exists() else []:
         if f.name == "summary.json":
             continue
@@ -68,7 +76,11 @@ def places_by_video(city: str) -> dict[str, list[dict]]:
         place = {k: doc.get(k) for k in ("fid", "name", "category", "address")}
         for v in doc["videos"]:
             if v["llm"]["relevance"] in KEEP:
-                by.setdefault(v["video_id"], []).append(place)
+                add(v["video_id"], place)
+    for f in sorted((root / "poi_crawl").glob("*.json")) if (root / "poi_crawl").exists() else []:
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        for v in doc["videos"]:
+            add(v["video_id"], {k: doc.get(k) for k in ("fid", "name", "category", "address")})
     return by
 
 

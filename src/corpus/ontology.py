@@ -34,6 +34,11 @@ class Ontology:
     groups: tuple[str, ...]
     contexts: dict[str, tuple[str, ...]]
     features: dict[str, Feature]
+    stay: frozenset[str] = frozenset()  # "feature" or "feature=value" a lodging (category group `stay`) may carry
+
+    def applies(self, feature: str, value: str, category_group: str | None) -> bool:
+        """Lodging carries only the stay set (config/ontology.yaml stay_features); every other place carries all."""
+        return category_group != "stay" or feature in self.stay or f"{feature}={value}" in self.stay
 
     def valid(self, feature: str, value: str) -> bool:
         f = self.features.get(feature)
@@ -73,7 +78,12 @@ def parse(raw: dict) -> Ontology:
         if check == "span" and set(claims) != set(values):
             raise ValueError(f"feature {fid}: check: span needs claims for exactly {values}")
         features[fid] = Feature(fid, spec["group"], values, spec["hint"], verify, caution, check == "span", claims)
-    return Ontology(int(raw["version"]), groups, {k: tuple(v) for k, v in raw["contexts"].items()}, features)
+    stay = frozenset(str(s) for s in raw.get("stay_features") or ())
+    for s in stay:
+        fid, _, value = s.partition("=")
+        if fid not in features or (value and value not in features[fid].values):
+            raise ValueError(f"stay_features: unknown {s}")
+    return Ontology(int(raw["version"]), groups, {k: tuple(v) for k, v in raw["contexts"].items()}, features, stay)
 
 
 def load(path: Path = PATH) -> Ontology:

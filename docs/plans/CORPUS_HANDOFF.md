@@ -3,6 +3,110 @@
 File làm việc tạm (RULE §0.1): xong các bước dưới thì gộp phần còn giá trị vào `docs/CORPUS.md` và xóa file này.
 Mô tả hành vi code: `docs/CORPUS.md`. Ở đây chỉ có trạng thái và việc còn lại.
 
+## ▶▶ Crawl trên server SSH — đọc trước (cập nhật 2026-10-06 23:30 giờ VN)
+
+**Chia việc cho 3 session (người dùng 2026-10-06):** `docs/plans/SESSION_GMAPS.md` (crawl Maps), `docs/plans/SESSION_TIKTOK.md` (crawl TikTok + ASR), `docs/plans/SESSION_MODEL.md` (observe / judge / build / đo chất lượng, chủ host LAN Extractor). Mỗi session chỉ sửa phạm vi của mình; mục này giữ phần chung (môi trường, quy tắc, số đo). Session nào xong một lô dữ liệu thì ghi một dòng vào "Nhật ký giữa các session" dưới đây.
+
+### ▶▶▶ Còn gì để xong corpus (cập nhật 2026-10-07 21:05) — mọi session đọc mục này trước
+
+**Host Gemma LAN (`192.168.20.150:9090`) đang TẠM DỪNG theo người dùng: không gửi call nào tới đó cho tới khi người dùng nói "bắt đầu".** `.env` `EXTRACTOR_BASE_URL` / `LLM_API_KEY` đã trỏ tới nó (chép từ `*_ANOTHER_HOST`, bản cũ `.env.bak_20261007`); host `:8899` là DeepSeek, không dùng. Trong lúc dừng, mọi lệnh model không có `EXTRACTOR_ON_UIT=1` sẽ gọi host LAN — đừng chạy.
+
+**A. Đang chạy (không đụng; không chạy build / task UIT nào khác, key UIT 40 call):**
+1. `logs/model_chain_2.sh` (log `logs/model_chain_2.log`): build `build_lan_8` xong 20:50 (1.779 nơi, mọi bước ok), `judge dedup` (9 cặp trùng) và `judge status` (2 đóng, 3 đổi) xong; đang `JUDGE_ENGINE=gemma EXTRACTOR_ON_UIT=1 judge audit` lặp đến khi hết việc (chọn mẫu), rồi aggregate → serving → snapshot → `decision evaluate`. Chỉ UIT.
+2. `logs/model_chain_3.sh` (log `logs/model_chain_3.log`): chờ chuỗi 2 in `MODEL_CHAIN_DONE`, sao lưu nhãn → `data/review/judge_labels.before_read_all.jsonl`, rồi `JUDGE_READ_ALL=1` audit Gemma trên UIT đọc **mọi** nhận định (người dùng: sạch trước, nhận định đúng bị bỏ nhầm ~30% vớt lại sau) → aggregate → serving → snapshot → evaluate. Chỉ UIT. Ước lượng thô hai chuỗi xong ~02:00–05:00 ngày 08/10.
+3. `logs/tiktok_nogemma_lane.sh` (log `logs/tiktok_lanes.log` dòng `nogemma`): `place_crawl` 615 video `place_filter` đã giữ (2 tài khoản, 9543/9544) → `asr` trên mọi GPU trống. Không dùng Gemma.
+4. TikTok `place_search` (`logs/tiktok_search_1007d_s*.log`, DevTools 9541/9542): còn 1.259 nơi, chờ người giải captcha.
+
+**B. Đã xong hôm nay:** Maps crawl theo danh sách `min_reviews` 30 (crawl / relevant / extremes / keywords xong lúc 20:12; photos còn 19 nơi thiếu ảnh, 135 nơi Maps không tải thêm review được — chấp nhận). Runner Maps sửa lỗi chết khi nhiều runner ghi `throttle.json` (`scripts/gmaps_runner.py`). TikTok `asr` / `asr_alt` cho mọi video đã tải trước 21:00.
+
+**C. Tạm dừng, chạy lại khi người dùng nói "bắt đầu" (đều cần Gemma LAN):**
+1. **Maps model** (ưu tiên 1): `logs/gmaps_lan_lane.sh` (log `logs/gmaps_lan_lane.log`) — `gmaps qc` xong 21:00, `gmaps observe` bị dừng giữa chừng (làm tiếp từ chỗ dừng), rồi `photo_observe`. Chạy: `setsid nohup logs/gmaps_lan_lane.sh > logs/gmaps_lan_lane.log 2>&1 < /dev/null &`, chờ `GMAPS_LAN_DONE`.
+2. **LAN phụ UIT cho audit** (sau C1, nếu chuỗi 2 / 3 còn chạy audit): code đã có `JUDGE_ALSO_LAN=1` (audit Gemma trên UIT lấy thêm slot host LAN, mỗi call đi endpoint nào rảnh, `audit.Pool`). Chuỗi đang chạy KHÔNG có cờ này; muốn dùng thì dừng chuỗi đang ở bước audit (`kill -- -<pgid>` của script chuỗi, không `pkill -f`) và chạy lại phần còn lại của nó với `JUDGE_ALSO_LAN=1` thêm vào lệnh audit. Nhãn ghi nối tiếp nên dừng giữa chừng không mất gì.
+3. **TikTok model** (sau C1 và C2, hoặc khi UIT rảnh): `logs/tiktok_lan_lane.sh` (12 call; mỗi vòng `place_filter` → `place_crawl` song song `asr_check` → `place_verify` → xóa clip → `asr` / `asr_alt` trên GPU). Còn: `place_filter` 1.758 video, `asr_check` 3.099, `place_verify` 4.374 (1.441 chờ ASR / asr_check).
+
+**D. Để corpus xong (theo thứ tự):**
+1. A1 + A2 xong (`MODEL_CHAIN_DONE` trong `logs/model_chain_3.log`).
+2. C1 xong (observe Maps cho phần review / ảnh mới), C3 xong (video TikTok mới qua `place_verify`).
+3. **Build cuối**: `OBSERVE_KEEP_STALE=1 EXTRACTOR_ALSO_UIT=1 python -m corpus build --city dalat --skip "judge audit"` → `JUDGE_READ_ALL=1 JUDGE_ENGINE=gemma EXTRACTOR_ON_UIT=1 JUDGE_ALSO_LAN=1 python -m corpus judge audit --city dalat` → `python -m corpus aggregate --city dalat` → `python -m corpus serving --city dalat` → `python web/scripts/export_snapshot.py` → `python -m decision evaluate`.
+4. **Corpus xong khi**: build cuối mọi bước `ok`; `decision evaluate` 0 violation, filled_rate không thấp hơn 0,967 (mốc 06/10); so số VERIFIED / UNCERTAIN với kết quả chuỗi 2 (chấm mẫu) và chuỗi 3 (đọc hết). Rồi gộp phần còn giá trị của `SESSION_*.md` và file này vào `docs/CORPUS.md`, xóa chúng; commit khi người dùng yêu cầu (code chưa commit: `scripts/gmaps_runner.py`, `src/corpus/judge/audit.py`, `src/corpus/llm/roles.py`, `src/corpus/crawl/tiktok/asr.py`, `asr_alt.py`, `src/corpus/__main__.py`, tests, `config/queries.yaml` `min_reviews` 30).
+
+**E. Làm thêm sau khi corpus xong (tùy người dùng):**
+- Vớt nhận định đúng bị Gemma bỏ nhầm: các dòng nhãn sau độ dài `judge_labels.before_read_all.jsonl`; cần Judge khác họ model hoặc người duyệt.
+- TikTok `place_search` 1.259 nơi còn lại (người ngồi giải captcha) → C3 → build cuối lại. `comments_crawl` 35 video.
+- Maps mở rộng (SESSION_GMAPS §Việc): search thêm (`max_zoom` 15, thêm categories), `keyword_sets`, cho `extremes` / `relevant` lấy thêm ở nơi cũ. Nơi lưu trú: người dùng quyết định không thêm.
+- Observation của nơi dưới 30 review sao lưu ở `data/gmaps/observations_under30_backup/` (dùng lại nếu hạ `min_reviews`).
+
+Crawl đã chuyển từ máy Windows sang server (`/workingspace_aiclub/WorkingSpace/Personal/vannk/tripguardian`, Ubuntu 20.04, không sudo, không màn hình, repo trên NFS). Mục "Đang chạy" ở phần ▶ bên dưới (runner trên Windows) đã hết hiệu lực.
+
+### Quy tắc người dùng đặt cho server
+- **Chỉ làm trong thư mục repo**: venv `.venv/`, Chromium `.cache/ms-playwright/`, cache uv `.cache/uv/`, profile/cookie `.browser/`, script và log `logs/` (gitignored). `.venv/` và `.cache/` loại khỏi git bằng `.git/info/exclude`. Ngoại lệ bắt buộc: file tạm lúc chạy của Chromium ở `/tmp` (Chrome không chạy được nếu `TMPDIR` nằm trên NFS).
+- Không tự giải captcha (kể cả bằng model). Captcha do người dùng giải qua DevTools (dưới).
+- Không commit/push khi chưa được yêu cầu.
+
+### Môi trường
+- `.venv` (Python 3.12, `uv`), **`playwright==1.52.0`** (bản mới hơn không có Chromium cho Ubuntu 20.04), `torch` (GPU), `chunkformer`, `silero-vad`, `transformers`, `psutil`, `py-spy`. Máy không có Chrome → mọi lệnh crawl cần `CORPUS_BROWSER_CHANNEL=chromium PLAYWRIGHT_BROWSERS_PATH=$PWD/.cache/ms-playwright`.
+- **Cookie trong bộ nhớ** (`CORPUS_PROFILE_STATE=1`): đọc/ghi `.browser/<tên>.json` (`gmaps`, `gmaps_s<i>`, `tiktok`, `tiktok2`). Profile Chrome thư mục trên NFS làm trang Maps >200 s không tải xong — đừng chạy crawl không có biến này. Thư mục `.browser/gmaps_s*`/`gmaps_t` là bản sao cũ, xóa được.
+- **Giải captcha / đăng nhập từ xa**: mỗi tiến trình mở cổng DevTools `CORPUS_DEBUG_PORT` (chỉ 127.0.0.1). Người dùng `ssh -L <port>:localhost:<port>`, mở `chrome://inspect` → Configure → `localhost:<port>` → inspect → thao tác trên khung screencast. Cổng: gmaps shard i = `9520+i`, đăng nhập gmaps `9530`, TikTok `9541`/`9542`. (9333, 9338 bị người khác chiếm.) Đăng nhập lại Google: `CORPUS_DEBUG_PORT=9530 ... python -m corpus login gmaps`, người dùng đăng nhập rồi đóng tab → lưu `.browser/gmaps.json`.
+- `certs/uit-ca-bundle.pem` đã tạo trên server (`docs/LLM_PROVIDER.md` §Chứng chỉ TLS). **Extractor chạy trên host LAN** với 256 call đồng thời (`docs/LLM_PROVIDER.md` §Host LAN); Agent vẫn ở UIT.
+
+### Đang chạy (không đụng trừ khi dừng hẳn)
+- `logs/probe.py` (pid ghi trong `ps`, log `logs/probe.log`): tự dò số tab tối đa không bị chặn cho từng nguồn, mỗi mức giữ 6 phút (gmaps) / 12 phút (TikTok), chặn đầu tiên → dừng, ghi mức, nghỉ 30 phút, chạy tiếp ở mức dưới đến hết.
+  - gmaps extremes: mức 36 → 48 → 64 → 80 tab (`6x6`, `6x8`, `8x8`, `10x8` tiến trình × tab). 36 tab sạch, **12,9 nơi/phút**; 48 tab sạch, 12,5 nơi/phút (phép đo lệch do khởi động lại giữa mức); 64 tab (8 × 8) **~18 nơi/phút** (23:25–23:30, sạch). **Extremes xong 23:30** (1.466 file, 0 nơi còn), chưa dò được mức 80 vì hết việc. TikTok 6 tab: ~36 video/phút, sạch.
+- `photos` (22 nơi, 3 tab) rồi `keywords` (0 nơi): runner riêng, log `logs/gmaps_photos_1.log`, in `GMAPS_RUNNER_DONE` khi xong. Captcha không tính là chặn (người dùng giải), chỉ `GMAPS_RUNNER_STOPPED` (3 lần không giải / bị đăng xuất). Log từng shard `logs/gmaps_p<n>_s<i>.log`.
+  - TikTok `place_crawl` (2 tài khoản, `CORPUS_FIXED_TABS=1`, tab đặt qua `data/tiktok/throttle*.json`): 4 tab sạch, **28,8 video/phút**; đang ở 6 tab, còn ~780 video. Chặn = captcha hoặc lỗi `no item data` > số video tải trong 3 phút (Akamai "Access Denied" không có captcha). Log `logs/tiktok_p<level>_s<shard>.log`.
+- Muốn dừng: `kill` pid của `logs/probe.py`, rồi `kill -- -<pid>` từng runner/tiến trình con (mỗi cái chạy trong session riêng). **Đừng dùng `pkill -f <chuỗi>`** — khớp luôn shell đang gõ lệnh.
+
+### Số đo hôm nay (một IP server)
+| Nguồn | Cấu hình | Tốc độ | Kết quả |
+|---|---|---|---|
+| gmaps extremes | 1 tiến trình × 16 tab | ~0 | một tiến trình Python chạm 100% một core ở ~8 tab → timeout. Phải chia tiến trình (`--shard`) |
+| gmaps extremes | 6 × 6 = 36 tab | 12–13 nơi/phút | lần 1 (21:32): captcha sau ~10 phút rồi **Google đăng xuất tài khoản**; lần 2 (23:12, vừa đăng nhập lại): sạch 6 phút |
+| TikTok place_crawl | 2 × 5 = 10 tab, `pause_s [0.3,1]` | ~33 video/phút | sau 5 phút **Akamai chặn IP** (cả 2 tài khoản), gỡ sau <40 phút |
+| TikTok place_crawl | 2 × 2 = 4 tab, `pause_s [1,3]` | 28,8 video/phút | sạch 12 phút |
+| Gemma host mới (`ANOTHER_HOST`, LAN) | prompt ngắn ~250 tok | 128 đồng thời ≈ 4.600 req/phút; 192 ≈ 5.400; 320 ≈ 6.300 (p95 5,5 s) | 0 lỗi khi có `max_retries=2` |
+| Gemma host mới | prompt dài ~2k tok vào/300 ra (cỡ observe) | 128 ≈ 1.130 req/phút (p95 7 s); 192 ≈ 1.290; 256 ≈ 1.480 (p95 11 s) | 0 lỗi; gối ~192–256 |
+
+Script đo model: `logs/llm_probe.py` (`LEVELS=… LONG=1 RETRIES=2`), kết quả `logs/llm_probe_*.log`.
+
+### Thay đổi code chưa commit (phiên này)
+- `src/corpus/crawl/common/browser.py`: `CORPUS_BROWSER_CHANNEL`, `CORPUS_DEBUG_PORT` (captcha/login chờ người qua DevTools), `CORPUS_PROFILE_STATE` (cookie trong bộ nhớ ↔ `.browser/<tên>.json`).
+- `src/corpus/crawl/gmaps/{crawl,relevant,extremes,keywords,photos}.py` + `src/corpus/__main__.py`: `--shard i/n --profile <tên>` cho các bước gmaps dùng trình duyệt.
+- `scripts/gmaps_runner.py`: `GMAPS_HEADLESS`, `GMAPS_SHARD`, `GMAPS_PHASES`; thêm `crawl`, `relevant` trước `extremes`; captcha không ai giải 3 lần → `GMAPS_RUNNER_STOPPED`.
+- `src/corpus/crawl/tiktok/crawl.py`: tải mp4 bằng `httpx` stream với cookie của context (`ctx.request` của Playwright 1.52 nối body theo bình phương: 55 MB chiếm một core nhiều phút; stream ~4 s). `trust_env=False` để không dính `SSL_CERT_FILE`.
+- `config/queries.yaml`: `gmaps.tabs` 10 → 24 (trần), `tiktok.tabs` 5 → 8 (trần cho probe), `tiktok.pause_s` `[0.3,1]` → `[1,3]`.
+- `src/corpus/llm/roles.py`, `tasks.py`: `Role.parallel_env` / `Role.parallel()`; task Extractor không đặt `parallel` thì lấy `EXTRACTOR_PARALLEL` (bỏ các số 8/24/38/16 cắt theo key UIT). `.env.example` thêm `EXTRACTOR_PARALLEL`; `docs/LLM_PROVIDER.md` thêm §Host LAN.
+- `.env` (không theo git): `LLM_API_KEY` / `EXTRACTOR_BASE_URL` / `EXTRACTOR_MODEL` trỏ host LAN, `EXTRACTOR_PARALLEL=256`, giá trị UIT cũ giữ dạng comment `# UIT (fallback)`.
+- `throttle.py` (sửa giữ mức RAM-guard) đã có trong `c064005`.
+
+### Việc tiếp theo
+Theo từng session: `SESSION_GMAPS.md`, `SESSION_TIKTOK.md`, `SESSION_MODEL.md`. Sau cả ba: các việc của mục ▶ dưới (đo sau build, zip cho team, UI báo cáo…).
+
+### Nhật ký giữa các session (mới nhất ở cuối; một dòng mỗi lô)
+- 2026-10-06 23:30 GMAPS: `extremes` xong, +~370 nơi có review cực trị cần observe.
+- 2026-10-06 23:40 TIKTOK: `place_crawl` +~1.200 mp4 (còn ~280), chưa ASR.
+- 2026-10-07 06:55 TIKTOK: `place_crawl` với `crawl_videos_per_place: null` xong (3.309 mp4 trên đĩa, 9 video lỗi); ASR xong hết mp4 còn lại, `asr_check` lần 1 xong 837 video; đang `asr_check` → `place_verify` (chuỗi `logs/tiktok_verify_chain.sh`) → video mới có `place_verify` chờ SESSION_MODEL observe. `place_search` (3.065 nơi mới + nơi cũ chưa đủ 20 video) đang chạy, cần người giải captcha search ở DevTools 9541/9542; `place_filter` chạy sau mỗi lô search.
+- 2026-10-07 TIKTOK (số đo/chặn): 8 tab/tài khoản (16 tab) ~50 video/phút được ~9 phút rồi Akamai trả `no item data` hàng loạt (không captcha); gỡ sau ≤15 phút. `tiktok.tabs` 5, `cooldown_s` 300; `MissWatchThrottle` (crawl.py) coi 6/10 trang rỗng là bị chặn. Search API bị captcha slider riêng (body rỗng) — `collect` giờ chờ người giải; cookie lưu mỗi 60 s (`browser.STATE_SAVE_S`) để tiến trình bị kill không mất captcha đã giải.
+- 2026-10-07 06:50 TIKTOK: `place_crawl` xong bản không trần (6.689 video "yes"; chỉ ~9 lỗi); ASR + `asr_check` đã chạy ~2.900 video, `place_verify` chưa. `place_search` 20 video/nơi cho ~4.400 nơi (mới + cũ) đang chạy, ~6 nơi/phút, cần người giải captcha khi hiện (DevTools 9541/9542). Pipeline nền `logs/tiktok_pipeline.sh` (log `logs/tiktok_pipeline.log`) lặp filter → crawl → asr → check → verify; captcha của crawl ở 9543/9544.
+- 2026-10-07 09:20 GMAPS+TIKTOK: chạy gắn vào 2 cửa sổ đăng nhập Google (`CORPUS_ATTACH_URL`, sửa `_attach`: tab và cookie đi qua CDP đúng context đã đăng nhập — trước đó mọi lần attach báo "login needed" ngay). `logs/gmaps_dist.sh 4` = 4 runner/tài khoản × 8 tab (64 tab): ~15 nơi/phút sạch, phase `crawl` còn ~3.550 nơi. Captcha giờ chờ người giải không giới hạn, giải xong tab đi tiếp không retry (người dùng); Maps: cổng 9530 (A) / 9533 (B), TikTok search 9541/9542 (trần `place_search_tabs` 8). Theo dõi: `logs/crawl_watch.sh`.
+- 2026-10-07 09:40 TIKTOK: `logs/tiktok_pipeline.sh` dừng (`place_crawl` shard 1 treo từ 08:30, ASR chờ theo). Thay bằng `logs/tiktok_lanes.sh` (log `logs/tiktok_lanes.log`): luồng trình duyệt filter → crawl → comments và luồng GPU asr → check → alt → verify → xóa clip chạy song song. GMAPS: sửa rò tab khi nhiều tiến trình gắn chung một trình duyệt (khớp theo `targetId`), `crawl`/`relevant` chặn bản đồ/ảnh (`text_only`), renderer Maps `nice` 10 để giải captcha mượt. Còn lại: `logs/crawl_todo.py`.
+- 2026-10-07 10:40 GMAPS+TIKTOK: TikTok `place_search` và `comments_crawl` dừng theo người dùng (captcha dày, giải bị giật); GMAPS 8 runner và TikTok `place_crawl` + ASR/verify chạy tiếp không cần người. Trạng thái, số còn lại và lệnh chạy lại: `SESSION_GMAPS.md`, `SESSION_TIKTOK.md` §Trạng thái. Video mới có `place_verify` liên tục chờ SESSION_MODEL observe.
+- 2026-10-07 13:45 MODEL (người dùng yêu cầu): build chạy lại với `EXTRACTOR_ALSO_UIT=1` (`logs/build_lan_7.log`): `gmaps observe` dùng host LAN x38 + UIT x38, ~198 nơi/10 phút (trước 28). Verify TikTok tạm dừng để nhường UIT. GMAPS: `text_only` chuyển sang chặn ảnh theo tab (chặn theo context làm hỏng ảnh của `photos` ở tiến trình khác: 102 lỗi), runner khởi động lại 13:41.
+- 2026-10-07 16:00 GMAPS+TIKTOK: `gmaps.min_reviews` 30 (danh sách 1.779 nơi, observation nơi dưới 30 sao lưu ở `data/gmaps/observations_under30_backup/`). Observe còn 646 nơi trên danh sách mới; build `build_lan_7` vẫn chạy theo danh sách cũ (thêm ~1.600 nơi sẽ bị xóa ở lần observe sau). TikTok `asr` xong, `asr_alt` chia 5 GPU.
+- 2026-10-07 18:10 MODEL: `build_lan_7` xong 17:14 (serving 3.571 nơi, còn gồm nơi dưới 30 review). Chuỗi `logs/model_chain_2.sh` (log `logs/model_chain_2.log`): build trên danh sách 1.779 nơi → Judge dedup/status trên Gemma UIT → audit engine Gemma trên UIT lặp tới khi hết việc → aggregate → serving → snapshot → `decision evaluate`. Không chạy build hay task UIT khác khi chuỗi đang chạy.
+- 2026-10-07 20:00 ALL: checklist "Còn gì để xong corpus" ở đầu §▶▶. TikTok: mọi video đã lọc đã tải (còn 5), video mới chờ `place_filter` 3.473 (model) và `place_search` 1.259 (captcha). Maps: `gmaps_passes.sh` xong.
+- 2026-10-07 21:05 ALL: host Gemma LAN tạm dừng theo người dùng; checklist §▶▶▶ viết lại (A đang chạy / C chờ "bắt đầu" / D để xong / E làm thêm).
+- 2026-10-08 00:20 GMAPS+MODEL (người dùng cho dùng lại host LAN): (1) crawl Maps **xong**. Crawl lại 135 nơi thiếu review (phần lớn dừng ở 180–350 review dù Maps báo hàng nghìn) không lưu thêm được nơi nào trong 20 phút → chấp nhận, không chạy lại; `photos` còn 3 nơi (từ 19). (2) `gmaps observe` xong trên host LAN (48 nơi mới, 3 lỗi, 1.725 đã có); `photo_observe` đang chạy (`logs/gmaps_lan_lane.sh`). (3) Audit đọc-hết của chuỗi 3 từng treo 70 phút vì `audit.label_with` render cả 46k call trước khi giành slot (đọc 84 GB đĩa, vòng async không xử lý được trả lời); đã sửa (giành slot rồi mới render), chạy lại bằng `logs/model_chain_3b.sh` với `JUDGE_ALSO_LAN=1` (UIT x38 + LAN x38), ~250 call/phút, 46.087 call → xong khoảng 03:30 rồi aggregate → serving → snapshot → evaluate (log `logs/model_chain_3.log`).
+- 2026-10-09 08:40 GMAPS → MODEL: crawl chỗ ở `dalat_stay` **xong** (8 runner `GMAPS_RUNNER_DONE` 03:24–03:41, 0 captcha). `list/dalat_stay.json` 1.524 chỗ ở; có `reviews.json` (300 review mới nhất) 1.517, `reviews_extremes.json` 862, `photos.json` 845, `reviews_relevant.json` 104; 7 chỗ ở chưa có review. SESSION_MODEL observe nhóm `stay` (observe / photo_observe đọc cả hai danh sách qua `files.listed`) → aggregate → `python -m corpus serving`; serving ≥ `stay_min` (50) chỗ ở thì Planning tự chuyển sang corpus, khởi động lại harness để nạp serving mới. Chi tiết: `SESSION_MODEL.md` ▶ Chỗ ở.
+
+### Kiểm nhanh (server)
+```sh
+cd /workingspace_aiclub/WorkingSpace/Personal/vannk/tripguardian
+cat logs/probe.log                                         # mức tab, tốc độ, chặn
+ls data/gmaps/places/*/reviews_extremes.json | wc -l       # extremes đã có
+grep -h "left" logs/tiktok_p*_s*.log | tail -2             # TikTok còn bao nhiêu
+ps -u $(id -u) -o pid=,etime=,args= | grep -E "[p]robe.py|[g]maps_runner|[c]orpus tiktok"
+```
+
 ## ▶ Việc cho phiên sau — đọc mục này trước (cập nhật 2026-10-06 19:05 giờ VN)
 
 Các mục phía dưới là lịch sử và lý do; mục này là trạng thái đúng hiện tại.
@@ -13,7 +117,7 @@ Các mục phía dưới là lịch sử và lý do; mục này là trạng thá
 - **Corpus:** build Gemma xong 10:57 UTC; aggregate + serving + snapshot web chạy lại 11:40 UTC. Serving: VERIFIED 23.004 · UNCERTAIN 6.289 · OUTDATED 2.606 · 771 nơi trải nghiệm. `decision evaluate`: filled_rate **0,967**, 1 trip chưa đủ (`group_food`), 0 violation, 0 unknown trong danh sách chính.
 - **Chờ Gemma:** 1.369 claim chưa audit (1.285 chữ, 84 ảnh) + các nơi có review `extremes` mới từ sau build (chưa observe).
 
-### Đang chạy — không đụng
+### Đang chạy — không đụng (hết hiệu lực: crawl đã chuyển lên server, xem mục ▶▶)
 - `logs/gmaps_runner.py` (log `logs/gmaps_runner_17.log`, do `logs/gmaps_after_build.py` của phiên khác bật): luân phiên extremes → photos → keywords. `extremes` còn **607 nơi** (runner đếm lúc 18:02 giờ VN, 1.098 file đã có). Không có job Gemma nào chạy.
 
 ### Quy tắc đã chốt với người dùng — không đổi khi chưa hỏi
