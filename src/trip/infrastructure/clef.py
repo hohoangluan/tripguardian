@@ -18,6 +18,7 @@ DATA = "conversation.data_question"
 FEATURE = "tool.feature_rank"
 NONE = "none"
 SUPPORT = "fact.supported_by_quote"
+CLARITY = "other.states_value"  # quiz other-gate: a typed answer clearly states a value for the field
 PROMISE = "reply.promises_results"
 INVENT = "reply.states_unsaid_fact"
 REPEAT = "question.already_answered"
@@ -133,6 +134,17 @@ class Judge:
             "type": "choice", "instructions": "Câu của khách có nói điều trong claim không?",
             "criteria": {"A": "có nói hoặc ngụ ý rõ", "B": "không nói", "C": "chưa rõ"}}}, self.cfg)
         return prob(answers, SUPPORT, "B") >= self.cfg.clef_verify_min
+
+    def clear_for_field(self, text: str, field_label: str) -> bool:
+        """Quiz other-gate: True only when Clef is sure the typed answer clearly
+        states a value for this field. Anything else (and any Clef failure) means
+        the chat phase resolves it. Fail-open towards the chat, never towards a guess."""
+        answers = ask({"user_message": text, "field": field_label}, {CLARITY: {
+            "type": "choice", "instructions": f"Câu của khách có nói rõ một giá trị cho {field_label} không? "
+                                              "Rõ là nêu con số, lựa chọn hay ý cụ thể (kể cả nói khác từ gợi ý). "
+                                              "Chỉ chọn A khi đúng vậy.",
+            "criteria": {"A": "nói rõ", "B": "không nói hoặc mơ hồ", "C": "chưa rõ"}}}, self.cfg)
+        return prob(answers, CLARITY, "A") >= self.cfg.clef_clarity_min
 
     def bad_reply(self, say: str) -> str | None:
         """Why `say` may not be shown: it promises results, or states a fact the user never gave. None when fine or unsure."""

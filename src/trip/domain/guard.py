@@ -14,8 +14,8 @@ from ..infrastructure.catalog import Catalog
 from .state import SCALARS, Evidence, TripState, Update, apply, settle
 from .text import contains, squash
 
-FieldName = Literal["start_date", "month", "month_part", "days", "companions", "people", "base", "entry_point", "exit_point", "mobility",
-                    "arrive_at", "leave_at", "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
+FieldName = Literal["start_date", "month", "month_part", "days", "nights", "companions", "people", "base", "entry_point", "exit_point", "mobility",
+                    "checkin_at", "checkout_at", "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
                     "novelty", "budget_vnd", "budget_scope", "liked_groups", "unmapped"]
 GENERIC = {"du", "lich", "da", "lat", "dalat", "viet", "nam", "thanh", "pho", "tour"}  # a place name made only of these is a phrase
 LIST_FIELDS = {"companions", "liked_groups", "anchor", "signal", "soft", "hard", "unmapped"}

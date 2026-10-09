@@ -17,7 +17,7 @@ LITERALS = ("companions", "mobility", "purpose", "pace", "novelty", "crowd_toler
             "lodging_booked", "budget_scope", "month_part", "liked_groups")
 ENUM_VALUES = {
     "companions": ("solo", "partner", "friends", "kids", "parents"),
-    "mobility": ("motorbike", "car", "ride"),
+    "mobility": ("motorbike", "car", "walk"),
     "purpose": ("relax", "bond", "photo", "food_culture", "nature", "explore", "adventure"),
     "pace": ("slow", "normal", "packed"),
     "novelty": ("familiar", "new", "mix"),
@@ -59,14 +59,14 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
         raise ValueError(f"{field}: empty value")
     if field == "start_date":
         return date.fromisoformat(raw[:10])
-    if field in ("month", "days", "people", "max_leg_min"):
+    if field in ("month", "days", "nights", "people", "max_leg_min"):
         m = re.search(r"\d+", raw)
         if not m:
             raise ValueError(f"{field}: no number in {raw!r}")
         return int(m[0])
     if field == "budget_vnd":
         return money(raw)
-    if field in ("arrive_at", "leave_at", "day_end"):
+    if field in ("checkin_at", "checkout_at", "day_end"):
         return clock(raw)
     if field in ("base", "entry_point", "exit_point"):
         if raw in catalog.by_id:

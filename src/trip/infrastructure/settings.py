@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+ARRIVAL_BUFFER_MIN = 45  # the default of Settings.arrival_buffer_min (config/trip.yaml)
+
 ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -31,13 +33,14 @@ class Settings:
     clef_reject_min: float = 0.88
     clef_data_min: float = 0.8
     clef_feature_min: float = 0.5  # a feature Clef ranks for a wish counts from this probability
-    clef_verify_min: float = 0.75  # sure the quote does not say the fact: the fact is refused
+    clef_verify_min: float = 0.75  # D-gate (chat): sure the quote does not say the fact: a low fact is refused
+    clef_clarity_min: float = 0.75  # quiz other-gate: sure a free-typed answer is clear for the field: fill it, else to chatbot
     clef_reply_min: float = 0.9    # sure a reply promises results or states an unsaid fact: it is replaced
     clef_repeat_min: float = 0.9   # sure the question is already answered by the state: the Agent must ask another
     tool_steps: int = 6
     required: tuple = ("days", "companions", "mobility", "when")  # known before the user may press Next
     max_tokens: int = 1500
-    arrival_buffer_min: int = 45  # from a coach / flight's arrival to the first stop, and from the last stop to departure
+    arrival_buffer_min: int = ARRIVAL_BUFFER_MIN  # from a coach / flight's arrival to the first stop, and from the last stop to departure
     entry_roads: tuple = ()  # ({from_deg, to_deg, text}, …): the road into the city by the bearing toward the origin
     airports: tuple = ()  # ({iata, name, lat, lng}, …) with direct flights to the city (config/airports.yaml)
     patterns: PatternSettings = field(default_factory=PatternSettings)

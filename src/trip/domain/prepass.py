@@ -52,7 +52,6 @@ SIGNALS = [
 MOBILITY = [
     (r"\b(xe may|xe so|xe tay ga)\b", "motorbike"),
     (r"\b(o to|oto|xe hoi|xe rieng|tu lai|xe 4 cho|xe 7 cho)\b", "car"),
-    (r"\b(grab|taxi|xe cong nghe|xanh sm|goi xe)\b", "ride"),
 ]
 PACE = [
     (r"\b(thong tha|nhe nhang|di it|khong voi|cham rai)\b", "slow"),
@@ -160,12 +159,18 @@ def prepass(text: str, today: date) -> Prepass:
         m = re.search(r"\b(\d)\s*n\s*(\d)\s*d\b", low)
         if m:
             add("days", int(m[1]), m)
+            add("nights", int(m[2]), m)
         else:
             for m in re.finditer(r"(?<!/)\b(\d{1,2})\s*(?:ngay|n)\b|\b(hai|ba|bon|nam|sau|bay)\s+ngay\b(?!\s*\d)", low):
                 n = int(m[1]) if m[1] else NUMBER[m[2]]
                 if 1 <= n <= 7:
                     add("days", n, m)
                     break
+    for m in re.finditer(r"\b(\d)\s*dem\b|\b(hai|ba|bon|nam|sau|bay)\s+dem\b", low):
+        if not any(p.field == "nights" for p in out):  # "3N2Đ" already said it
+            n = int(m[1]) if m[1] else NUMBER[m[2]]
+            if 0 <= n <= 7:
+                add("nights", n, m)
     for m in re.finditer(r"\b(\d{1,2})\s*(?:nguoi|ng)\b", low):
         add("people", int(m[1]), m)
         break

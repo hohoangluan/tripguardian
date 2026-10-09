@@ -15,12 +15,14 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from corpus.ontology import Ontology, load as load_ontology
 
+from .legacy import upgrade
+
 T = TypeVar("T")
 Source = Literal["user", "anchor", "profile", "inferred", "default"]
 Confidence = Literal["high", "medium", "low"]
 Status = Literal["unknown", "asked", "confirmed", "skipped"]
 Who = Literal["solo", "partner", "friends", "kids", "parents"]
-Vehicle = Literal["motorbike", "car", "ride"]
+Vehicle = Literal["motorbike", "car", "walk"]  # walk: a trip that arrives by coach / plane and rents nothing
 ArrivalMode = Literal["self", "bus", "plane"]  # how the trip reaches the city: own motorbike / car, coach, flight
 YesNo = Literal["yes", "no"]
 Purpose = Literal["relax", "bond", "photo", "food_culture", "nature", "explore", "adventure"]
@@ -40,12 +42,12 @@ EFFORT_SIGNALS = frozenset({"knee", "elderly", "kids", "wheelchair", "pregnant"}
 OTHER_SIGNALS = frozenset({"motion_sick", "height", "vegetarian"})  # answered by question c_other
 EFFORT_FEATURES = frozenset({"steep_or_stairs", "long_walk"})
 EFFORT_CLASH = frozenset({"hiking", "adventure_activity"})  # what a stored taste may not push once the trip has an effort limit
-SCALARS = ("start_date", "month", "month_part", "days", "people", "base", "entry_point", "exit_point", "mobility", "arrive_at",
-           "leave_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd",
+SCALARS = ("start_date", "month", "month_part", "days", "nights", "people", "base", "entry_point", "exit_point", "mobility", "checkin_at",
+           "checkout_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd",
            "budget_scope", "origin", "arrival_mode", "inbound", "outbound", "lodging_booked", "lodging")
-RANGES = {"month": (1, 12), "days": (1, 7), "people": (1, 20), "max_leg_min": (5, 180),
+RANGES = {"month": (1, 12), "days": (1, 7), "nights": (0, 7), "people": (1, 20), "max_leg_min": (5, 180),
           "budget_vnd": (10_000, 50_000_000)}
-CLOCKS = ("arrive_at", "leave_at", "day_end")
+CLOCKS = ("checkin_at", "checkout_at", "day_end")
 CLOCK = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
 WEIGHT_SIGN = {"love": 1, "avoid": -1, "off": 0}
 
@@ -215,21 +217,32 @@ class Meta(Frozen):
     remember: bool = False  # the user agreed that this session may add to those patterns
     prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/TRIP_UNDERSTANDING.md §17)
     declined: tuple[str, ...] = ()  # questions the user skipped or was unsure about: never asked again
+    phase: Literal["chat", "quiz", "review"] = "chat"  # chat: free talk; quiz: deterministic bank; review: after the quiz
+    offered_quiz: bool = False  # unused: the F transition card is gone; kept so sessions saved with it still load
+    told: bool = False  # the agent has read the user's own telling of the trip; every later question is a chip card
+    other_qid: str | None = None  # quiz card a typed answer left unclear: the chat is resolving it
+    other_text: str | None = None  # that unclear answer, in the user's words
 
 
 class TripState(Frozen):
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy(cls, data):
+        return upgrade(data) if isinstance(data, dict) else data
+
     start_date: Field[date] = Field[date]()
     month: Field[int] = Field[int]()
     month_part: Field[MonthPart] = Field[MonthPart]()
     days: Field[int] = Field[int]()
+    nights: Field[int] = Field[int]()  # nights slept in the city; unknown is not days - 1 here (nights() falls back)
     companions: Field[frozenset[Who]] = Field[frozenset[Who]]()
     people: Field[int] = Field[int]()
     base: Field[Base] = Field[Base]()
     entry_point: Field[Base] = Field[Base]()  # where the trip enters the city: station, airport, own vehicle
     exit_point: Field[Base] = Field[Base]()   # where it leaves; the last day has to get back here in time
     mobility: Field[Vehicle] = Field[Vehicle]()
-    arrive_at: Field[str] = Field[str]()
-    leave_at: Field[str] = Field[str]()
+    checkin_at: Field[str] = Field[str]()   # the hour the user wants to start on the first day (lodging check-in)
+    checkout_at: Field[str] = Field[str]()  # and to be done on the last day (lodging check-out)
     day_end: Field[str] = Field[str]()
     origin: Field[Base] = Field[Base]()  # where the trip starts (home city), picked from a search
     arrival_mode: Field[ArrivalMode] = Field[ArrivalMode]()
@@ -293,9 +306,13 @@ def apply(state: TripState, u: Update) -> TripState:
             raise ValueError(f"{f}={u.value} is out of range {RANGES[f]}")
         if f in CLOCKS and not CLOCK.fullmatch(str(u.value)):
             raise ValueError(f"{f}={u.value} is not HH:MM")
+        if f == "nights" and state.days.known and int(u.value) > state.days.value:
+            raise ValueError(f"nights={u.value} is more than days={state.days.value}")
         new = _kind(f)(value=u.value, source=u.source, confidence=u.confidence, status=status, evidence=(u.evidence,))
         if f == "month" and cur.value != u.value:
             state = state.model_copy(update={"month_part": _kind("month_part")()})  # "cuối" was said of the old month
+        if f == "days" and state.nights.known and state.nights.value > u.value:
+            state = state.model_copy(update={"nights": _kind("nights")()})  # said of the longer trip
         state = state.model_copy(update={f: new})
         if f == "lodging":  # a booked lodging is the trip's base too: distances start there
             state = apply(state, u.model_copy(update={"field": "lodging_booked", "value": "yes"}))
@@ -443,25 +460,31 @@ def pending_signals(state: TripState) -> list[Signal]:
 
 def unknown_fields(state: TripState) -> list[str]:
     out = [] if state.start_date.known or state.month.known else ["dates"]
-    return out + [f for f in ("days", "companions", "base", "mobility", "purpose", "pace", "budget_vnd")
-                  if not getattr(state, f).known]
+    return out + [f for f in ("days", "nights", "companions", "base", "mobility", "purpose", "pace", "budget_vnd")
+                  if not getattr(state, f).known and (f != "nights" or state.days.known)]
 
 
 # ---------- Search Input (output of this step, input of Place Decision) ----------
 
 class Context(Frozen):
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy(cls, data):
+        return upgrade(data) if isinstance(data, dict) else data
+
     start_date: date | None
     month: int | None
     month_part: MonthPart | None = None
     days: int | None
+    nights: int | None = None
     base: Base | None
     entry_point: Base | None = None
     exit_point: Base | None = None
     mobility: Vehicle | None
     companions: tuple[Who, ...]
     people: int | None
-    arrive_at: str | None
-    leave_at: str | None
+    checkin_at: str | None
+    checkout_at: str | None
     day_end: str | None
     budget_vnd: int | None = None  # VND per person per day (domain/budget.py); None when the amount cannot be split
     experience: Literal["first", "returning"] | None = None

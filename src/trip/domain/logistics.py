@@ -61,14 +61,15 @@ def route(state: TripState, cfg: Settings) -> tuple[str, str] | None:
     return None
 
 
-def _clock(t: str, minutes: int) -> str:
+def clock_after(t: str, minutes: int) -> str:
+    """HH:MM of the ISO time t, minutes later (earlier when negative)."""
     x = datetime.fromisoformat(t) + timedelta(minutes=minutes)
     return f"{x:%H:%M}"
 
 
 def pick_transit(state: TripState, way: str, t: Transit, cfg: Settings, turn: int) -> TripState:
-    """The user chose a coach / flight: it is stored, and the day's window and the city's entry / exit follow from
-    it (arrival + buffer on the first day, departure − buffer on the last); the times question is then not asked."""
+    """The user chose a coach / flight: it is stored, and the city's entry / exit follow from it. The day's window
+    follows too, when the Search Input is compiled (compile.day_window): arrival + buffer, departure − buffer."""
     ev = Evidence(turn=turn, tool=f"transit:{way}")
 
     def put(field, value):
@@ -76,9 +77,7 @@ def pick_transit(state: TripState, way: str, t: Transit, cfg: Settings, turn: in
 
     state = apply(state, put(way, t))
     if way == "inbound":
-        state = apply(state, put("arrive_at", _clock(t.arrive_at, cfg.arrival_buffer_min)))
         state = apply(state, put("entry_point", Base(text=t.to_point)))
     else:
-        state = apply(state, put("leave_at", _clock(t.depart_at, -cfg.arrival_buffer_min)))
         state = apply(state, put("exit_point", Base(text=t.from_point)))
     return settle(state)

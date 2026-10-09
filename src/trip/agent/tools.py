@@ -100,8 +100,7 @@ SPECS = {
         {"text": {"type": "string", "description": "ONLY the question, one short Vietnamese sentence: no greeting, no praise."},
          "placeholder": {"type": "string", "description": "Example answer the user could type, for THIS question, in their voice "
                          "(\"cuối tháng 12, hoặc 20/12\")."},
-         "kind": {"type": "string", "enum": ["text", "date"],
-                  "description": "date when the question asks for the start date: the user picks a day on a calendar."}},
+         },
         ["text", "placeholder"]),
 }
 
@@ -289,11 +288,12 @@ class TurnTools:
     def _ask_text(self, a: dict) -> dict:
         if not str(a["text"]).strip():
             raise ValueError("text is empty")
+        if a.get("kind") == "date":  # the start date is the quiz's `dates` card; the agent only clarifies what was said
+            self.log.append("date_ask_refused")
+            raise ValueError("the start date is asked later on its own card; ask only about what the user wrote, or reply in text")
         self.lead, question = split_lead(str(a["text"]))
         self._already_known(question)
-        date_ = a.get("kind") == "date" and not self.state.start_date.known  # a known date is not asked on a calendar
-        self.card = Question(qid=f"ask:{self.turn}", group="A" if date_ else "I", tier=2, custom=True,
-                             input="date" if date_ else "text", input_field="start_date" if date_ else None,
+        self.card = Question(qid=f"ask:{self.turn}", group="I", tier=2, custom=True, input="text",
                              text=question, placeholder=str(a.get("placeholder", "")).strip()[:120])
         self.stopped = True
         return {"ok": True}

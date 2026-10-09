@@ -11,11 +11,12 @@ from .coverage import admissible, coverage
 from .card import Question
 from .state import WEIGHT_SIGN, SoftKey, TripState, apply_drafts, pending_signals, unknown_fields
 from .readiness import DEFAULT_REQUIRED, missing
+from .rental import rental_hint
 from .values import jsonable
 
 MARKED = ("inferred", "anchor", "profile")
-TRIP_ROWS = ("start_date", "month", "month_part", "days", "companions", "people", "origin", "arrival_mode", "inbound", "outbound",
-             "lodging_booked", "lodging", "base", "entry_point", "exit_point", "mobility", "arrive_at", "leave_at", "day_end")
+TRIP_ROWS = ("start_date", "month", "month_part", "days", "nights", "companions", "people", "origin", "arrival_mode", "inbound", "outbound",
+             "lodging_booked", "lodging", "base", "entry_point", "exit_point", "mobility", "checkin_at", "checkout_at", "day_end")
 
 
 def to_taste(state: TripState):
@@ -100,10 +101,13 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
         "soft": soft,
         "pace": row("pace"), "max_leg_min": row("max_leg_min"), "crowd_tolerance": row("crowd_tolerance"),
         "novelty": row("novelty"), "budget_vnd": budget(), "liked_groups": row("liked_groups"),
+        "rental": rental_hint(state),
         "unknowns": unknown_fields(state),
         "unmapped": [{"target": f"unmapped:{i}", "phrase": u.phrase} for i, u in enumerate(state.unmapped)],
-        "ready": not (miss := missing(state, cfg.required if cfg else DEFAULT_REQUIRED)),
-        "missing": [{"target": k, "label": label} for k, label in miss],
+        # Next is always open: ready means no open health hint blocks the hand-off
+        # (fail-closed). Other missing fields ride along as unknowns.
+        "ready": not pending_signals(state),
+        "missing": [{"target": k, "label": label} for k, label in missing(state, cfg.required if cfg else DEFAULT_REQUIRED)],
         "safety_pending": bool(pending_signals(state)) or open_policy,
         # How many places fit the trip right now: past the hard limits and to the taste so far (to_taste). A fact about
         # the current state, never a forecast; soft values only rank later, this count does not remove anything.
