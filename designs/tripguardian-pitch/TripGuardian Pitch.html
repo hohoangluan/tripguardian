@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TripGuardian Pitch</title>
+  <link rel="icon" href="assets/logo.webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Lora:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
@@ -48,10 +49,12 @@
       flex-direction: column;
       padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
       background: var(--paper);
+      color: var(--ink);
     }
     .slide--dark { background: var(--pine-dark); color: #fffdf8; }
     .slide--rose { background: #f8e7e8; }
     .slide--cover { padding: 0; background: #ead8d4; }
+    .slide--evidence { padding-bottom: 116px; }
     .slide--center { align-items: center; justify-content: center; text-align: center; }
 
     .eyebrow {
@@ -179,7 +182,7 @@
     .evidence-layer:nth-child(3) .kind { background: var(--sun-soft); color: #9a5e00; }
     .evidence-layer ul { display: grid; gap: 18px; margin: 0; padding-left: 30px; }
     .evidence-layer li { font-size: 28px; }
-    .evidence-footer { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 32px; font-size: 28px; }
+    .evidence-footer { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 26px; font-size: 28px; }
     .evidence-footer b { color: var(--pine); }
 
     .tri-state { display: grid; grid-template-columns: repeat(3, 1fr); gap: 38px; margin-top: 18px; }
@@ -368,7 +371,7 @@
     </section>
 
     <section data-label="Place intelligence">
-      <div class="slide">
+      <div class="slide slide--evidence">
         <p class="eyebrow">07 · Dữ liệu & AI</p>
         <h2>Place Intelligence biến dữ liệu rời rạc thành bằng chứng</h2>
         <div class="evidence-stack">
