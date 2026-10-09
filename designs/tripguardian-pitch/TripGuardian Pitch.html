@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TripGuardian Pitch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Lora:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #faf7f2;
+      --paper-soft: #f1ece4;
+      --ink: #183034;
+      --muted: #607276;
+      --pine: #0f6b5c;
+      --pine-dark: #083f39;
+      --mist: #dceceb;
+      --rose: #a83f67;
+      --rose-soft: #f2ced8;
+      --sun: #d58a16;
+      --sun-soft: #f5e5c4;
+      --blue: #345f91;
+      --blue-soft: #e2eaf5;
+      --line: #cfc7bc;
+      --type-display: 88px;
+      --type-title: 64px;
+      --type-subtitle: 44px;
+      --type-body: 32px;
+      --type-small: 24px;
+      --pad-top: 88px;
+      --pad-bottom: 76px;
+      --pad-x: 100px;
+      --gap-title: 44px;
+      --gap-item: 28px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #102321; color: var(--ink); }
+    body { font-family: "Be Vietnam Pro", sans-serif; }
+    deck-stage:not(:defined) { visibility: hidden; }
+    section[data-label] > *:not(img):not(picture):not(video):not(svg):not(canvas) { height: 100%; box-sizing: border-box; }
+
+    .slide {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+      background: var(--paper);
+    }
+    .slide--dark { background: var(--pine-dark); color: #fffdf8; }
+    .slide--rose { background: #f8e7e8; }
+    .slide--cover { padding: 0; background: #ead8d4; }
+    .slide--center { align-items: center; justify-content: center; text-align: center; }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--pine);
+      font-size: var(--type-small);
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .slide--dark .eyebrow { color: #a8ded4; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { font-family: "Lora", serif; text-wrap: balance; }
+    h1 { margin-bottom: 26px; font-size: var(--type-display); line-height: 1.03; }
+    h2 { margin-bottom: var(--gap-title); max-width: 1580px; font-size: var(--type-title); line-height: 1.08; }
+    h3 { margin-bottom: 18px; font-size: var(--type-subtitle); line-height: 1.15; }
+    p, li { font-size: var(--type-body); line-height: 1.42; text-wrap: pretty; }
+    .small { font-size: var(--type-small); line-height: 1.45; }
+    .mono { font-family: "JetBrains Mono", monospace; }
+    .muted { color: var(--muted); }
+    .slide--dark .muted { color: #b7ceca; }
+    .accent { color: var(--rose); }
+    .accent-pine { color: var(--pine); }
+    .accent-sun { color: var(--sun); }
+    .nowrap { white-space: nowrap; }
+
+    .brand-lockup { display: flex; align-items: center; gap: 22px; }
+    .brand-lockup img { width: 74px; height: 74px; object-fit: contain; }
+    .brand-lockup span { font-family: "Lora", serif; font-size: var(--type-subtitle); font-weight: 700; }
+    .source { position: absolute; right: var(--pad-x); bottom: 34px; margin: 0; color: var(--muted); font-size: var(--type-small); }
+    .slide--dark .source { color: #b7ceca; }
+    .slide-no { position: absolute; left: var(--pad-x); bottom: 34px; font-family: "JetBrains Mono", monospace; font-size: var(--type-small); color: var(--muted); }
+    .slide--dark .slide-no { color: #b7ceca; }
+
+    .cover-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .cover-wash { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(250,247,242,.98) 0%, rgba(250,247,242,.92) 37%, rgba(250,247,242,.2) 72%, rgba(250,247,242,.06) 100%); }
+    .cover-content { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: center; width: 960px; height: 100%; padding: 82px 0 78px 100px; }
+    .cover-content h1 { max-width: 830px; color: #382b2f; font-size: 104px; }
+    .cover-content .lead { max-width: 760px; color: #75445b; font-family: "Lora", serif; font-size: var(--subtitle, 44px); font-style: italic; line-height: 1.25; }
+    .cover-meta { display: flex; gap: 18px; align-items: center; margin-top: 58px; color: #684a55; }
+    .cover-meta span { font-size: var(--type-small); }
+    .cover-meta i { width: 42px; height: 2px; background: var(--rose); }
+
+    .problem-lead { width: 1280px; margin: 0 0 52px; font-family: "Lora", serif; font-size: var(--type-subtitle); line-height: 1.3; }
+    .three-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 42px; }
+    .problem-item { min-height: 300px; padding: 34px 0 0; border-top: 5px solid var(--line); }
+    .problem-item:nth-child(1) { border-color: var(--rose); }
+    .problem-item:nth-child(2) { border-color: var(--sun); }
+    .problem-item:nth-child(3) { border-color: var(--pine); }
+    .problem-index { display: block; margin-bottom: 24px; color: var(--muted); font-size: var(--type-small); }
+    .problem-item p { color: var(--muted); }
+
+    .context-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 72px; align-items: center; flex: 1; }
+    .context-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+    .context-stat { padding: 30px 30px 32px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.68); }
+    .context-stat strong { display: block; margin-bottom: 10px; color: var(--rose); font-family: "JetBrains Mono", monospace; font-size: 58px; }
+    .context-stat span { font-size: var(--type-small); line-height: 1.4; }
+    .source-flow { display: grid; gap: 20px; }
+    .source-row { display: grid; grid-template-columns: 280px 72px 1fr; align-items: center; gap: 18px; }
+    .source-label { padding: 20px 24px; border-radius: 16px; background: #fff; font-size: var(--type-small); font-weight: 700; }
+    .source-arrow { color: var(--pine); font-family: "JetBrains Mono", monospace; font-size: var(--type-subtitle); text-align: center; }
+    .source-purpose { color: var(--muted); font-size: var(--type-small); }
+
+    .gap-table { display: grid; grid-template-columns: repeat(3, 1fr); overflow: hidden; flex: 1; border: 1px solid var(--line); border-radius: 28px; background: #fff; }
+    .gap-col { display: flex; flex-direction: column; gap: 28px; padding: 42px 38px; border-right: 1px solid var(--line); }
+    .gap-col:last-child { border-right: 0; background: var(--pine); color: #fff; }
+    .gap-col .tag { align-self: flex-start; padding: 8px 14px; border-radius: 999px; background: var(--paper-soft); color: var(--muted); font-size: var(--type-small); font-weight: 700; }
+    .gap-col:last-child .tag { background: rgba(255,255,255,.18); color: #fff; }
+    .gap-col ul { display: grid; gap: 18px; margin: 0; padding-left: 28px; }
+    .gap-col li { font-size: 28px; }
+    .gap-col .verdict { margin-top: auto; color: var(--muted); font-size: var(--type-small); font-weight: 700; }
+    .gap-col:last-child .verdict { color: #cbe8e2; }
+
+    .question-stack { display: grid; gap: 22px; width: 1480px; margin-top: 12px; }
+    .question { display: grid; grid-template-columns: 78px 1fr; align-items: center; gap: 30px; padding: 24px 30px; border-bottom: 1px solid rgba(255,255,255,.2); }
+    .question strong { color: #f2c9d4; font-family: "JetBrains Mono", monospace; font-size: var(--type-subtitle); }
+    .question span { font-family: "Lora", serif; font-size: var(--type-subtitle); line-height: 1.2; }
+
+    .journey-layout { display: grid; grid-template-columns: .9fr 1.1fr; gap: 64px; flex: 1; min-height: 0; }
+    .quote-box { position: relative; padding: 44px 44px 42px; border-radius: 28px; background: var(--pine-dark); color: #fff; }
+    .quote-box blockquote { margin: 0 0 36px; font-family: "Lora", serif; font-size: var(--type-subtitle); line-height: 1.34; }
+    .journey-steps { display: grid; gap: 14px; }
+    .journey-step { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 16px; }
+    .journey-step b { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--rose-soft); color: var(--rose); font-family: "JetBrains Mono", monospace; font-size: var(--type-small); }
+    .journey-step span { font-size: 28px; }
+    .product-shot { width: 100%; height: 670px; object-fit: contain; border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 26px 70px rgba(38,48,47,.12); }
+
+    .flow-canvas { position: relative; flex: 1; min-height: 690px; }
+    .flow-box { position: absolute; z-index: 2; padding: 24px 26px; border: 3px solid; border-radius: 20px; background: #fff; }
+    .flow-box h3 { margin: 0 0 12px; font-family: "Be Vietnam Pro", sans-serif; font-size: 29px; font-weight: 700; }
+    .flow-box p { margin: 0; color: var(--muted); font-size: var(--type-small); line-height: 1.35; }
+    .flow-box .code { position: absolute; right: 16px; top: 16px; padding: 6px 12px; border-radius: 999px; color: #fff; font-family: "JetBrains Mono", monospace; font-size: var(--type-small); }
+    .box-input { left: 0; top: 0; width: 330px; border-color: var(--blue); background: var(--blue-soft); }
+    .box-input .code { background: var(--blue); }
+    .box-intel { left: 405px; top: 0; width: 510px; border-color: var(--pine); background: #e5f1ed; }
+    .box-intel .code { background: var(--pine); }
+    .box-decision { right: 0; top: 0; width: 520px; border-color: var(--rose); background: #f7e8ed; }
+    .box-decision .code { background: var(--rose); }
+    .box-explain { left: 250px; top: 230px; width: 520px; border-color: #7665b8; background: #ece8f8; }
+    .box-explain .code { background: #7665b8; }
+    .box-uncertain { right: 180px; top: 230px; width: 490px; border-color: var(--sun); background: var(--sun-soft); }
+    .box-uncertain .code { background: var(--sun); }
+    .box-output-a { left: 0; bottom: 24px; width: 430px; border-color: var(--pine); background: #e5f1ed; }
+    .box-output-b { left: 520px; bottom: 24px; width: 430px; border-color: var(--blue); background: var(--blue-soft); }
+    .box-output-c { right: 0; bottom: 24px; width: 430px; border-color: var(--sun); background: var(--sun-soft); }
+    .connector { position: absolute; z-index: 1; height: 4px; transform-origin: left center; background: var(--line); }
+    .connector::after { content: ""; position: absolute; right: -1px; top: -8px; width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 17px solid currentColor; }
+    .c1 { left: 330px; top: 84px; width: 75px; color: var(--blue); background: var(--blue); }
+    .c2 { left: 915px; top: 84px; width: 90px; color: var(--rose); background: var(--rose); }
+    .c3 { left: 1160px; top: 176px; width: 230px; transform: rotate(148deg); color: #7665b8; background: #7665b8; }
+    .c4 { left: 1420px; top: 170px; width: 145px; transform: rotate(68deg); color: var(--sun); background: var(--sun); }
+    .c5 { left: 490px; top: 420px; width: 300px; transform: rotate(130deg); color: var(--pine); background: var(--pine); }
+    .c6 { left: 670px; top: 420px; width: 250px; transform: rotate(70deg); color: var(--blue); background: var(--blue); }
+    .c7 { left: 1060px; top: 420px; width: 270px; transform: rotate(48deg); color: var(--sun); background: var(--sun); }
+    .human-note { position: absolute; left: 0; right: 0; bottom: -34px; color: var(--muted); font-family: "Lora", serif; font-size: var(--type-small); font-style: italic; text-align: center; }
+
+    .evidence-stack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; flex: 1; }
+    .evidence-layer { position: relative; padding: 38px 36px; border: 2px solid; border-radius: 24px; background: #fff; }
+    .evidence-layer:nth-child(1) { border-color: var(--blue); }
+    .evidence-layer:nth-child(2) { border-color: var(--pine); }
+    .evidence-layer:nth-child(3) { border-color: var(--sun); }
+    .evidence-layer .kind { display: inline-block; margin-bottom: 30px; padding: 8px 14px; border-radius: 999px; font-family: "JetBrains Mono", monospace; font-size: var(--type-small); font-weight: 700; }
+    .evidence-layer:nth-child(1) .kind { background: var(--blue-soft); color: var(--blue); }
+    .evidence-layer:nth-child(2) .kind { background: #e5f1ed; color: var(--pine); }
+    .evidence-layer:nth-child(3) .kind { background: var(--sun-soft); color: #9a5e00; }
+    .evidence-layer ul { display: grid; gap: 18px; margin: 0; padding-left: 30px; }
+    .evidence-layer li { font-size: 28px; }
+    .evidence-footer { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 32px; font-size: 28px; }
+    .evidence-footer b { color: var(--pine); }
+
+    .tri-state { display: grid; grid-template-columns: repeat(3, 1fr); gap: 38px; margin-top: 18px; }
+    .state { padding: 36px 34px; border: 2px solid rgba(255,255,255,.26); border-radius: 24px; }
+    .state strong { display: block; margin-bottom: 18px; font-family: "JetBrains Mono", monospace; font-size: 50px; }
+    .state-pass strong { color: #9fe0bd; }
+    .state-fail strong { color: #f0aeab; }
+    .state-unknown strong { color: #f2cd8e; }
+    .state p { margin: 0; color: #c8d9d6; font-size: 28px; }
+    .guard-rail { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 28px; margin-top: 56px; padding: 28px 34px; border-radius: 20px; background: rgba(255,255,255,.1); }
+    .guard-rail span { font-size: 29px; }
+    .guard-arrow { color: #f2cd8e; font-family: "JetBrains Mono", monospace; font-size: var(--type-subtitle); }
+
+    .architecture { display: grid; grid-template-columns: 1fr 130px 1fr 130px 1fr 130px 1fr; align-items: stretch; flex: 1; }
+    .arch-stage { display: flex; flex-direction: column; justify-content: space-between; padding: 34px 30px; border: 2px solid var(--line); border-radius: 24px; background: #fff; }
+    .arch-stage:nth-child(1) { border-color: var(--pine); background: #e5f1ed; }
+    .arch-stage h3 { font-family: "Be Vietnam Pro", sans-serif; font-size: 30px; }
+    .arch-stage p { margin: 0; color: var(--muted); font-size: 26px; }
+    .arch-arrow { display: grid; place-items: center; color: var(--pine); font-family: "JetBrains Mono", monospace; font-size: var(--type-subtitle); }
+    .arch-rule { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 34px; }
+    .arch-rule p { margin: 0; padding: 22px 26px; border-radius: 16px; background: var(--paper-soft); font-size: 28px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 20px; }
+    .stat { min-height: 300px; padding: 34px 30px; border-top: 6px solid var(--pine); background: #fff; box-shadow: 0 22px 50px rgba(42,50,47,.08); }
+    .stat:nth-child(2) { border-color: var(--rose); }
+    .stat:nth-child(3) { border-color: var(--blue); }
+    .stat:nth-child(4) { border-color: var(--sun); }
+    .stat strong { display: block; margin-bottom: 24px; font-family: "JetBrains Mono", monospace; font-size: 60px; line-height: 1; }
+    .stat p { margin: 0; color: var(--muted); font-size: 28px; }
+    .limits { display: flex; align-items: center; gap: 24px; margin-top: 40px; padding: 24px 28px; border-radius: 18px; background: var(--sun-soft); }
+    .limits b { color: #8e5600; font-size: 28px; }
+    .limits span { color: #6a5434; font-size: 26px; }
+
+    .screens-grid { display: grid; grid-template-columns: .9fr 1.1fr .9fr; gap: 30px; align-items: end; flex: 1; min-height: 0; }
+    .screen-figure { display: flex; flex-direction: column; gap: 16px; margin: 0; min-height: 0; }
+    .screen-figure img { width: 100%; height: 560px; object-fit: contain; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: 0 22px 55px rgba(38,48,47,.12); }
+    .screen-figure:nth-child(2) img { height: 610px; }
+    .screen-figure figcaption { font-size: var(--type-small); font-weight: 700; text-align: center; }
+    .control-line { margin: 26px auto 0; color: var(--pine); font-family: "Lora", serif; font-size: 30px; font-style: italic; }
+
+    .next-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 38px; flex: 1; align-items: center; }
+    .next-step { position: relative; min-height: 390px; padding: 40px 34px 36px; border: 2px solid var(--line); border-radius: 28px; background: #fff; }
+    .next-step b { display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 34px; border-radius: 50%; background: var(--pine); color: #fff; font-family: "JetBrains Mono", monospace; font-size: 28px; }
+    .next-step p { color: var(--muted); font-size: 28px; }
+    .next-step:nth-child(2) b { background: var(--rose); }
+    .next-step:nth-child(3) b { background: var(--sun); }
+
+    .close-logo { width: 124px; height: 124px; margin-bottom: 38px; object-fit: contain; }
+    .close-kicker { margin-top: 42px; color: #a8ded4; font-size: var(--type-subtitle); font-weight: 600; }
+    .close-rule { width: 180px; height: 5px; margin: 12px auto 34px; background: var(--rose-soft); }
+  </style>
+</head>
+<body>
+  <deck-stage width="1920" height="1080">
+    <section data-label="Cover">
+      <div class="slide slide--cover">
+        <img class="cover-art" src="assets/landing.png" alt="Sa bàn Đà Lạt của TripGuardian">
+        <div class="cover-wash"></div>
+        <div class="cover-content">
+          <div class="brand-lockup"><img src="assets/logo.webp" alt=""><span>TripGuardian</span></div>
+          <p class="eyebrow">Place intelligence · Đà Lạt</p>
+          <h1>Chọn đúng nơi<br>trước khi xếp lịch</h1>
+          <p class="lead">Từ hàng nghìn gợi ý rời rạc đến một chuyến đi có thể giải thích và kiểm tra.</p>
+          <div class="cover-meta"><span>Pitching deck</span><i></i><span>15 phút</span><i></i><span>2026</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-label="Problem">
+      <div class="slide">
+        <p class="eyebrow">01 · Vấn đề</p>
+        <h2>Nhiều gợi ý hơn không làm chuyến đi dễ quyết định hơn</h2>
+        <p class="problem-lead">Người đi du lịch không thiếu gợi ý. Họ thiếu một cách để biết <em>nơi nào phù hợp</em> và <em>các lựa chọn có thực sự đi cùng nhau được không</em>.</p>
+        <div class="three-columns">
+          <article class="problem-item"><span class="problem-index mono">01</span><h3>Thông tin rời rạc</h3><p>Giờ mở cửa, vị trí, review và video nằm ở nhiều nguồn khác nhau.</p></article>
+          <article class="problem-item"><span class="problem-index mono">02</span><h3>Đánh đổi khó thấy</h3><p>Một nơi đẹp có thể xa, đông, tốn thời gian hoặc không hợp người đồng hành.</p></article>
+          <article class="problem-item"><span class="problem-index mono">03</span><h3>Tổ hợp bất khả thi</h3><p>Từng nơi đều hợp lý nhưng ghép lại có thể vượt quỹ thời gian, ngân sách hoặc sức lực.</p></article>
+        </div>
+        <span class="slide-no">02</span>
+      </div>
+    </section>
+
+    <section data-label="Vietnam context">
+      <div class="slide slide--rose">
+        <p class="eyebrow">02 · Bối cảnh Việt Nam</p>
+        <h2>Người Việt đang tự nối mạng xã hội, Maps và review bằng tay</h2>
+        <div class="context-grid">
+          <div class="context-stats">
+            <div class="context-stat"><strong>53%</strong><span>dùng mạng xã hội để tìm điểm đến mới</span></div>
+            <div class="context-stat"><strong>47%</strong><span>dùng mạng xã hội trong giai đoạn lập kế hoạch</span></div>
+            <div class="context-stat"><strong>35%</strong><span>dùng nền tảng du lịch khi lập kế hoạch</span></div>
+            <div class="context-stat"><strong>32%</strong><span>dùng Maps, Waze hoặc Grab khi lập kế hoạch</span></div>
+          </div>
+          <div class="source-flow">
+            <div class="source-row"><span class="source-label">Mạng xã hội</span><span class="source-arrow">→</span><span class="source-purpose">Khám phá cảm hứng</span></div>
+            <div class="source-row"><span class="source-label">Google Maps</span><span class="source-arrow">→</span><span class="source-purpose">Vị trí và vận hành</span></div>
+            <div class="source-row"><span class="source-label">Review</span><span class="source-arrow">→</span><span class="source-purpose">Trải nghiệm thực tế</span></div>
+            <div class="source-row"><span class="source-label">Người dùng</span><span class="source-arrow">→</span><span class="source-purpose"><b>Tự ghép thành quyết định</b></span></div>
+          </div>
+        </div>
+        <p class="source">Nguồn: Traveloka × YouGov, APAC Travel Trends 2024 · gần 12.000 người, 9 thị trường</p>
+        <span class="slide-no">03</span>
+      </div>
+    </section>
+
+    <section data-label="Market gap">
+      <div class="slide">
+        <p class="eyebrow">03 · Khoảng trống</p>
+        <h2>Các công cụ hiện tại dừng ở tìm kiếm hoặc sinh lịch</h2>
+        <div class="gap-table">
+          <article class="gap-col">
+            <span class="tag">Tìm kiếm</span>
+            <h3>Thêm lựa chọn</h3>
+            <ul><li>Nhiều kết quả hơn</li><li>Người dùng tự đối chiếu</li><li>Không kiểm tra tổ hợp</li></ul>
+            <p class="verdict">Giỏi khám phá</p>
+          </article>
+          <article class="gap-col">
+            <span class="tag">Chatbot du lịch</span>
+            <h3>Sinh một lịch</h3>
+            <ul><li>Câu trả lời nhanh</li><li>Khó truy nguồn</li><li>Có thể nghe hợp lý nhưng không khả thi</li></ul>
+            <p class="verdict">Giỏi soạn thảo</p>
+          </article>
+          <article class="gap-col">
+            <span class="tag">TripGuardian</span>
+            <h3>Hỗ trợ quyết định</h3>
+            <ul><li>Evidence trước recommendation</li><li>Constraint trước tối ưu</li><li>Người dùng chốt cuối</li></ul>
+            <p class="verdict">Chọn trước · xếp lịch sau</p>
+          </article>
+        </div>
+        <span class="slide-no">04</span>
+      </div>
+    </section>
+
+    <section data-label="Value proposition">
+      <div class="slide slide--dark">
+        <p class="eyebrow">04 · Giá trị cốt lõi</p>
+        <h2>TripGuardian biến ý định thành quyết định có kiểm chứng</h2>
+        <div class="question-stack">
+          <div class="question"><strong>01</strong><span>Nơi nào phù hợp với chuyến đi này?</span></div>
+          <div class="question"><strong>02</strong><span>Vì sao chọn nơi này thay vì lựa chọn khác?</span></div>
+          <div class="question"><strong>03</strong><span>Các nơi đã chọn có thực sự đi cùng nhau được không?</span></div>
+        </div>
+        <p class="source">TripGuardian là trợ lý ra quyết định — không phải máy tạo lịch trình.</p>
+        <span class="slide-no">05</span>
+      </div>
+    </section>
+
+    <section data-label="User journey">
+      <div class="slide">
+        <p class="eyebrow">05 · Trải nghiệm</p>
+        <h2>Một hành trình: hiểu → chọn → kiểm tra → xếp lịch</h2>
+        <div class="journey-layout">
+          <div class="quote-box">
+            <blockquote>“3 ngày ở Đà Lạt cho hai người, đi xe máy, thích chill, cà phê, săn mây.”</blockquote>
+            <div class="journey-steps">
+              <div class="journey-step"><b>1</b><span>Hiểu constraint và preference</span></div>
+              <div class="journey-step"><b>2</b><span>So sánh và tuyển chọn địa điểm</span></div>
+              <div class="journey-step"><b>3</b><span>Kiểm tra tổ hợp đã chọn</span></div>
+              <div class="journey-step"><b>4</b><span>Xếp lịch và đưa phương án dự phòng</span></div>
+            </div>
+          </div>
+          <img class="product-shot" src="assets/understand.png" alt="TripGuardian ghi lại điều người dùng nói và hỏi phần còn thiếu">
+        </div>
+        <span class="slide-no">06</span>
+      </div>
+    </section>
+
+    <section data-label="Decision flow">
+      <div class="slide">
+        <p class="eyebrow">06 · Cơ chế quyết định</p>
+        <h2>Luồng quyết định từ mục tiêu đến các phương án đánh đổi</h2>
+        <div class="flow-canvas">
+          <div class="connector c1"></div><div class="connector c2"></div><div class="connector c3"></div><div class="connector c4"></div><div class="connector c5"></div><div class="connector c6"></div><div class="connector c7"></div>
+          <article class="flow-box box-input" data-anim="fade-in" data-anim-trigger="click"><span class="code">Trip State</span><h3>1 · Đầu vào chuyến đi</h3><p>Ngày · người đi cùng · phương tiện · budget · hard constraint</p></article>
+          <article class="flow-box box-intel" data-anim="fade-in" data-anim-trigger="click"><span class="code">Evidence</span><h3>2 · Place Intelligence</h3><p>Fact · signal · estimate có nguồn và độ tin cậy</p></article>
+          <article class="flow-box box-decision" data-anim="fade-in" data-anim-trigger="click"><span class="code">Decision</span><h3>3 · Chọn nơi</h3><p>Screen → fit → rank → diversify → người dùng tuyển chọn</p></article>
+          <article class="flow-box box-explain" data-anim="wipe-in" data-anim-dir="right" data-anim-trigger="click"><span class="code">Why</span><h3>4 · Giải thích</h3><p>Vì sao phù hợp · điểm đánh đổi · bằng chứng đứng sau</p></article>
+          <article class="flow-box box-uncertain" data-anim="wipe-in" data-anim-dir="left" data-anim-trigger="with"><span class="code">Unknown</span><h3>5 · Bất định</h3><p>Chưa xác minh · đã quá hạn · xung đột nguồn</p></article>
+          <article class="flow-box box-output-a" data-anim="float-in" data-anim-dir="bottom" data-anim-trigger="click"><h3>Ít di chuyển</h3><p>Ưu tiên cụm gần và ít đổi khu vực</p></article>
+          <article class="flow-box box-output-b" data-anim="float-in" data-anim-dir="bottom" data-anim-trigger="with"><h3>Cân bằng trải nghiệm</h3><p>Đủ đa dạng, không lặp kiểu nơi</p></article>
+          <article class="flow-box box-output-c" data-anim="float-in" data-anim-dir="bottom" data-anim-trigger="with"><h3>Có dự phòng</h3><p>Phương án thay khi điều kiện đổi</p></article>
+          <p class="human-note">Cùng dữ liệu đầu vào có thể sinh nhiều phương án đánh đổi — con người quyết định cuối.</p>
+        </div>
+        <span class="slide-no">07</span>
+      </div>
+    </section>
+
+    <section data-label="Place intelligence">
+      <div class="slide">
+        <p class="eyebrow">07 · Dữ liệu & AI</p>
+        <h2>Place Intelligence biến dữ liệu rời rạc thành bằng chứng</h2>
+        <div class="evidence-stack">
+          <article class="evidence-layer"><span class="kind">FACT</span><h3>Thông tin vận hành</h3><ul><li>Giờ mở cửa</li><li>Giá và vé vào cửa</li><li>Đóng cửa tạm thời</li></ul></article>
+          <article class="evidence-layer"><span class="kind">SIGNAL</span><h3>Xu hướng trải nghiệm</h3><ul><li>Đông hay yên tĩnh</li><li>View và không gian</li><li>Đường vào, bậc thang</li></ul></article>
+          <article class="evidence-layer"><span class="kind">ESTIMATE</span><h3>Giá trị suy ra</h3><ul><li>Thời gian tham quan</li><li>Effort cần thiết</li><li>Vai trò trong lịch trình</li></ul></article>
+        </div>
+        <div class="evidence-footer"><span>Google Maps</span><b>→</b><span>Observation có quote</span><b>→</b><span>Gate + review</span><b>→</b><span>TikTok theo địa điểm</span></div>
+        <p class="source">Mỗi nguồn có module và thư mục dữ liệu riêng; không gộp nguồn thành một “sự thật” mơ hồ.</p>
+        <span class="slide-no">08</span>
+      </div>
+    </section>
+
+    <section data-label="Trust model">
+      <div class="slide slide--dark">
+        <p class="eyebrow">08 · Tin cậy</p>
+        <h2>AI đề xuất; constraint và validator giữ kế hoạch khả thi</h2>
+        <div class="tri-state">
+          <article class="state state-pass"><strong>pass</strong><p>Có đủ bằng chứng để đáp ứng constraint.</p></article>
+          <article class="state state-fail"><strong>fail</strong><p>Có bằng chứng vi phạm, phải loại hoặc sửa.</p></article>
+          <article class="state state-unknown"><strong>unknown</strong><p>Thiếu bằng chứng — không được biến thành “không”.</p></article>
+        </div>
+        <div class="guard-rail"><span><b>AI</b> hiểu ngôn ngữ và đề xuất</span><span class="guard-arrow">→</span><span><b>Solver + validator</b> quyết định khả thi</span></div>
+        <p class="source">Physical constraint không có đường code nới. User hard constraint chỉ nới khi người dùng xác nhận.</p>
+        <span class="slide-no">09</span>
+      </div>
+    </section>
+
+    <section data-label="Architecture">
+      <div class="slide">
+        <p class="eyebrow">09 · Kiến trúc hệ thống</p>
+        <h2>Kiến trúc tách tri thức địa điểm khỏi từng chuyến đi</h2>
+        <div class="architecture">
+          <article class="arch-stage"><h3>Place Intelligence</h3><p>Offline ghi fact, signal, estimate có bằng chứng</p></article>
+          <div class="arch-arrow">→</div>
+          <article class="arch-stage"><h3>Trip Understanding</h3><p>Ý định chuyến đi → Search Input</p></article>
+          <div class="arch-arrow">→</div>
+          <article class="arch-stage"><h3>Place Decision</h3><p>Shortlist → người dùng tuyển chọn</p></article>
+          <div class="arch-arrow">→</div>
+          <article class="arch-stage"><h3>Planning & Validation</h3><p>Phương án → độ vững → dự phòng</p></article>
+        </div>
+        <div class="arch-rule"><p><b>Offline</b> ghi Place Intelligence; online chỉ đọc.</p><p><b>Live context</b> chỉ thuộc request hiện tại, không thành tri thức lâu dài.</p></div>
+        <span class="slide-no">10</span>
+      </div>
+    </section>
+
+    <section data-label="Evidence">
+      <div class="slide">
+        <p class="eyebrow">10 · Bằng chứng chạy thật</p>
+        <h2>Sản phẩm đã chạy trên dữ liệu Đà Lạt thực</h2>
+        <div class="stats-grid">
+          <article class="stat" data-anim="zoom-in" data-anim-trigger="click"><strong>1.696</strong><p>địa điểm trong serving index</p></article>
+          <article class="stat" data-anim="zoom-in" data-anim-trigger="with"><strong>28.466</strong><p>trạng thái thuộc tính đã `VERIFIED`</p></article>
+          <article class="stat" data-anim="zoom-in" data-anim-trigger="click"><strong>96,7%</strong><p>tỉ lệ lấp đầy shortlist qua 30 chuyến ẩn</p></article>
+          <article class="stat" data-anim="zoom-in" data-anim-trigger="with"><strong>0</strong><p>hard violation · tối đa 273 ms</p></article>
+        </div>
+        <div class="limits"><b>Giới hạn hiện tại</b><span>Một kịch bản chưa đủ 8 nơi; coverage giá trị phủ định vẫn cần thêm nhãn.</span></div>
+        <p class="source">Nguồn: `data/serving/places.json` và `data/decision/eval.json` · build 08/10/2026</p>
+        <span class="slide-no">11</span>
+      </div>
+    </section>
+
+    <section data-label="User control">
+      <div class="slide">
+        <p class="eyebrow">11 · Trải nghiệm người dùng</p>
+        <h2>Người dùng luôn là người quyết định cuối</h2>
+        <div class="screens-grid">
+          <figure class="screen-figure"><img src="assets/understand.png" alt="Màn hiểu chuyến đi"><figcaption>Mình ghi lại điều bạn nói</figcaption></figure>
+          <figure class="screen-figure"><img src="assets/compare.png" alt="Màn so sánh địa điểm"><figcaption>Chỉ hiện khác biệt để dễ chọn</figcaption></figure>
+          <figure class="screen-figure"><img src="assets/plan.png" alt="Màn kiểm tra và lập lịch"><figcaption>Cảnh báo nằm ngay tại quyết định</figcaption></figure>
+        </div>
+        <p class="control-line">TripGuardian không lặng lẽ bỏ một nơi người dùng đã chọn.</p>
+        <span class="slide-no">12</span>
+      </div>
+    </section>
+
+    <section data-label="Next step">
+      <div class="slide slide--rose">
+        <p class="eyebrow">12 · Bước tiếp theo</p>
+        <h2>Bước tiếp theo là tăng coverage trước khi mở rộng địa bàn</h2>
+        <div class="next-steps">
+          <article class="next-step"><b>1</b><h3>Tăng coverage</h3><p>Ưu tiên nhãn cho giá trị phủ định và constraint có rủi ro cao.</p></article>
+          <article class="next-step"><b>2</b><h3>Pilot người dùng</h3><p>Đo thời gian lập kế hoạch, số lần sửa và mức tự tin khi chọn.</p></article>
+          <article class="next-step"><b>3</b><h3>Mở rộng có gate</h3><p>Chỉ thêm thành phố khi chất lượng dữ liệu vượt ngưỡng kiểm chứng.</p></article>
+        </div>
+        <p class="source">Mở rộng theo module nguồn và config địa phương — không đánh đổi nguyên tắc evidence-first.</p>
+        <span class="slide-no">13</span>
+      </div>
+    </section>
+
+    <section data-label="Close">
+      <div class="slide slide--dark slide--center">
+        <img class="close-logo" src="assets/logo.webp" alt="TripGuardian">
+        <p class="eyebrow">TripGuardian</p>
+        <h1>Từ hàng nghìn nơi đến<br>một chuyến đi có thể tin</h1>
+        <div class="close-rule"></div>
+        <p class="close-kicker">Sẵn sàng demo</p>
+      </div>
+    </section>
+  </deck-stage>
+  <script src="deck-stage.js"></script>
+</body>
+</html>
