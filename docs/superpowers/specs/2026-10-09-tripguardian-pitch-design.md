@@ -1,122 +1,224 @@
-# Thiết kế deck pitching TripGuardian
+# Thiết kế chỉnh sửa deck pitching TripGuardian
 
 ## 1. Mục tiêu
 
-Tạo deck pitching 15 phút cho ban giám khảo cuộc thi, giảng viên và mentor. Deck cân bằng giá trị sản phẩm với chiều sâu Data & AI, bám đúng code, dữ liệu và giao diện hiện tại của TripGuardian.
+Chỉnh lại deck pitching 15 phút cho ban giám khảo cuộc thi, giảng viên và mentor sau vòng phản biện nội dung và bố cục.
+
+Deck mới phải giúp một người chưa biết TripGuardian hiểu được, theo đúng thứ tự:
+
+1. người dùng đang gặp quyết định khó nào;
+2. các công cụ hiện tại thực sự làm được gì;
+3. TripGuardian tham gia ở bước nào và không tuyên bố điều gì quá bằng chứng;
+4. cơ chế dữ liệu, AI và constraint vận hành ra sao;
+5. phần nào đã chạy, phần nào mới được đánh giá offline và phần nào chưa chứng minh với người dùng.
 
 Thông điệp chính:
 
-> TripGuardian giúp người dùng chọn đúng địa điểm trước khi xếp lịch, bằng dữ liệu có bằng chứng và kiểm tra constraint có thể giải thích.
+> TripGuardian hỗ trợ người dùng chốt địa điểm trước khi xếp lịch, bằng bằng chứng có trạng thái và kiểm tra ràng buộc có thể giải thích.
 
 Đầu ra:
 
 - deck HTML 1920 × 1080 dùng `deck-stage`;
 - PowerPoint `.pptx` chỉnh sửa được;
-- các sơ đồ, số liệu và chữ là đối tượng chỉnh sửa được, không raster hóa toàn slide;
-- không có speaker notes.
+- bộ font gốc tải về cùng deck;
+- slide nguồn ở phần phụ lục để phục vụ phản biện;
+- không dùng claim thị trường, traction hoặc tác động người dùng khi chưa có dữ liệu.
 
-## 2. Đối tượng và nhịp trình bày
+## 2. Kết luận phản biện deck hiện tại
 
-- Đối tượng: ban giám khảo cuộc thi, giảng viên, mentor.
-- Thời lượng: 15 phút, dành khoảng 2–3 phút cho demo và phản biện.
-- Giọng kể: rõ ràng, có bằng chứng, không phóng đại; bắt đầu từ vấn đề người dùng rồi chứng minh bằng hệ thống kỹ thuật.
-- Cấu trúc: vấn đề → khoảng trống hiện tại → giải pháp → cơ chế quyết định → Data & AI → kiến trúc → bằng chứng chạy thật → UX → bước tiếp theo.
+Vòng audit ngày 09/10/2026 dùng ảnh chụp mới của đủ 14 slide trong `designs/tripguardian-pitch/shots/`.
 
-## 3. Chuỗi slide
+### 2.1. Điểm đang làm tốt
 
-| # | Tiêu đề | Vai trò | Nội dung chính | Thời lượng |
+- Câu chuyện đi từ vấn đề tới giải pháp, dữ liệu, kỹ thuật và sản phẩm thử nghiệm.
+- Màu sắc bám sản phẩm; các slide 5, 9 và 14 có nhịp trình chiếu rõ.
+- Số liệu nội bộ lấy đúng từ file hiện tại và đã nêu giới hạn coverage.
+- Ảnh giao diện là ảnh thật của sản phẩm, không dùng mockup giả.
+
+### 2.2. Vấn đề cấu trúc và nội dung
+
+| Slide hiện tại | Vấn đề khi nhìn từ phía giám khảo | Hướng sửa |
+|---|---|---|
+| 1 | Ảnh nền là screenshot landing còn chữ và nút mờ phía sau, tạo lớp chữ ma và làm cover khó đọc | Dùng `landing-poster.webp` không có UI; chỉ giữ một lớp thông điệp |
+| 2 | Vấn đề hợp lý nhưng chưa có tình huống ra quyết định cụ thể | Thêm một ví dụ tổ hợp nơi đều hấp dẫn nhưng vượt thời gian/di chuyển |
+| 3 | Số liệu tốt nhưng bốn tỉ lệ chưa dẫn tới một kết luận duy nhất | Chốt bằng câu: mỗi nguồn giải quyết một phần, người dùng vẫn gánh bước tổng hợp |
+| 4 | Gom đối thủ thành “tìm kiếm” và “chatbot” là không chính xác; Wanderlog, Tripadvisor AI và Mindtrip đã có itinerary, AI, route hoặc booking | Thay bằng luồng thật của công cụ có tên và nguồn chính thức |
+| 5 | Ba câu hỏi đúng nhưng chưa chứng minh vì sao TripGuardian khác | Đặt sau hai slide cạnh tranh để trở thành lời đáp cho khoảng trống đã chứng minh |
+| 6 | Ảnh UI nhỏ; người xem khó biết hệ thống đã hiểu gì và bước tiếp theo là gì | Chỉ ra đầu vào, bản hiểu và quyết định chuyển bước trên ảnh |
+| 7 | Connector khó theo dõi; thiếu khối Planning & Validation dù nội dung nói tới xếp lịch | Dựng lại thành một đường đọc trái → phải, có nhánh cảnh báo nhưng hội tụ rõ |
+| 8 | Dòng nguồn chạm số slide; `Fact/Signal/Estimate` chưa nói rõ mỗi loại ảnh hưởng quyết định thế nào | Tách “loại bằng chứng” khỏi “quy tắc sử dụng”; sửa vùng chân slide |
+| 9 | Mô hình `pass/fail/unknown` mới là tuyên bố khái niệm | Thêm một ví dụ địa điểm đóng cửa / thiếu bằng chứng / constraint thể chất |
+| 10 | Bốn khối lớn nhưng nhiều khoảng rỗng; người nghe phải tự suy ra data flow | Thêm contract ra của từng giai đoạn và ranh giới offline/online |
+| 11 | “Chạy trên dữ liệu thật” đứng cạnh “30 chuyến ẩn” dễ bị hiểu thành thử nghiệm người dùng thật | Tách rõ: dữ liệu địa điểm thật; bài đo 30 Trip State mô phỏng offline |
+| 12 | Ba ảnh cho thấy sản phẩm nhưng ảnh thứ ba là trạng thái không xếp được lịch; chưa nói vì sao đây là hành vi đúng | Ghi rõ fail-closed và hành động phục hồi dành cho người dùng |
+| 13 | Lộ trình hợp lý nhưng chưa liên kết trực tiếp với giới hạn đã nêu | Đổi thành slide “đã chứng minh / chưa chứng minh / bước đo tiếp theo” |
+| 14 | Kết rõ nhưng chưa chuẩn bị câu phản biện lớn nhất | Giữ kết; thêm phụ lục nguồn và ranh giới claim sau slide kết |
+
+### 2.3. Vấn đề font và tính di động
+
+File PPTX hiện gọi `Lora`, `Be Vietnam Pro` và `JetBrains Mono` nhưng không nhúng font. Máy export cũng không có ba font này trong fontconfig; khi mở ở môi trường khác, PowerPoint hoặc LibreOffice thay font và làm đổi độ rộng, xuống dòng và vị trí.
+
+Giải pháp đã được duyệt:
+
+- giữ nguyên ba font thương hiệu;
+- tải bản TTF chính thức từ Google Fonts vào `designs/tripguardian-pitch/fonts/`;
+- lưu kèm giấy phép OFL;
+- HTML dùng `@font-face` local, không phụ thuộc mạng;
+- bundle hướng dẫn cài font trước khi mở PPTX;
+- exporter không hỗ trợ nhúng font vào PPTX, vì vậy deck phải nói rõ yêu cầu cài font; QA sẽ render lại PPTX sau khi font được cài trong môi trường kiểm thử.
+
+## 3. Định vị cạnh tranh đã hiệu chỉnh
+
+Không dùng lập luận “công cụ hiện tại chỉ tìm kiếm hoặc sinh lịch”. Tài liệu công khai cho thấy:
+
+| Công cụ | Luồng công khai được phép trình bày | Điều họ làm tốt |
+|---|---|---|
+| Google Maps | Tìm địa điểm → xem thông tin/review → lưu vào list → lấy chỉ đường | Định danh, vị trí, review, danh sách và điều hướng |
+| Traveloka | Tìm theo điểm đến/ngày → chọn/lọc → điền thông tin → thanh toán → nhận và quản lý voucher | Giao dịch, giá, booking và vận hành sau đặt |
+| Wanderlog | Tạo chuyến → thêm địa điểm → xếp theo ngày → xem bản đồ/thời gian → tối ưu route; kèm reservation, collaboration, budget | Lắp ráp lịch trình và quản lý chuyến đi |
+| Tripadvisor AI | Mô tả chuyến đi → nhận lựa chọn cá nhân hóa → lưu lịch theo ngày → sửa, sắp xếp, chia sẻ → đi tới booking | AI planning dựa trên review, giá và availability |
+| Mindtrip | Nêu sở thích → khám phá/lưu ý tưởng → dựng và chỉnh itinerary → cộng tác → booking → dùng map trong chuyến đi | Luồng AI travel end-to-end |
+
+Nguồn chính thức, truy cập ngày 09/10/2026:
+
+- Google Maps Help: <https://support.google.com/maps/answer/3184808?hl=en>
+- Traveloka: <https://www.traveloka.com/en-vn/how-to/bookhotel>
+- Wanderlog: <https://wanderlog.com/> và <https://help.wanderlog.com/hc/en-us/articles/13545624787867-Optimize-route>
+- Tripadvisor AI: <https://www.tripadvisor.com/AIAssistant>
+- Mindtrip Traveler FAQ: <https://resources.mindtrip.ai/travelers/help/traveler-faqs>
+
+Kết luận cạnh tranh được phép nói:
+
+> TripGuardian không khác biệt vì “có AI”, “có lịch trình” hay “có tối ưu tuyến”. Các sản phẩm khác đã làm tốt những phần đó. Điểm đặt cược của TripGuardian là biến bước chốt địa điểm thành một quyết định có evidence, trạng thái `pass/fail/unknown`, hard constraint và quyền xác nhận cuối của người dùng trước khi xếp lịch.
+
+Không được nói:
+
+- TripGuardian là sản phẩm duy nhất làm việc này;
+- đối thủ không kiểm tra ràng buộc;
+- đối thủ tạo lịch không khả thi;
+- TripGuardian tốt hơn đối thủ khi chưa có benchmark đối đầu;
+- tài liệu công khai không nêu một cơ chế đồng nghĩa sản phẩm chắc chắn không có cơ chế đó.
+
+Khi cần so sánh một điểm chưa xác minh, dùng cách viết:
+
+> Trong các tài liệu công khai đã đối chiếu, chưa thấy mô tả cơ chế này ở cùng mức chi tiết.
+
+## 4. Chuỗi slide mới
+
+Deck có 15 slide chính cho phần trình bày và một slide phụ lục không tính vào 15 phút.
+
+| # | Tiêu đề | Câu hỏi của người nghe được trả lời | Nội dung chính | Thời lượng |
 |---|---|---|---|---:|
-| 1 | TripGuardian — Chọn đúng nơi trước khi xếp lịch | Mở đầu | Tên sản phẩm, một câu định vị, nhận diện hiện tại | 0:30 |
-| 2 | Nhiều gợi ý hơn không làm chuyến đi dễ quyết định hơn | Vấn đề | Quá tải lựa chọn, dữ liệu rời rạc, khó kiểm tra tổ hợp | 1:00 |
-| 3 | Người Việt đang tự nối mạng xã hội, Maps và review bằng tay | Bối cảnh Việt Nam | Hành vi tìm hiểu đa nguồn; Đà Lạt là phạm vi kiểm chứng | 1:00 |
-| 4 | Các công cụ hiện tại dừng ở tìm kiếm hoặc sinh lịch | Khoảng trống | Thiếu lớp quyết định có constraint, bằng chứng và đánh đổi | 1:00 |
-| 5 | TripGuardian biến ý định thành quyết định có kiểm chứng | Giá trị cốt lõi | Ba câu hỏi: nơi nào hợp, vì sao, có đi cùng nhau được không | 1:00 |
-| 6 | Một hành trình: hiểu → chọn → kiểm tra → xếp lịch | Trải nghiệm | Luồng người dùng từ câu kể tự do tới lịch trình | 1:15 |
-| 7 | Luồng quyết định từ mục tiêu đến các phương án đánh đổi | Sơ đồ trung tâm | Input → Place Intelligence → Trip Understanding → Place Decision → giải thích/bất định → Planning; người dùng chốt | 1:30 |
-| 8 | Place Intelligence biến dữ liệu rời rạc thành bằng chứng | Data & AI | Google Maps/TikTok tách nguồn; Fact, Signal, Estimate; evidence span và review gate | 1:15 |
-| 9 | AI đề xuất; constraint và validator giữ kế hoạch khả thi | Tin cậy | `pass / fail / unknown`, fail-closed, physical constraint không nới, model theo vai trò | 1:15 |
-| 10 | Kiến trúc tách tri thức địa điểm khỏi từng chuyến đi | Kỹ thuật | Bốn giai đoạn; offline ghi, online đọc; public API; live context theo request | 1:15 |
-| 11 | Sản phẩm đã chạy trên dữ liệu Đà Lạt thực | Bằng chứng | Chỉ số dữ liệu, đánh giá 30 chuyến, tốc độ và giới hạn hiện tại | 1:15 |
-| 12 | Người dùng luôn là người quyết định cuối | UX/demo | Ảnh thật: hiểu chuyến đi, so sánh, cảnh báo, lịch trình | 1:15 |
-| 13 | Bước tiếp theo là tăng coverage trước khi mở rộng địa bàn | Khả thi | Tăng nhãn cho giá trị phủ định, thử nghiệm người dùng, mở rộng có kiểm soát | 0:45 |
-| 14 | Từ hàng nghìn nơi đến một chuyến đi có thể tin | Kết | Nhắc lại định vị và lời mời phản biện/demo | 0:30 |
+| 1 | TripGuardian — Chọn đúng nơi trước khi xếp lịch | Sản phẩm là gì? | Tên, định vị một câu, phạm vi Đà Lạt | 0:25 |
+| 2 | Người dùng không thiếu gợi ý; họ thiếu một quyết định có thể kiểm tra | Vấn đề cụ thể là gì? | Nhiều nguồn, đánh đổi, tổ hợp khó khả thi; một ví dụ cụ thể | 0:55 |
+| 3 | Ở Việt Nam, một quyết định du lịch phải ghép nhiều nguồn | Vì sao phù hợp Việt Nam? | 53/47/35/32% và vai trò từng nguồn | 0:55 |
+| 4 | Các công cụ hiện tại giải quyết những phần khác nhau của hành trình | Đối thủ là ai và luồng của họ là gì? | Năm luồng công khai có tên; ghi điều mỗi công cụ làm tốt | 1:25 |
+| 5 | Khoảng trống nằm ở bước chốt lựa chọn dưới ràng buộc | TripGuardian chen vào đâu? | Hành trình Explore → Shortlist → Validate set → Schedule → Book/Navigate; đặt các công cụ lên đúng đoạn | 1:05 |
+| 6 | TripGuardian bắt đầu từ quyết định, không bắt đầu từ một lịch sinh sẵn | Giá trị khác biệt là gì? | Ba câu hỏi cốt lõi và ranh giới claim | 0:50 |
+| 7 | Từ một câu kể đến danh sách địa điểm do người dùng chốt | Người dùng đi qua sản phẩm như thế nào? | Hiểu → so sánh → kiểm tra tổ hợp → xếp lịch; UI thật | 1:00 |
+| 8 | Trước khi xếp lịch, mỗi lựa chọn đi qua bốn lớp kiểm tra | Hệ thống ra quyết định như thế nào? | Trip State → Evidence → Decision → Validation/Planning; nhánh explain/unknown; ba phương án đánh đổi | 1:25 |
+| 9 | Mỗi kết luận giữ nguyên loại bằng chứng và độ chắc chắn | Data & AI đổi mới ở đâu? | Fact/Signal/Estimate, quote, nguồn, freshness, review gate | 1:00 |
+| 10 | AI hiểu ngôn ngữ; rule và validator giữ ranh giới | Tại sao có thể tin? | Ví dụ `pass/fail/unknown`; physical constraint; user hard constraint | 1:10 |
+| 11 | Kiến trúc tách tri thức địa điểm khỏi bối cảnh chuyến đi | Hệ thống có bài bản và khả thi không? | Bốn module, contract ra, offline ghi/online đọc, live context theo request | 1:00 |
+| 12 | Bản thử nghiệm chạy trên dữ liệu địa điểm Đà Lạt và bài đo offline | Hiện đã làm được đến đâu? | 1.696 nơi, 28.466 VERIFIED; 30 Trip State mô phỏng, 96,7%, 0 hard violation, 273 ms | 1:10 |
+| 13 | Ba màn hình cho thấy người dùng kiểm soát quyết định | Sản phẩm có dùng được không? | Bản hiểu, so sánh khác biệt, fail-closed và cách phục hồi | 1:00 |
+| 14 | Những gì đã chứng minh — và chưa chứng minh | Claim nào chắc, claim nào còn thiếu? | Implemented / offline-evaluated / chưa có user evidence; bước đo tiếp theo | 0:50 |
+| 15 | Từ hàng nghìn nơi đến một chuyến đi có thể tin | Cần nhớ điều gì? | Nhắc lại định vị, mời demo và phản biện | 0:25 |
+| A1 | Nguồn và ranh giới so sánh | Claim dựa vào đâu? | Link nguồn đối thủ, nguồn Việt Nam, nguồn dữ liệu nội bộ, ngày truy cập | Phụ lục |
 
-Tổng thời lượng nội dung mục tiêu: khoảng 14 phút; phần còn lại dành cho chuyển slide hoặc demo ngắn.
+Tổng nội dung chính: khoảng 14 phút 35 giây, còn lại dành cho chuyển slide.
 
-## 4. Ánh xạ thang điểm
+## 5. Thiết kế slide cạnh tranh
 
-| Tiêu chí | Điểm | Slide chứng minh |
-|---|---:|---|
-| Mức độ giải quyết vấn đề và tác động | 20 | 2, 3, 5, 6 |
-| Mức độ phù hợp với Việt Nam | 15 | 3, 8, 11 |
-| Tính sáng tạo và khác biệt | 20 | 4, 5, 7, 9 |
-| Đổi mới trong sử dụng Dữ liệu & AI | 20 | 7, 8, 9, 10 |
-| Tính khả thi và sản phẩm thử nghiệm | 15 | 11, 12, 13 |
-| Trình bày và Trải nghiệm người dùng | 10 | toàn deck, trọng tâm 6, 7, 12 |
+### 5.1. Slide 4 — Luồng thật của công cụ hiện tại
 
-Rubric là xương sống nội dung nhưng không xuất hiện như mục lục chấm điểm trong deck.
+Hình thức: năm hàng ngang, mỗi hàng có tên công cụ, một chuỗi 4–5 bước và một câu “mạnh ở”. Không dùng bảng tính năng với quá nhiều dấu tích.
 
-## 5. Hệ thị giác
+Mỗi luồng chỉ trình bày điều nguồn chính thức mô tả. Tên sản phẩm là text; không tải logo nếu không cần.
 
-Deck kế thừa hệ hiện tại của User Web:
+### 5.2. Slide 5 — Vị trí của TripGuardian
 
-- nền giấy `#FAF7F2`;
-- xanh Thông làm màu chính;
-- Hồng sương dùng cho cảm xúc du lịch và cover;
-- Nắng/amber dùng cho cảnh báo, bất định và đánh đổi;
-- Lora cho tiêu đề, Be Vietnam Pro cho nội dung, JetBrains Mono cho số liệu;
-- tối đa hai nền chính: giấy sáng và xanh Thông đậm;
-- không dùng emoji, icon tự vẽ hoặc gradient tím-xanh kiểu AI;
-- dùng ảnh thật của sản phẩm và địa điểm khi có; ảnh sinh chỉ dùng nếu thật sự cần và được duyệt riêng.
+Hình thức: một hành trình chung:
 
-Nhịp bố cục:
+```text
+Khám phá → Lưu/thu hẹp → Kiểm tra tập đã chọn → Xếp lịch → Đặt dịch vụ/điều hướng
+```
 
-1. Slide 1–3: giàu cảm xúc travel, ít chữ, ảnh/sa bàn hiện tại chiếm ưu thế.
-2. Slide 4–6: editorial, so sánh trực quan và hành trình người dùng.
-3. Slide 7–10: sơ đồ kỹ thuật rõ, nhiều khoảng thở, khối và connector chỉnh sửa được.
-4. Slide 11–13: số liệu lớn, screenshot thật và giới hạn minh bạch.
-5. Slide 14: kết thúc tối giản trên nền xanh Thông.
+Các công cụ khác được đặt ở đoạn họ công khai tập trung. TripGuardian nổi ở ba đoạn giữa, đặc biệt “Kiểm tra tập đã chọn”.
 
-Slide 7 bám cấu trúc ảnh tham chiếu: các khối có nhãn, màu theo vai trò, connector có hướng, đầu ra là nhiều phương án đánh đổi. Không sao chép nguyên văn hoặc màu sắc của ảnh mẫu.
+Footer bắt buộc:
 
-## 6. Số liệu được phép dùng
+> Đây là so sánh định vị từ tài liệu công khai, không phải benchmark chất lượng đối đầu.
 
-Số liệu phải lấy từ file hiện có tại thời điểm dựng và ghi nguồn nhỏ trên slide.
+## 6. Chính xác hóa bằng chứng nội bộ
 
-Tại thời điểm viết spec:
+Tại snapshot hiện tại:
 
-- `data/serving/places.json`, build ngày 2026-10-08: 1.696 địa điểm, 128 khu vực, 28.466 trạng thái feature `VERIFIED`, 4.081 `UNCERTAIN`, 2.779 `OUTDATED`;
-- `data/decision/eval.json`: 30 chuyến ẩn, shortlist mục tiêu 8 nơi, `filled_rate = 0.967`, 0 vi phạm hard constraint, 0 `unknown`/`uncertain` trong danh sách chính, 0% near-duplicate, thời gian tối đa 273 ms;
-- `docs/log/DEV_LOG.md`: 249.605 bằng chứng từng được index cho màn gán nhãn; số này chỉ dùng nếu ghi rõ phạm vi và thời điểm, không trình bày như số hiện tại nếu chưa kiểm lại;
-- ảnh giao diện từ `web/shots/app/` và tài sản thương hiệu trong `web/public/img/`.
+- `data/serving/places.json`, build 08/10/2026: 1.696 địa điểm, 128 khu vực, 28.466 `VERIFIED`, 4.081 `UNCERTAIN`, 2.779 `OUTDATED`;
+- `data/decision/eval.json`: 30 Trip State ẩn trong `config/eval_trips.yaml`, chạy pipeline thật trên dữ liệu serving; đây là mô phỏng offline, không phải 30 người dùng;
+- kết quả: shortlist mục tiêu 8, `filled_rate = 0.967`, 0 hard violation, 0 `unknown`/`uncertain` trong danh sách chính, 0% near-duplicate, tối đa 273 ms;
+- một kịch bản chưa đủ 8 nơi;
+- chưa có bằng chứng về thời gian tiết kiệm, mức tin tưởng, retention, conversion hoặc tác động hành vi thật.
 
-Không dùng số thị trường, traction, người dùng hoặc doanh thu nếu không có nguồn kiểm chứng.
+Slide 12 phải phân hai vùng:
 
-## 7. Tính chỉnh sửa và animation
+- **Dữ liệu hiện có:** nơi và trạng thái feature;
+- **Bài đo offline:** 30 Trip State mô phỏng và kết quả pipeline.
 
-- Mỗi slide là một `<section>` HTML tĩnh trực tiếp dưới `deck-stage`.
-- Text nằm trong leaf element; cấu trúc lặp được viết tường minh để sửa từng mục.
-- Sơ đồ dùng HTML/CSS shape và connector; không dùng ảnh chụp của sơ đồ.
-- Chỉ dùng animation khi thứ tự tiết lộ có ý nghĩa:
-  - slide 7: xuất hiện tuần tự theo luồng quyết định;
-  - slide 11: số liệu xuất hiện theo nhóm.
-- Animation dùng `data-anim` để giữ được khi xuất PowerPoint.
+Không dùng cụm “30 chuyến ẩn” nếu không kèm từ “mô phỏng”.
 
-## 8. Kiểm chứng trước bàn giao
+## 7. Hệ thị giác và font
 
-- deck chạy qua HTTP bằng `python3 -m http.server 4311 --directory designs`;
-- kiểm tra console không có lỗi;
-- kiểm tra từng slide ở 16:9 và thumbnail;
-- xác nhận không có font dưới 24 px, tiêu đề tối thiểu 48 px;
-- xác nhận title sequence kể được câu chuyện khi đọc riêng;
-- đối chiếu lại mọi số liệu với file nguồn;
-- xuất `.pptx` chỉnh sửa được và mở kiểm tra số slide, text, shape, connector và animation;
-- rà soát PowerPoint không có tràn chữ, mất font hoặc ảnh ngoài project.
+Giữ hệ hiện tại:
+
+- giấy `#FAF7F2`, xanh Thông, Hồng sương, Nắng;
+- Lora cho tiêu đề;
+- Be Vietnam Pro cho nội dung;
+- JetBrains Mono cho nhãn kỹ thuật và số;
+- mọi font tối thiểu 24 px;
+- tối đa một thông điệp chính và một minh họa chính trên mỗi slide;
+- nguồn nằm trong vùng chân riêng, không đè số slide hoặc nội dung.
+
+Font local cần có:
+
+```text
+fonts/
+├── Lora-Regular.ttf
+├── Lora-SemiBold.ttf
+├── BeVietnamPro-Regular.ttf
+├── BeVietnamPro-Medium.ttf
+├── BeVietnamPro-SemiBold.ttf
+├── BeVietnamPro-Bold.ttf
+├── JetBrainsMono-Medium.ttf
+├── JetBrainsMono-Bold.ttf
+├── OFL-Lora.txt
+├── OFL-BeVietnamPro.txt
+├── OFL-JetBrainsMono.txt
+└── README.md
+```
+
+Cover dùng `web/public/img/landing-poster.webp`, không dùng screenshot có UI làm ảnh nền.
+
+## 8. Tiêu chí kiểm chứng
+
+- HTML không gọi Google Fonts hoặc ảnh ngoài project.
+- Browser báo đủ 16 slide, không lỗi console, không overflow.
+- Mỗi slide được xem ở 1920 × 1080 và thumbnail.
+- Slide 4 trình bày đủ tên và luồng của Google Maps, Traveloka, Wanderlog, Tripadvisor AI, Mindtrip.
+- Slide 5 có disclaimer về nguồn công khai và không dùng khẳng định độc quyền.
+- Slide 8 có khối Planning & Validation và connector đọc được từ trái sang phải.
+- Slide 9/10 có ví dụ cụ thể, không chỉ thuật ngữ.
+- Slide 12 ghi “Trip State mô phỏng offline”, không gọi là người dùng hoặc thử nghiệm thực địa.
+- Slide 14 tách rõ implemented, offline-evaluated và unproven.
+- PPTX có 16 slide, text/shape editable, animation count khớp HTML.
+- PPTX được render lại trong môi trường có font local và so với ảnh HTML; không được có chữ cắt, xuống dòng sai hoặc chồng nhau.
+- `fonts/README.md` nói rõ phải cài font trước khi mở PowerPoint vì exporter không nhúng font.
 
 ## 9. Phạm vi không làm
 
-- Không tạo số liệu thị trường, traction hay kết quả thử nghiệm chưa có.
-- Không trình bày tính năng trong plan như tính năng đã chạy.
-- Không thêm slide đội ngũ khi chưa có thông tin người thật.
-- Không raster hóa toàn bộ slide để đạt độ giống hình ảnh.
-- Không sửa code sản phẩm ngoài thư mục deck.
+- Không dựng benchmark giả giữa TripGuardian và đối thủ.
+- Không chụp hoặc sao chép giao diện đối thủ khi nguồn text đã đủ chứng minh luồng.
+- Không thay code sản phẩm ngoài `designs/tripguardian-pitch/`.
+- Không tuyên bố product-market fit, traction, tác động hoặc ưu thế chất lượng.
+- Không đổi font thương hiệu sang font hệ thống.
+- Không raster hóa toàn slide để che lỗi font hoặc bố cục.
