@@ -8,6 +8,7 @@ Run: python web/scripts/gen_ui_images.py [--force] [name ...]
 import base64
 import io
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -23,6 +24,8 @@ PROMPTS = json.loads((WEB / 'scripts/ui_image_prompts.json').read_text(encoding=
 
 
 def env(name):
+    if os.environ.get(name):  # e.g. 9ROUTER_API_URL=http://127.0.0.1:20128/v1 for the router on this machine
+        return os.environ[name]
     for line in (ROOT / '.env').read_text(encoding='utf-8').splitlines():
         if line.startswith(name + '='):
             return line.split('=', 1)[1].strip().strip('"\'')
@@ -53,9 +56,12 @@ def main():
         for attempt in (1, 2):
             try:
                 raw = call(url, key, spec['model'], spec['prompt'], spec['size'])
-                img = Image.open(io.BytesIO(raw)).convert('RGB')
-                if img.width > 1920:
-                    img = img.resize((1920, round(img.height * 1920 / img.width)), Image.LANCZOS)
+                img = Image.open(io.BytesIO(raw)).convert('RGBA')  # the model sometimes returns transparent areas; flatten on the page cream, never drop alpha
+                bg = Image.new('RGBA', img.size, (255, 249, 248, 255))
+                img = Image.alpha_composite(bg, img).convert('RGB')
+                cap = spec.get('max', 1920)  # optional per-image longest side, e.g. small avatars
+                if img.width > cap:
+                    img = img.resize((cap, round(img.height * cap / img.width)), Image.LANCZOS)
                 img.save(dest, 'WEBP', quality=82, method=6)
                 manifest[name] = {'model': spec['model'], 'prompt': spec['prompt'], 'size': list(img.size), 'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
                 print('ok  ', name, img.size, dest.stat().st_size // 1024, 'KB')

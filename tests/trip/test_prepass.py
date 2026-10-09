@@ -1,6 +1,6 @@
 from datetime import date
 
-from trip.prepass import prepass
+from trip.domain.prepass import prepass
 
 TODAY = date(2026, 10, 2)
 

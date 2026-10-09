@@ -12,6 +12,7 @@ export interface Card {
   group: string
   text: string
   reason: string
+  placeholder?: string // an example answer written by the agent for this question
   chips: Chip[]
   multi: boolean
   single_rows: string[]
@@ -131,6 +132,8 @@ export interface Understanding {
   unknowns: string[]
   unmapped: { target: string; phrase: string }[]
   safety_pending: boolean
+  ready: boolean // the minimum is known: Next is allowed (decided by the server, not by the agent)
+  missing: { target: string; label: string }[]
   matching: number // places passing the hard limits now (a fact, not a forecast)
   total: number
 }

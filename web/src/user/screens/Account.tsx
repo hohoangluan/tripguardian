@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { featureLabel, valueLabel } from '../../data/labels'
-import { initialOf, signOut, useAccount } from '../account'
+import { deleteAccount, refreshAccount, signOut, updateProfile, uploadAvatar, useAccount, type Companions, type Me, type Mobility } from '../account'
+import { calendarDisconnect } from '../today'
+import { track } from '../events'
+import { enablePush, KIND_LABEL, loadPrefs, pushSupported, savePrefs, type Prefs } from '../notify'
 import { dateRange, info } from '../lib'
 import { tripSummaries } from '../pd/api'
 import { useDecision } from '../pd/decision'
 import type { TripSummary } from '../pd/types'
-import { forgetTrip, toggleSaved, useUi } from '../store'
+import { toast, toggleSaved, useUi } from '../store'
 import { hasTrip, STEPS, stepOf, useTrip } from '../trip'
 import { ArtCup, ArtHills, ArtRoute, Busy, Empty, go, Link, placeHref, PlacePhoto } from '../ui/common'
 import { HeartFill, Icon } from '../ui/icons'
@@ -24,22 +27,21 @@ function kindOf(t: TripSummary): Kind {
   return end < new Date() ? 'done' : 'confirmed'
 }
 
-// Journeys this browser started (store.trips); the server answers with one summary line each.
+// Journeys of the signed-in account; the server answers with one summary line each.
 export function Trips() {
   useTitle('Chuyến của tôi')
-  const ids = useUi((u) => u.trips)
   const { dispatch } = useTrip()
   const begin = useBegin()
   const [list, setList] = useState<TripSummary[] | null>(null)
   const [err, setErr] = useState(false)
   const [tab, setTab] = useState<Kind>('building')
   useEffect(() => {
-    tripSummaries(ids).then((l) => {
+    tripSummaries().then((l) => {
       setList(l)
       const first = (['building', 'confirmed', 'done'] as const).find((k) => l.some((t) => kindOf(t) === k))
       if (first) setTab(first)
     }, () => setErr(true))
-  }, [ids.join()]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
   const open = (t: TripSummary, to?: string) => {
     dispatch({ type: 'reset' })
     dispatch({ type: 'set', patch: { journeyId: t.id, decisionId: t.stage === 'trip' ? null : t.id, planningId: t.stage === 'planning' ? t.id : null } })
@@ -48,7 +50,7 @@ export function Trips() {
   const shown = (list ?? []).filter((t) => kindOf(t) === tab)
   return (
     <Page>
-      <header className="tg-head"><div><p className="tg-kicker">Chuyến của tôi</p><h1>Chuyến đi của bạn</h1><p>Các chuyến bạn bắt đầu trên trình duyệt này.</p></div><button type="button" className="tg-btn tg-btn--primary" onClick={() => begin({ startWith: 'nothing', startText: null })}><Icon name="plus" size={18} /> Tạo chuyến đi</button></header>
+      <header className="tg-head"><div><p className="tg-kicker">Chuyến của tôi</p><h1>Chuyến đi của bạn</h1><p>Các chuyến của tài khoản này, mở được trên mọi máy.</p></div><button type="button" className="tg-btn tg-btn--primary" onClick={() => begin({ startWith: 'nothing', startText: null })}><Icon name="plus" size={18} /> Tạo chuyến đi</button></header>
       <div className="tg-tabs" role="tablist" aria-label="Trạng thái chuyến">
         {([['building', 'Đang lên kế hoạch'], ['confirmed', 'Sắp tới'], ['done', 'Đã hoàn thành']] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className="tg-tab" onClick={() => setTab(k)}>{l}{list && <b>{list.filter((t) => kindOf(t) === k).length}</b>}</button>)}
       </div>
@@ -71,9 +73,8 @@ export function Trips() {
                     {k === 'building' && <div className="tg-prog" aria-label={`Bước ${step + 1} trên ${STEPS.length}`}>{STEPS.map((s, i) => <span key={s.id} className={i < step ? 'is-done' : i === step ? 'is-now' : ''}><i />{s.label}</span>)}</div>}
                     <div className="tg-trip__act">
                       {k === 'building' && <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => open(t)}>Đi tiếp <Icon name="arrow" size={16} /></button>}
-                      {k === 'confirmed' && <><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => open(t, '/plan')}>Xem lịch</button><button type="button" className="tg-link" onClick={() => open(t, '/plan')}>Sửa lại</button></>}
+                      {k === 'confirmed' && <><button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => go(`/today?journey=${t.id}`)}>Hôm nay</button><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => open(t, '/plan')}>Xem lịch</button><button type="button" className="tg-link" onClick={() => open(t, '/plan')}>Sửa lại</button></>}
                       {k === 'done' && <><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => open(t, '/plan')}>Xem lại lịch</button><button type="button" className="tg-link" onClick={() => open(t, '/done')}>Phản hồi</button></>}
-                      <button type="button" className="tg-link tg-link--quiet" onClick={() => forgetTrip(t.id)}>Ẩn khỏi danh sách</button>
                     </div>
                   </div>
                 </article>
@@ -123,27 +124,161 @@ export function Saved() {
   )
 }
 
+const MOBILITY: [Mobility, string][] = [['motorbike', 'Xe máy'], ['car', 'Ô tô tự lái'], ['ride', 'Taxi / xe công nghệ']]
+const WHO: [Companions, string][] = [['solo', 'Đi một mình'], ['partner', 'Với người yêu / vợ chồng'], ['friends', 'Với bạn bè'], ['kids', 'Với con nhỏ'], ['parents', 'Với bố mẹ']]
+
 export function Account() {
   useTitle('Hồ sơ')
   const account = useAccount()
   const { trip } = useTrip()
   const { view } = useDecision()
   const prefs = trip.searchInput?.soft_weights.filter((w) => w.weight !== 0) ?? []
-  const user = account?.kind === 'user' ? account : null
+  if (!account) return null
   return (
     <Page>
-      <header className="tg-head"><div><p className="tg-kicker">Hồ sơ và dữ liệu</p><h1>Bạn và dữ liệu của bạn</h1><p>Không nguồn nào thì mọi thứ vẫn chạy. Mình chỉ nhớ gu khi bạn đồng ý.</p></div></header>
-      <section className="tg-who"><span className="tg-who__av">{initialOf(account) ?? <Icon name="user" size={22} />}</span><div><b>{user ? user.name : 'Bạn đang dùng thử'}</b><span className="tg-muted">{user ? user.email ?? 'Tài khoản trên trình duyệt này' : 'Chuyến đi lưu trên máy chủ theo mã chuyến; danh sách chuyến lưu trên trình duyệt này.'}</span></div>{user ? <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => { signOut(); go('/login') }}>Đăng xuất</button> : <Link to="/login" className="tg-btn tg-btn--ghost tg-btn--sm">Tạo tài khoản</Link>}</section>
+      <header className="tg-head"><div><p className="tg-kicker">Hồ sơ và dữ liệu</p><h1>Bạn và dữ liệu của bạn</h1><p>Mọi trường đều tùy chọn. Hồ sơ chỉ là gợi ý ban đầu; điều bạn nói cho chuyến này luôn thắng.</p></div></header>
+      <section className="tg-who">
+        <AvatarPicker account={account} />
+        <div><b>{account.name || 'Bạn'}</b><span className="tg-muted">{account.email}</span></div>
+        <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => { void signOut(); go('/login') }}>Đăng xuất</button>
+      </section>
       <div className="tg-prof">
-        <section className="tg-card tg-prof__c" aria-labelledby="tg-src-h"><h2 id="tg-src-h">Nguồn đã kết nối</h2><p className="tg-faint">Mỗi nguồn là tùy chọn; bạn tự thêm hoặc thu hồi.</p>
-          {['TikTok', 'Google'].map((k) => <div key={k} className="tg-prof__row"><div><b>{k}</b><span className="tg-faint">Chưa kết nối</span></div><button type="button" className="tg-btn tg-btn--sm tg-btn--soft" disabled title="Sắp có">Sắp có</button></div>)}
-        </section>
+        <ProfileForm account={account} />
         <section className="tg-card tg-prof__c" aria-labelledby="tg-inf-h"><h2 id="tg-inf-h">Sở thích của chuyến hiện tại</h2><p className="tg-faint">Đây là điều bạn nói hoặc mình suy ra cho chuyến này, không phải cài đặt. Sửa ở vé chuyến.</p>
           {prefs.length === 0 ? <p className="tg-muted">Chưa có sở thích nào được ghi.</p> : prefs.map((w) => <div key={w.feature + w.value} className="tg-prof__row"><div><span className="tg-chip tg-chip--dash">{w.weight < 0 ? 'Tránh: ' : ''}{featureLabel(w.feature)}{w.value !== 'present' ? `: ${valueLabel(w.value)}` : ''}</span><span className="tg-faint"> {w.source === 'profile' ? 'từ hồ sơ' : 'từ lời bạn'}</span></div></div>)}
         </section>
       </div>
       {hasTrip(trip) && <section className="tg-card tg-prof__trip"><div><b>Chuyến đi đang lập</b><span className="tg-muted">{trip.searchInput?.context.days ? `${trip.searchInput.context.days} ngày · ` : ''}{view?.selected.length ?? trip.selected.length} nơi đã chọn</span></div><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => go(stepOf(trip).path)}>Mở tiếp</button></section>}
-      <p className="tg-faint tg-prof__fine"><Icon name="shield" size={14} /> Hồ sơ dài hạn gắn với tài khoản (sắp có). Tín hiệu sức khỏe hay thể chất chỉ dùng trong phiên, không lưu lâu dài.</p>
+      <NotifyPrefs />
+      {account.calendar && <CalendarLink />}
+      <DeleteAccount />
+      <p className="tg-faint tg-prof__fine"><Icon name="shield" size={14} /> Tín hiệu sức khỏe hay thể chất chỉ dùng trong phiên, không lưu lâu dài. Không thu vị trí GPS.</p>
     </Page>
+  )
+}
+
+function AvatarPicker({ account }: { account: Me }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const pick = (file: File | undefined) => {
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) return setErr('Ảnh tối đa 5 MB.')
+    setBusy(true); setErr(null)
+    uploadAvatar(file).then(() => toast('Đã đổi ảnh đại diện'), () => setErr('Ảnh này chưa dùng được. Thử ảnh JPG, PNG hoặc WebP khác.')).finally(() => setBusy(false))
+  }
+  return (
+    <div className="tg-avpick">
+      <label className="tg-who__av tg-avpick__btn" title="Đổi ảnh đại diện" aria-busy={busy}>
+        {account.avatar ? <img src={account.avatar} alt="" referrerPolicy="no-referrer" /> : <span>{(account.name || account.email || '?')[0].toUpperCase()}</span>}
+        <input type="file" accept="image/jpeg,image/png,image/webp" className="tg-sr" aria-label="Đổi ảnh đại diện" disabled={busy} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = '' }} />
+        <i aria-hidden="true"><Icon name="plus" size={14} /></i>
+      </label>
+      {err && <small className="tg-auth__err" role="alert">{err}</small>}
+    </div>
+  )
+}
+
+function ProfileForm({ account }: { account: Me }) {
+  const [name, setName] = useState(account.name)
+  const [city, setCity] = useState(account.home_city ?? '')
+  const [mobility, setMobility] = useState<string>(account.usual_mobility ?? '')
+  const [who, setWho] = useState<string>(account.usual_companions ?? '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const dirty = name !== account.name || city !== (account.home_city ?? '') || mobility !== (account.usual_mobility ?? '') || who !== (account.usual_companions ?? '')
+  const save = () => {
+    setBusy(true); setErr(null)
+    updateProfile({ display_name: name, home_city: city, usual_mobility: (mobility || null) as Mobility | null, usual_companions: (who || null) as Companions | null })
+      .then(() => toast('Đã lưu hồ sơ'), (e: Error) => setErr(e.message.includes('too long') ? 'Có trường dài quá, rút gọn lại nhé.' : 'Chưa lưu được, thử lại nhé.'))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <section className="tg-card tg-prof__c" aria-labelledby="tg-me-h">
+      <h2 id="tg-me-h">Hồ sơ</h2><p className="tg-faint">Dùng làm gợi ý ban đầu cho chuyến mới, hiện với nhãn “từ hồ sơ”.</p>
+      <form className="tg-pform" onSubmit={(e) => { e.preventDefault(); save() }}>
+        <label className="tg-auth__f"><span>Tên hiển thị</span><input className="tg-input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoComplete="nickname" /></label>
+        <label className="tg-auth__f"><span>Thành phố bạn hay xuất phát</span><input className="tg-input" value={city} maxLength={80} onChange={(e) => setCity(e.target.value)} placeholder="Ví dụ: Hồ Chí Minh" autoComplete="address-level2" /></label>
+        <label className="tg-auth__f"><span>Phương tiện hay dùng ở Đà Lạt</span><select className="tg-input" value={mobility} onChange={(e) => setMobility(e.target.value)}><option value="">Chưa chọn</option>{MOBILITY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <label className="tg-auth__f"><span>Hay đi với ai</span><select className="tg-input" value={who} onChange={(e) => setWho(e.target.value)}><option value="">Chưa chọn</option>{WHO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        {err && <small className="tg-auth__err" role="alert">{err}</small>}
+        <button type="submit" className="tg-btn tg-btn--primary tg-btn--sm" disabled={!dirty || busy}>{busy ? 'Đang lưu…' : 'Lưu hồ sơ'}</button>
+      </form>
+    </section>
+  )
+}
+
+function NotifyPrefs() {
+  const [p, setP] = useState<Prefs | null>(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { loadPrefs().then(setP, () => {}); track('install_prompt_seen') }, [])
+  if (!p) return null
+  // Optimistic: the box changes at once; a failed save puts it back.
+  const save = (patch: Parameters<typeof savePrefs>[0]) => {
+    const before = p
+    setP({ ...p, ...patch })
+    setBusy(true)
+    savePrefs(patch).then(setP, () => { setP(before); toast('Chưa lưu được, thử lại nhé') }).finally(() => setBusy(false))
+  }
+  const toggle = (k: string) => save({ enabled_kinds: p.enabled_kinds.includes(k) ? p.enabled_kinds.filter((x) => x !== k) : [...p.enabled_kinds, k] })
+  return (
+    <div className="tg-prof">
+      <section className="tg-card tg-prof__c" aria-labelledby="tg-np-h">
+        <h2 id="tg-np-h">Thông báo</h2>
+        <p className="tg-faint">{p.push_devices ? `Đang nhận trên ${p.push_devices} trình duyệt.` : 'Chưa bật trên trình duyệt nào; vẫn có trong Hộp thông báo.'} Không nhắn từ {p.quiet_start} đến {p.quiet_end}.</p>
+        <div className="tg-npref">
+          <label><input type="checkbox" checked={p.paused} disabled={busy} onChange={(e) => save({ paused: e.target.checked })} /> Tạm im mọi thông báo</label>
+          {p.kinds.map((k) => <label key={k}><input type="checkbox" checked={p.enabled_kinds.includes(k)} disabled={busy || p.paused} onChange={() => toggle(k)} /> {KIND_LABEL[k] ?? k}</label>)}
+        </div>
+        {pushSupported() && Notification.permission === 'default' && <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={async () => { const r = await enablePush(); if (r === 'granted') { toast('Đã bật thông báo'); loadPrefs().then(setP) } }}>Bật trên trình duyệt này</button>}
+      </section>
+      <section className="tg-card tg-prof__c" aria-labelledby="tg-a2hs-h">
+        <h2 id="tg-a2hs-h">Thêm TripGuardian vào màn hình chính</h2>
+        <p className="tg-faint">Trên iPhone, thông báo chỉ đến khi TripGuardian nằm trên màn hình chính:</p>
+        <ol className="tg-a2hs"><li>Mở trang này bằng Safari.</li><li>Bấm nút Chia sẻ.</li><li>Chọn “Thêm vào MH chính”, rồi mở TripGuardian từ biểu tượng mới.</li></ol>
+      </section>
+    </div>
+  )
+}
+
+function CalendarLink() {
+  const [step, setStep] = useState<0 | 1>(0)
+  const [drop, setDrop] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const off = () => {
+    setBusy(true)
+    calendarDisconnect(drop).then(() => { toast('Đã ngắt Google Calendar'); return refreshAccount() }, () => toast('Chưa ngắt được, thử lại nhé')).finally(() => setBusy(false))
+  }
+  return (
+    <section className="tg-card tg-del" aria-labelledby="tg-gcal-h">
+      <div><h2 id="tg-gcal-h">Google Calendar</h2><p className="tg-faint">Đã kết nối. TripGuardian chỉ ghi vào lịch riêng do nó tạo, và chỉ khi bạn xác nhận.</p></div>
+      {step === 0 ? <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => setStep(1)}>Ngắt kết nối…</button> : (
+        <div className="tg-del__confirm">
+          <label className="tg-auth__check"><input type="checkbox" checked={drop} onChange={(e) => setDrop(e.target.checked)} /> <span>Xóa luôn các lịch TripGuardian trong Google Calendar</span></label>
+          <div><button type="button" className="tg-btn tg-btn--sm tg-del__yes" disabled={busy} onClick={off}>Ngắt kết nối</button><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => setStep(0)}>Thôi</button></div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function DeleteAccount() {
+  const [step, setStep] = useState<0 | 1>(0)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(false)
+  const remove = () => {
+    setBusy(true)
+    deleteAccount().then(() => go('/login'), () => { setErr(true); setBusy(false) })
+  }
+  return (
+    <section className="tg-card tg-del" aria-labelledby="tg-del-h">
+      <div><h2 id="tg-del-h">Xóa tài khoản</h2><p className="tg-faint">Xóa hồ sơ, ảnh, liên kết Google Calendar và thông báo. Chuyến đi và số liệu sử dụng vẫn giữ để thống kê nhưng không còn gắn với bạn.</p></div>
+      {step === 0 ? <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm tg-del__go" onClick={() => setStep(1)}>Xóa tài khoản…</button> : (
+        <div className="tg-del__confirm" role="alertdialog" aria-labelledby="tg-del-q">
+          <p id="tg-del-q"><b>Xóa vĩnh viễn?</b> Không khôi phục được.</p>
+          {err && <small className="tg-auth__err" role="alert">Chưa xóa được, thử lại nhé.</small>}
+          <div><button type="button" className="tg-btn tg-btn--sm tg-del__yes" disabled={busy} onClick={remove}>{busy ? 'Đang xóa…' : 'Xóa vĩnh viễn'}</button><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" disabled={busy} onClick={() => setStep(0)}>Giữ tài khoản</button></div>
+        </div>
+      )}
+    </section>
   )
 }

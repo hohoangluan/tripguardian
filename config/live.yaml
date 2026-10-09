@@ -19,6 +19,8 @@ nominatim_url: https://nominatim.openstreetmap.org/search
 # Nominatim requires an identifying User-Agent with a contact; LIVE_CONTACT fills {contact} from .env.
 user_agent: "TripGuardian/0.1 (contact: {contact})"
 nominatim_min_interval_s: 1.0
+# Photon (komoot, OSM): search-as-you-type for the origin and lodging inputs (live.geosearch); Nominatim when it fails.
+photon_url: https://photon.komoot.io/api/
 
 # Open-Meteo: free, no key, daily forecast up to 16 days ahead; config/climate.yaml covers dates beyond that.
 open_meteo_url: https://api.open-meteo.com/v1/forecast
@@ -32,5 +34,49 @@ ttl_s:
   weather: 10800    # 3 hours
   lodging: 86400    # 1 day
   geocode: 2592000  # 30 days
+  transit: 93600    # 26 hours: scripts/prewarm_transit.py refreshes it once a day
 
 tz_offset_h: 7
+
+# Coaches (Vexere, src/live/buses): region id -> name and point, collected 2026-10-08 from route pages
+# https://vexere.com/vi-VN/ve-xe-khach-tu-x-di-y-1<id>t23991.html?date=dd-mm-yyyy (the slug is ignored; "1<id>" = a
+# province, "2399" = the area Đà Lạt, trailing "1"; back: 2399t1<id>1). Pages are server-rendered: the trips are in
+# __NEXT_DATA__ props.initialState.routeReducer.trips (20 per page). Only provinces with coaches to Đà Lạt are listed;
+# an origin uses the nearest one. Plain HTTP is enough (no browser). Province names are the 63 before the 2025 merger, as Vexere still uses them.
+vexere_dalat: 2399
+vexere_regions:
+  - {id: 29, name: "Sài Gòn", lat: 10.7684, lng: 106.6851}
+  - {id: 19, name: "Đồng Nai", lat: 11.0806, lng: 107.1642}
+  - {id: 36, name: "Lâm Đồng", lat: 11.7666, lng: 107.9974}
+  - {id: 32, name: "Khánh Hòa", lat: 12.3187, lng: 109.0692}
+  - {id: 15, name: "Đà Nẵng", lat: 16.0925, lng: 108.1124}
+  - {id: 16, name: "Đắk Lắk", lat: 12.789, lng: 108.2397}
+  - {id: 47, name: "Quảng Nam", lat: 15.6753, lng: 108.3345}
+  - {id: 21, name: "Gia Lai", lat: 13.7988, lng: 108.1618}
+  - {id: 9, name: "Bình Dương", lat: 11.1827, lng: 106.6468}
+  - {id: 8, name: "Bình Định", lat: 14.1531, lng: 109.1087}
+  - {id: 11, name: "Bình Thuận", lat: 11.0905, lng: 108.0721}
+  - {id: 13, name: "Cần Thơ", lat: 10.123, lng: 105.5352}
+  - {id: 17, name: "Đắk Nông", lat: 12.2808, lng: 107.6593}
+  - {id: 48, name: "Quảng Ngãi", lat: 14.9826, lng: 108.6891}
+  - {id: 1, name: "An Giang", lat: 10.5729, lng: 105.177}
+  - {id: 2, name: "Bà Rịa-Vũng Tàu", lat: 10.6066, lng: 107.2513}
+  - {id: 20, name: "Đồng Tháp", lat: 10.5538, lng: 105.5655}
+  - {id: 33, name: "Kiên Giang", lat: 9.9015, lng: 104.4795}
+  - {id: 45, name: "Phú Yên", lat: 13.2003, lng: 109.0664}
+  - {id: 50, name: "Quảng Trị", lat: 16.7316, lng: 106.9518}
+  - {id: 58, name: "Tiền Giang", lat: 10.3908, lng: 106.311}
+  - {id: 57, name: "Thừa Thiên Huế", lat: 16.3543, lng: 107.7382}
+  - {id: 46, name: "Quảng Bình", lat: 17.4726, lng: 106.5819}
+  - {id: 10, name: "Bình Phước", lat: 11.7995, lng: 106.9191}
+  - {id: 12, name: "Cà Mau", lat: 8.9715, lng: 104.9708}
+  - {id: 43, name: "Ninh Thuận", lat: 11.7375, lng: 108.8927}
+  - {id: 61, name: "Vĩnh Long", lat: 10.1068, lng: 105.9862}
+
+# scripts/prewarm_transit.py (cron, once a day): fills the flights / vexere caches so a trip's coach or flight shows
+# without waiting. Flights: every airport in config/airports.yaml <-> its dest; coaches: every vexere_regions entry.
+transit_prewarm:
+  flight_days: 30
+  bus_days: 14
+  pause_s: 0.5  # after each fetch, per thread
+  workers: {flights: 6, buses: 12}  # threads per source; a flight thread runs its own Chromium

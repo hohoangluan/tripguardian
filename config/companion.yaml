@@ -1,0 +1,13 @@
+# Đang đi (docs/COMPANION.md): suggestions after "Đã đến" and the "rest of the day is tight" line. Starting values.
+version: 1
+
+nearby_max_min: 15        # a nearby place is at most this many minutes away (estimate: straight line x road_factor)
+nearby_count: 5
+suggest_count: 4          # "Chơi gì ở đây": features shown
+tight_threshold_min: 30   # arriving this late or more, with stops left today, shows "Phần còn lại hơi chật"
+road_factor: 1.4          # same rough travel as config/planning.yaml; every nearby time is labelled an estimate
+rough_speed_kmh: {motorbike: 25, car: 25, ride: 22}
+day_end: "21:00"          # when a day has no window, nearby picks must be done by then
+practical: [entry_fee, wait_time, booking_needed, parking, toilet, cash_only]
+timely_sun: [sunset_view, cloud_hunting]
+skip_reasons: [far, crowded, pricey, dislike, tired, weather, other]

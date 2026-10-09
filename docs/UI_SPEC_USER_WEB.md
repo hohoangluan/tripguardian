@@ -1,6 +1,6 @@
 # TripGuardian — Đặc tả UI/UX: User Web (bản người dùng dùng hằng ngày)
 
-Dành cho designer / Figma. Tài liệu này trả lời **cần thiết kế mấy trang, mỗi trang phải có mục gì, mỗi trang có mấy trạng thái phải vẽ**. Bố cục từng màn và luồng chuyển màn: `docs/UI_SPEC_FLOW_LAYOUT.md`. Phong cách hình ảnh, chi tiết grid và vi tương tác: **designer toàn quyền**. Mục tiêu là giao diện đẹp, dùng được trên điện thoại một tay.
+Dành cho designer / Figma. Tài liệu này trả lời **cần thiết kế mấy trang, mỗi trang phải có mục gì, mỗi trang có mấy trạng thái phải vẽ**. Bố cục từng màn và luồng chuyển màn: `docs/UI_SPEC_FLOW_LAYOUT.md`. Phong cách hình ảnh, chi tiết grid và vi tương tác: **designer toàn quyền**. Mục tiêu là giao diện đẹp trên máy tính. Web không có bản điện thoại: điện thoại mở bất kỳ trang nào cũng thấy trang tải ứng dụng (`docs/UI_SPEC_LANDING.md` §5); ứng dụng làm sau.
 
 Đọc kèm:
 - `docs/UX_Design_Brief.md` — thiết kế cho ai, nguyên tắc, cách hiển thị chất lượng dữ liệu (§4), hệ thị giác đang dùng (§7).
@@ -13,8 +13,7 @@ Dành cho designer / Figma. Tài liệu này trả lời **cần thiết kế m�
 
 Chỉ **User Web** — phần người dùng mở hằng ngày, tất cả nằm dưới `/app`. Ngoài phạm vi: landing `/` (`docs/UI_SPEC_LANDING.md`), Admin Web `/admin`.
 
-- **Vòng này chỉ làm desktop 1440.** Chốt bố cục, hệ thị giác và hệ thành phần ở bề mặt rộng trước, nơi đủ chỗ đặt cạnh nhau "lý do phù hợp", "đánh đổi" và bằng chứng — ba thứ trên điện thoại phải nén lại. Mobile 390 làm vòng sau, **dùng lại đúng hệ thành phần này**.
-- Đích cuối vẫn là điện thoại (người dùng lên kế hoạch trên điện thoại, thường ngay sau khi xem TikTok). Nên mỗi khối ở đây phải nói rõ được **khi hẹp lại thì nó xếp thế nào** — ghi chú một dòng cạnh frame là đủ.
+- **Chỉ làm máy tính (desktop 1440).** Bề mặt rộng đủ chỗ đặt cạnh nhau "lý do phù hợp", "đánh đổi" và bằng chứng. Cửa sổ máy tính hẹp vẫn phải dùng được (khối xếp chồng, không cuộn ngang), nhưng không thiết kế riêng cho điện thoại — điện thoại dùng ứng dụng (làm sau).
 - **Toàn bộ nội dung tiếng Việt**, từ ngữ đời thường, không thuật ngữ hệ thống.
 - MVP một thành phố: **Đà Lạt**, chuyến 2–4 ngày, cặp đôi / nhóm bạn / gia đình nhỏ; xe máy, ô tô hoặc xe công nghệ.
 
@@ -35,7 +34,7 @@ Không được làm: dùng số sao / phần trăm trần làm tín hiệu chí
 | Route `/app/…` | Tên trang | Người dùng làm gì ở đây | Khung |
 |---|---|---|---|
 | `login` (hoặc `/app` lần đầu, chưa có tài khoản) | Vào ứng dụng | Dùng thử không cần tài khoản, hoặc đăng nhập | BARE |
-| `` (gốc) | **Khám phá** | Gõ một câu / chủ đề (bốn cách bắt đầu nằm trong khung chat của Hiểu chuyến đi); người quay lại thấy chuyến đang lập | NAV |
+| `` (gốc) | **Khám phá** | Gõ một câu / chủ đề (dán link, đính kèm file ở khung chat của Hiểu chuyến đi); người quay lại thấy chuyến đang lập | NAV |
 | `understand` | Hiểu chuyến đi | Trả lời từng lượt hỏi của agent; soát và sửa vé | FLOW 1 |
 | `explore` | **Chọn nơi** | Đọc tập nhỏ có lý do + đánh đổi; thêm / bỏ / khóa / so sánh; hỏi trợ lý; thanh "Đã chọn" báo khả thi và lịch ngầm | FLOW 2 |
 | `explore/place/:id` | Chi tiết địa điểm | Thông tin thực tế ⟂ bằng chứng trải nghiệm; báo thông tin sai | FLOW 2 |
@@ -79,16 +78,18 @@ Chốt 2026-10-04 sau 24 bản thử. Ảnh: `docs/design/desktop/v3-rose-photo/
 
 Đổi 2026-10-08 (người dùng đi từ ô chat ở landing vào, phải thấy mình đang nói với AI). Câu mở (`frame`) **không phải thẻ hỏi** mà là **thẻ trò chuyện** cùng chỗ trong chồng thẻ (`web/src/user/screens/TripChat.tsx`):
 
-1. **AI chào** bằng bong bóng trái (lời chào riêng của khung chat, không chép lại câu `frame`; thẻ hỏi **không bao giờ** hiện lại câu mở này). Dưới lời chào là **bốn cách bắt đầu** như bốn câu người dùng có thể nói: `Mình chưa có ý tưởng gì` (gửi luôn), `Mình có vài nơi đã lưu`, `Mình có một nơi nhất định phải đến`, `Mình có sẵn một lịch trình` (ba câu này điền sẵn đầu câu vào ô gõ kèm một dòng hướng dẫn, người dùng gõ nốt). Người dùng gõ vào ô có nút gửi; câu đã gõ ở trang home **đã là tin nhắn đầu**, không hỏi lại.
+1. **AI chào** bằng bong bóng trái (lời chào riêng của khung chat, không chép lại câu `frame`; thẻ hỏi **không bao giờ** hiện lại câu mở này). Trợ lý có avatar (`BotAvatar` trong `ui/icons.tsx`: cây thông của logo trên nền tròn màu pine; ảnh `public/img/gen/bot-avatar.webp` thay bản vẽ khi đã sinh bằng `web/scripts/gen_ui_images.py bot-avatar`) đứng cạnh tin nhắn của nó và ở đầu thẻ, "thở" nhẹ khi đang gõ. Lời chào là câu hỏi mở về chuyến đi người dùng mong muốn; ô nhắn như chatbot (`Nhắn cho TripGuardian…`), không có nút gợi ý hay dòng hướng dẫn. Nút kẹp giấy, kéo-thả hoặc dán từ clipboard để **đính kèm ảnh hoặc file**; tệp hiện trong ô nhắn trước khi gửi (ảnh có thumbnail, bỏ được bằng ×), ảnh hiện trong bong bóng sau khi gửi. File chữ (`.txt`, `.csv` Google Takeout, `.json` / `.geojson`, `.kml`) được đọc ngay trong trình duyệt (`web/src/user/tu/attach.ts`) thành từng dòng tên nơi hoặc link và gửi kèm; link Google Maps / TikTok dán thẳng vào ô. Mỗi dòng được khớp với dữ liệu, dòng không khớp giữ là "chưa tìm thấy", không đoán. Agent chưa đọc nội dung ảnh (chỉ biết có ảnh kèm). Câu đã gõ ở trang home **đã là tin nhắn đầu**, không hỏi lại.
 2. **Lúc AI đọc**: bong bóng AI có chấm "đang gõ", lời đáp stream, và **những gì đang ghi** theo sự kiện `preview`: `“3 ngày” → Số ngày`. Đây là chỗ người dùng thấy hệ thống đang nghĩ gì.
 3. **Khoảng dừng — `Mình đã hiểu như này`**: lời đáp của AI thành tin nhắn, dưới nó là thẻ tóm tắt: mỗi dòng đã hiểu kèm nguồn (`từ “…”` hoặc `mình đoán, sửa được`) và nút sửa (mở `Xem đầy đủ` đúng dòng đó); nơi muốn đến, giới hạn cứng bỏ được; sở thích mềm là chip có ×. Sau đó **`Mình cần hỏi thêm một số ý`** liệt kê `Còn chưa rõ` (lấy từ `unknowns`, là sự thật hiện tại, **không** phải danh sách câu sắp hỏi hay số câu — vẫn giữ §A).
-4. Người dùng **sửa bằng lời** ngay trong ô chat (mỗi lần gõ là một lượt mới, tóm tắt cập nhật) hoặc bấm **`Đúng rồi, hỏi tiếp`**. Chỉ khi đó thẻ trò chuyện mới rơi xuống và thẻ câu hỏi đầu tiên được chia ra. Nếu agent đã đủ, nút là `Đúng rồi, bắt đầu tìm`.
+4. Người dùng **sửa bằng lời** ngay trong ô chat, bao nhiêu lượt cũng được (mỗi lần gõ là một lượt mới, AI có thể hỏi lại ngay trong chat khi câu khó hiểu, tóm tắt cập nhật) hoặc bấm **`Đúng rồi, hỏi tiếp`**. Chỉ khi đó thẻ trò chuyện mới rơi xuống và thẻ câu hỏi ngắn đầu tiên được chia ra — **không bao giờ** là câu mở `frame` lần nữa, kể cả khi chat chưa ghi được gì (khi đó các câu ngắn hỏi từ đầu). Nếu agent đã đủ, nút là `Đúng rồi, bắt đầu tìm`.
 
 Phiên đã có lịch sử câu trả lời thì vào thẳng chồng thẻ. Cột trái hiện `Trò chuyện · bạn kể, mình ghi` khi đang chat, sau đó là dòng `Bạn kể` đã xong. Màn này không chờ snapshot địa điểm (ảnh hiện khi snapshot tới; landing tải trước snapshot lúc rảnh).
 
 #### Chuyển giữa các câu
 
 Bấm trả lời là **thẻ rơi ngay** (380 ms), không chờ máy chủ; câu trả lời được gửi cùng lúc. Trong lúc chờ, hai thẻ nền nghiêng lên và hiện chấm chờ + lời AI đang stream (`Mình đang ghi lại câu trả lời…`). Thẻ mới về sớm hơn 380 ms thì chờ thẻ cũ rơi xong rồi mới được chia. Gõ tự do trong thẻ cũng đi theo đường này. Không có câu hỏi mới (lỗi, hoặc agent hỏi lại đúng câu đó) thì thẻ cũ được chia lại. Thẻ mới mà đầu thẻ nằm khuất trên màn thì trang cuộn về đầu chồng thẻ. `prefers-reduced-motion` tắt hết, đổi thẻ tức thì.
+
+**Chọn một hay chọn nhiều** luôn nói trước khi bấm: dòng nhỏ trên các lựa chọn (`Chọn một ý` · `Chọn một hoặc nhiều ý, xong bấm “Xong câu này”` · `Mỗi dòng chọn một ý…`), và dấu trên từng lựa chọn: tròn = chọn một (bấm là gửi), vuông = chọn nhiều. Câu nhiều dòng ghi `chọn một` / `chọn nhiều` cạnh tên dòng.
 
 Hai cột: **trái là cuộc hỏi, phải là vé**. Sau phần mở đầu, các thẻ câu hỏi không có bong bóng chat hay avatar. Lượt đã trả lời **co thành một dòng** kèm chip đáp án và nút `Sửa`.
 
@@ -316,7 +317,7 @@ Hướng **editorial dẫn bằng ảnh thật**, nền sáng. Màu và khoảng
 |---|---|---|
 | **Desktop** | **1440 × cao tùy trang** (thiết kế chính) | Nội dung trong cột tối đa 1280, lề 80; grid 12 cột, gutter 24 |
 | Laptop nhỏ | 1280 | Suy ra: rớt từ 3 cột xuống 2 |
-| Điện thoại | 390 × 844 | **Vòng sau.** Mỗi frame desktop ghi một dòng "khi hẹp lại: …" |
+| Điện thoại | — | Không có bản web: trang tải ứng dụng (`docs/UI_SPEC_LANDING.md` §5) |
 
 Sáng / tối: không bắt buộc cho MVP. Làm thì làm đủ, không nửa vời.
 

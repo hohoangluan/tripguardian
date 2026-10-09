@@ -49,6 +49,7 @@ Việc user đã từng đến Đà Lạt hay chưa không đổi cách hỏi. N
 Trip State
 ├── Thông tin cơ bản   start_date | month, days, companions, people, base (chỗ ở), mobility, budget_vnd
 ├── Điểm vào / ra      entry_point, exit_point — nơi chuyến đi vào và rời thành phố (bến xe, sân bay, tự lái)
+├── Hậu cần            origin, arrival_mode, inbound, outbound, lodging_booked, lodging (§Hậu cần)
 ├── Khung giờ          arrive_at, leave_at, day_end
 ├── Anchor             nơi bắt buộc, booking, sự kiện giờ cố định; độ ưu tiên must | want
 ├── Constraint         hard: physical constraint + user hard constraint
@@ -58,7 +59,7 @@ Trip State
 └── meta               start_with, guidance, effort_budget, control, lượt đã hỏi, đã bỏ qua, từ chủ quan còn chờ làm rõ
 ```
 
-`entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Chỉ lưu text + `place_id`; geocode xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
+`entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Lưu text + `place_id`, hoặc tọa độ khi điểm được chọn từ ô tìm (`origin`, `lodging`: `Base.lat/lng/province/kind`); geocode phần còn lại xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
 
 Mỗi field không lưu giá trị trần mà lưu kèm nguồn và trạng thái:
 
@@ -92,7 +93,7 @@ Tầng 3  Chỉ hỏi khi đổi kết quả  budget_vnd, pace, max_leg_min, cro
 Tầng 4  Fail-closed              physical constraint — hỏi ngay khi có tín hiệu, bất kể điểm §6
 ```
 
-Tầng 1 gom vào **một thẻ chip ở lượt mở đầu**, không tách thành nhiều lượt hỏi. `base` để trống được; thiếu thì Planning mang cờ "ước lượng kém chắc".
+Tầng 1 lấy trước từ phần trò chuyện mở đầu (câu `frame`, §5); phần còn thiếu mới hỏi bằng thẻ ngắn. `base` (chỗ ở) hỏi ở §Hậu cần, để trống được; thiếu thì Planning mang cờ "ước lượng kém chắc".
 
 Tối thiểu tuyệt đối trước đề xuất đầu tiên: `days`, `companions`, `mobility`. Mọi field khác được phép `unknown`.
 
@@ -102,34 +103,53 @@ Tài khoản và User Profile được xin sau khi user đã thấy kết quả 
 
 ## 4. Luồng xử lý
 
-Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự.
+Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự. **Agent quyết định hỏi gì và hỏi bằng gì; người dùng quyết định khi nào sang bước sau (nút Next)**; code chỉ kiểm bằng chứng trước khi ghi Trip State và giữ điều kiện tối thiểu của Next.
 
 ```text
 ① NẠP PRIOR        Mẫu dài hạn đã lưu (nếu có user id, §17) + anchor/link đã có → Trip State nháp
-② MỞ ĐẦU           Một câu hỏi mở, không chip: kể về chuyến đi mơ ước sắp tới. Các câu sau là thẻ
-                   có chip gợi ý + ô "đáp án khác", hỏi tiếp từ điều user đã kể
-③ TRÍCH XUẤT       LLM tách một câu thành nhiều field; phát hiện từ chủ quan ("chill", "yên tĩnh")
-                   và tín hiệu nhạy cảm ("bố mẹ", "trẻ nhỏ", "đau gối", "say xe")
-④ GỘP + XUNG ĐỘT   Nhu cầu hiện tại ghi đè profile theo thứ tự §2; xung đột rõ thì tự xử lý, không hỏi
-⑤ TÌM LỖ HỔNG      Liệt kê field unknown / chưa chắc, xếp theo §5
-⑥ CHỌN HÀNH ĐỘNG   HỎI · XÁC NHẬN · SUY · DỪNG
-⑦ LẶP ③–⑥          Tới khi gặp điều kiện dừng (§7)
-⑧ BẢN HIỂU NHU CẦU User xem và sửa trực tiếp (§8)
-⑨ BIÊN DỊCH        Trip State → Search Input (§9)
+② MỞ ĐẦU           Một câu hỏi mở, không chip: kể về chuyến đi mơ ước sắp tới
+③ MỖI LƯỢT         Agent đọc câu user + CURRENT CONTEXT, gọi tool (ghi fact, tra cứu), rồi dừng bằng
+                   hỏi một thẻ hoặc trả lời chữ. Câu trả lời chip quay lại agent dưới dạng chữ
+④ BẢN HIỂU NHU CẦU User xem và sửa trực tiếp (§8); bấm Next khi `ready` (§6)
+⑤ BIÊN DỊCH        Trip State → Search Input (§9)
 ```
 
 Phân vai:
 
 | Việc | Ai làm | Lý do |
 |---|---|---|
-| Tách field từ câu tự do, phát hiện từ chủ quan, sinh câu nối tiếp / laddering, diễn đạt theo giọng §13 | LLM | Ngôn ngữ tự do, mơ hồ |
-| Cấp quyền tool đọc theo câu user | Clef | System 1 trả nhãn có xác suất, lỗi thì không cấp quyền |
-| Chạy tool, kiểm argument và giới hạn lượt | Code | Tool không tự ghi Trip State, không bịa argument |
-| Chọn câu tiếp theo, điều kiện dừng, ghi Trip State, biên dịch Search Input | Rule tất định | Test được, tái lập được, không trôi hành vi khi đổi model |
+| Tách field từ câu tự do (ghi mọi fact mỗi lượt), phát hiện từ chủ quan và tín hiệu nhạy cảm, chọn câu hỏi và lựa chọn, diễn đạt theo giọng §13 | Agent (LLM) | Ngôn ngữ tự do, mơ hồ |
+| Phân loại lượt gõ **trước** Agent (lạc đề, phá hoại, câu hỏi số liệu mà bước này không có) và trả câu cố định, không gọi Agent | Clef (`infrastructure/clef.py`, Cloudflare Workers AI `clef-flash`, chạy tuần tự, ~0,5 giây) | Nhanh và rẻ hơn gọi model; lỗi hoặc chậm quá `clef_timeout_s` thì không quyết định gì (fail-open) |
+| Kiểm `quote` là lời của user, chuẩn hóa giá trị, tính `ready` / `missing` (§6), ghi Trip State, biên dịch Search Input | Code (`domain/guard.py`, `domain/readiness.py`, `agent/tools.py`) | Test được, tái lập được, không trôi hành vi khi đổi model |
 
-LLM được đề xuất câu hỏi nối tiếp (nhóm I), nhưng câu trả lời luôn được chuẩn hóa về field của Trip State.
+Tool của agent (`agent/tools.py`, function calling gốc trên role Agent, `docs/LLM_PROVIDER.md`):
 
-Prompt Agent là chuỗi chat append-only: system prompt + ontology bất biến, transcript user/agent của phiên, rồi `CURRENT CONTEXT` (Trip State chuẩn hóa, prepass, câu bắt buộc, candidate) và câu user mới. Prefix cũ giữ nguyên để provider có prompt cache có thể tái dùng; `CURRENT CONTEXT` là nguồn sự thật khi transcript mâu thuẫn, không để model tự khôi phục giá trị cũ. Khi Clef cấp quyền, Agent có thể gọi tối đa `tool_steps` tool đọc (`resolve_relative_date`, `search_places`); argument phải là span trong câu user, kết quả chỉ được đưa lại Agent làm context và mọi update vẫn qua `guard`.
+| Tool | Việc | Code kiểm |
+|---|---|---|
+| `record_fact(field, op, value, quote, how)` | Ghi một fact | `quote` phải có nguyên văn trong tin nhắn; `values.parse` hợp lệ. Bị từ chối (kể cả feature sai hoặc sai định dạng) thì trả lỗi kèm định dạng đúng lại cho agent để sửa trong cùng lượt. Mong muốn không feature nào diễn đạt được thì **agent chủ động** ghi `field = unmapped` |
+| `resolve_relative_date`, `search_places` | Tra cứu chỉ đọc | argument phải là span trong câu user; chỉ đọc catalog |
+| `search_features(query)` | Tra feature ontology khớp một mong muốn ("thú cưng" → `animals`), tối đa 5 | chỉ đọc ontology; bỏ qua từ quá chung chung |
+| `ask_choice(text, options, multi, reason)` | Thẻ multiple choice 2–6 lựa chọn ≤ 40 ký tự | Dừng lượt |
+| `ask_text(text)` | Câu hỏi mở: thẻ có câu hỏi làm tiêu đề và ô gõ, không chip | Dừng lượt |
+
+Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một tool dừng thành công, khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
+
+Kết quả của lượt thành thẻ cho web (`api/engine.py`): `ask_choice` / `ask_text` → thẻ `custom` (qid `ask:<lượt>`, `ask_text` không có chip; chip hoặc chữ trả lời đi lại qua agent như chữ, `Bỏ qua` / `Không chắc` thành câu "Bỏ qua câu này." / "Mình chưa chắc."); Lượt chỉ trả lời chữ → ô gõ tự do không tiêu đề (`conversation`), không ép câu nào; web chỉ vẽ khung chat cho `frame` / `conversation` trước tin đầu tiên. User không muốn tiếp thì agent trả lời chữ và không hỏi. Lượt không hỏi gì mới (trả lời chữ, mong muốn `unmapped`, agent lỗi) thì thẻ đang mở giữ nguyên thay vì thành ô trống. Phần agent viết trước câu hỏi trong `text` của thẻ (nhận xét, câu trả lời cho user) được tách ra thành chữ trong chat (`guard.split_lead`), thẻ chỉ giữ câu hỏi; lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng một câu trung thực `UNSURE_SAY`, không để trống. Agent lỗi (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận câu `FALLBACK_SAY` và ô gõ tự do; `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent nên không mất thông tin cơ bản.
+
+**Clef trước Agent.** Mỗi lượt gõ (không áp cho `refine`), `Engine._fixed_reply` hỏi Clef hai câu kèm thẻ đang mở: tin nhắn thuộc loại nào (liên quan / lạc đề / phá hoại) và người dùng có hỏi thông tin nằm ngoài những gì bước này có không. Câu hỏi này liệt kê sẵn thông tin đã có và các công cụ Agent tra được (`HAVE`, `TOOLS`, `MISSING` trong `infrastructure/clef.py`, giữ khớp với `agent/tools.py`); hỏi ngoài danh sách (thời tiết, giá, giờ mở cửa…) thì chặn. Lạc đề hoặc phá hoại với xác suất ≥ `clef_reject_min` (0,88: chặn nhầm tốn hơn bỏ sót) thì trả `REJECT_SAY`; câu hỏi số liệu ≥ `clef_data_min` thì trả `NODATA_SAY` (số liệu thật hiện ở bước Lựa chọn). Cả hai đều không gọi Agent, không ghi gì ngoài những gì bộ từ khóa đã đọc, thẻ đang mở giữ nguyên. Một manh mối bộ từ khóa đọc được thì không bị coi là lạc đề; một ngày hoặc tháng chỉ làm khung cho câu hỏi số liệu thì vẫn bị chặn.
+
+**Clef quanh Agent (`Judge` trong `infrastructure/clef.py`).** Ngoài chặn trước Agent, Clef làm các kiểm tra có/không rẻ ở những chỗ trước đây phải tốn một vòng model hoặc dựa vào regex. Mọi kiểm tra đều fail open: Clef không cấu hình, chậm hoặc lỗi thì không chặn gì, Agent chạy như cũ. Ngưỡng nằm ở `config/trip.yaml` (`clef_*_min`); chỉ chặn khi Clef chắc, vì chặn nhầm tốn hơn bỏ sót.
+- **Cắt prompt (`clef_plain_min`).** Cùng request với lượt chặn, Clef cho biết tin nhắn chỉ có thông tin chuyến đi (ngày, người, phương tiện…) hay có mong muốn / giới hạn. Chỉ có thông tin chuyến và bộ từ khóa không đọc ra sở thích, không có địa điểm so sánh: system prompt dùng bản không có danh sách FEATURES (hai bản cố định, đều cache được); Agent cần thì gọi `search_features`. Log `clef_lean`.
+- **Gợi ý hỏi gì tiếp (`clef_next_min`).** Khi `still_needed` có từ hai mục, cùng request Clef chọn mục tự nhiên nhất để hỏi tiếp; Agent nhận `suggested_next` trong CURRENT CONTEXT như gợi ý, không phải lệnh.
+- **`search_features`.** Bộ từ khóa không ra gì thì Clef xếp hạng các feature theo mô tả, có lựa chọn `none` để lối thoát cho mong muốn không feature nào diễn đạt được; chỉ lấy từ `clef_feature_min` (0,5; “cá heo bay” ra animals 0,46 nên bị loại). Lợi ích là độ phủ, không tiết kiệm lượt Agent. Log `clef_features`.
+- **`record_fact` (soft, hard, chỉ khi `how` là inferred).** Sau khi câu trích đã khớp tin nhắn, Clef hỏi câu trích có nói điều này không; chắc là không (`clef_verify_min` 0,75: đo thật thì ca không liên quan ra B 0,8–0,9, ca đúng ra B ≤ 0,15; ca ngược nghĩa như “không thích đông” so với “muốn đông” chỉ ra B 0,41 nên Clef không bắt được) thì từ chối như mọi lần từ chối khác để Agent tự sửa. Log `clef_unsupported`.
+- **Lời Agent viết.** Cạnh `bad_say` (số, tên địa điểm), Clef hỏi lời có hứa kết quả hoặc nêu sự thật người dùng chưa nói không (`clef_reply_min`); có thì thay bằng `UNSURE_SAY`.
+- **`ask_choice` / `ask_text`.** Clef hỏi State đã trả lời câu này chưa (`clef_repeat_min`); rồi thì Agent nhận lỗi và hỏi điều khác. Log `clef_repeat`.
+
+Chưa làm: bỏ qua Agent khi người dùng bấm chip. Chip do Agent viết là nhãn tự do (không có giá trị có cấu trúc) và câu hỏi tiếp theo cũng do Agent sinh, nên bỏ Agent ở đây cần ngân hàng câu hỏi, thứ đã bị bỏ.
+
+
+Prompt là chuỗi chat: system prompt + ontology bất biến (`agent/prompt.py`; không chứa ngày hôm nay), transcript user/agent của phiên, một message `CURRENT CONTEXT` (Trip State chuẩn hóa kèm nguồn, thẻ đang mở, `keyword_hints` của prepass, `compared_places`, `still_needed`, ngày hôm nay), rồi câu user mới. `CURRENT CONTEXT` là nguồn sự thật khi transcript mâu thuẫn.
 
 **So sánh với một nơi** ("không thích quán giống X", "kiểu X"): khi câu có "giống / kiểu / như / tương tự" và ngay sau đó là tên một nơi tra được trong catalog (`resolve.search`, tên đầy đủ có trong câu), `domain/traits.py` tính trước các **nét nổi bật** của nơi đó: feature đã phục vụ (`Known`) có giá trị khác giá trị phổ biến nhất của các nơi cùng category, xếp theo số người nhắc, tối đa 4 nét, tối đa 2 nơi mỗi câu. Chúng vào `CURRENT CONTEXT` dưới `compared_places`; không cần tool step. Agent viết soft `inferred`: "không thích giống X" → `<feature>=<value>:avoid` cho từng nét, "kiểu X" → `:love`. Guard bỏ soft `inferred` có quote nhắc X mà giá trị không nằm trong nét của X ở chính lượt đó, và cho `say` nhắc tên X (như anchor). Soft chỉ đổi thứ hạng, không loại nơi nào. X không có trong catalog → không có `compared_places`, agent nói không tìm thấy.
 
@@ -137,65 +157,31 @@ Prompt Agent là chuỗi chat append-only: system prompt + ontology bất biến
 
 ## 5. Chọn câu hỏi tiếp theo
 
-Ba tầng, xét theo thứ tự. Ngân hàng câu hỏi nhóm A–I: §12.
+Agent tự chọn, theo hướng dẫn trong system prompt: trước hết hỏi các mục `still_needed` (mỗi lượt một câu, thứ tự theo mạch người dùng kể), khi đã đủ thì tiếp tục hỏi về điều người dùng muốn từ chuyến đi (mục đích, sở thích, nhịp độ, giới hạn, ngân sách, nơi muốn đến) tới khi họ tự bấm Next; không hỏi lại điều đã biết. Mỗi lượt agent phải ghi mọi fact trong tin nhắn (kể cả điều suy ra và ý nghĩa của lựa chọn vừa bấm) bằng nhiều `record_fact`. `Bỏ qua` / `Không chắc` để trường là `unknown`.
 
-```text
-Tầng 1 — BẮT BUỘC (rule, không chấm điểm)
-   Tín hiệu an toàn / thể chất xuất hiện       → nhóm C
-   Field chặn kiểm tra khả thi còn thiếu       → nhóm A (ngày, base, phương tiện)
-   User dán link / nêu nơi cụ thể              → nhóm E (xác nhận anchor, độ ưu tiên)
+Hai điều code giữ cứng, agent không nới được: (1) Next khóa cho tới khi đủ điều kiện tối thiểu và không còn tín hiệu sức khỏe / thể chất mở (§6, §7); (2) giá trị chỉ vào Trip State qua `record_fact` có bằng chứng.
 
-Tầng 2 — ĐI THEO MẠCH USER
-   Câu tiếp theo bám vào điều user vừa mở ra
-   Từ chủ quan → làm rõ nghĩa · nêu nơi cụ thể → hỏi "vì sao" (tối đa 1–2 bậc)
+**Câu mở `frame` là khung chat của web** (`docs/UI_SPEC_USER_WEB.md` Trang 3): người dùng kể, dán link hoặc đính kèm danh sách, nói bao nhiêu lượt cũng được, agent có thể hỏi lại ngay trong chat.
 
-Tầng 3 — GIÁ TRỊ THÔNG TIN (chấm điểm, §6)
-   Trong các câu còn lại, chọn câu làm tập ứng viên đổi nhiều nhất trên mỗi đơn vị công sức
-```
+Từ chủ quan ("chill", "đẹp") agent không đoán feature mà hỏi nghĩa. `prepass` đưa các cách hiểu có thể thành `keyword_hints` để agent xác nhận.
 
-Sau tầng 1, nếu phiên có prior từ mẫu dài hạn, **một thẻ xác nhận** (`prior`, §17) đứng trước mọi câu thích ứng: giữ cả nhóm một chạm thay vì hỏi từng field.
+### Hậu cần
 
-Nhóm C nằm ở tầng 1 vì câu an toàn có thể có điểm thấp ở tầng 3 (hiếm gặp) nhưng sai thì hậu quả nặng. Constraint cứng vẫn fail-closed.
+`domain/logistics.py` giữ các hàm thuần cho điểm vào / ra và giờ giấc: `entry_road` (đèo theo hướng `origin`, `config/trip.yaml` `entry_roads`), `nearest_airport` (`config/airports.yaml`), `route` (IATA hoặc tỉnh của chuyến tới), `pick_transit` (một `Transit` đã chọn → `arrive_at` = giờ đến + `arrival_buffer_min`, `leave_at` = giờ đi − đệm, `entry_point` / `exit_point`). Không còn thẻ hậu cần cố định: agent hỏi bằng thẻ thường và ghi qua `record_fact` các trường `entry_point`, `exit_point`, `arrive_at`, `leave_at`, `day_end`, `base`; `origin`, `arrival_mode`, `inbound`, `outbound`, `lodging_booked`, `lodging` chưa có đường ghi từ agent, giữ `unknown` (vé chuyến vẫn sửa / xóa được các dòng này, `{kind: "edit", target, value | null}`).
 
-## 6. Đo "câu hỏi có đổi kết quả không"
+`Transit` (`state.py`) chỉ đến từ crawl, không bao giờ do model viết: `{mode, carrier, depart_at, arrive_at (giờ VN "YYYY-MM-DDTHH:MM"), from_point, to_point, price_vnd | null, source, fetched_at}`.
 
-Place Intelligence được xây offline nên truy vấn rẻ. Hệ thống thử ngầm từng đáp án khả dĩ trên serving index:
+## 6. Next do người dùng bấm
 
-```text
-với mỗi field chưa biết f:
-    với mỗi đáp án khả dĩ a (các chip của câu hỏi):
-        TopK(a) = lọc + xếp hạng ứng viên giả sử f = a
-    impact(f) = Σ P(a) · distance(TopK(a), TopK_hiện_tại)
-    score(f)  = impact(f) / cost(f)
-```
+Agent không quyết định khi nào xong. Người dùng bấm Next (`{kind: "show"}`) bất cứ lúc nào view báo `understanding.ready = true`; web hiện nút "Xem gợi ý" ở cột "Đang hợp với bạn", Streamlit tester có nút Next.
 
-| Thành phần | Nguồn |
-|---|---|
-| `P(a)` | Profile nếu có; cold start dùng phân bố chung của user, không có thì phân bố đều |
-| `distance` | Jaccard trên top-K, hoặc tỉ lệ ứng viên bị loại |
-| `cost(f)` | Độ khó trả lời + độ nhạy cảm (ngân sách, sức khỏe cost cao hơn nhịp độ) |
+`ready` do code tính (`domain/readiness.py`, `config/trip.yaml` `required`): mặc định `days`, `companions`, `mobility` và `when` (một `start_date` hoặc `month`) đã biết (giá trị suy ra từ từ khóa tính là biết, vẫn hiện ✎ để sửa), cộng không còn tín hiệu sức khỏe / thể chất mở (§7). View kèm `missing: [{target, label}]` để UI nói còn thiếu gì. `{kind: "show"}` khi chưa đủ không chuyển bước: engine trả câu `MISSING_SAY` nêu mục còn thiếu và giữ nguyên thẻ đang mở.
 
-Ví dụ: 6 anchor rải rác → `travel tolerance` chia top-K mạnh → score cao. Chỉ 1 anchor ở trung tâm → câu đó gần như không đổi gì → bỏ.
+"Xem gợi ý" không biến `unknown` của hard constraint thành pass (fail-closed). Sau khi bấm, field còn thiếu giữ `unknown`; hệ thống chuyển sang đề xuất và học tiếp từ phản hồi: compare, critique, lý do bỏ (`Project_Context.md` §8.3–8.4).
 
-Feature trong Search Input dùng chung id với feature ontology của corpus (`docs/CORPUS.md` §Bản ghi địa điểm), nên việc thử đáp án chạy thẳng trên serving record.
+## 7. Tín hiệu an toàn
 
-## 7. Điều kiện dừng
-
-Dừng hỏi khi gặp một trong các điều kiện:
-
-- `score` cao nhất còn lại dưới ngưỡng: không câu nào đổi tập ứng viên đáng kể.
-- Hết ngân sách lượt (`turn_budget`, mặc định 5 lượt thích ứng sau thẻ mở đầu, trước đề xuất đầu tiên): ngân sách là sức người dùng chịu trả lời.
-- `idle_limit` câu thích ứng liên tiếp không thêm gì vào Trip State (trả lời không đổi field nào, kể cả `Bỏ qua`): câu hỏi lặp mà không sinh thông tin thì dừng sớm.
-- User chọn `Không chắc` / `Bỏ qua` liên tiếp, hoặc trả lời cụt.
-- User yêu cầu "xem gợi ý trước" (mixed initiative, được phép bất cứ lúc nào).
-
-Một câu gõ khi thẻ đang mở chỉ tính là đã trả lời thẻ khi nó ghi được field của thẻ (thẻ do agent viết: thêm được bất cứ gì). Câu không trả lời (lạc đề, hỏi ngược) giữ thẻ mở và không tốn ngân sách lượt; câu thứ hai như vậy liên tiếp trên cùng thẻ thì thẻ tính là đã hỏi. Câu không thêm gì vẫn tính vào `idle_limit`.
-
-Chip và câu gõ gửi cùng một lượt: giá trị câu gõ nêu rõ thay giá trị chip cho cùng field, và lời đáp nói rõ "Mình ghi theo câu bạn gõ: …" thay vì ghi đè lặng lẽ.
-
-"Xem gợi ý" không biến `unknown` của hard constraint thành pass: câu bắt buộc còn thiếu vẫn được hỏi lại (fail-closed).
-
-Sau khi dừng, field còn thiếu giữ `unknown`. Hệ thống chuyển sang đề xuất và học tiếp từ phản hồi: compare, critique, lý do bỏ (`Project_Context.md` §8.3–8.4).
+Tín hiệu sức khỏe, cơ thể, ăn kiêng (`knee`, `elderly`, `kids`, `wheelchair`, `pregnant`, `motion_sick`, `height`, `vegetarian`) vào Trip State dưới dạng `signal`; mỗi signal chưa được xử lý là "mở". Khi còn signal mở: `ready` là false (mục `signal` trong `missing`), `{kind: "show"}` bị từ chối, `compile_search_input` ném `UnhandledSignal` (`domain/compile.py`). Bộ từ khóa (`prepass`) ghi `signal` và hard filter tương ứng ("đau gối", "không đi bộ xa") không phụ thuộc agent; một hard filter phủ tín hiệu thì signal được coi là đã xử lý. Không có đường code nào nới ràng buộc thể chất.
 
 ## 8. Bản hiểu nhu cầu
 
@@ -212,7 +198,7 @@ Chưa rõ    ngân sách · ăn uống
 
 - `✎` = từ profile hoặc suy luận. User sửa tại chỗ, kể cả phần lấy từ profile.
 - Sở thích suy từ một nơi người dùng so sánh ghi nguồn `place:<id>` trong evidence; vé gộp chúng thành một dòng "Tránh: ồn, đông (giống X)", xóa dòng đó là xóa cả nhóm.
-- "Đang hợp với bạn" = số nơi qua giới hạn cứng và hợp gu hiện tại (`understanding.matching`). Mỗi chip của thẻ đang mở mang `effect`: số nơi đó tăng (+) hay giảm (−) nếu chỉ chọn chip này, tính trên bản sao Trip State (`chip_effects`, khoảng 8 ms một thẻ trên corpus thật); chip không đổi gì thì không có số. Web hiện số trên chip và ghi bốn lựa chọn gần nhất kèm +/−.
+- "Đang hợp với bạn" = số nơi qua giới hạn cứng và hợp gu hiện tại (`understanding.matching`). Chip có `drafts` mang `effect` (số nơi tăng / giảm nếu chỉ chọn chip đó, `chip_effects`); thẻ do agent viết không có `drafts` nên không có `effect`.
 - Sửa ở đây là override **của chuyến này**, không tự ghi vào long-term profile.
 - Mục "Chưa rõ" hiển thị công khai, không giấu.
 
@@ -223,7 +209,8 @@ Output cuối cùng, đầu vào của Place Decision (`docs/PLACE_DECISION.md` 
 ```text
 Search Input
 ├── context        start_date | month, days, base, entry_point, exit_point, mobility, companions,
-│                  people, arrive_at, leave_at, day_end, budget_vnd, experience
+│                  people, arrive_at, leave_at, day_end, budget_vnd, experience,
+│                  origin, arrival_mode, inbound, outbound, lodging_booked, lodging
 ├── hard_filters   physical + user hard constraint            → loại ứng viên (fail-closed)
 ├── anchors        nơi bắt buộc + độ ưu tiên                  → giữ; đánh giá xung quanh chúng
 ├── soft_weights   sở thích đã làm rõ, theo feature id         → xếp hạng
@@ -246,7 +233,7 @@ Quy tắc cho `unknown`: không dùng để lọc, không suy thành "không th�
 
 ## 10. Điều chỉnh theo người dùng
 
-Không chia persona với kịch bản hỏi riêng. Ngân hàng câu hỏi dùng chung; thứ thay đổi là ba tham số `guidance`, `effort_budget`, `control` (`Project_Context.md` §3.3); căn cứ nghiên cứu ở `Project_Context.md` §12.1.
+Không chia persona với kịch bản hỏi riêng. Cùng một agent cho mọi người dùng; thứ thay đổi là ba tham số `guidance`, `effort_budget`, `control` (`Project_Context.md` §3.3); căn cứ nghiên cứu ở `Project_Context.md` §12.1.
 
 | Tín hiệu | Cách hỏi |
 |---|---|
@@ -263,91 +250,18 @@ Chỉ dùng thông tin user đã cung cấp hoặc thể hiện trong hội tho�
 
 | Vấn đề | Cách xử lý |
 |---|---|
-| Hỏi nhiều → mệt | Câu dễ gộp vào một thẻ chip; câu thích ứng có ngân sách lượt |
+| Hỏi nhiều → mệt | Agent hỏi một câu mỗi lượt, chỉ điều đổi kết quả; không câu nào bắt buộc |
 | Hỏi lại cái đã biết | Xác nhận 1 chạm thay vì hỏi mở |
 | User không biết trả lời | Hỏi cách dùng, không hỏi thuộc tính; luôn có chip gợi ý + nhập tự do |
 | `Không chắc` | Hợp lệ; ghi `unknown`, học tiếp qua đề xuất |
 | Không hiểu vì sao bị hỏi | Nói lý do hoặc tác động ("để tránh chỗ leo dốc", "còn 38 → 14 nơi") |
 | Hệ thống đoán sai | Bản hiểu nhu cầu đánh dấu ✎ phần suy luận / profile; sửa tại chỗ |
-| Hệ thống nhớ gu từ các chuyến trước | Một thẻ "giữ như mọi lần / chuyến này khác" thay cho nhiều câu; chỉ nhớ khi user đồng ý; xóa được (§17) |
+| Hệ thống nhớ gu từ các chuyến trước | Giá trị nhớ vào Trip State như mặc định ✎ để agent không hỏi lại; chỉ nhớ khi user đồng ý; xóa được (§17) |
 | Câu nhạy cảm (sức khỏe, ngân sách, ăn kiêng) | Giọng trung tính, nói rõ vì sao hỏi, luôn có `Bỏ qua` |
 
-## 12. Ngân hàng câu hỏi
+## 12. Nguyên tắc đặt câu hỏi
 
-Bộ câu hỏi là **ngân hàng**, không phải form; nhóm A–I là nhóm chủ đề, **không phải thứ tự hỏi** (thứ tự do §5 quyết định). Hệ thống chỉ lấy câu còn thiếu và có khả năng đổi kết quả (`Project_Context.md` §12.1 #1); câu đã biết từ input, anchors hoặc User Profile thì hiển thị để xác nhận thay vì hỏi lại (`Project_Context.md` §7.1). Mọi câu đều có `Không chắc` và `Bỏ qua`.
-
-**A. Khung chuyến đi** — gần như luôn cần; thiếu thì không lập được lịch.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Bạn đi ngày nào, trong mấy ngày? | chọn ngày / "chưa chốt, khoảng … ngày" | `dates`, `duration` |
-| Bạn ở khu nào? | chọn trên bản đồ / "chưa đặt" | `accommodation / base` |
-| Bạn di chuyển trong Đà Lạt bằng gì? | tự lái xe máy · ô tô riêng · Grab/taxi · chưa biết | `mobility` |
-| Có mốc giờ cố định nào không? | giờ nhận/trả phòng · giờ xe/máy bay · lịch hẹn | `user hard constraints` |
-
-**B. Người đồng hành** — thay đổi mạnh tập địa điểm phù hợp.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Bạn đi cùng ai? | một mình · cặp đôi · bạn bè · gia đình có trẻ nhỏ · có người lớn tuổi | `companions` | [19] (quan hệ, tương tác xã hội là động cơ du lịch) |
-| (nếu đi nhóm) Trong nhóm có ai sở thích khác hẳn hoặc là người chốt quyết định? | có · không · không chắc | `companions` | [22] (quyết định nhóm trong du lịch) |
-
-**C. Ràng buộc thể chất và tiếp cận** — hard constraint, fail-closed.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Có ai ngại đi bộ xa, leo dốc/bậc thang, hoặc cần lối đi bằng phẳng? | đi bộ ≤ ~15 phút · tránh dốc/bậc · không giới hạn | `physical constraints` | [23] (nhu cầu tiếp cận: vận động, thị giác, thính giác, nhận thức; gồm cả trẻ nhỏ, người lớn tuổi) |
-| Có ai say xe đường đèo, sợ độ cao, dị ứng hoặc ăn kiêng? | chọn nhiều | `physical constraints` | [23] |
-
-**D. Hard constraint của người dùng**
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Mức chi cho ăn uống và vé tham quan, mỗi người mỗi ngày? | các khoảng tiền · không quan trọng | `user hard constraints` |
-| Có kiểu địa điểm nào chắc chắn không muốn đi? | chọn nhiều + nhập tự do | `user hard constraints` |
-
-**E. Anchors**
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Có nơi nào bạn nhất định muốn đi hoặc đã lưu sẵn? | dán link TikTok / Maps · gõ tên | `anchors` |
-| Nếu không đủ thời gian, nơi nào có thể bỏ trước? | xếp thứ tự các anchor | `anchors` (độ ưu tiên) |
-
-**F. Nhịp độ và mức chịu đựng** — soft; lấy mặc định từ Behavioral Defaults nếu có (`Project_Context.md` §6.2).
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào |
-| ----------- | -------------- | ------- |
-| Chuyến này thiên về nghỉ ngơi hay khám phá nhiều nơi? | thong thả · cân bằng · đi nhiều | `pace` |
-| Một chặng di chuyển tối đa bao lâu thì bạn vẫn thấy ổn? | ≤ 15 · ≤ 30 · ≤ 60 phút | `travel tolerance` |
-| Chỗ đông người thì sao? | tránh · chấp nhận nếu đáng · không ngại | `crowd tolerance` |
-| Bạn hay bắt đầu ngày lúc mấy giờ? | sớm (săn mây) · bình thường · muộn | Behavioral Defaults |
-| Nếu trời mưa, bạn muốn? | đổi sang trong nhà · giữ nguyên nếu được · để hệ thống đề xuất | `trip-specific override` |
-
-**G. Mục đích và kiểu trải nghiệm** — soft; hỏi theo cách dùng (`Project_Context.md` §12.1 #4).
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Chuyến này chủ yếu để làm gì? | thoát khỏi nhịp thường ngày · thư giãn · gắn kết người đi cùng · thiên nhiên · văn hóa/ẩm thực địa phương · chụp ảnh · thử điều mới | preference của chuyến (`trip-specific override`) | [19], [20] |
-| Bạn hình dung khoảnh khắc đáng nhớ nhất của chuyến này là gì? | nhập tự do | preference của chuyến | [8], [15] |
-| Chọn vài ảnh bạn thấy "đúng chất" chuyến này. | lưới ảnh | preference của chuyến | [21] |
-
-**H. Kinh nghiệm và mức mới lạ** — chỉ dùng khi user tự nhắc tới chuyến trước.
-
-| Câu hỏi mẫu | Lựa chọn gợi ý | Ghi vào | Căn cứ |
-| ----------- | -------------- | ------- | ------ |
-| Bạn đã đến Đà Lạt chưa? Lần trước đã đi đâu? | chưa · rồi + chọn nơi đã đi | Experience History | [20] (động cơ đổi theo kinh nghiệm: người có kinh nghiệm thiên về trải nghiệm văn hóa địa phương, thiên nhiên) |
-| Lần này muốn quay lại chỗ quen hay thử cái mới? | theo gu thường ngày · muốn thử điều mới · trộn | `trip-specific override` (novelty) | `Project_Context.md` §6.3, §7.1 |
-
-**I. Câu hỏi nối tiếp** — chỉ xuất hiện khi được kích hoạt.
-
-| Khi nào | Câu hỏi mẫu | Căn cứ |
-| ------- | ----------- | ------ |
-| User dùng từ chủ quan ("chill", "yên tĩnh") | Với bạn "chill" nghĩa là: ít người · có view · ngồi lâu được · nhạc nhẹ? | [10] |
-| User nêu một địa điểm/hoạt động cụ thể | Điều gì ở nơi đó làm bạn muốn đến? | [18] |
-| User chọn `Không chắc` nhiều câu liền | Bạn muốn xem vài gợi ý trước rồi chỉnh không? | [16], [17] |
-| User bỏ một đề xuất | Vì sao bạn bỏ địa điểm này? (`Project_Context.md` §8.3) | [17] |
-
-Cài đặt: `src/trip/domain/questions.py` (ngân hàng + rule tầng 1), `config/trip.yaml` (`turn_budget`, `idle_limit`, `stop_score`, `top_k`, `patterns`). Căn cứ nghiên cứu của từng nguyên tắc đặt câu hỏi: `Project_Context.md` §12.1.
+Không có ngân hàng câu hỏi: agent viết câu hỏi và lựa chọn mỗi lượt (`agent/prompt.py`). Nguyên tắc căn cứ nghiên cứu ở `Project_Context.md` §12.1 mà prompt áp: hỏi cách dùng ("chuyến này để làm gì"), không hỏi thuộc tính; chỉ hỏi điều đổi kết quả; một câu mỗi lượt; luôn có thể bỏ qua; không hỏi lại điều đã biết (từ user, anchor hay profile); từ chủ quan thì hỏi nghĩa; câu nhạy cảm nói rõ vì sao hỏi. Lựa chọn của thẻ chỉ là dữ liệu trả lại agent, không ghi thẳng vào Trip State.
 
 ## 13. Giọng điệu
 
@@ -373,9 +287,9 @@ Quy tắc:
 Giọng điệu chỉ đổi cách diễn đạt, không đổi nội dung câu hỏi, lựa chọn gợi ý hay field được ghi.
 ## 14. CLI và API
 
-User Web gọi Trip qua harness bằng journey chung (`docs/AGENT_HARNESS.md`). Public API xuất `Tools`, `create_engine`, `SearchInput`; `tools.py` giữ snapshot do Trip sở hữu. `skills.yaml` khai báo quyền Trip; `agent.py` dùng runtime public `agents`. Heuristic trước Agent và điều kiện bypass: `docs/AGENT_HARNESS.md` §5.
+User Web gọi Trip qua harness bằng journey chung (`docs/AGENT_HARNESS.md`). Public API xuất `Tools`, `create_engine`, `SearchInput`; `tools.py` giữ snapshot do Trip sở hữu. `skills.yaml` khai báo quyền Trip; `agent/` chạy vòng tool (§4). Heuristic trước Agent và điều kiện bypass: `docs/AGENT_HARNESS.md` §5.
 
-API độc lập: `python -m trip serve [--port 8766]` bind `127.0.0.1`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); thiếu thì lượt chữ cần suy luận chạy bằng `policy.py`.
+API độc lập: `python -m trip serve [--port 8766]` bind `127.0.0.1`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`) trỏ tới endpoint nhận function calling; thiếu hoặc lỗi thì lượt chữ chỉ có phần `prepass` ghi (§4).
 
 ```
 POST   /api/trip/sessions          {experience?, start_with?, user_id?, remember?}  → phiên mới + thẻ mở đầu
@@ -391,25 +305,27 @@ Module:
 
 ```
 src/trip/
-  settings.py       ngưỡng từ config/trip.yaml
-  text.py           so khớp tên bỏ dấu, bỏ dấu câu
-  state.py          TripState (mỗi field có value, source, confidence, status, evidence), SearchInput
-  catalog.py        đọc serving index: tên → place_id, coverage của hard filter
-  prepass.py        rule tất định đọc câu người dùng trước khi gọi model
-  resolve.py        tên người dùng nêu → place_id, hoặc unmapped
-  traits.py         nét nổi bật của nơi người dùng so sánh ("giống X"), chỉ từ catalog
-  values.py         chuẩn hóa giá trị về field của Trip State
-  questions.py      ngân hàng câu hỏi (§12) + rule tầng 1 + chấm giá trị thông tin (§6)
-  coverage.py       hard filter này có đủ bằng chứng trong corpus để đáng hỏi không
-  patterns.py       phiếu bầu, phát hiện mẫu, nạp prior vào Trip State (§17)
-  profile.py        lịch sử phiếu bầu theo user id: data/trip/profiles/<user_id>.json (§17)
-  understanding.py  bản hiểu nhu cầu (§8)
-  compile.py        Trip State → Search Input (§9)
-  agent.py guard.py policy.py   một call mỗi lượt; guard; policy từ khóa khi agent lỗi
-  engine.py sessions.py server.py  phiên có phiên bản, HTTP + SSE, cổng 8766
+  domain/
+    state.py        TripState (mỗi field có value, source, confidence, status, evidence), SearchInput
+    card.py         thẻ trả lời: Question, Chip, thẻ mở đầu, ô gõ tự do
+    guard.py        record_fact (kiểm bằng chứng), bad_say, drop_questions
+    values.py       chuẩn hóa giá trị về field của Trip State
+    prepass.py      rule tất định đọc câu người dùng (từ khóa, link) trước khi gọi model
+    resolve.py      tên người dùng nêu → place_id, hoặc unmapped
+    traits.py       nét nổi bật của nơi người dùng so sánh ("giống X"), chỉ từ catalog
+    dates.py        ngày tương đối → ngày
+    logistics.py    điểm vào / ra, chuyến tới, giờ giấc (§Hậu cần)
+    coverage.py     hard filter có đủ bằng chứng trong corpus không
+    patterns.py     phiếu bầu, phát hiện mẫu, nạp prior vào Trip State (§17)
+    readiness.py    điều kiện tối thiểu của Next: `ready`, `missing` (§6)
+    understanding.py bản hiểu nhu cầu (§8)
+    compile.py      Trip State → Search Input (§9)
+  agent/            loop.py (vòng gọi model + tool), tools.py, prompt.py
+  api/              engine.py (một lượt, giao dịch phiên), server.py (HTTP + SSE, cổng 8766), tools.py (adapter harness)
+  infrastructure/   catalog.py, sessions.py, profile.py (§17), settings.py (config/trip.yaml)
 ```
 
-Test: `python -m pytest -q tests/trip`; gọi model thật: `python -m pytest -m live tests/trip/test_live.py`.
+Test: `python -m pytest -q tests/trip`; model được thay bằng `ScriptedChat` (`tests/trip/trip_fixtures.py`), test không gọi mạng.
 
 
 ## 15. Ví dụ đầy đủ
@@ -422,15 +338,14 @@ Test: `python -m pytest -q tests/trip`; gọi model thật: `python -m pytest -m
 ③ Trích xuất   duration = 3 · tháng 12 · companions = bố mẹ · "chill" (chủ quan) · 2 anchor
 ④ Xung đột     bố mẹ → tắt hiking cho chuyến này (không hỏi)
                đã đi Langbiang → novelty nghiêng về mới (đưa vào bản hiểu nhu cầu để xác nhận)
-⑤ Lỗ hổng      tầng 1: physical (tín hiệu người lớn tuổi), ngày cụ thể, base, phương tiện
-               tầng 2: nghĩa của "chill"
-               tầng 3: nhịp độ → score thấp vì "chill" + bố mẹ đã suy ra thong thả
+⑤ Lỗ hổng      agent thấy: tín hiệu người lớn tuổi chưa xử lý, ngày cụ thể, base, phương tiện, nghĩa của "chill"
+               nhịp độ không đáng hỏi vì "chill" + bố mẹ đã suy ra thong thả
 
-Lượt 1 (thẻ chip)  Ngày cụ thể? · Ở khu nào? · Đi lại bằng gì?
+Lượt 1 (thẻ do agent viết)  Ngày cụ thể? · Ở khu nào? · Đi lại bằng gì?
 Lượt 2             "Để tránh chỗ phải leo dốc: bố mẹ có ngại đi bộ xa hoặc bậc thang không?"
                    [Có · Không · Bỏ qua]
 Lượt 3             "'Chill' với bạn là: ít người · có view · ngồi lâu được · nhạc nhẹ?"
-→ Dừng: câu còn lại (ngân sách, ăn uống) không đổi top-K đáng kể
+→ `ready` bật khi đủ điều kiện tối thiểu; agent vẫn hỏi tiếp về gu, người dùng bấm Next khi muốn
 ```
 
 Bản hiểu nhu cầu: như ví dụ ở §8. Search Input tương ứng:
@@ -465,7 +380,7 @@ Chỉ số thật từ pilot đi vào `Project_Context.md` §18–19.
 
 Cá nhân hóa cho lần hỏi sau: gu người dùng lặp lại qua nhiều chuyến trở thành **prior**, xác nhận một chạm thay vì hỏi lại (`Project_Context.md` §8.6, §11). Mặc định **tắt** (`patterns.enabled: false` trong `config/trip.yaml`) cho tới khi cơ chế cập nhật được kiểm bằng khảo sát người dùng.
 
-**Điều kiện chạy.** Cần `patterns.enabled`, `user_id` trên phiên (chuỗi mờ 8–64 ký tự `A-Za-z0-9_-`; khi có đăng nhập sẽ gắn user id này vào tài khoản) và `remember = true` để **ghi**. Có `user_id` mà không `remember` thì chỉ đọc mẫu đã có. Xóa: `DELETE /api/harness/profile/<user_id>` (User Web), `DELETE /api/trip/profile/<user_id>` (API độc lập) hoặc `Engine.forget`.
+**Điều kiện chạy.** Cần `patterns.enabled`, `user_id` trên phiên (chuỗi mờ 8–64 ký tự `A-Za-z0-9_-`; qua User Web là id tài khoản, harness lấy từ phiên đăng nhập, `docs/ACCOUNTS.md`) và `remember = true` để **ghi**. Có `user_id` mà không `remember` thì chỉ đọc mẫu đã có. Xóa: `DELETE /api/harness/profile/<user_id>` (User Web), `DELETE /api/trip/profile/<user_id>` (API độc lập) hoặc `Engine.forget`.
 
 **Phiếu bầu.** Lúc người dùng bấm xem gợi ý, `votes_from_state` lấy các lựa chọn **tường minh** của phiên: `purpose`, `pace`, `crowd_tolerance`, `novelty`; `soft` do user nói hay chọn (`love` | `avoid`); nơi đã khớp thành anchor. Phiên ghi một `Summary` (id phiên, ngày, phiếu), ghi lại cùng phiên thì thay chứ không cộng. Không bao giờ thành phiếu:
 
@@ -481,6 +396,6 @@ Cá nhân hóa cho lần hỏi sau: gu người dùng lặp lại qua nhiều ch
 
 **Prior.** `seed` ghi mẫu vào Trip State với `source = profile` (✎ trong bản hiểu nhu cầu); mọi thứ chuyến này nói đều ghi đè, vì chuyến hiện tại thắng profile. Mẫu thúc đẩy vận động (`hiking`, `adventure_activity`, `pace = packed`) bị bỏ ngay khi chuyến có giới hạn vận động (signal hay hard filter). Mẫu về nơi không tự vào chuyến: chỉ hiện thành chip "Thêm <tên>" (anchor `want`) và chỉ khi nơi còn trong serving index. Mẫu mà ontology không còn biết bị bỏ qua.
 
-**Thẻ `prior`** (tier 2) nằm sau các câu bắt buộc và trước mọi câu thích ứng: "Ở các chuyến trước bạn hay chọn …. Giữ vậy cho chuyến này nhé?" với `Giữ như mọi lần`, `Chuyến này khác` (xóa prior, hỏi như thường; không coi là không thích) và chip nơi hay chọn. Hỏi một lần mỗi phiên; `Bỏ qua` giữ prior ở trạng thái ✎.
+**Prior trong hội thoại.** Không có thẻ xác nhận riêng: giá trị seed mang `source = profile` trong `CURRENT CONTEXT`, agent coi là mặc định và để lời user ghi đè. Mẫu về nơi (`meta.prior` giữ khóa `place:<id>`) hiện chưa được đưa cho agent.
 
 **Còn mở.** Chưa có giao diện xin `remember` và cho xem / xóa mẫu; mẫu `avoid` cho nơi chưa có nguồn phiếu (Decision `drop` chưa nối vào); ngưỡng `min_sessions`, `agreement` chờ số liệu khảo sát.

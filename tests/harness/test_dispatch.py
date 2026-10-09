@@ -48,6 +48,8 @@ class Tools:
             return self._compiled(sid, emit)
         elif operation == "confirm":
             return {"confirmed": [{"id": "place-1"}], "value": self.states[sid]["value"]}
+        elif operation == "act" and payload.get("place") == "not-in-backups":
+            raise ValueError("'not-in-backups' is not in the backup pool")
         else:
             self.states[sid]["value"] += 1
         return self.load(sid)
@@ -70,14 +72,40 @@ class Tools:
             raise ValueError("text must be 1-1000 characters")
         return {"id": "r1", "stored": True}
 
+    def places(self, query):
+        return [{"id": "place-1", "name": query}]
+
     def forget(self, user_id):
         return user_id == "user-abc-123"
 
+    def geo(self, q):
+        return [{"text": q, "address": "", "province": "Hồ Chí Minh", "lat": 10.77, "lng": 106.7,
+                 "source": "photon", "fetched_at": "2026-10-08T00:00:00+00:00"}]
+
+    def lodging_suggest(self, q):
+        return [{"kind": "address", "text": q, "address": "", "lat": 11.94, "lng": 108.45}]
+
+    def transit(self, params):
+        if params.get("mode") not in ("plane", "bus"):
+            raise ValueError("mode must be plane or bus")
+        self.calls += 1  # pending on the first two polls, then the crawl "lands"
+        ready = self.calls > 2
+        return {"status": "ready" if ready else "pending", "book_url": "https://book",
+                "trips": [{"mode": "plane", "carrier": "Vietjet"}] if ready else []}
+
+
+def file_store(root):
+    from harness import Store
+    return Store(root)
+
+
+STORE = file_store  # conftest swaps in a PgStore for the pg run of every harness test
+
 
 def make(root=None):
-    from harness import Harness, Store
+    from harness import Harness
     tools = {s: Tools(s) for s in ("trip", "decision", "planning")}
-    return Harness(tools["trip"], tools["decision"], tools["planning"], Store(root)), tools
+    return Harness(tools["trip"], tools["decision"], tools["planning"], STORE(root)), tools
 
 
 def run(h, view, operation, request_id="request-1", payload=None):
@@ -209,7 +237,9 @@ def test_summaries_list_only_the_asked_journeys_with_their_places():
     assert out[1]["places"] == [] and out[1]["days"] is None and not out[1]["confirmed"]
 
 
-def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path):
+def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path, store_kind):
+    if store_kind == "pg":
+        pytest.skip("file layout only; tests/harness/test_pgstore.py covers the feedback table")
     import json
     h, _ = make(tmp_path / "sessions")
     v = h.create()

@@ -52,6 +52,10 @@ class Tools:
             if not isinstance(text, str) or not text.strip() or len(text) > 1000 or set(payload) != {"text"}:
                 raise ValueError("text must be 1-1000 characters")
             self.engine.turn(sid, text, emit)
+            log = self.engine.store.get(sid).log[-1]["action"].get("log", [])
+            # internal to the harness (stripped before the web): how the turn was answered, for usage events
+            emit("trace", {"path": next((x for x in log if x.startswith("heuristic:")), None)
+                           or ("fallback" if any(x.startswith("agent_fallback") for x in log) else "agent")})
             return self.load(sid)
         if operation == "confirm":
             permit_tool(self.skill, "decision.confirm")

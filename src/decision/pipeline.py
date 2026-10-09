@@ -77,11 +77,15 @@ def run(s, data: Data, cfg) -> Result:
     known_days = si.context.days is not None
     wish = set(st.wishlist)
     dropped = {d.place_id for d in st.dropped}
-    anchors = [a.place_id for a in si.anchors if a.place_id not in wish | dropped]  # a dropped anchor is gone
-    keep = (set(anchors) | set(st.selected)) - wish
+    # lodging is Planning's (corpus list <city>_stay): never a suggestion, not even when named
+    stay = {r["id"] for r in data.records if r["identity"].get("category_group") == "stay"}
+    anchors = [a.place_id for a in si.anchors if a.place_id not in wish | dropped | stay]  # a dropped anchor is gone
+    keep = (set(anchors) | set(st.selected)) - wish - stay
 
     cands: dict[str, Cand] = {}
     for r in data.records:
+        if r["id"] in stay:
+            continue
         role = role_of(r)
         if role or r["id"] in keep:
             cands[r["id"]] = Cand(r, role or "experience", keep=r["id"] in keep)

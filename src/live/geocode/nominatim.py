@@ -34,6 +34,21 @@ def _search(q: str, extra: dict, cfg: Settings, clock, sleep) -> list:
     return rows
 
 
+def search_many(q: str, limit: int, cfg: Settings, clock=time.monotonic, sleep=time.sleep) -> list[dict]:
+    """Up to `limit` rows in Việt Nam in geosearch's shape (photon.py falls back to this)."""
+    _throttle(cfg.nominatim_min_interval_s, clock, sleep)
+    query = urllib.parse.urlencode({"q": q, "format": "jsonv2", "limit": limit, "countrycodes": "vn", "addressdetails": 1})
+    rows = get_json(f"{cfg.nominatim_url}?{query}", cfg.user_agent, cfg.timeout_s)
+    if not isinstance(rows, list):
+        raise Unavailable("nominatim: the body is not a list of results")
+    out = []
+    for r in rows:
+        a = r.get("address") or {}
+        out.append({"text": r.get("name") or r.get("display_name", "").split(",")[0], "address": r.get("display_name", ""),
+                    "province": a.get("state") or a.get("city"), "lat": float(r["lat"]), "lng": float(r["lon"])})
+    return out
+
+
 def geocode(text: str, cfg: Settings, city: str = "Đà Lạt, Việt Nam", clock=time.monotonic,
             sleep=time.sleep) -> dict | None:
     """{"lat", "lng", "label", "source", "fetched_at"}, or None when nothing matches. Never guesses a point."""

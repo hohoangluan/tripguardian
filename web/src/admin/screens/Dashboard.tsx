@@ -2,6 +2,7 @@ import { STATUS_LABEL } from '../../data/labels'
 import type { Snapshot, Status } from '../../data/types'
 import { navigate } from '../../router'
 import { Icon } from '../../ui/bits'
+import { useAnalytics, type Today } from '../analytics'
 import { useDecisions } from '../decisions'
 import { fmtAgo, riskOf, STATUS_COLOR, type Risk } from '../model'
 
@@ -101,6 +102,8 @@ export function Dashboard({ snap }: { snap: Snapshot }) {
         </section>
       </div>
 
+      <TodayRow />
+
       <div className="tiles">
         <Tile n={exp.length} label="Địa điểm có bằng chứng" sub={`+ ${(snap.places.length - exp.length).toLocaleString('vi-VN')} chỉ có thông tin Google`} />
         <Tile n={byStatus.VERIFIED} label="Giá trị đã xác minh" sub={`${verifiedPct}% trên ${feats.length.toLocaleString('vi-VN')} giá trị`} />
@@ -195,5 +198,22 @@ function Tile({ n, label, sub, tone }: { n: number; label: string; sub: string; 
       <b>{n.toLocaleString('vi-VN')}</b>
       <small>{sub}</small>
     </div>
+  )
+}
+
+// Users today (Asia/Ho_Chi_Minh day), from the private analytics server (docs/ANALYTICS.md).
+function TodayRow() {
+  const { data, error } = useAnalytics<Today>('today')
+  if (!data) return <p className="a-muted">{error ? `Hôm nay: chưa đọc được số liệu người dùng (${error}).` : 'Hôm nay: đang tải…'}</p>
+  return (
+    <section aria-label="Hôm nay">
+      <h2 className="a-small">Hôm nay · {data.day}</h2>
+      <div className="tiles">
+        <Tile n={data.new_users} label="Người dùng mới" sub={`${data.active_users} người có hoạt động`} />
+        <Tile n={data.journeys} label="Hành trình tạo mới" sub={`${data.confirmed} lịch đã chốt`} />
+        <Tile n={data.feedback} label="Phản hồi sau chuyến" sub="xem ở Phiên chuyến đi" />
+        <Tile n={data.errors + data.fallbacks} label="Lỗi và fallback" sub={`${data.errors} lỗi · ${data.fallbacks} fallback`} tone={data.errors ? 'warn' : undefined} />
+      </div>
+    </section>
   )
 }

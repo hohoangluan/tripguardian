@@ -166,6 +166,20 @@
 .tg-who { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-bottom: 20px; border-radius: 18px; background: var(--tg-surface); border: 1px solid var(--tg-line); }
 .tg-who > div { flex: 1; display: grid; }
 .tg-who__av { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--tg-sun-soft); color: var(--tg-sun-ink); font: 700 1.2rem var(--tg-display); border: 1.5px solid #f4c9a8; }
+.tg-avpick { display: grid; gap: 4px; }
+.tg-avpick__btn { position: relative; cursor: pointer; overflow: visible; }
+.tg-avpick__btn img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.tg-avpick__btn i { position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-pine); color: #fff; border: 2px solid var(--tg-surface); }
+.tg-avpick__btn:focus-within { outline: 3px solid var(--tg-pine-soft); outline-offset: 2px; }
+.tg-pform { display: grid; gap: 12px; }
+.tg-pform select.tg-input { font: inherit; }
+.tg-pform .tg-btn { justify-self: start; }
+.tg-del { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; padding: 20px 24px; margin-bottom: 20px; }
+.tg-del h2 { font: 700 1.05rem var(--tg-sans); letter-spacing: 0; }
+.tg-del__go { color: var(--tg-danger); border-color: var(--tg-danger-line); }
+.tg-del__confirm { display: grid; gap: 8px; padding: 12px 16px; border-radius: var(--tg-r-s); background: var(--tg-danger-bg); border: 1px solid var(--tg-danger-line); }
+.tg-del__confirm > div { display: flex; gap: 8px; }
+.tg-del__yes { background: var(--tg-danger); color: #fff; }
 .tg-prof { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
 .tg-prof__c { padding: 24px; display: grid; gap: 12px; align-content: start; }
 .tg-prof__c h2 { font: 700 1.05rem var(--tg-sans); letter-spacing: 0; }
@@ -187,6 +201,9 @@
 .tg-auth__card { width: min(420px, 100%); display: grid; gap: 16px; }
 .tg-auth__card h1 { font-size: 2.2rem; }
 .tg-auth__try { min-height: 56px; margin-top: 10px; }
+.tg-auth__terms { list-style: disc; margin: 4px 0 16px; padding-left: 20px; display: grid; gap: 8px; color: var(--tg-ink-2); font-size: 0.92rem; line-height: 1.5; }
+.tg-auth__check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; font-size: 0.92rem; cursor: pointer; }
+.tg-auth__check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--tg-pine); }
 .tg-auth__or { display: flex; align-items: center; gap: 14px; color: var(--tg-ink-3); font-size: 0.85rem; }
 .tg-auth__or::before, .tg-auth__or::after { content: ''; flex: 1; height: 1px; background: var(--tg-line-2); }
 .tg-auth__google { min-height: 52px; }

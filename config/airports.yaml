@@ -1,0 +1,14 @@
+# Airports with direct flights to Đà Lạt (DLI, Liên Khương), a static table (docs/TRIP_UNDERSTANDING.md §Hậu cần):
+# the trip flies from the one nearest to where it starts. Routes change by season: check this list against the
+# airlines' schedules when transit prewarm (config/live.yaml transit_prewarm) finds a route with no flights for weeks.
+dest: {iata: DLI, name: "Sân bay Liên Khương", lat: 11.7502, lng: 108.3672}
+airports:
+  - {iata: SGN, name: "Tân Sơn Nhất (TP.HCM)", lat: 10.8188, lng: 106.6520}
+  - {iata: HAN, name: "Nội Bài (Hà Nội)", lat: 21.2212, lng: 105.8072}
+  - {iata: DAD, name: "Đà Nẵng", lat: 16.0439, lng: 108.1992}
+  - {iata: HPH, name: "Cát Bi (Hải Phòng)", lat: 20.8194, lng: 106.7247}
+  - {iata: VII, name: "Vinh (Nghệ An)", lat: 18.7376, lng: 105.6708}
+  - {iata: THD, name: "Thọ Xuân (Thanh Hóa)", lat: 19.9017, lng: 105.4672}
+  - {iata: HUI, name: "Phú Bài (Huế)", lat: 16.4015, lng: 107.7026}
+  - {iata: VDH, name: "Đồng Hới (Quảng Bình)", lat: 17.5150, lng: 106.5906}
+  - {iata: VCA, name: "Cần Thơ", lat: 10.0851, lng: 105.7119}

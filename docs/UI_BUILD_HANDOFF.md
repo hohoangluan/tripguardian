@@ -124,7 +124,7 @@ Cả 7 bước ở §6 đã có trong code. Ảnh chụp kiểm tra ở `web/sho
 | Trang Bắt đầu | Có ô nhập tự do + 4 thẻ lớn; **chưa có** thẻ chip 4 thông tin chặn | Câu hỏi đầu của trang Hiểu chuyến đi đã hỏi đúng 4 thông tin đó; làm hai nơi thì hỏi trùng |
 | Hiểu chuyến đi — ý định | Nhãn ý định suy từ `group`/`qid` của câu hỏi; chuỗi nhiều lượt = các lượt liền nhau cùng ý định | API chưa trả ý định riêng |
 | Hiểu chuyến đi — `Sửa` ở câu con | Mở dòng kết luận tương ứng để sửa giá trị, không hỏi lại câu đó | API chưa có "trả lời lại một câu" |
-| Hiểu chuyến đi — số nơi đang hợp | API trả thêm `matching` / `total` (`src/trip/understanding.py`): số nơi qua giới hạn cứng **hiện tại** | Spec cần con số thật, không dự đoán |
+| Hiểu chuyến đi — số nơi đang hợp | API trả thêm `matching` / `total` (`src/trip/domain/understanding.py`): số nơi **hiện tại** qua giới hạn cứng và hợp gu: có bằng chứng cho ít nhất một điều người dùng thích (chưa thích gì thì không xét), không có bằng chứng cho điều họ tránh; chưa rõ không tính là trái gu | Spec cần con số thật, không dự đoán |
 | Nhãn độ vững | Theo phương án, không theo từng ngày | Planning chỉ trả độ vững cho cả phương án; tab ngày hiện thời gian đi |
 | So sánh 3 nơi | Ghép 2 lần so sánh cặp (nơi 1–2, 1–3) | API so sánh theo cặp |
 | Landing | 3D: hero + 5 beat + CTA (7 điểm dừng camera); sau đó giấy trắng: mosaic ảnh thật → demo → Hỏi nhanh → SẮP CÓ → CTA → footer. Bỏ sa bàn mini và phim thương hiệu 37 s cũ | Đúng cấu trúc §3; hai phần bỏ không có trong spec và mang màu cũ |

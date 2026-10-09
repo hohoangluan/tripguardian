@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { SVGProps } from 'react'
 
 // Thin outline set (24px grid, 1.6 stroke). Decorative by default: pass `title` for a meaningful icon.
@@ -19,6 +20,7 @@ const P: Record<string, string> = {
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
   unlock: 'M7 11V8a5 5 0 0 1 9.5-2.2M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7.5V12l3 2',
+  bell: 'M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16ZM10 20.5a2.2 2.2 0 0 0 4 0',
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4',
   cloud: 'M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8.5a4.75 4.75 0 0 1 0 9.5H7Z',
   rain: 'M7 14a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 4.5a4.75 4.75 0 0 1 0 9.5H7ZM8 17.5l-1 2.5M12 17.5l-1 2.5M16 17.5l-1 2.5',
@@ -62,6 +64,7 @@ const P: Record<string, string> = {
   download: 'M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14',
   plane: 'M10.5 13.5 4 16v-1.8l6.5-4.2V5a1.5 1.5 0 0 1 3 0v5l6.5 4.2V16l-6.5-2.5V18l2 1.5V21L12 20l-3.5 1v-1.5l2-1.5v-4.5Z',
   bus: 'M6 4h12a1.5 1.5 0 0 1 1.5 1.5V17H4.5V5.5A1.5 1.5 0 0 1 6 4ZM4.5 11h15M4.5 7.5h15M7.5 17v2.5M16.5 17v2.5M8 14h.01M16 14h.01',
+  clip: 'M20 11.5l-7.8 7.8a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
 }
 
@@ -76,7 +79,30 @@ export function Icon({ name, size = 20, title, ...rest }: { name: IconName; size
 export const HeartFill = ({ size = 20 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><path d={P.heart} fill="currentColor" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" /></svg>
 )
+// The assistant's face in the chat: the logo's pine, round, with two eyes, and the sun as its spark. Tokens only.
+// The generated mascot (web/scripts/gen_ui_images.py bot-avatar, 160 px) replaces the drawing once that file exists.
+let botImage = true
+export function BotAvatar({ size = 32, live = false }: { size?: number; live?: boolean }) {
+  const [img, setImg] = useState(botImage)
+  return (
+    <span className={`tg-bot ${live ? 'is-live' : ''}`} style={{ width: size, height: size }} aria-hidden="true">
+      {img ? <img src="/img/gen/bot-avatar.webp" alt="" width={size} height={size} onError={() => { botImage = false; setImg(false) }} /> : <svg viewBox="0 0 32 32" width={size} height={size}>
+        <circle cx="16" cy="16" r="16" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
+        <path d="M16 6.5l6.2 8.3h-3.4l4.7 6.7H8.5l4.7-6.7H9.8L16 6.5Z" style={{ fill: '#fff' }} />
+        <rect x="14.6" y="21.5" width="2.8" height="3.6" rx="1" style={{ fill: '#fff' }} />
+        <circle cx="13.9" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
+        <circle cx="18.1" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
+        <circle cx="24.3" cy="8.2" r="2.3" style={{ fill: 'var(--tg-sun, #e8590c)' }} />
+      </svg>}
+    </span>
+  )
+}
+
+// The generated shield mark (web/scripts/make_brand_assets.py cuts it out of gen/app-logo.webp); the drawing stays as the fallback.
+let logoImage = true
 export function Logo({ size = 28, dark = false }: { size?: number; dark?: boolean }) {
+  const [img, setImg] = useState(logoImage)
+  if (img) return <img className="tg-logo" src="/img/logo.webp" alt="" width={size} height={size} onError={() => { logoImage = false; setImg(false) }} />
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
       <rect width="32" height="32" rx="9" style={{ fill: dark ? '#fff' : 'var(--tg-pine, #0f5f5a)' }} />

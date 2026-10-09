@@ -11,6 +11,7 @@
 .tg-rail__a:hover .tg-rail__tip, .tg-rail__a:focus-visible .tg-rail__tip { opacity: 1; transform: translate(0, -50%); }
 .tg-rail__badge { position: absolute; top: 4px; right: 3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--tg-sun); color: #1b0f08; font: 700 0.68rem/18px var(--tg-sans); text-align: center; }
 .tg-rail__me, .tg-flowbar__me { display: grid; place-items: center; width: 40px; height: 40px; }
+.tg-rail__me img, .tg-flowbar__me img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1.5px solid #f4c9a8; }
 .tg-rail__me span, .tg-flowbar__me span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--tg-sun-soft); color: var(--tg-sun-ink); font-weight: 700; border: 1.5px solid #f4c9a8; }
 
 /* ---- focused flow bar ---- */

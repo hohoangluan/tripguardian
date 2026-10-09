@@ -100,8 +100,9 @@ function Card({ c, top, busy, onPick }: { c: LodgingCandidate; top: boolean; bus
         <h3>{c.name}</h3>
         <p className="tg-lod__facts">
           {c.rating ? <span className="tg-mono">★ {c.rating.toFixed(1)}{c.reviews ? <small> ({c.reviews.toLocaleString('vi-VN')})</small> : null}</span> : null}
-          <span className="tg-mono">{c.price_vnd ? `${fmtVnd(c.price_vnd)}/đêm` : 'chưa có giá'}{c.price_vnd && c.price_at ? <small> · giá ngày đi, lúc {at(c.price_at)}</small> : null}</span>
+          <span className="tg-mono">{c.price_vnd ? `${fmtVnd(c.price_vnd)}/đêm` : 'chưa có giá'}</span>
           {c.avg_min != null && <span><Icon name="route" size={14} /> ≈{fmtMin(c.avg_min)} tới các nơi đã chọn</span>}
+          {c.price_vnd && c.price_at ? <small className="tg-lod__at">giá cho ngày đi, xem lúc {at(c.price_at)}; kiểm lại khi đặt</small> : null}
         </p>
         {c.fit?.length ? (
           <p className="tg-lod__fit"><b>Hợp vì:</b> {c.fit.map((f) => f.mentions ? `${f.text} (${f.mentions} đánh giá nhắc)` : f.text).join(' · ')}</p>

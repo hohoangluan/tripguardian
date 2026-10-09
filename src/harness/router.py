@@ -9,6 +9,9 @@ OPERATIONS = {
 }
 
 
+COMPANION = frozenset({"checkin", "skip", "rate", "add", "adjust"})
+
+
 class RouteError(ValueError):
     pass
 
@@ -19,3 +22,11 @@ def route(stage: Stage, request: Request) -> Stage:
     if request.operation not in OPERATIONS[stage]:
         raise RouteError(f"{stage} does not accept {request.operation}")
     return stage
+
+
+def route_companion(outputs: dict, operation: str) -> None:
+    """Đang đi is open once the journey has a confirmed plan (outputs.planning), whatever stage it shows."""
+    if "planning" not in outputs:
+        raise RouteError("companion needs a confirmed plan")
+    if operation not in COMPANION:
+        raise RouteError(f"companion does not accept {operation}")

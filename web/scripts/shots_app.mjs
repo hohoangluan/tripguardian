@@ -1,5 +1,5 @@
 // Walks the user web against the real harness (landing -> Khám phá -> Hiểu chuyến đi -> Chọn nơi -> Lịch trình -> Phản hồi)
-// and saves a screenshot per screen. The logistics questions take the flight path: origin Quận 1 -> Máy bay -> the first
+// and saves a screenshot per screen. Signs in through the harness test route (TG_TEST_LOGIN=1, APP_BASE_URL on http). The logistics questions take the flight path: origin Quận 1 -> Máy bay -> the first
 // flight each way -> no lodging yet -> "Bạn ở đâu?" picks the first lodging before the schedule. Needs `python -m harness serve` and the Vite dev server running.
 // usage: node web/scripts/shots_app.mjs [base url, default http://127.0.0.1:5173] [width, default 1440]
 import { mkdirSync } from 'node:fs'
@@ -26,7 +26,13 @@ try {
   await shot('landing')
   await page.goto(BASE + '/app', { waitUntil: 'networkidle' })
   await shot('auth')
-  await page.getByRole('button', { name: /Dùng thử/ }).click()
+  // Google sign-in cannot run headless: the harness started with TG_TEST_LOGIN=1 (http base URL) signs in a test account.
+  await page.goto(BASE + '/api/auth/test/login?email=walker@test.local&next=/app', { waitUntil: 'networkidle' })
+  if (await page.locator('.tg-auth__check input').count()) {
+    await shot('consent')
+    await page.check('.tg-auth__check input')
+    await page.getByRole('button', { name: /Bắt đầu/ }).click()
+  }
   await page.waitForSelector('#tg-start-input', { timeout: 60000 })
   await shot('discover')
   await page.fill('#tg-start-input', '3 ngày ở Đà Lạt cho hai người, đi xe máy, thích chill, cà phê, săn mây')
@@ -165,7 +171,7 @@ try {
   if (await go.isEnabled()) {
     await go.click()
     await page.waitForURL(/\/app\/plan/, { timeout: 180000 })
-    await page.waitForSelector('.tg-lod, .tg-journey, .tg-plan__cols, .tg-empty', { timeout: 120000 })
+    await page.waitForSelector('.tg-lod, .tg-journey, .tg-plan__cols:not([aria-busy]), .tg-empty', { timeout: 120000 })
     if (await page.$('.tg-lod')) {
       step('lodging screen: pick the first')
       await page.waitForSelector('.tg-lod__card, .tg-lod__empty', { timeout: 180000 })
@@ -173,7 +179,7 @@ try {
       const here = await page.$('.tg-lod__card .tg-btn--primary')
       if (here) await here.click()
       else await page.getByRole('button', { name: /Cứ xếp giúp/ }).click()
-      await page.waitForSelector('.tg-journey, .tg-plan__cols, .tg-empty', { timeout: 120000 })
+      await page.waitForSelector('.tg-journey, .tg-plan__cols:not([aria-busy]), .tg-empty', { timeout: 120000 })
     }
     await shot('plan-choose')
     const j = await page.$('.tg-journey')

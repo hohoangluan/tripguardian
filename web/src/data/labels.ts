@@ -28,6 +28,7 @@ export const FEATURE: Record<string, string> = {
   cleanliness: 'Sạch sẽ',
   weather_exposed: 'Phụ thuộc thời tiết',
   parking: 'Gửi xe',
+  toilet: 'Nhà vệ sinh',
   outdoor_seating: 'Chỗ ngồi ngoài trời',
   spacious: 'Rộng, thoáng',
   service_attitude: 'Thái độ phục vụ',

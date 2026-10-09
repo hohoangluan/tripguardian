@@ -2,9 +2,9 @@ from datetime import date
 
 import pytest
 
-from trip import values
-from trip.resolve import anchor_for, search
-from trip.state import Base
+from trip.domain import values
+from trip.domain.resolve import anchor_for, search
+from trip.domain.state import Base
 
 
 def test_exact_name_matches(catalog):

@@ -8,6 +8,8 @@ const MEDIA: Record<string, string> = {
   '/media/tiktok': resolve(__dirname, '../data/tiktok/videos'),
   '/media/gmaps': resolve(__dirname, '../data/gmaps/places'),
 }
+// HARNESS_PORT: a second harness for walk-throughs, as in web/server.mjs.
+const HARNESS = `http://127.0.0.1:${process.env.HARNESS_PORT ?? 8769}`
 const TYPES: Record<string, string> = { mp4: 'video/mp4', jpg: 'image/jpeg', webp: 'image/webp' }
 
 // Dev only: serves crawled TikTok clips and frames (/media/tiktok/<id>/<file>) and Google Maps photos
@@ -56,7 +58,10 @@ export default defineConfig({
   // /api: `python -m corpus review` (src/corpus/review/server.py): decisions and gold labels.
   server: {
     proxy: {
-      '/api/harness': 'http://127.0.0.1:8769',
+      '/api/harness': HARNESS,
+      '/api/auth': HARNESS,
+      // /api/analytics: `python -m analytics serve` (src/analytics, private, read-only role). Before /api.
+      '/api/analytics': `http://127.0.0.1:${process.env.ANALYTICS_PORT ?? 8770}`,
       '/api/decision': 'http://127.0.0.1:8767',
       '/api/planning': 'http://127.0.0.1:8768',
       '/api/trip': 'http://127.0.0.1:8766',

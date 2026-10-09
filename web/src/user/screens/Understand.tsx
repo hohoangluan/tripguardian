@@ -172,7 +172,7 @@ export function Understand() {
         setCard(v.card)
         setU(v.understanding)
         setHist(saved)
-        const talk = v.card?.qid === 'frame' && !saved.length
+        const talk = (v.card?.qid === 'conversation' || v.card?.qid === 'frame') && !saved.length
         setChat(talk)
         if (talk) setMsgs((m) => (m.length ? m : [{ who: 'ai', text: GREET }]))
         return v.id
@@ -281,7 +281,7 @@ export function Understand() {
   }, [])
 
   // The opening question (qid frame) is the conversation itself; it is never dealt again as a card.
-  const talk = chat || (card?.qid === 'frame' && !msgs.some((m) => m.who === 'me'))
+  const talk = chat || ((card?.qid === 'conversation' || card?.qid === 'frame') && !msgs.some((m) => m.who === 'me'))
   const cardKey = card ? `${card.qid}:${seq}` : 'none'
   // A long conversation leaves the page scrolled down: bring each newly dealt card's top back into view.
   const deck = useRef<HTMLDivElement>(null)
@@ -311,9 +311,9 @@ export function Understand() {
     send({ kind: 'text', text })
   }
   // One message of the opening conversation; the agent's reply joins the thread when the turn ends.
-  const tell = async (text: string, id = sid, echoed = false) => {
-    if (!echoed) setMsgs((m) => [...m, { who: 'me', text }])
-    lastAct.current = quoteOf(text)
+  const tell = async (text: string, id = sid, echoed = false, shown?: ChatMsg) => {
+    if (!echoed) setMsgs((m) => [...m, shown ?? { who: 'me', text }])
+    lastAct.current = quoteOf(shown?.text || (shown?.files?.length ? `file ${shown.files[0]}` : text))
     const reply = await send({ kind: 'text', text }, undefined, id)
     if (mounted.current) setMsgs((m) => [...m, { who: 'ai', text: reply || 'Mình ghi lại được như dưới đây.' }])
   }
@@ -392,7 +392,7 @@ export function Understand() {
             <ol>
               {!talk && told && (
                 <li className="is-done">
-                  <button type="button" onClick={() => openRow(null)} aria-label="Xem lại điều bạn kể"><i aria-hidden="true"><Icon name="check" size={13} /></i><span><small>Bạn kể</small><b className="tg-qrail__told">{told.text}</b></span></button>
+                  <button type="button" onClick={() => openRow(null)} aria-label="Xem lại điều bạn kể"><i aria-hidden="true"><Icon name="check" size={13} /></i><span><small>Bạn kể</small><b className="tg-qrail__told">{told.text || told.files?.join(", ")}</b></span></button>
                 </li>
               )}
               {done.map((t) => (
@@ -434,7 +434,7 @@ export function Understand() {
                   </div>
                 )}
                 {talk ? (
-                  <TripChat key="chat" msgs={msgs.length ? msgs : [{ who: 'ai', text: GREET }]} ready={!!sid} busy={busy} live={remark} reads={reads} quotes={quotes} u={u} card={card} preview={preview} leaving={leaving === 'chat'} onTell={(t) => tell(t)} onOpen={openRow} onEdit={edit} onGo={proceed} />
+                  <TripChat key="chat" msgs={msgs.length ? msgs : [{ who: 'ai', text: GREET }]} ready={!!sid} busy={busy} live={remark} reads={reads} quotes={quotes} u={u} card={card} preview={preview} leaving={leaving === 'chat'} onTell={(t, shown) => tell(t, sid, false, shown)} onOpen={openRow} onEdit={edit} onGo={proceed} />
                 ) : card && u && (
                   <div className={`tg-stage tg-ask__card ${chain.length ? 'tg-ask__chain' : ''} ${leaving === cardKey ? 'is-leaving' : ''}`} key={cardKey} aria-busy={busy || !!leaving}>
                     <div className="tg-ask__top">
@@ -468,6 +468,10 @@ export function Understand() {
                 <p className="tg-match__n"><b className="tg-mono">{shownMatch.toLocaleString('vi-VN')}</b> nơi{moves[0] && <span key={moves[0].key} className={`tg-match__delta tg-mono ${moves[0].delta < 0 ? 'is-down' : 'is-up'}`}>{placesDelta(moves[0].delta)}</span>}</p>
                 <span className="tg-ask__meter tg-match__meter" aria-hidden="true"><i style={{ width: `${Math.max(2, (u.matching / Math.max(1, u.total)) * 100)}%` }} /></span>
                 <p className="tg-faint tg-match__of">trên {u.total.toLocaleString('vi-VN')} nơi ở Đà Lạt qua được giới hạn của bạn và có dấu hiệu hợp gu. Danh sách cụ thể hiện ở bước Lựa chọn.</p>
+                <div className="tg-match__go">
+                  <button type="button" className="tg-btn tg-btn--primary" disabled={busy || !!leaving || !u.ready} onClick={show}>Xem gợi ý <Icon name="arrow" size={18} /></button>
+                  {!u.ready && <p className="tg-faint">Còn thiếu: {u.missing.map((m) => m.label).join(', ')}</p>}
+                </div>
                 {moves.length > 0 && (
                   <ol className="tg-match__moves" aria-label="Lựa chọn gần đây làm đổi số nơi">
                     {moves.map((m, i) => <li key={m.key} className={i === 0 ? 'is-new' : undefined}><span>{m.label}</span><b className={`tg-mono ${m.delta < 0 ? 'is-down' : 'is-up'}`}>{placesDelta(m.delta)}</b></li>)}
@@ -504,6 +508,12 @@ function Question({ card, busy, u, onAnswer, onText }: { card: Card; busy: boole
   const asCards = rows.length === 1 && !rows[0].row && card.chips.length <= 6 && card.input !== 'lodging'
   // The search box / trip list is the answer; a typed sentence would not pick a point or a trip.
   const logistics = card.input === 'geo' || card.input === 'transit' || card.input === 'lodging'
+  // How many may be picked, said before the user taps: one (sent at once), one per row, or several (then "Xong").
+  const many = (row: string | null) => card.multi && !card.single_rows.includes(row ?? '')
+  const how = !card.chips.length || logistics ? null
+    : !card.multi ? 'Chọn một ý'
+    : rows.every((r) => !many(r.row)) ? 'Mỗi dòng chọn một ý, xong bấm “Xong câu này”'
+    : 'Chọn một hoặc nhiều ý, xong bấm “Xong câu này”'
   const toggle = (c: Chip) => {
     if (busy) return
     if (instant) return onAnswer([c.id])
@@ -540,12 +550,13 @@ function Question({ card, busy, u, onAnswer, onText }: { card: Card; busy: boole
       <h1 className="tg-ask__q">{head}</h1>
       {rest && <p className="tg-ask__more">{rest}</p>}
       <div className="tg-ask__panel">
+        {how && <p className="tg-ask__how"><Icon name={card.multi ? 'check' : 'arrow'} size={13} /> {how}</p>}
         {asCards ? (
           <div className="tg-opts" role="group" aria-label="Lựa chọn">
             {card.chips.map((c) => {
               k += 1
               const on = picked.includes(c.id)
-              return <button key={c.id} type="button" className={`tg-opt ${on ? 'is-on' : ''}`} aria-pressed={card.multi ? on : undefined} disabled={busy} onClick={() => toggle(c)}><b>{c.label}</b>{c.effect ? <Effect n={c.effect} /> : null}{k <= 9 && <kbd aria-hidden="true">{k}</kbd>}</button>
+              return <button key={c.id} type="button" className={`tg-opt ${on ? 'is-on' : ''}`} aria-pressed={card.multi ? on : undefined} disabled={busy} onClick={() => toggle(c)}><span className="tg-opt__head"><i className={`tg-opt__mark ${card.multi ? 'is-box' : 'is-dot'}`} aria-hidden="true">{on && <Icon name="check" size={12} />}</i><b>{c.label}</b></span>{c.effect ? <Effect n={c.effect} /> : null}{k <= 9 && <kbd aria-hidden="true">{k}</kbd>}</button>
             })}
             {card.exits && !logistics && <button type="button" className="tg-opt is-soft" disabled={busy} onClick={() => onAnswer(['unsure'])}><b>Chưa chắc</b></button>}
           </div>
@@ -553,9 +564,9 @@ function Question({ card, busy, u, onAnswer, onText }: { card: Card; busy: boole
           <div className="tg-basics">
             {rows.map((r) => (
               <div className="tg-basics__row" key={r.row ?? '_'}>
-                {r.row && <h3>{r.row}</h3>}
+                {r.row && <h3>{r.row}{card.multi && <small>{many(r.row) ? 'chọn nhiều' : 'chọn một'}</small>}</h3>}
                 <div className="tg-basics__chips" role="group" aria-label={r.row ?? 'Lựa chọn'}>
-                  {r.chips.map((c) => <button key={c.id} type="button" className="tg-chip" aria-pressed={picked.includes(c.id)} disabled={busy} onClick={() => toggle(c)}>{c.label}{c.effect ? <Effect n={c.effect} /> : null}</button>)}
+                  {r.chips.map((c) => <button key={c.id} type="button" className={`tg-chip ${card.multi ? (many(r.row) ? 'is-box' : 'is-dot') : ''}`} aria-pressed={card.multi ? picked.includes(c.id) : undefined} disabled={busy} onClick={() => toggle(c)}>{card.multi && <i className="tg-chip__mark" aria-hidden="true">{picked.includes(c.id) && <Icon name="check" size={11} />}</i>}{c.label}{c.effect ? <Effect n={c.effect} /> : null}</button>)}
                 </div>
               </div>
             ))}
@@ -592,7 +603,7 @@ function Question({ card, busy, u, onAnswer, onText }: { card: Card; busy: boole
         )}
         {!logistics && <label className="tg-ask__free">
           <span className="tg-sr">Hoặc gõ câu trả lời của bạn</span>
-          <textarea className="tg-line-input" rows={card.input === 'text' ? 2 : 1} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }} placeholder={card.input === 'text' ? 'Ví dụ: 3 ngày cuối tuần với người yêu, đi xe máy, muốn săn mây và ngồi cà phê view đồi' : 'Đáp án khác? Gõ vào đây, ví dụ: không thích đông'} />
+          <textarea className="tg-line-input" rows={card.input === 'text' ? 2 : 1} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }} placeholder={card.placeholder ? `Ví dụ: ${card.placeholder}` : card.input === 'text' ? 'Ví dụ: 3 ngày cuối tuần với người yêu, đi xe máy, muốn săn mây và ngồi cà phê view đồi' : 'Đáp án khác? Gõ vào đây, ví dụ: không thích đông'} />
           <kbd>Enter</kbd>
         </label>}
         <span className="tg-ask__pill"><b className="tg-mono">{u.matching.toLocaleString('vi-VN')}</b> nơi đang hợp<span className="tg-ask__meter" aria-hidden="true"><i style={{ width: `${Math.max(2, (u.matching / Math.max(1, u.total)) * 100)}%` }} /></span></span>

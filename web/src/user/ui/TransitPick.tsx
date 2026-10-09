@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { track } from '../events'
 import { findTransit, watchTransit } from '../tu/api'
 import type { Transit, TransitParams, TransitResult } from '../tu/types'
 import { Icon } from './icons'
@@ -79,7 +80,7 @@ export function TransitPick({ params, way, busy, onPick, onTime, onSkip }: {
       <div className="tg-trn">
         <div className="tg-trn__none">
           <p><b>Mình chưa tra được {plane ? 'chuyến bay' : 'chuyến xe'} cho ngày này.</b> Bạn xem trực tiếp trên {site}, rồi cho mình biết giờ {way === 'inbound' ? 'tới Đà Lạt' : 'rời Đà Lạt'}.</p>
-          {res.book_url && <a className="tg-btn tg-btn--soft tg-btn--sm" href={res.book_url} target="_blank" rel="noopener noreferrer">Mở {site} <Icon name="external" size={15} /></a>}
+          {res.book_url && <a className="tg-btn tg-btn--soft tg-btn--sm" href={res.book_url} target="_blank" rel="noopener noreferrer" onClick={() => track('outbound_click', { kind: 'booking', place_id: null })}>Mở {site} <Icon name="external" size={15} /></a>}
         </div>
         <form className="tg-trn__time" onSubmit={(e) => { e.preventDefault(); if (time) onTime(time) }}>
           <label><span>{way === 'inbound' ? 'Giờ tới Đà Lạt' : 'Giờ rời Đà Lạt'}</span><input className="tg-input" type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>

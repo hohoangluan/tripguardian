@@ -1,49 +1,38 @@
 import { useSyncExternalStore } from 'react'
 
-// Prototype accounts. Nothing leaves the browser: sign-in is simulated and only
-// the session (and the emails registered here, never a password) is stored.
-// A real auth backend replaces this module and keeps its exports.
+// The signed-in account, kept by the harness in Postgres (docs/ACCOUNTS.md). Sign-in is Google only:
+// /api/auth/google/start sends the browser to Google and back with an HttpOnly session cookie.
+// undefined = still asking the server; null = signed out. Any /api/harness call answered 401 signs out here too.
 
-export type Provider = 'google' | 'zalo' | 'facebook' | 'apple' | 'tiktok' | 'email'
+export type Mobility = 'motorbike' | 'car' | 'ride'
+export type Companions = 'solo' | 'partner' | 'friends' | 'kids' | 'parents'
 
-export type Account = { kind: 'guest' } | { kind: 'user'; name: string; email: string | null; provider: Provider }
-
-export const PROVIDER_LABEL: Record<Provider, string> = {
-  google: 'Google',
-  zalo: 'Zalo',
-  facebook: 'Facebook',
-  apple: 'Apple',
-  tiktok: 'TikTok',
-  email: 'Email',
+export type Me = {
+  id: string
+  email: string | null
+  name: string
+  avatar: string | null
+  role: 'user' | 'admin'
+  home_city: string | null
+  usual_mobility: Mobility | null
+  usual_companions: Companions | null
+  consents: Record<string, { version: string; at: string } | boolean>
+  needs_consent: boolean
+  calendar: boolean
+  terms_version: string
 }
 
-const KEY = 'tg.account.v1'
-const KNOWN = 'tg.account.emails.v1'
+export type Account = { kind: 'user' } & Me
+
+export class AccountError extends Error {
+  constructor(public status: number, message: string) { super(message) }
+}
+
 const EVENT = 'tg:account'
+let current: Account | null | undefined
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function write(key: string, value: unknown) {
-  try {
-    if (value === null) localStorage.removeItem(key)
-    else localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    /* storage blocked: the session lasts until reload */
-  }
-}
-
-let current: Account | null = read<Account | null>(KEY, null)
-
-function set(next: Account | null) {
+function set(next: Account | null | undefined) {
   current = next
-  write(KEY, next)
   dispatchEvent(new Event(EVENT))
 }
 
@@ -56,37 +45,62 @@ export function useAccount() {
   return useSyncExternalStore(subscribe, () => current)
 }
 
-export const continueAsGuest = () => set({ kind: 'guest' })
-
-export const signInWith = (provider: Exclude<Provider, 'email'>) => set({ kind: 'user', name: `Bạn (${PROVIDER_LABEL[provider]})`, email: null, provider })
-
-export const signOut = () => set(null)
-
-export const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim())
-
-const known = () => read<Record<string, string>>(KNOWN, {})
-
-export type AuthError = { field: 'email' | 'password' | 'name'; text: string }
-
-export function signUp(name: string, email: string, password: string): AuthError | null {
-  const e = email.trim().toLowerCase()
-  if (!name.trim()) return { field: 'name', text: 'Cho mình biết tên bạn.' }
-  if (!isEmail(e)) return { field: 'email', text: 'Email chưa đúng dạng, ví dụ ban@gmail.com.' }
-  if (password.length < 8) return { field: 'password', text: 'Mật khẩu cần ít nhất 8 ký tự.' }
-  if (known()[e]) return { field: 'email', text: 'Email này đã có tài khoản. Chuyển sang Đăng nhập nhé.' }
-  write(KNOWN, { ...known(), [e]: name.trim() })
-  set({ kind: 'user', name: name.trim(), email: e, provider: 'email' })
-  return null
+async function answer(res: Response): Promise<Me> {
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new AccountError(res.status, body.error ?? `HTTP ${res.status}`)
+  return body as Me
 }
 
-export function signIn(email: string, password: string): AuthError | null {
-  const e = email.trim().toLowerCase()
-  if (!isEmail(e)) return { field: 'email', text: 'Email chưa đúng dạng, ví dụ ban@gmail.com.' }
-  if (!password) return { field: 'password', text: 'Nhập mật khẩu của bạn.' }
-  const name = known()[e]
-  if (!name) return { field: 'email', text: 'Chưa có tài khoản với email này. Bạn muốn Đăng ký?' }
-  set({ kind: 'user', name, email: e, provider: 'email' })
-  return null
+const keep = (me: Me) => {
+  set({ kind: 'user', ...me })
+  return me
 }
 
-export const initialOf = (a: Account | null) => (a?.kind === 'user' ? (a.name.trim()[0] ?? '?').toUpperCase() : null)
+export async function refreshAccount() {
+  try {
+    const res = await fetch('/api/harness/me')
+    if (res.status === 401) return set(null)
+    keep(await answer(res))
+  } catch {
+    set(null)
+  }
+}
+
+// A session that expires mid-visit: the next harness call answers 401 and the app shows sign-in again.
+if (typeof window !== 'undefined') {
+  const raw = window.fetch.bind(window)
+  window.fetch = async (input, init) => {
+    const res = await raw(input, init)
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (res.status === 401 && url.includes('/api/harness/') && current) set(null)
+    return res
+  }
+  void refreshAccount()
+}
+
+// Only a path on this site comes back from Google (the server checks it again).
+export const signInHref = (next: string) => `/api/auth/google/start?next=${encodeURIComponent(next.startsWith('/') ? next : '/app')}`
+
+export async function signOut() {
+  await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {})
+  set(null)
+}
+
+const send = (method: string, path: string, body: unknown) =>
+  fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(answer)
+
+export const acceptTerms = (version: string) => send('POST', '/api/harness/me/consent', { version }).then(keep)
+
+export const updateProfile = (patch: Partial<Pick<Me, 'home_city' | 'usual_mobility' | 'usual_companions'>> & { display_name?: string | null }) =>
+  send('PATCH', '/api/harness/me', patch).then(keep)
+
+export const uploadAvatar = (file: File) =>
+  fetch('/api/harness/me/avatar', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file }).then(answer).then(keep)
+
+export async function deleteAccount() {
+  const res = await fetch('/api/harness/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) })
+  if (!res.ok) throw new AccountError(res.status, (await res.json().catch(() => ({}))).error ?? '')
+  set(null)
+}
+
+export const initialOf = (a: Account | null | undefined) => (a ? ((a.name || a.email || '?').trim()[0] ?? '?').toUpperCase() : null)

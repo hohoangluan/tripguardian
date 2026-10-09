@@ -290,3 +290,22 @@ def test_baseline_travel_min_without_a_chosen_variant_is_an_error():
     sid = e.create(d, None)["id"]
     with pytest.raises(ActionError):
         e.baseline_travel_min(sid)
+
+
+def test_preview_builds_variants_without_a_session_and_create_reuses_it():
+    d, recs = sample_trip()
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    preview = e.preview(d)
+    assert preview["ok"] and preview["variants"] and preview["days"] == 2
+    assert all(len(v["places"]) == preview["days"] for v in preview["variants"])
+    assert not e._base                                    # no session was created
+    built = []
+    real = e._build_base
+    e._build_base = lambda decision: built.append(1) or real(decision)
+    assert e.preview(d) == preview and not built          # same Decision Output: cached, no rebuild
+    out = e.create(d, None)
+    assert not built                                      # create() took the preview's base
+    assert [v["id"] for v in out["view"]["variants"]] == [v["id"] for v in preview["variants"]]
+    e.create(d, None)
+    assert built == [1]                                   # a base belongs to one session only

@@ -65,3 +65,16 @@ def put(source: str, payload: dict, value, label: str) -> dict:
         if tmp is not None:
             Path(tmp).unlink(missing_ok=True)
     return entry
+
+
+def entries(source: str) -> list[dict]:
+    """Every readable entry of one source, any age (a lodging's name and point outlive its price)."""
+    out = []
+    for p in sorted((base_dir() / source).glob("*.json")):
+        try:
+            entry = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(entry, dict) and "value" in entry:
+            out.append(entry)
+    return out

@@ -8,5 +8,8 @@ from .settings import Settings
 from .settings import load as load_settings
 from .tools import Tools, create_engine
 from .contracts import DecisionOutput
+from .rank import preference_fit
+from .screen import hard_check
 
-__all__ = ["Data", "DecisionOutput", "Engine", "Settings", "Store", "Tools", "create_engine", "load_settings", "run_pipeline"]
+__all__ = ["Data", "DecisionOutput", "Engine", "Settings", "Store", "Tools", "create_engine", "hard_check", "load_settings",
+           "preference_fit", "run_pipeline"]

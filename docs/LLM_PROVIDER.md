@@ -5,16 +5,16 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 | Vai trò | Dùng ở | Model hiện tại | Đường mạng |
 |---|---|---|---|
 | ASR | `corpus` (TikTok) | ChunkFormer trên GPU local; ASR2 PhoWhisper-medium | Local |
-| Extractor | `corpus` (observe, filter, qc, kiểm span, `asr_check`, `place_verify`, audit Gemma) | Gemma 4 trên host LAN (nhận ảnh); UIT API dự phòng | Mạng nội bộ |
-| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | Gemma 4 trên UIT API (cùng key / endpoint với Agent), 38 call đồng thời | Mạng UIT |
+| Extractor | `corpus` (observe, filter, qc, kiểm span, `asr_check`, `place_verify`, audit Gemma); `photo_rank` (chấm ảnh gallery cho web, `web/scripts/pick_covers.py`) | Gemma 4 trên host LAN (nhận ảnh); UIT API dự phòng | Mạng nội bộ |
+| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | Gemma 4 trên UIT API, 38 call đồng thời | Mạng UIT |
 | Judge mạnh | giá trị cho phép, quyết định đóng cửa / gộp nơi | như Judge | Mạng UIT |
-| Agent | `trip`, `decision` (lượt chữ), `planning` (proposal nội bộ) | Gemma 4 trên UIT API | Trực tiếp trong mạng UIT |
+| Agent | `trip` (vòng tool, function calling gốc), `decision` (lượt chữ), `planning` (proposal nội bộ) | Model qua 9router (`9ROUTER_MODEL`); Trip cần model có `tools: true` trong `GET /v1/models` | Local 9router |
 
 Judge khác họ model với Extractor (GPT / Claude / Gemini so với Gemma) nên lỗi hai bên độc lập.
 
 ## Judge (UIT API)
 
-9router (proxy Codex) không chạy được trên server nên đã bỏ: không còn biến `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_STRONG_MODEL`. Ba vai trò Judge (`JUDGE`, `JUDGE_FIRST`, `JUDGE_STRONG`, `roles.py`) dùng `AGENT_API_KEY` / `AGENT_BASE_URL` / `AGENT_MODEL`, tức Gemma trên UIT (§UIT API), mặc định 38 call đồng thời trên key 40 call (hai slot còn lại cho Agent). Vì Gemma nhận `response_format`, Judge chạy guided như Extractor. Chỉ `JUDGE_FIRST_MODEL` còn là biến riêng (tên model trên endpoint này; trống = không có first reader). Hệ quả: Judge và Extractor cùng họ model nên lỗi không độc lập như thời Codex; precision vẫn đo bằng nhãn mạnh có sẵn (`CORPUS_HANDOFF.md` §Quy tắc đã chốt, mục 3).
+Ba vai trò Judge (`JUDGE`, `JUDGE_FIRST`, `JUDGE_STRONG`, `roles.py`) dùng `UIT_API_KEY` / `UIT_API_BASE_URL` / `UIT_API_MODEL`, mặc định 38 call đồng thời trên key 40 call. Vì Gemma nhận `response_format`, Judge chạy guided như Extractor. Chỉ `JUDGE_FIRST_MODEL` còn là biến riêng (tên model trên endpoint này; trống = không có first reader). Judge và Extractor cùng họ model nên lỗi không độc lập; precision vẫn đo bằng nhãn mạnh có sẵn (`CORPUS_HANDOFF.md` §Quy tắc đã chốt, mục 3).
 
 ## Host LAN (Extractor)
 
@@ -75,9 +75,10 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 | `EXTRACTOR_BASE_URL`, `EXTRACTOR_MODEL` | Endpoint và model của Extractor |
 | `EXTRACTOR_PARALLEL` | Số call đồng thời endpoint Extractor nhận (38 host LAN, 36 UIT; thiếu → 36) |
 | `JUDGE_ENGINE`, `JUDGE_FIRST_MODEL` | `gemma`: audit chạy trên Extractor, một vòng; trống: audit chạy trên vai trò Judge. First reader tùy chọn |
-| `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_MODEL` | Key, endpoint và model chung cho agent Trip/Decision và Planning nội bộ; thiếu thì lượt chữ dùng `policy.py`, proposal giữ baseline tất định |
-| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Clef System 1 cấp allowlist tool đọc cho Trip |
-| `CLEF_MODEL`, `CLEF_MODEL_ID`, `CLEF_TIMEOUT_S` | Model, Workers AI model id và timeout của Clef |
+| `UIT_API_KEY`, `UIT_API_BASE_URL`, `UIT_API_MODEL` | Key, endpoint và model UIT cho Judge và Extractor khi bật `EXTRACTOR_ON_UIT` |
+| `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_MODEL` | Key, endpoint và model 9router cho agent Trip/Decision và Planning nội bộ; thiếu hoặc lỗi thì lượt chữ của Trip chỉ giữ phần `prepass` đã đọc, proposal giữ baseline tất định |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Clef (Cloudflare Workers AI) phân loại lượt gõ của Trip trước Agent; thiếu thì Clef không quyết định gì |
+| `CLEF_MODEL`, `CLEF_MODEL_ID`, `CLEF_TIMEOUT_S` | Model, Workers AI model id và timeout của Clef (mặc định `clef-flash`, `@cf/cloudflare/clef-flash`, 1 giây) |
 | `DATA_DIR` | Gốc dữ liệu thô (mặc định `data`) |
 | `LIVE_CONTACT` | Liên hệ gửi trong User-Agent của request live context (Nominatim yêu cầu) |
 
@@ -85,7 +86,7 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
-Extractor gọi host LAN, Agent gọi UIT trong mạng campus, ASR trên GPU local, Judge gọi UIT (38 call).
+Extractor gọi host LAN, Agent gọi 9router local, ASR trên GPU local, Judge gọi UIT (38 call).
 
 Task `decision_turn` trả update `select | drop | lock | travel | crowd | price | trip | visited`; gu và mong muốn về chuyến luôn là `trip` (đi sang Trip Understanding qua harness), không có op gu riêng ở Decision. Task `trip_turn` nhận thêm `compared_places` trong `CURRENT CONTEXT` (nơi người dùng so sánh "giống X" kèm nét nổi bật lấy từ catalog) và chỉ được viết soft `inferred` từ đúng các nét đó (`docs/TRIP_UNDERSTANDING.md` §4).
 

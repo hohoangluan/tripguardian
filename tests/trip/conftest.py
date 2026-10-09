@@ -1,8 +1,8 @@
 import pytest
 from trip_fixtures import MONDAY_CLOSED, rec
 
-from trip.catalog import Catalog
-from trip.settings import Settings
+from trip.infrastructure.catalog import Catalog
+from trip.infrastructure.settings import Settings
 
 
 @pytest.fixture
@@ -26,4 +26,4 @@ def catalog(records):
 
 @pytest.fixture
 def cfg():
-    return Settings(n_min=1, top_k=4, enough_factor=1.0, turn_budget=5, idle_limit=2, stop_score=0.05)
+    return Settings(n_min=1, top_k=4, enough_factor=1.0)

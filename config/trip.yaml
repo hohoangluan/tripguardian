@@ -2,11 +2,30 @@
 n_min: 1            # reviews behind a place's feature value before it counts as evidence
 top_k: 20           # shortlist size used to measure whether a question changes the result
 enough_factor: 1.5  # a hard filter's coverage is "enough" when verified passes >= top_k * enough_factor
-turn_budget: 5      # adaptive questions after the opening card; tier-1 questions are asked anyway
-stop_score: 0.15    # stop asking when the best remaining question scores below this
-idle_limit: 2       # also stop after this many adaptive questions in a row that added nothing to the Trip State
-first_token_s: 8    # agent: wait this long for the first streamed token, then answer from the policy
-total_s: 30         # agent: whole-call limit
+first_token_s: 8    # agents runtime contract; the Trip loop only uses total_s
+total_s: 30         # agent: one model call, first token to last
+clef_timeout_s: 1    # Clef (Cloudflare classifier) limit; slower or failing = it decides nothing
+clef_reject_min: 0.88 # Clef must be this sure a message is off topic / abuse to answer it with the fixed reply (a wrong reject costs more than a miss)
+clef_data_min: 0.8   # ... and this sure the user asks for a real-world figure (weather, price, hours) to answer with the fixed reply
+clef_plain_min: 0.85  # sure a message holds only trip facts (no taste, no limit): FEATURES is left out of that turn's prompt; the Agent still has search_features
+clef_next_min: 0.6    # sure which still-needed field comes next: passed to the Agent as a hint, never forced
+clef_feature_min: 0.5  # search_features, when the keywords find nothing: Clef ranks features, those from this probability are returned
+clef_verify_min: 0.75 # record_fact (an inferred soft / hard fact): Clef must be this sure the quote does not say the fact to refuse it
+clef_reply_min: 0.9   # Clef must be this sure a reply promises results or states an unsaid fact to replace it
+clef_repeat_min: 0.9  # Clef must be this sure a question is already answered by the state to send the Agent back
+tool_steps: 6       # maximum model calls in one turn (each may call several tools)
+required: [days, companions, mobility, when]  # known before the user may press Next (when = a start date or a month)
+max_tokens: 1500    # agent: completion limit of one model call
+
+# Logistics after the conversation (docs/TRIP_UNDERSTANDING.md §Hậu cần).
+arrival_buffer_min: 45  # a chosen coach / flight: first stop this long after it arrives, last stop this long before it leaves
+# Driving in ("Tự đi"): the road into Đà Lạt by the bearing from Đà Lạt toward where the trip starts (0 = north,
+# clockwise; a range may wrap past 360). Static: the main passes, not a route search.
+entry_roads:
+  - {from_deg: 160, to_deg: 300, text: "Đèo Prenn"}       # TP.HCM, Đồng Nai, Bảo Lộc, Phan Thiết (QL20)
+  - {from_deg: 90, to_deg: 160, text: "Đèo Ngoạn Mục"}    # Phan Rang, Ninh Thuận (QL27)
+  - {from_deg: 20, to_deg: 90, text: "Đèo Khánh Lê"}      # Nha Trang, Khánh Hòa (QL27C)
+  - {from_deg: 300, to_deg: 20, text: "Đèo Tà Nung"}      # Lâm Hà, Đắk Nông, Đắk Lắk (ĐT725)
 
 # Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17). Needs a user id on the session; writes only with consent.
 patterns:

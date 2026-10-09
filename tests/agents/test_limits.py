@@ -5,7 +5,7 @@ import threading
 import pytest
 
 from tests.agents.test_runtime import Plan
-from trip.settings import Settings
+from trip.infrastructure.settings import Settings
 
 
 def gate(monkeypatch, waiting=2):

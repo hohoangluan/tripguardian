@@ -9,8 +9,8 @@ Màn nào nằm ở file nào và gọi backend nào: §6.
 ## 1. Bề mặt và vai trò
 
 ```text
-LANDING      giải thích vấn đề, một CTA → User Web          /landing
-USER WEB     lên kế hoạch và quyết định (sản phẩm chính)      /app
+LANDING      giải thích vấn đề, một CTA → User Web          /          (public)
+USER WEB     lên kế hoạch, quyết định, đi cùng trong chuyến    /app       (cần tài khoản Google)
 ADMIN WEB    nội bộ: duyệt dữ liệu bị đánh dấu, theo dõi       /admin
              phiên, chất lượng, hệ thống
 ```
@@ -27,6 +27,8 @@ Chỉ có hai vai trò: **User** (người lên kế hoạch chuyến đi) và *
 | Địa điểm | Nhập địa điểm đã lưu; xem gợi ý và bằng chứng; so sánh; thêm, bỏ, khóa, thay |
 | Kế hoạch | Xem cảnh báo, xung đột, phương án dự phòng; tạo và sửa lịch trình |
 | Phản hồi | Gửi phản hồi; báo thông tin địa điểm sai |
+| Trong chuyến | Check-in tự nguyện, bỏ qua, đánh giá Hợp / Không hợp; xuất lịch ra Google Calendar (luôn xem trước rồi xác nhận); bật / tắt thông báo |
+| Tài khoản | Sửa hồ sơ, đổi avatar, xóa tài khoản (`docs/ACCOUNTS.md`) |
 
 User **không** được: sửa dữ liệu nguồn của địa điểm, sửa bằng chứng hay confidence, xem dữ liệu của người khác, vào Admin Web.
 
@@ -37,7 +39,7 @@ User **không** được: sửa dữ liệu nguồn của địa điểm, sửa 
 | Review | Xử lý hàng đợi review: Accept, Disable, hoặc Report error trên một giá trị, liên kết, loại, hoặc bản trùng |
 | Địa điểm | Xem danh sách địa điểm và bằng chứng; yêu cầu làm mới nguồn |
 | Xung đột | Accept để giữ chưa chắc chắn, hoặc Report error trên observation của nguồn sai (build lại, rule chọn giá trị; xung đột vẫn giữ trong lịch sử) |
-| Quan sát | Xem phiên chuyến đi, analytics, pilot, trạng thái hệ thống, lỗi, phản hồi |
+| Quan sát | Xem toàn bộ dữ liệu người dùng (transcript, phiên, event, check-in, thông báo), analytics, Insights, pilot, trạng thái hệ thống, lỗi, phản hồi |
 
 Admin **không** gõ giá trị mới cho fact của địa điểm: dữ liệu do agent xây, giá trị sai được báo lỗi và hệ thống build lại từ bằng chứng (`docs/CORPUS.md` §7 Publish và review). Admin không sửa lịch trình của User và không quyết định thay User.
 
@@ -49,13 +51,14 @@ Luồng bắt đầu khác nhau theo trạng thái bắt đầu (`docs/Project_C
 
 ### 2.1 Vào ứng dụng
 
+- Chưa đăng nhập: chỉ có "Tiếp tục với Google"; lần đầu thêm màn đồng ý điều khoản và chính sách dữ liệu (`docs/ACCOUNTS.md` §2). Google trả về đúng trang đang mở.
 - Một ô nhập tự do: người dùng gõ hoặc dán link đã lưu, danh sách, lịch có sẵn, hoặc chỉ một câu. Hệ thống tự phân loại trạng thái bắt đầu, không hỏi.
 - Lối tắt khi chưa biết gõ gì: "Chưa có gì" / "Địa điểm đã lưu" / "Nơi bắt buộc đến" / "Một lịch trình".
 - Người dùng quay lại có hồ sơ: đề xuất "Theo gu quen thuộc" hoặc "Lần này khác".
 
 ### 2.2 Thiết lập chuyến đi
 
-- Bắt buộc: ngày đi, số người và là ai (người yêu, bạn, trẻ em, bố mẹ), phương tiện. Không bắt buộc: chỗ ở (đã có thì nhập, tra như §2.4; chỉ quyết định điểm bắt đầu / kết thúc của lộ trình; hệ thống không gợi ý chỗ ở).
+- Bắt buộc: ngày đi, số người và là ai (người yêu, bạn, trẻ em, bố mẹ), phương tiện. Hỏi sau phần trò chuyện, bỏ qua được: điểm xuất phát, cách tới Đà Lạt (tự đi / xe khách / máy bay; xe khách, máy bay thì chọn chuyến đi, chuyến về từ trang đặt vé), chỗ ở (đã có thì gõ tìm; chưa có thì hệ thống gợi ý theo gu ở màn "Bạn ở đâu?" trước lịch). Chỗ ở là điểm bắt đầu / kết thúc mỗi ngày của lộ trình.
 - Tùy chọn: nơi bắt buộc đến, booking cố định, giờ check-in/check-out và giờ phải rời Đà Lạt, giới hạn cứng (ngân sách, thời gian di chuyển tối đa mỗi chặng, tránh đường dốc, phải xong trước một giờ, loại hoạt động không muốn).
 - Giới hạn cứng và sở thích mềm là hai loại khác nhau (`docs/ARCHITECTURE.md` §2).
 
@@ -126,13 +129,21 @@ Xung đột với giới hạn của người dùng → đưa ra "nới giới h
 
 ### 2.11 Hồ sơ và dữ liệu
 
-- Nguồn đã kết nối (mỗi nguồn tùy chọn, do người dùng tự thêm — `docs/Project_Context.md` §6.1), điều hệ thống suy ra ("thích cà phê — cao, từ 12 lần lưu"), nút sửa / xóa / đặt lại.
-- Không có nguồn nào thì mọi thứ vẫn chạy.
+- Avatar, tên hiển thị, thành phố hay xuất phát, phương tiện hay dùng, hay đi với ai: đều tùy chọn, chỉ là gợi ý ban đầu "từ hồ sơ" cho chuyến mới.
+- Sở thích của chuyến hiện tại (từ lời người dùng hoặc từ hồ sơ), Google Calendar đã kết nối và nút ngắt, cài đặt thông báo theo loại + tạm im, hướng dẫn thêm vào màn hình chính (iPhone).
+- Xóa tài khoản: hỏi hai bước.
 
 ### 2.12 Phản hồi
 
 - Sau kế hoạch hoặc sau chuyến đi: gợi ý có đúng, lý do có dễ hiểu, lịch có thực tế, có còn phải tìm chỗ khác, có tự tin hơn. Ngắn, không bắt buộc.
 - Dùng cho analytics và pilot; nếu người dùng cho phép, nơi đã đến và phản hồi cập nhật User Profile (`docs/Project_Context.md` §8.5).
+
+### 2.13 Hôm nay (Đang đi)
+
+- Sau khi chốt lịch: từng ngày, mỗi điểm dừng một thẻ (giờ, ảnh, giờ mở, cảnh báo của lịch). Nút **Đã đến** tự nguyện; không có trạng thái "lỡ". Bỏ qua kèm lý do tùy chọn; sau khi đến có Hợp / Không hợp.
+- Đã đến mở "Ở đây": chơi gì ở đây (kèm trích dẫn, clip), lưu ý thực tế, giờ hoàng hôn / mức đông theo giờ khi có dữ liệu, gần đây (vừa thời gian trước điểm sau), nơi tương tự khi đông hoặc không như kỳ vọng. "Tôi đang ở nơi khác" tìm nơi rồi check-in.
+- Tới muộn: một dòng trung tính "Phần còn lại hơi chật · Xem cách điều chỉnh"; đổi lịch chỉ khi người dùng chọn và xác nhận.
+- Thẻ Google Calendar (xem trước → xác nhận; lệch kế hoạch thì một dòng "Lịch Google khác kế hoạch hiện tại"), thẻ xin bật thông báo, Hộp thông báo. Chi tiết: `docs/COMPANION.md`.
 
 ---
 
@@ -183,29 +194,18 @@ Nơi duy nhất sinh ra thước đo precision của corpus (`docs/CORPUS.md` §
 ```text
 Places 842 · Verified 691 · Needs Review 23 · Outdated 53
 Last build: auto-published 88% · sampled precision 96% · cost per place $0.04
-Today: trip sessions 18 · completed plans 13 · blocked plans 2 · feasible plans 91%
+Hôm nay: người dùng mới 5 · hành trình 18 · lịch đã chốt 13 · phản hồi 2 · lỗi và fallback 1
 ```
 
-Vài con số để phát hiện vấn đề nhanh; không cần nhiều biểu đồ.
+Vài con số để phát hiện vấn đề nhanh; hàng "Hôm nay" lấy số thật từ server analytics (`docs/ANALYTICS.md`).
 
 ### 3.6 Phiên chuyến đi
 
-Để debug, đánh giá pilot, tìm chỗ người dùng bỏ dở. Không hiển thị dữ liệu cá nhân không cần thiết.
-
-```text
-Trip #1028 · 3 ngày · bắt đầu từ địa điểm đã lưu
-15 nhập → 12 đã xác minh → 3 bị lọc → 8 shortlist → 6 được chọn → 1 xung đột → 5 cuối cùng → khả thi sau điều chỉnh
-```
+Để debug, đánh giá pilot, tìm chỗ người dùng bỏ dở. Danh sách hành trình trên server, lọc theo bước đã tới, bỏ dở (24 giờ không động, chưa chốt), phản hồi thấp (điểm ≤ 2), có lỗi / fallback. Chi tiết là dòng thời gian phát lại: event, log Decision / Planning, phản hồi, hội thoại Hiểu chuyến, các yêu cầu đã ghi.
 
 ### 3.7 Analytics
 
-| Nhóm | Đo |
-|---|---|
-| Acquisition | Lượt vào landing, click CTA, CTR, nguồn traffic, campaign, UTM source / medium / campaign / content, số chuyến bắt đầu theo nguồn |
-| Phễu sản phẩm | Landing → CTA → bắt đầu → xong bối cảnh → xem shortlist → chọn địa điểm → kiểm tra khả thi → tạo lịch → chấp nhận kế hoạch |
-| Quyết định | Ứng viên nhập → shortlist → được chọn; số lần bỏ, khóa, so sánh, thay; số xung đột; số lần sửa trước khi có kế hoạch hợp lệ |
-| Chất lượng | Chỉ số thành công của sản phẩm (`docs/Project_Context.md` §18) |
-| Pilot | Người tham gia, hoàn thành, kế hoạch được chấp nhận, thời gian lập kế hoạch trung vị, số lần sửa trung bình, độ tự tin, phản hồi |
+Tab Phễu, Trip, Quyết định, Lịch trình, Thực tế, Thông báo, Agent, Chất lượng; lọc theo ngày, cách bắt đầu, phiên bản; Phễu so sánh hai phiên bản. Màn Insights liệt kê việc nên làm (từ khóa cần crawl, mong muốn ontology chưa hiểu, nơi hay bị bỏ, câu hỏi hay bị bỏ qua, phiên lỗi) và các nhóm ý người dùng viết trong tuần. Chi tiết chỉ số: `docs/ANALYTICS.md` §3–4.
 
 Chỉ số chất lượng quan trọng hơn lượt xem hay click CTA. Ngưỡng chỉ đặt sau khi có baseline thật.
 
@@ -235,20 +235,20 @@ Một app React (`web/`, Vite). `App.tsx` chọn bề mặt theo đường dẫn
 
 | Màn (§) | File | Backend |
 |---|---|---|
-| Landing (§1) | `user/screens/Landing.tsx`, `user/landing/` (nơi thật trích từ snapshot) | — |
-| Đăng nhập (§2.1) | `user/screens/Auth.tsx`, `user/account.ts` | — (tài khoản chỉ lưu trong trình duyệt) |
+| Landing (§1) | máy tính: `user/screens/Landing.tsx` + cảnh 3D `user/landing/{scene,terrain}.ts`; điện thoại: `user/screens/GetApp.tsx` thay cho **mọi** trang người dùng (`/`, `/app/...`; chọn bằng `user/landing/device.ts`, `UserApp.tsx`) — web không có bản điện thoại, ứng dụng sẽ có sau; dữ liệu thật trích từ snapshot ở `user/landing/*.json` | — |
+| Đăng nhập (§2.1) | `user/screens/Auth.tsx`, `user/account.ts` (401 ở bất kỳ lời gọi harness nào → màn đăng nhập) | `harness` — `/api/auth/*`, `/me` |
 | Khám phá — trang chủ app | `user/screens/Discover.tsx` | — |
-| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/ui/Ticket.tsx`, `user/tu/` | `harness` :8769 — stage `trip` |
-| Chọn nơi, Chi tiết, So sánh, thanh "Đã chọn" (khả thi + lịch ngầm), trợ lý (§2.5–2.9) | `user/screens/{Explore,PlaceDetail,Compare}.tsx`, `user/ui/{PlaceCard,SelectedBar,Assistant,DiscPicker}.tsx`, `user/ui/useStagedList.ts` (chuyển cảnh lưới khi danh sách đổi: giữ / gỡ / thêm / thay hết), `user/pd/` (`more(group)` tải trang tiếp khi cuộn) | `harness` :8769 — stage `decision`, `preview`, `reports` |
-| Lịch trình, Tối ưu (§2.10) | `user/screens/Plan.tsx`, `user/ui/RouteStory.tsx`, `user/planning/` | `harness` :8769 — stage `planning` (`recommend` cho Tối ưu) |
+| Hiểu chuyến đi (§2.2–2.4) | `user/screens/Understand.tsx`, `user/ui/Ticket.tsx`, `user/tu/`; thẻ hậu cần (`docs/TRIP_UNDERSTANDING.md` §Hậu cần): `user/ui/PlaceInput.tsx` (ô gõ có gợi ý kiểu Google Maps: từ ký tự thứ 2, chờ 250 ms, ≤ 6 dòng, tô đậm chữ khớp, ↑ ↓ Enter Esc; dùng cho xuất phát, chỗ ở đã đặt, "Tôi ở chỗ khác"), `user/ui/TransitPick.tsx` (danh sách chuyến bay / xe khách, lọc Sáng · Chiều · Đêm · Rẻ nhất, skeleton khi đang tra; không tra được → mở trang đặt vé + nhập tay giờ) | `harness` :8769 — stage `trip`; `/geo`, `/lodging/suggest`, `/transit` (+ SSE) |
+| Chọn nơi, Chi tiết, So sánh, thanh "Đã chọn" (khả thi + lịch ngầm), trợ lý (§2.5–2.9) | `user/screens/{Explore,PlaceDetail,Compare}.tsx`, `user/ui/{PlaceCard,SelectedBar,Assistant,DiscPicker}.tsx`, `user/ui/PlaceSheet.tsx` ("Xem chi tiết": modal mở từ đĩa xoay, lưới, anchor, trợ lý, thanh "Đã chọn"; URL `?place=<id>`, Back / Esc đóng; ảnh bay vào chỗ bằng View Transitions, không hỗ trợ thì FLIP; tab Tổng quan · Hình ảnh · Gợi ý lịch trình · Đánh giá; `PlaceDetail.tsx` bọc nó ở chế độ trang cho link chia sẻ), `user/ui/useStagedList.ts` (chuyển cảnh lưới khi danh sách đổi: giữ / gỡ / thêm / thay hết), `user/pd/` (`more(group)` tải trang tiếp khi cuộn) | `harness` :8769 — stage `decision`, `preview`, `reports` |
+| Lịch trình, Tối ưu (§2.10) | `user/screens/Plan.tsx`, `user/ui/RouteStory.tsx`, `user/planning/`; `user/screens/Lodging.tsx` ("Bạn ở đâu?": hiện một lần trước lịch khi `lodging_booked = no`; thẻ chỗ ở xếp theo gu — "Hợp gu bạn nhất", "Hợp vì …", số phút trung bình tới nơi đã chọn; chọn = `pick_lodging`, "Tôi ở chỗ khác" = `set_lodging`, "Cứ xếp giúp" giữ chỗ ở Planning tự chọn, "Bỏ qua" = `clear_lodging`) | `harness` :8769 — stage `planning` (`recommend` cho Tối ưu) |
 | Phản hồi (§2.12) | `user/screens/Done.tsx` | `harness` — `feedback` |
-| Chuyến của tôi, Đã lưu, Hồ sơ (§2.11) | `user/screens/Account.tsx`, `user/store.ts` | `harness` — `trips`; nơi đã lưu chỉ ở trình duyệt |
+| Chuyến của tôi, Đã lưu, Hồ sơ (§2.11) | `user/screens/Account.tsx`, `user/store.ts` | `harness` — `trips`, `/me`, `/me/avatar`, `/me/notification-prefs`, `/calendar/disconnect`; nơi đã lưu chỉ ở trình duyệt |
+| Hôm nay (§2.13), Hộp thông báo | `user/screens/Today.tsx`, `user/today.ts`, `user/screens/Inbox.tsx`, `user/notify.ts`, `public/sw.js`, `public/manifest.webmanifest`; event web: `user/events.ts` | `harness` — `today`, `companion`, `calendar`, `push`, `notifications`, `events` |
 | Admin, mọi màn (§3) | `admin/AdminApp.tsx`, `admin/screens/`, `admin/api.ts` | `review` :8765 — `/api/queue`, `/api/labels{,/next,/stats,/photo,/frame}`, `/api/decision{,s}` |
+| Admin: Hôm nay, Phiên, Phân tích, Insights, Nhu cầu của một nơi (§3.5–3.7) | `admin/analytics.ts`, `admin/screens/{Dashboard,Sessions,Analytics,AnalyticsTabs,Insights,Places}.tsx` | `analytics` :8770 (private, chỉ đọc) |
 
 Client hành trình chung: `user/journey.ts`. Contract `/api/harness`, router, handoff và retry ở `docs/AGENT_HARNESS.md`.
 
 Dữ liệu chỉ-đọc của corpus mà cả hai bề mặt dùng để hiển thị địa điểm: `web/public/data/snapshot.json`, sinh bằng `python web/scripts/export_snapshot.py` sau `python -m corpus aggregate`. Không có file đó thì mọi màn báo lỗi tải dữ liệu.
-
-`user/planner.ts` là bộ ước lượng lịch chạy trong trình duyệt của bản thử; màn Lịch trình không còn dùng nó, chỉ màn debug `admin/screens/Sessions.tsx` còn gọi.
 
 Chạy cả stack: `README.md`. Hệ thị giác, font, màu: `docs/UX_Design_Brief.md` §7.

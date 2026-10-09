@@ -2,6 +2,7 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
 import { useEffect, useRef, useState } from 'react'
+import { track } from '../events'
 import { flushSync } from 'react-dom'
 import { navigate } from '../../router'
 import { prefetchSnapshot, type Cover } from '../../data/store'
@@ -288,6 +289,8 @@ export function Landing() {
   // The landing leans in and fades while the browser cross-fades to the home page (View Transitions where it has them).
   const begin = () => {
     if (leaving) return
+    const utm = Object.fromEntries([...new URLSearchParams(location.search)].filter(([k]) => k.startsWith('utm_')))
+    track('landing_cta', utm)
     const go = () => { navigate('/app'); window.scrollTo(0, 0) }
     const vt = (document as Document & { startViewTransition?: (cb: () => void) => unknown }).startViewTransition
     if (still || !vt) return go()
@@ -506,7 +509,7 @@ export function Landing() {
 
       <section className="tg-cta" id="tg-cta" aria-labelledby="tg-cta-h">
         <div className="tg-cta__img" aria-hidden="true" />
-        <div className="tg-cta__in"><h2 id="tg-cta-h">Bắt đầu chuyến Đà Lạt của bạn.</h2><button type="button" className="tg-btn tg-btn--sun tg-cta__btn" onClick={begin}>Trải nghiệm đi <Icon name="arrow" size={20} /></button><p>Miễn phí, không cần tài khoản.</p></div>
+        <div className="tg-cta__in"><h2 id="tg-cta-h">Bắt đầu chuyến Đà Lạt của bạn.</h2><button type="button" className="tg-btn tg-btn--sun tg-cta__btn" onClick={begin}>Trải nghiệm đi <Icon name="arrow" size={20} /></button><p>Miễn phí, đăng nhập bằng Google.</p></div>
       </section>
 
       <footer className="tg-lf"><Logo size={26} dark /><span>TripGuardian Đà Lạt</span><span className="tg-lf__sp" /><span>Giờ giấc và quãng đường là ước tính; địa hình theo dữ liệu thật, cây và mái nhà chỉ là biểu tượng. Số liệu theo bản dữ liệu {stats.asOf?.split('-').reverse().join('/')}: {num(stats.places)} nơi, {num(stats.withPhotos)} nơi có ảnh thật.</span></footer>

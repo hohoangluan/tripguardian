@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from trip.catalog import Catalog
-from trip.coverage import admissible, coverage, verdict
-from trip.state import Evidence, Hard
+from trip.infrastructure.catalog import Catalog
+from trip.domain.coverage import admissible, coverage, verdict
+from trip.domain.state import Evidence, Hard
 
 from trip_fixtures import rec
 

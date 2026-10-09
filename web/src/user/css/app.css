@@ -15,6 +15,8 @@
 .tg-qrail .is-next small { color: var(--tg-ink-3); }
 .tg-match__meter { display: block; width: 100%; margin: -6px 0 10px; }
 .tg-match__of { margin-bottom: 18px; font-size: 0.84rem; }
+.tg-match__go { display: grid; gap: 8px; margin-bottom: 18px; }
+.tg-match__go .tg-faint { margin: 0; font-size: 0.84rem; }
 .tg-picker { position: relative; display: grid; gap: 6px; }
 .tg-picker__in { display: flex; align-items: center; gap: 8px; color: var(--tg-ink-3); }
 .tg-picker__list { position: absolute; z-index: 5; top: 100%; left: 0; right: 0; display: grid; padding: 6px; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 14px; box-shadow: var(--tg-sh-2); }

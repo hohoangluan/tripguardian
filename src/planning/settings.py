@@ -66,6 +66,10 @@ class Settings:
     lodging_share: float
     min_reviews: int
     split_min: int
+    stay_min: int
+    lodging_pool: int
+    lodging_weights: dict
+    loc_ref_min: int
     history_max: int
     repair_diff_weight: float
     decision_url: str

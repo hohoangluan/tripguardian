@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { track } from '../events'
 import { info } from '../lib'
 import { compare } from '../pd/api'
 import { useDecision } from '../pd/decision'
@@ -13,6 +14,7 @@ import { useEditTicket } from './Explore'
 // Only what differs (src/decision/compare.py); a third place is compared with the first one.
 export function Compare({ ids }: { ids: string[] }) {
   useTitle('So sánh')
+  useEffect(() => { track('compare_open', { a: ids[0], b: ids[1] ?? null }) }, [ids.join()]) // eslint-disable-line react-hooks/exhaustive-deps
   const { trip } = useTrip()
   const { view, act, busy } = useDecision()
   const editTicket = useEditTicket()

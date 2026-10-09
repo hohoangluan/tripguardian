@@ -4,9 +4,9 @@ from datetime import date
 
 import pytest
 
-from trip.compile import compile_search_input
-from trip.state import Base, Evidence, TripState, Update, apply, settle, unknown_fields
-from trip.values import parse
+from trip.domain.compile import compile_search_input
+from trip.domain.state import Base, Evidence, TripState, Update, apply, settle, unknown_fields
+from trip.domain.values import parse
 
 EV = Evidence(turn=1, quote="mình xuống bến xe Liên tỉnh")
 
@@ -59,65 +59,17 @@ def test_they_are_not_counted_as_unknowns_that_block_the_search():
     assert "exit_point" not in unknown_fields(settle(minimal()))
 
 
-from trip.questions import bank
-
-
-def test_the_question_appears_once_the_trip_has_dates_and_a_length(catalog, cfg):
-    qs = {q.qid for q in bank(settle(minimal()), catalog, cfg)}
-    assert "entry_exit" in qs
-
-
-def test_the_question_disappears_once_both_points_are_known(catalog, cfg):
-    s = up(minimal(), "entry_point", Base(text="Bến xe Liên tỉnh Đà Lạt"))
-    s = up(s, "exit_point", Base(text="Bến xe Liên tỉnh Đà Lạt"))
-    qs = {q.qid for q in bank(settle(s), catalog, cfg)}
-    assert "entry_exit" not in qs
-
-
-def test_asking_once_does_not_ask_again(catalog, cfg):
-    from trip.state import with_meta
-    s = with_meta(settle(minimal()), asked=("entry_exit",))
-    assert "entry_exit" not in {q.qid for q in bank(s, catalog, cfg)}
-
-
-def test_every_chip_of_the_question_writes_one_of_the_two_fields(catalog, cfg):
-    q = next(q for q in bank(settle(minimal()), catalog, cfg) if q.qid == "entry_exit")
-    assert q.multi is True
-    assert set(q.single_rows) == {"Tới Đà Lạt bằng", "Rời Đà Lạt từ"}
-    for chip in q.chips:
-        fields = {dr.field for dr in chip.drafts}
-        assert fields <= {"entry_point", "exit_point"} and fields
-
-
-def test_the_self_drive_chips_name_a_place_that_can_be_geocoded_and_say_the_right_direction(catalog, cfg):
-    q = next(q for q in bank(settle(minimal()), catalog, cfg) if q.qid == "entry_exit")
-    chips = {c.id: c for c in q.chips}
-    assert chips["in:own_vehicle"].drafts[0].value.text == "Đèo Prenn"
-    assert chips["out:own_vehicle"].drafts[0].value.text == "Đèo Prenn"
-    assert "vào" in chips["in:own_vehicle"].label and "vào" not in chips["out:own_vehicle"].label
-
-
 def test_the_understanding_view_shows_what_a_chip_recorded():
-    from trip.understanding import view
+    from trip.domain.understanding import view
     s = up(minimal(), "entry_point", Base(text="Sân bay Liên Khương"))
     targets = {r["target"] for r in view(settle(s), None, None)["trip"]}
     assert "entry_point" in targets and "exit_point" not in targets
 
 
-def test_the_agent_may_write_both_fields_and_is_told_how(catalog, cfg):
-    from datetime import date
+def test_the_agent_may_write_both_fields_and_is_told_how():
+    from trip.agent.prompt import system_prompt
+    from trip.agent.tools import SPECS
 
-    from corpus.llm import TRIP_TURN
-    from corpus.llm.tasks import TRIP_FIELDS
-    from trip.agent import prompt_fields
-    from trip.guard import PlanUpdate
-    from trip.prepass import prepass
-    from trip.questions import c_effort
-
-    allowed = set(PlanUpdate.model_fields["field"].annotation.__args__)
-    assert {"entry_point", "exit_point"} <= allowed and {"entry_point", "exit_point"} <= set(TRIP_FIELDS)
-    st = TripState()
-    f = prompt_fields(st, "đi 3 ngày", prepass("đi 3 ngày", date(2026, 10, 2)), c_effort(st), [], cfg,
-                      "Câu trước?", date(2026, 10, 2))
-    text = TRIP_TURN.render(**f)
-    assert "entry_point" in text and "exit_point" in text
+    allowed = SPECS["record_fact"]["function"]["parameters"]["properties"]["field"]["enum"]
+    assert {"entry_point", "exit_point"} <= set(allowed)
+    assert "entry_point" in system_prompt() and "exit_point" in system_prompt()

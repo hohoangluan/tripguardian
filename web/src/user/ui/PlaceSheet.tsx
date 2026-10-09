@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { track } from '../events'
 import { flushSync } from 'react-dom'
 import { isNegative, signalPhrase } from '../../data/labels'
 import { DAYS, mapsEmbed, openWindows, placeById, signal, useGallery, visible } from '../../data/store'
@@ -119,6 +120,7 @@ function reporterId() {
 
 // Modal over the current screen (`modal`), or the body of the shared-link page.
 export function PlaceSheet({ id, modal = false }: { id: string; modal?: boolean }) {
+  useEffect(() => { track('detail_open', { place_id: id, from: modal ? 'sheet' : 'page' }) }, [id, modal])
   const big = useRef<HTMLDivElement>(null)
   const close = () => closePlace(big.current)
   // FLIP fallback for the opening flight when the browser has no View Transitions.
@@ -284,7 +286,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
                 {shots > 0 && <div className="tg-ps__mini">{photos.slice(0, 4).map((ph, j) => <button key={ph.src} type="button" aria-pressed={j === g} onClick={() => setG(j)} aria-label={`Xem ảnh ${j + 1}`}><Photo photo={ph} alt="" className="tg-disc__ph" /></button>)}</div>}
                 <div className="tg-minimap">
                   <iframe title={`Bản đồ ${p.name}`} src={mapsEmbed({ lat: p.lat, lng: p.lng }, 14)} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
-                  {p.mapsUrl && <a href={p.mapsUrl} target="_blank" rel="noreferrer" className="tg-link">Mở trên Google Maps <Icon name="external" size={14} /></a>}
+                  {p.mapsUrl && <a href={p.mapsUrl} target="_blank" rel="noreferrer" className="tg-link" onClick={() => track('outbound_click', { kind: 'maps', place_id: id })}>Mở trên Google Maps <Icon name="external" size={14} /></a>}
                 </div>
               </div>
             </div>
@@ -347,7 +349,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
       </section>
 
       <DropSheet card={dropping && card ? card : null} onClose={() => setDropping(false)} />
-      {viewing !== null && <ClipViewer videos={p.videos.slice(0, 6)} at={viewing} place={p.name} onAt={setViewing} onClose={() => setViewing(null)} />}
+      {viewing !== null && <ClipViewer videos={p.videos.slice(0, 6)} at={viewing} place={p.name} placeId={id} onAt={setViewing} onClose={() => setViewing(null)} />}
       <Dialog.Root open={report !== 'closed'} onOpenChange={(o) => !o && setReport('closed')}>
         <Dialog.Portal><Dialog.Overlay className="tg tg-overlay tg-ps__over" /><Dialog.Content className="tg tg-modal tg-ps__over" aria-describedby={undefined}>
           {report === 'sent' ? (
@@ -387,6 +389,9 @@ function useMuteWhenReady(frame: React.RefObject<HTMLIFrameElement | null>, on: 
   }, [frame, on])
 }
 
+// A clip kept on our server (corpus tiktok clips), played by the browser itself.
+const clipSrc = (id: string) => `/media/tiktok/${id}/video.mp4`
+
 // A traveller's clip: its first frame; hovering a moment plays it muted in place, a click opens the viewer.
 function Clip({ v, onOpen }: { v: Video; onOpen: () => void }) {
   const [hover, setHover] = useState(false)
@@ -401,7 +406,9 @@ function Clip({ v, onOpen }: { v: Video; onOpen: () => void }) {
     <li className="tg-ps__clip">
       <button type="button" className={`tg-ps__cplay ${hover ? 'is-live' : ''}`} onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onFocus={enter} onBlur={leave} aria-label={`Xem clip của @${v.handle ?? 'tiktok'}`}>
         <img src={`/media/tiktok/${v.id}/frames/f1.jpg`} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden' }} />
-        {hover && <iframe ref={frame} src={playerSrc(v.id, true)} title="" tabIndex={-1} aria-hidden="true" allow="autoplay; encrypted-media" />}
+        {hover && (v.local
+          ? <video src={clipSrc(v.id)} muted autoPlay loop playsInline preload="none" tabIndex={-1} aria-hidden="true" />
+          : <iframe ref={frame} src={playerSrc(v.id, true)} title="" tabIndex={-1} aria-hidden="true" allow="autoplay; encrypted-media" />)}
         <span className="tg-ps__cbtn"><Icon name="play" size={26} /></span>
       </button>
       <b>@{v.handle ?? 'tiktok'}</b>
@@ -411,7 +418,7 @@ function Clip({ v, onOpen }: { v: Video; onOpen: () => void }) {
 }
 
 // The clips one at a time, like TikTok: a tall player in the middle, who posted it beside it, ↑ ↓ to the next one.
-function ClipViewer({ videos, at, place, onAt, onClose }: { videos: Video[]; at: number; place: string; onAt: (i: number) => void; onClose: () => void }) {
+function ClipViewer({ videos, at, place, placeId, onAt, onClose }: { videos: Video[]; at: number; place: string; placeId: string; onAt: (i: number) => void; onClose: () => void }) {
   const v = videos[at]
   const n = videos.length
   const go = (d: number) => onAt((at + d + n) % n)
@@ -426,12 +433,14 @@ function ClipViewer({ videos, at, place, onAt, onClose }: { videos: Video[]; at:
         }}>
           <Dialog.Close className="tg-cv__x" aria-label="Đóng"><Icon name="x" size={22} /></Dialog.Close>
           <div className="tg-cv__stage">
-            <iframe key={v.id} className="tg-cv__player" src={playerSrc(v.id, false)} title={`Clip TikTok của @${v.handle ?? 'tiktok'}`} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen />
+            {v.local
+              ? <video key={v.id} className="tg-cv__player" onPlay={() => track('evidence_play', { place_id: placeId, video_id: v.id })} src={clipSrc(v.id)} poster={`/media/tiktok/${v.id}/frames/f1.jpg`} controls autoPlay loop playsInline title={`Clip TikTok của @${v.handle ?? 'tiktok'}`} />
+              : <iframe key={v.id} className="tg-cv__player" src={playerSrc(v.id, false)} title={`Clip TikTok của @${v.handle ?? 'tiktok'}`} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen />}
             <aside className="tg-cv__info">
               <p className="tg-cv__who"><i>{(v.handle ?? 't').slice(0, 1).toUpperCase()}</i><Dialog.Title asChild><b>@{v.handle ?? 'tiktok'}</b></Dialog.Title></p>
               <p className="tg-cv__place"><Icon name="pin" size={14} /> {place}</p>
               {desc && <p className="tg-cv__desc">{desc}</p>}
-              <a href={v.url} target="_blank" rel="noreferrer" className="tg-cv__out">Mở trên TikTok <Icon name="external" size={14} /></a>
+              <a href={v.url} target="_blank" rel="noreferrer" className="tg-cv__out" onClick={() => track('outbound_click', { kind: 'tiktok', place_id: placeId })}>Mở trên TikTok <Icon name="external" size={14} /></a>
               <p className="tg-cv__n tg-mono">{at + 1} / {n}</p>
             </aside>
           </div>

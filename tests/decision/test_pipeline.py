@@ -134,3 +134,11 @@ def test_backup_pool_holds_the_top_places_not_the_whole_window():
     top = {c["id"] for g in res.view["groups"] for c in g["cards"] if c["top"]}
     backup = {b["id"] for b in build(s, res, CFG)["backup_pool"]}
     assert backup == top and len(backup) < len(res.view["shortlist"])
+
+
+def test_lodging_never_reaches_explore():
+    hotel = srec("HOTEL", group="stay", category="Khách sạn", usable=(), features={"scenic_view": "present"})
+    s = session(trip(anchors=[{"place_id": "HOTEL", "priority": "must"}]), State(selected=["HOTEL"]))
+    v = run(s, Data([*data().records, hotel]), CFG).view
+    shown = {c["id"] for g in v["groups"] for c in g["cards"] if c["id"] == "HOTEL"}
+    assert not shown and "HOTEL" not in v["shortlist"]

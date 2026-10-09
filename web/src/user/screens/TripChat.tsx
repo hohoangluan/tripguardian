@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { ACCEPT, readAttachment, withAttachments, type Attachment } from '../tu/attach'
+
+// What sits in the composer before sending: a text file read into lines, or a photo shown as a thumbnail.
+type Att = { name: string; image?: string; file?: Attachment }
 import { FIELD_LABEL, hardText, softText } from '../tu/labels'
 import type { Card, Understanding } from '../tu/types'
-import { Icon, type IconName } from '../ui/icons'
+import { BotAvatar, Icon } from '../ui/icons'
 import { linesOf } from '../ui/Ticket'
 
 // docs/UI_SPEC_USER_WEB.md Trang 3 §Mở đầu. The opening question is a conversation: the user tells the trip,
@@ -11,6 +15,8 @@ import { linesOf } from '../ui/Ticket'
 export interface ChatMsg {
   who: 'ai' | 'me'
   text: string
+  files?: string[] // names of the files sent with it
+  images?: string[] // object URLs of the photos sent with it
 }
 export interface Read {
   target: string
@@ -18,15 +24,7 @@ export interface Read {
 }
 
 // The opening line is the chat's own, not the first question's text: the question deck never repeats it.
-export const GREET = 'Chào bạn, mình giúp bạn lên chuyến Đà Lạt. Kể theo cách nào cũng được: đi mấy ngày, với ai, đi bằng gì, thích gì. Chưa nghĩ ra thì chọn một cách bắt đầu bên dưới.'
-
-// The ways to begin, as things the user can say. The first sends itself; the others start a sentence for them to finish.
-const WAYS: { icon: IconName; label: string; send?: string; fill?: string; help?: string }[] = [
-  { icon: 'sparkle', label: 'Mình chưa có ý tưởng gì', send: 'Mình chưa có ý tưởng gì cả, bạn hỏi mình từng bước nhé.' },
-  { icon: 'bookmark', label: 'Mình có vài nơi đã lưu', fill: 'Mình đã lưu vài nơi: ', help: 'Gõ tên các nơi, mỗi nơi một dòng (Shift + Enter để xuống dòng). Mình khớp từng nơi với dữ liệu.' },
-  { icon: 'flag', label: 'Mình có một nơi nhất định phải đến', fill: 'Mình nhất định phải đến ', help: 'Gõ tên nơi đó, mình xếp cả chuyến quanh nó.' },
-  { icon: 'calendar', label: 'Mình có sẵn một lịch trình', fill: 'Mình có sẵn lịch trình này, bạn kiểm tra giúp: ', help: 'Dán lịch trình vào đây, mình kiểm tra xem đi có kịp không.' },
-]
+export const GREET = 'Chuyến Đà Lạt bạn đang mong là chuyến như thế nào? Kể tự nhiên thôi: đi cùng ai, mấy ngày, muốn săn mây, sống chậm hay ăn cho đã. Mình lo phần còn lại.'
 
 const readLabel = (t: string) => {
   const [kind] = t.split(':')
@@ -44,7 +42,7 @@ interface Props {
   card: Card | null
   preview: Set<string>
   leaving: boolean
-  onTell: (text: string) => void
+  onTell: (text: string, shown: ChatMsg) => void // text = what the agent reads; shown = the bubble
   onOpen: (target: string | null) => void
   onEdit: (target: string, value: string | null) => void
   onGo: () => void
@@ -52,7 +50,10 @@ interface Props {
 
 export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, preview, leaving, onTell, onOpen, onEdit, onGo }: Props) {
   const [text, setText] = useState('')
-  const [help, setHelp] = useState<string | null>(null)
+  const [atts, setAtts] = useState<Att[]>([])
+  const [fileNote, setFileNote] = useState<string | null>(null)
+  const [drag, setDrag] = useState(false)
+  const picker = useRef<HTMLInputElement>(null)
   const end = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLTextAreaElement>(null)
   const told = msgs.some((m) => m.who === 'me')
@@ -77,62 +78,100 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
 
   const submit = () => {
     const t = text.trim()
-    if (!t || busy || !ready) return
-    onTell(t)
+    if ((!t && !atts.length) || busy || !ready) return
+    const files = atts.flatMap((a) => (a.file ? [a.file] : []))
+    const photos = atts.filter((a) => a.image)
+    const said = withAttachments(t, files) + (photos.length ? `${t || files.length ? '\n\n' : ''}(Kèm ảnh: ${photos.map((a) => a.name).join(', ')})` : '')
+    onTell(said, { who: 'me', text: t, files: files.map((f) => f.name), images: photos.map((a) => a.image!) })
     setText('')
+    setAtts([])
+    setFileNote(null)
   }
 
-  const pick = (w: (typeof WAYS)[number]) => {
-    if (w.send) return onTell(w.send)
-    setText(w.fill ?? '')
-    setHelp(w.help ?? null)
-    window.setTimeout(() => { const el = box.current; if (!el) return; el.focus(); el.setSelectionRange(el.value.length, el.value.length) }, 0)
+  // A list of places or an itinerary as a file: read here, sent as lines with the next message.
+  const attach = async (list: FileList | null) => {
+    setFileNote(null)
+    for (const f of Array.from(list ?? []).slice(0, 6)) {
+      if (f.type.startsWith('image/')) { setAtts((x) => [...x, { name: f.name || 'ảnh', image: URL.createObjectURL(f) }]); continue }
+      try {
+        const a = await readAttachment(f)
+        if (!a.lines.length) { setFileNote(`Không đọc được ${f.name}.`); continue }
+        setAtts((x) => [...x.filter((y) => y.name !== a.name), { name: a.name, file: a }])
+      } catch {
+        setFileNote(`Không mở được ${f.name}.`)
+      }
+    }
+    if (picker.current) picker.current.value = ''
+    box.current?.focus()
   }
 
   return (
     <div className={`tg-ask__card tg-chat ${leaving ? 'is-leaving' : ''}`} aria-busy={busy || leaving}>
       <div className="tg-ask__top">
-        <span className="tg-ask__ico" aria-hidden="true"><Icon name="sparkle" size={18} /></span>
-        <span className="tg-ask__intent"><b>CHUYẾN ĐI</b><span>kể tự nhiên, mình ghi lại</span></span>
+        <BotAvatar size={40} live={thinking} />
+        <span className="tg-ask__intent"><b>TRỢ LÝ TRIPGUARDIAN</b><span>{thinking ? 'đang đọc chuyến đi của bạn…' : 'kể tự nhiên, mình ghi lại'}</span></span>
       </div>
       <ol className="tg-chat__log" aria-live="polite" aria-label="Trò chuyện về chuyến đi">
-        {msgs.map((m, i) => <li key={i} className={`tg-chat__msg is-${m.who}`}><p>{m.text}</p></li>)}
-        {!told && (
-          <li className="tg-chat__ways" aria-label="Cách bắt đầu">
-            {WAYS.map((w) => <button key={w.label} type="button" className="tg-chip" disabled={!ready || busy} onClick={() => pick(w)}><Icon name={w.icon} size={16} />{w.label}</button>)}
-          </li>
-        )}
+        {msgs.map((m, i) => {
+          const body = (
+            <div className={`tg-chat__msg is-${m.who}`}>
+              {m.text && <p>{m.text}</p>}
+              {m.images?.length ? <div className="tg-chat__pics">{m.images.map((u) => <img key={u} src={u} alt="Ảnh bạn gửi" />)}</div> : null}
+              {m.files?.length ? <p className="tg-chat__files">{m.files.map((n) => <span key={n}><Icon name="clip" size={13} />{n}</span>)}</p> : null}
+            </div>
+          )
+          // the avatar sits by the first of a run of the assistant's messages
+          return m.who === 'ai' ? <li key={i} className="tg-chat__line">{msgs[i - 1]?.who === 'ai' ? <span className="tg-chat__gap" /> : <BotAvatar />}{body}</li> : <li key={i} className="tg-chat__me">{body}</li>
+        })}
         {thinking && (
-          <li className="tg-chat__msg is-ai is-live">
+          <li className="tg-chat__line"><BotAvatar live /><div className="tg-chat__msg is-ai is-live">
             <p>{live || 'Mình đang đọc chuyến đi của bạn'}{!live && <span className="tg-dots" aria-hidden="true"><i /><i /><i /></span>}</p>
             {reads.length > 0 && (
               <ul className="tg-chat__reads" aria-label="Mình đang ghi">
                 {reads.map((r) => <li key={r.target}><span>“{r.quote}”</span><Icon name="arrow" size={13} /><b>{readLabel(r.target)}</b></li>)}
               </ul>
             )}
-          </li>
+          </div></li>
         )}
-        {summary && u && <li className="tg-chat__msg is-ai is-sum"><Understood u={u} card={card} quotes={quotes} preview={preview} onOpen={onOpen} onEdit={onEdit} /></li>}
+        {summary && u && <li className="tg-chat__msg is-ai is-sum tg-chat__indent"><Understood u={u} card={card} quotes={quotes} preview={preview} onOpen={onOpen} onEdit={onEdit} /></li>}
       </ol>
       {summary && (
         <div className="tg-chat__go">
           <button type="button" className="tg-btn tg-btn--primary" disabled={busy || leaving} onClick={onGo}>{card ? 'Đúng rồi, hỏi tiếp' : 'Đúng rồi, bắt đầu tìm'} <Icon name="arrow" size={18} /></button>
         </div>
       )}
-      {help && !told && <p className="tg-chat__help tg-faint"><Icon name="info" size={13} /> {help}</p>}
-      <form className="tg-chat__say" onSubmit={(e) => { e.preventDefault(); submit() }}>
-        <label className="tg-sr" htmlFor="tg-chat-box">{told ? 'Sửa hoặc kể thêm' : 'Kể về chuyến đi'}</label>
+      <form
+        className={`tg-chat__say ${drag ? 'is-drop' : ''}`}
+        onSubmit={(e) => { e.preventDefault(); submit() }}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDrag(true) } }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => { e.preventDefault(); setDrag(false); attach(e.dataTransfer.files) }}
+      >
+        {(atts.length > 0 || fileNote) && (
+          <div className="tg-chat__tray" aria-live="polite">
+            {atts.map((a) => (
+              <span key={a.name + (a.image ?? '')} className={`tg-chat__att ${a.image ? 'is-pic' : ''}`}>
+                {a.image ? <img src={a.image} alt={a.name} /> : <><Icon name="clip" size={14} /><b>{a.name}</b></>}
+                <button type="button" aria-label={`Bỏ ${a.name}`} onClick={() => setAtts((x) => x.filter((y) => y !== a))}><Icon name="x" size={12} /></button>
+              </span>
+            ))}
+            {fileNote && <small role="alert">{fileNote}</small>}
+          </div>
+        )}
+        <input ref={picker} type="file" accept={`image/*,${ACCEPT}`} multiple hidden onChange={(e) => attach(e.target.files)} />
+        <button type="button" className="tg-chat__clip" disabled={leaving || busy} aria-label="Đính kèm ảnh hoặc file" title="Đính kèm ảnh hoặc file" onClick={() => picker.current?.click()}><Icon name="clip" size={18} /></button>
         <textarea
           id="tg-chat-box"
           ref={box}
           rows={1}
           value={text}
           disabled={leaving}
-          onChange={(e) => { setText(e.target.value); if (!e.target.value) setHelp(null) }}
+          onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); attach(e.clipboardData.files) } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit() } }}
-          placeholder={told ? 'Có gì chưa đúng? Gõ để sửa hoặc kể thêm…' : 'Ví dụ: 3 ngày cuối tuần với người yêu, đi xe máy, muốn săn mây'}
+          placeholder={told ? 'Nhắn thêm hoặc sửa…' : 'Ví dụ: 3 ngày với người yêu, săn mây, cà phê view đồi…'}
         />
-        <button type="submit" className="tg-chat__send" disabled={!text.trim() || busy || !ready} aria-label="Gửi"><Icon name="send" size={18} /></button>
+        <button type="submit" className="tg-chat__send" disabled={(!text.trim() && !atts.length) || busy || !ready} aria-label="Gửi"><Icon name="send" size={18} /></button>
       </form>
       <div ref={end} className="tg-chat__end" />
     </div>

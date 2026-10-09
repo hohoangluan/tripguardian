@@ -1,6 +1,7 @@
 """③ Constraint screen (docs/PLACE_DECISION.md §6): physical first, then each hard filter, pass | fail | unknown."""
 
 from functools import cache
+from types import SimpleNamespace
 
 from corpus.ontology import load
 from corpus.serving import check, feature
@@ -29,6 +30,11 @@ def hard_result(rec: dict, h) -> tuple[str, str | None]:
             and h.value not in f["distribution"] and _ontology().features[h.feature].group not in SAFETY):
         return "pass", "uncertain_value"
     return r, None
+
+
+def hard_check(rec: dict, hard_filter: dict) -> str:
+    """Public: pass | fail | unknown for one Search Input hard filter given as a dict (fail-closed, as hard_result)."""
+    return hard_result(rec, SimpleNamespace(**hard_filter))[0]
 
 
 def closed_all_days(rec: dict, days) -> bool:

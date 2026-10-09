@@ -7,7 +7,7 @@ from trip import Catalog, Engine as TripEngine, SessionStore, Settings
 
 def test_public_trip_tools_round_trip_state_and_reject_an_invalid_start():
     from trip import Tools
-    engine = TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), agent=None)
+    engine = TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), chat=None)
     tools = Tools(engine)
     with pytest.raises(ValueError):
         tools.create({"experience": "invented"})
@@ -16,7 +16,7 @@ def test_public_trip_tools_round_trip_state_and_reject_an_invalid_start():
     created = tools.create({"user_id": "user-abc-123", "remember": True})
     tools.apply(created["id"], "turn", {"kind": "edit", "target": "days", "value": "2"}, lambda *a: None)
     snapshot = tools.snapshot(created["id"])
-    restored = Tools(TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), agent=None))
+    restored = Tools(TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), chat=None))
     restored.restore(snapshot)
     assert restored.load(created["id"]) == tools.load(created["id"])
 
@@ -57,30 +57,33 @@ def test_missing_module_session_is_a_public_404_error():
 
 def test_harness_adapter_refuses_a_second_persistence_owner(tmp_path):
     from trip import Tools
-    engine = TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(tmp_path), agent=None)
+    engine = TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(tmp_path), chat=None)
     with pytest.raises(ValueError, match="memory"):
         Tools(engine)
 
 
-def test_real_trip_compiles_clues_and_harness_advances_without_an_llm(tmp_path):
+def test_real_trip_compiles_clues_and_harness_advances_with_a_scripted_agent(tmp_path):
+    import json
     from trip import Tools
+    from trip.agent import Assistant, Call
     from harness import Harness, Store
-    from agents import AgentError
     from test_dispatch import Tools as FakeTools, run
-    async def unavailable(fields, on_say):
-        raise AgentError("offline")
-    trip = Tools(TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), unavailable))
+
+    def fact(field, value, quote):
+        args = {"field": field, "op": "set", "value": value, "quote": quote, "how": "said"}
+        return Call(f"c_{field}", "record_fact", json.dumps(args))
+    script = [Assistant(calls=[fact("days", "3", "3 ngày"), fact("mobility", "car", "ô tô"),
+                               fact("companions", "solo", "một mình"), fact("month", "12", "tháng 12")]),
+              Assistant(content="Mình đã ghi lại rồi.")]  # facts only: the loop calls the model again, which answers
+
+    async def scripted(messages, tools, on_say):
+        return script.pop(0)
+    trip = Tools(TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), scripted))
     harness = Harness(trip, FakeTools("decision"), FakeTools("planning"), Store(tmp_path))
     view = harness.create("first", "nothing")
-    view = run(harness, view, "turn", "opening", {"kind": "text", "text": "3 ngày với bố mẹ, đi ô tô"})
-    for n in range(15):
-        card = view["result"]["card"]
-        if card["qid"] in ("ready", "show_first"):
-            view = run(harness, view, "turn", f"answer-{n}", {"kind": "show"})
-            break
-        chips = [x["id"] for x in card["chips"]][:1]
-        view = run(harness, view, "turn", f"answer-{n}", {"kind": "answer", "qid": card["qid"],
-            "chips": chips or ["skip"]})
+    view = run(harness, view, "turn", "opening", {"kind": "text", "text": "3 ngày đi ô tô một mình tháng 12"})
+    assert view["result"]["understanding"]["ready"] is True
+    view = run(harness, view, "turn", "show", {"kind": "show"})
     assert view["outputs"]["trip"]["context"]["days"] == 3
     assert view["outputs"]["trip"]["context"]["mobility"] == "car"
     advanced = run(harness, view, "advance", "to-decision")

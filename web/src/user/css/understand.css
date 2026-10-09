@@ -124,8 +124,26 @@
 .tg-chat__next .tg-chip { min-height: 28px; padding: 0 10px; font-size: 0.8rem; }
 .tg-chat__go { display: flex; justify-content: center; margin-top: 16px; animation: tg-pop 360ms var(--tg-ease) 360ms backwards; }
 .tg-chat__go .tg-btn { min-height: 48px; padding: 0 24px; }
-.tg-chat__say { display: flex; align-items: flex-end; gap: 8px; margin-top: 16px; padding: 4px 4px 4px 16px; border-radius: 24px; background: var(--tg-bg); border: 1px solid var(--tg-line-2); transition: border-color 150ms, box-shadow 150ms; }
-.tg-chat__say:focus-within { border-color: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }
+.tg-chat__say { display: flex; align-items: flex-end; gap: 4px; margin-top: 16px; padding: 4px; border-radius: 24px; background: var(--tg-bg); border: 1px solid var(--tg-line-2); transition: border-color 150ms, box-shadow 150ms; }
+.tg-chat__say:focus-within, .tg-chat__say.is-drop { border-color: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }
+.tg-chat__say.is-drop { background: var(--tg-pine-soft); }
+.tg-chat__clip { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--tg-ink-2); transition: background 150ms, color 150ms; }
+.tg-chat__clip:hover:not(:disabled) { background: var(--tg-pine-soft); color: var(--tg-pine); }
+.tg-chat__clip:disabled { opacity: 0.4; cursor: default; }
+.tg-chat__say { flex-wrap: wrap; }
+.tg-chat__tray { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 8px 2px; }
+.tg-chat__tray small { flex-basis: 100%; color: var(--tg-danger); font-size: 0.8rem; }
+.tg-chat__att { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 56px; padding: 0 28px 0 12px; border-radius: 12px; background: var(--tg-surface); border: 1px solid var(--tg-line); font-size: 0.82rem; }
+.tg-chat__att b { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.tg-chat__att.is-pic { width: 56px; padding: 0; overflow: hidden; }
+.tg-chat__att.is-pic img { width: 100%; height: 100%; object-fit: cover; }
+.tg-chat__att button { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--tg-ink); color: #fff; opacity: 0.8; }
+.tg-chat__att button:hover { opacity: 1; }
+.tg-chat__pics { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+.tg-chat__pics img { width: 120px; height: 90px; border-radius: 12px; object-fit: cover; }
+.tg-chat__msg.is-me:has(.tg-chat__pics:only-child) { padding: 0; background: none; }
+.tg-chat__files { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 4px; font-size: 0.82rem; opacity: 0.9; }
+.tg-chat__files span { display: inline-flex; align-items: center; gap: 4px; }
 .tg-chat__say textarea { flex: 1; min-height: 44px; max-height: 140px; padding: 11px 0; border: 0; background: transparent; resize: none; font: inherit; font-size: 0.95rem; line-height: 1.45; color: var(--tg-ink); }
 .tg-chat__say textarea:focus { outline: none; }
 .tg-chat__say textarea::placeholder { color: var(--tg-ink-3); }
@@ -273,9 +291,6 @@
 @media (max-width: 1100px) { .tg-full { width: 100vw; max-width: none; } }
 
 /* the ways to begin, offered inside the opening chat as replies the user can pick */
-.tg-chat__ways { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 2px; animation: tg-msg 340ms var(--tg-ease) 120ms backwards; }
-.tg-chat__ways .tg-chip { gap: 7px; min-height: 40px; background: var(--tg-surface); }
-.tg-chat__ways .tg-chip svg { color: var(--tg-pine); flex: none; }
 .tg-chat__help { display: flex; align-items: center; gap: 6px; margin: 12px 4px 0; font-size: 0.84rem; }
 .tg-seg--solo { margin: 0 0 8px; }
 
@@ -321,3 +336,29 @@
   .tg-trn__buy small { grid-column: 1 / -1; grid-row: 2; max-width: none; }
   .tg-trn__count { margin-left: 0; width: 100%; }
 }
+
+/* one choice or several: said above the options and drawn on each (dot = one, box = several) */
+.tg-ask__how { display: flex; align-items: center; gap: 6px; margin: 0 2px; color: var(--tg-ink-2); font-size: 0.84rem; }
+.tg-ask__how svg { color: var(--tg-pine); }
+.tg-opt__head { display: flex; align-items: center; gap: 10px; }
+.tg-opt__mark, .tg-chip__mark { flex: none; display: grid; place-items: center; border: 1.5px solid var(--tg-line-2); background: var(--tg-surface); color: #fff; transition: background 150ms, border-color 150ms; }
+.tg-opt__mark { width: 20px; height: 20px; }
+.tg-chip__mark { width: 16px; height: 16px; margin-left: -4px; }
+.tg-opt__mark.is-dot, .tg-chip.is-dot .tg-chip__mark { border-radius: 50%; }
+.tg-opt__mark.is-box, .tg-chip.is-box .tg-chip__mark { border-radius: 5px; }
+.tg-opt:hover .tg-opt__mark { border-color: var(--tg-pine); }
+.tg-opt.is-on .tg-opt__mark { border-color: var(--tg-pine); background: var(--tg-pine); }
+.tg-chip[aria-pressed='true'] .tg-chip__mark { border-color: #fff; background: #fff; color: var(--tg-pine); } /* the chip itself turns pine */
+.tg-basics__row h3 small { margin-left: 8px; color: var(--tg-ink-3); font: 500 0.72rem var(--tg-sans); letter-spacing: 0; text-transform: none; }
+
+/* the assistant's avatar (ui/icons BotAvatar) by its messages; it breathes while the assistant is typing */
+.tg-bot { flex: none; display: inline-grid; place-items: center; border-radius: 50%; box-shadow: 0 0 0 2px var(--tg-surface), var(--tg-sh-1); }
+.tg-bot svg, .tg-bot img { display: block; border-radius: 50%; object-fit: cover; }
+.tg-bot.is-live { animation: tg-bot-breathe 1.6s ease-in-out infinite; }
+@keyframes tg-bot-breathe { 50% { box-shadow: 0 0 0 2px var(--tg-surface), 0 0 0 7px var(--tg-pine-soft); } }
+.tg-chat__line { display: flex; align-items: flex-end; gap: 10px; justify-self: start; max-width: 90%; }
+.tg-chat__line > .tg-chat__msg, .tg-chat__me > .tg-chat__msg { max-width: none; }
+.tg-chat__gap { flex: none; width: 32px; }
+.tg-chat__me { display: grid; justify-self: end; max-width: 86%; }
+.tg-chat__msg.is-sum.tg-chat__indent { margin-left: 42px; width: calc(100% - 42px); }
+@media (prefers-reduced-motion: reduce) { .tg-bot.is-live { animation: none; } }

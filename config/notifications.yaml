@@ -1,0 +1,71 @@
+# Notifications (docs/COMPANION.md §Thông báo). Copy is reviewed by a person before it lands here; no model writes it at
+# send time. A variant is only used when every {slot} in it has a real value; a kind with no usable variant is skipped
+# (skip_reason no_data). Never: "bạn đã lỡ", "bạn chưa check-in", fake countdowns, comparisons with other people.
+version: 1
+
+timezone: Asia/Ho_Chi_Minh
+quiet: ["22:00", "07:00"]       # due inside: moved to the end, or skipped when no longer useful
+per_day: {before: 1, during: 3}   # cap per calendar day, before the trip / on trip days
+pause_after_ignored: 3            # this many sent and never opened in a row -> one "paused" note, then silence
+tick_s: 60
+weather_every_h: 3
+rain_alert: 0.6                   # rain probability that makes an outdoor stop worth a note
+open_window_h: 2                  # an action within this long after opening counts as useful (bandit reward)
+bandit_min_sends: 200             # variants are chosen by results only once each has this many sends
+
+kinds:
+  plan_unfinished:
+    valid_h: 24
+    variants:
+      - {id: a, title: "Lịch Đà Lạt còn dang dở", body: "{n} nơi ở Đà Lạt vẫn đang xếp hàng chờ bạn chốt 🌲 Còn chừng 2 phút là xong lịch."}
+      - {id: b, title: "Chỉ còn bước chốt lịch", body: "Bạn đã chọn {n} nơi rồi. Bấm chốt là TripGuardian xếp giờ cho cả chuyến ☕"}
+  book_ahead:
+    valid_h: 30
+    variants:
+      - {id: a, title: "Nên đặt trước", body: "Psst… {place} hay hết chỗ {when}. Đặt trước cho chắc nha 🍲"}
+      - {id: b, title: "Một chỗ cần giữ trước", body: "{place} thường phải đặt trước mới có chỗ. Chuyến của bạn ghé {when}, đặt sớm cho yên tâm nhé."}
+  eve_of_trip:
+    valid_h: 3
+    variants:
+      - {id: a, title: "Mai lên Đà Lạt rồi!", body: "Mai lên Đà Lạt rồi! Sáng {t_min}°C, {rain_phrase}: {pack} vào balo nhé 🧥"}
+      - {id: b, title: "Mai lên Đà Lạt rồi!", body: "Mai lên Đà Lạt rồi! Dự báo {rain_phrase}: {pack} vào balo nhé 🧥"}
+  day_brief:
+    valid_h: 3
+    variants:
+      - {id: a, title: "Ngày {d} ở Đà Lạt", body: "Ngày {d}: {n} điểm, tổng đi xe ~{travel} phút. Mở màn: {first} lúc {time} ☕"}
+      - {id: b, title: "Chào buổi sáng Đà Lạt", body: "Hôm nay {n} điểm, điểm đầu là {first} lúc {time}. Đi xe tổng chừng {travel} phút thôi 🌄"}
+  checkin_hint:
+    valid_h: 2
+    first_stops: 2
+    variants:
+      - {id: a, title: "Tới {place} chưa?", body: "Tới {place} chưa? Bấm Đã đến, mình chỉ chỗ {highlight} 📸"}
+      - {id: b, title: "Đang ở {place}?", body: "Nếu đã tới {place}, bấm Đã đến để xem ở đây có gì, như {highlight} 📸"}
+  golden_hour:
+    lead_min: 45
+    arrive_by_min: 15
+    variants:
+      - {id: a, title: "Hoàng hôn hôm nay {sunset}", body: "Hoàng hôn hôm nay {sunset}. {place} có trong lịch chiều nay, tới trước {by} là kịp 🌅"}
+  weather_change:
+    valid_h: 4
+    variants:
+      - {id: a, title: "Hôm nay có thể mưa", body: "Hôm nay khả năng mưa {p}% ☔ {place} ở ngoài trời, mình có phương án khác trong lịch, xem thử?"}
+  post_trip:
+    valid_h: 24
+    variants:
+      - {id: a, title: "Về nhà an toàn chưa?", body: "Về tới nhà an toàn chưa? Kể mình nghe chuyến đi trong 30 giây, lần sau mình gợi ý trúng hơn 💛"}
+  paused:
+    valid_h: 24
+    variants:
+      - {id: a, title: "Mình tạm im nhé", body: "Có vẻ giờ chưa phải lúc. Mình tạm im nhé, cần gì thì mình vẫn ở trong app 🌿"}
+
+# Where each kind opens (deep link; ?n=<id> is added). A notification only leads somewhere, it never changes the plan.
+links:
+  plan_unfinished: /app/explore
+  book_ahead: /app/today
+  eve_of_trip: /app/today
+  day_brief: /app/today
+  checkin_hint: /app/today
+  golden_hour: /app/today
+  weather_change: /app/today
+  post_trip: /app/done
+  paused: /app/profile

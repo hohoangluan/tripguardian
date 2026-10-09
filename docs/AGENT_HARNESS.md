@@ -25,7 +25,7 @@ module → corpus / live qua public API, chỉ đọc Place Intelligence
 | `src/harness/server.py`, `__main__.py` | HTTP/SSE localhost, CLI |
 | `web/src/user/journey.ts` | Client chung: tuần tự mutation, retry và khôi phục pending request |
 
-Skill là khai báo do repo quản lý, không phải code thực thi hay skill tải từ người dùng. Workflow mô tả bước xử lý; `permit_tool` kiểm capability tại adapter. Trip dùng tool loop đọc bị chặn: Clef chỉ cấp allowlist theo câu user, Agent gọi tối đa số bước trong `config/trip.yaml`, code validate argument và chạy tool; `guard` vẫn là đường duy nhất ghi state. Call lập kế hoạch chạy song song với Clef (`trip.agent.runtime.run_agent`): Clef không cấp tool → giữ kết quả call đó, `say` giữ lại tới lúc Clef trả lời; Clef cấp tool → hủy call sớm trước bước tool, nên một lượt không bao giờ giữ hai permit Agent. Các agent dùng chung cấu hình model nhưng context, schema và quyền riêng.
+Skill là khai báo do repo quản lý, không phải code thực thi hay skill tải từ người dùng. Workflow mô tả bước xử lý; `permit_tool` kiểm capability tại adapter. Trip chạy Clef trước Agent: Clef phân loại `needs_card` / `user_question` và cấp allowlist, Agent tạo card hoặc trả lời theo route, gọi tối đa số tool đọc trong `config/trip.yaml`; code validate argument và `guard` vẫn là đường duy nhất ghi state. Các agent dùng chung cấu hình model nhưng context, schema và quyền riêng.
 
 Trip/Decision có lượt chat. Planning có call riêng cho proposal nội bộ và không nhận `turn` qua router; quyền và kiểm chứng proposal ở `docs/PLANNING.md` §Agent đề xuất nội bộ. `live` cung cấp tool, không có agent LLM riêng. Corpus giữ pipeline offline riêng.
 
@@ -47,7 +47,9 @@ Quay về Decision giữ ID phiên và lựa chọn. Quay về Trip rồi compil
 
 ## 3. Phiên, revision và retry
 
-Một `Journey` giữ ID, stage, revision, ID phiên các module, output, snapshot và receipt. Engine chạy bằng store RAM; adapter từ chối engine có store ghi riêng. Harness ghi phiên vào `data/harness/sessions/<id>.json` (gốc lấy từ `DATA_DIR`). Snapshot module và receipt được ghi cùng envelope qua file tạm rồi replace.
+Một `Journey` giữ ID, tài khoản sở hữu (`user_id`), stage, revision, ID phiên các module, output, snapshot và receipt (receipt có `at`). Engine chạy bằng store RAM; adapter từ chối engine có store ghi riêng. `python -m harness serve` dùng `PgStore`: mỗi hành trình một dòng bảng `journeys` (envelope `jsonb` + `stage`, `revision`, `user_id`, `app_version`). Ghi bằng `UPDATE … WHERE revision = <revision đã đọc>`; người ghi thứ hai thua nhận `Conflict` (409) thay vì đè. Tiến trình giữ bản sao các hành trình đã đọc (envelope có thể vài MB). `Store` ghi file `data/harness/sessions/<id>.json` còn dùng cho test và CLI. Phản hồi sau chuyến ghi vào bảng `feedback`.
+
+Nạp dữ liệu file cũ một lần (không gắn tài khoản; mốc phễu suy ra từ trạng thái đã lưu, `docs/ANALYTICS.md`): `python -m harness import-files data/harness/sessions data/harness/feedback.jsonl` (chạy lại không nạp trùng).
 
 Mutation giữ khóa hành trình trong tiến trình, kiểm revision và router, chạy tool, lấy snapshot mới rồi commit. Save lỗi khôi phục snapshot trước mutation. Restart phục hồi module từ snapshot đã commit, không gọi lại LLM để replay phiên.
 
@@ -55,7 +57,7 @@ Request trùng `request_id` và toàn bộ nội dung trả receipt đã lưu d�
 
 Client tuần tự mutation theo journey, lưu pending request trong localStorage trước khi gửi, giữ nguyên ID/payload/revision khi retry transport và replay pending trước mutation mới sau reload. Reload tiếp tục stage trên server; chỉ thao tác quay lại rõ ràng từ người dùng gửi `back`. Server session là nguồn sự thật; `decisionId`/`planningId` trong adapter Web tham chiếu journey, không phải ID module độc lập.
 
-Storage dùng một tiến trình: khóa không bảo vệ nhiều worker ghi cùng hành trình; chưa pruning receipt hoặc có transaction với dịch vụ ngoài. Atomic replace bảo vệ snapshot khỏi ghi dở, không cam kết durability trước mất điện. CLI/API module độc lập giữ store phiên riêng và không dùng chung ID với harness.
+Khóa hành trình nằm trong một tiến trình; nhiều tiến trình cùng ghi được chặn bằng kiểm revision ở Postgres. Chưa pruning receipt hoặc có transaction với dịch vụ ngoài. CLI/API module độc lập giữ store phiên riêng và không dùng chung ID với harness.
 
 ## 4. API và SSE
 
@@ -63,23 +65,34 @@ Storage dùng một tiến trình: khóa không bảo vệ nhiều worker ghi c�
 python -m harness serve [--port 8769]
 ```
 
-Bind `127.0.0.1`; Vite proxy `/api/harness` đến cổng 8769. `./run.sh start` chạy harness, review và Web; thiết lập ở `README.md`.
+Bind `127.0.0.1`; Vite proxy `/api/harness` và `/api/auth` đến cổng 8769 (`HARNESS_PORT` đổi được). Cần `DATABASE_URL`. `./run.sh start` chạy harness, analytics, review và Web; thiết lập ở `README.md`.
+
+**Quyền.** Mọi `/api/harness/*` cần phiên đăng nhập (cookie `tg_session`), thiếu thì 401; `/api/auth/*` là luồng đăng nhập (`docs/ACCOUNTS.md`). Mutation (POST / PATCH / DELETE) phải có header `Origin` khớp `APP_BASE_URL` hoặc khớp `Host`, sai thì 403. Hành trình của tài khoản khác trả 404 như không tồn tại. Ngoại lệ duy nhất: `POST /api/harness/events` nhận lô không phiên nhưng chỉ giữ `page_view` / `landing_cta` (landing public).
 
 | API | Input / việc |
 |---|---|
-| `POST /api/harness/sessions` | `{experience?, start_with?, user_id?, remember?}` → journey + Trip view; `user_id` / `remember` bật mẫu dài hạn của Trip (`docs/TRIP_UNDERSTANDING.md` §17) |
-| `DELETE /api/harness/profile/<user_id>` | `{forgotten}`; xóa mẫu dài hạn đã lưu của user |
+| `POST /api/harness/sessions` | `{experience?, start_with?}` → journey + Trip view, gắn tài khoản đang đăng nhập; `user_id` của Trip = id tài khoản, `remember` = `consents.patterns` của hồ sơ (`docs/TRIP_UNDERSTANDING.md` §17). Phương tiện / người đi cùng trong hồ sơ vào Trip làm prior `source = profile` |
+| `DELETE /api/harness/profile/<user_id>` | `{forgotten}`; chỉ `user_id` của chính mình, khác thì 404 |
 | `GET /api/harness/sessions/<id>?stage=` | Đọc view module đã có; mặc định stage active |
 | `POST /api/harness/sessions/<id>/request` | Mutation JSON; `Accept: text/event-stream` để nhận SSE |
 | `GET /api/harness/places?q=` | Tra nơi từ serving index |
+| `GET /api/harness/geo?q=` | Ô "Bạn khởi hành từ đâu?": ≤ 6 `{text, address, province, lat, lng, source, fetched_at}` (`live.geosearch` qua Planning); nguồn lỗi → `[]` |
+| `GET /api/harness/lodging/suggest?q=` | Ô chỗ ở: ≤ 6 `{kind, id?, text, address, rating?, lat, lng}` — chỗ ở của mình trước (`corpus`: serving nhóm `stay`; `live`: thẻ Maps đã crawl, tra tên tại chỗ), rồi `address` từ `geosearch`; nguồn tìm lỗi → vẫn trả phần của mình |
+| `GET /api/harness/transit?mode=&from=&to=&date=[&lat=&lng=]` | Thẻ chuyến (`params` của câu hỏi `inbound` / `outbound`): `{status: ready / pending / unavailable, trips: [Transit], book_url}`; `pending` = đang crawl nền, `book_url` = trang đặt vé đã điền sẵn (`docs/PLANNING.md` §Chuyến xe khách, chuyến bay) |
+| `GET /api/harness/transit/events?…` | SSE cùng tham số: một event `{status, trips, book_url}` khi có kết quả; quá 90 giây vẫn chưa xong → `unavailable` |
 | `GET /api/harness/sessions/<id>/read/decision/compare?a=&b=` | So sánh |
 | `GET /api/harness/sessions/<id>/read/decision/why-not?place=` | Lý do loại |
 | `GET /api/harness/sessions/<id>/read/decision/page?group=` | Trang tiếp của một nhóm hiển thị: cửa sổ đang hiện nối thêm `page_size` nơi, lưu trong phiên → `{view}` (`docs/PLACE_DECISION.md` §9.4) |
 | `GET /api/harness/sessions/<id>/read/planning/{variants,lodging}` | Đọc phương án / tiến độ chỗ ở |
 | `GET /api/harness/sessions/<id>/planning/lodging/events` | SSE cập nhật view sau chờ chỗ ở, tối đa khoảng 10 giây |
 | `GET /api/harness/sessions/<id>/preview` | Chỉ ở stage `decision`: lịch ngầm cho lựa chọn hiện tại → `{revision, status, plan}`; `status` = `ready` / `failed` (không xếp được, kèm `back_to_decision`) / `blocked` (Decision chưa xác nhận được) / `empty` |
-| `GET /api/harness/trips?ids=a,b` | Tóm tắt tối đa 20 hành trình trình duyệt nhớ: stage, ngày, số người, nơi đã chọn, đã chốt chưa; ID lạ bị bỏ qua, không liệt kê hành trình khác |
-| `POST /api/harness/sessions/<id>/feedback` | `{scores (≤10 tên → 1–5), more_search?, note? ≤1000}` → ghi một dòng `data/harness/feedback.jsonl` |
+| `GET /api/harness/trips` | Tóm tắt tối đa 50 hành trình của tài khoản, mới nhất trước: stage, ngày, số người, nơi đã chọn, đã chốt chưa |
+| `POST /api/harness/sessions/<id>/feedback` | `{scores (≤10 tên → 1–5), more_search?, note? ≤1000}` → một dòng bảng `feedback` |
+| `GET /api/harness/sessions/<id>/today?day=`, `…/companion/suggest?place=&similar=1`, `POST …/companion` | Chế độ Đang đi (`docs/COMPANION.md`) |
+| `/api/harness/calendar/{preview,apply,disconnect}` | Xuất Google Calendar có xác nhận (`docs/COMPANION.md`) |
+| `/api/harness/me…`, `/api/harness/avatars/<key>` | Tài khoản, hồ sơ, avatar, xóa tài khoản (`docs/ACCOUNTS.md`) |
+| `/api/harness/push/…`, `/api/harness/notifications…`, `/api/harness/me/notification-prefs` | Thông báo (`docs/COMPANION.md`) |
+| `POST /api/harness/events` | Lô event của web (`docs/ANALYTICS.md`) |
 | `POST /api/harness/reports` | `{place_id, text, reporter}` → báo cáo thông tin sai của Decision (`corpus.review.reports`); không đổi corpus ngay |
 
 Request mẫu:
@@ -88,13 +101,13 @@ Request mẫu:
 {"request_id":"unique-request-id","stage":"decision","operation":"act","expected_revision":3,"payload":{"type":"select","place_id":"existing-place-id"}}
 ```
 
-Response `JourneyView`: `id`, `stage`, `revision`, `sessions`, `outputs`, `result` (view hoặc output của module). Body tối đa 64 KiB; input sai trả 400, phiên không có 404, conflict/router hoặc chưa confirm được trả 409. Lỗi sau khi mở SSE gửi event `error` với `data.status` tương ứng để client không giữ pending request đã bị từ chối.
+Response `JourneyView`: `id`, `stage`, `revision`, `sessions`, `outputs`, `result` (view hoặc output của module). Body tối đa 64 KiB (avatar 5 MB); input sai trả 400, phiên không có 404, conflict/router hoặc chưa confirm được trả 409. Lỗi sau khi mở SSE gửi event `error` với `data.status` tương ứng để client không giữ pending request đã bị từ chối.
 
-SSE mutation bọc `request_id`, `stage`, `revision`, `event`, `data`. `say`/`preview` có `provisional: true`, dùng revision trước commit; các event còn lại phát sau commit. Event `journey` cuối stream là receipt hoàn tất. Client lọc metadata không khớp và chỉ handoff khi nhận receipt cuối. SSE chỗ ở dùng stage/revision; đây là stream đọc, không có request mutation.
+SSE mutation bọc `request_id`, `stage`, `revision`, `event`, `data`. `say`/`preview` có `provisional: true`, dùng revision trước commit; các event còn lại phát sau commit. Event `journey` cuối stream là receipt hoàn tất. Client lọc metadata không khớp và chỉ handoff khi nhận receipt cuối. SSE chỗ ở dùng stage/revision; đây là stream đọc, không có request mutation. Bốn đường `geo`, `lodging/suggest`, `transit`, `transit/events` không cần journey: Trip Understanding hỏi hậu cần trước khi có phiên Planning, nên harness gọi thẳng `planning.Tools` (Planning là chủ Live Context).
 
 ## 5. Ngân sách model và kiểm chứng
 
-Chip, edit, show, act của người dùng và router không gọi LLM. `trip/heuristics.py` bypass Agent khi prepass hiểu trọn câu chỉ gồm số ngày, số người, người đi cùng, phương tiện và từ nối trong allowlist; không có clue suy luận hay từ còn chưa hiểu. Câu gõ chỉ lặp lại nhãn một chip (hoặc một vế của nhãn, bỏ dấu và từ đệm) hay `Bỏ qua` / `Không chắc` của thẻ đang mở được xử lý như bấm chip đó (`chip_echo`); không áp dụng cho thẻ agent viết và thẻ có ô nhập chữ. Gửi chữ trong ô "đáp án khác" mà không chọn chip nào được xử lý như một lượt gõ tự do. `decision/heuristics.py` nhận một lệnh chọn/thêm/bỏ/khóa với tên đầy đủ khớp duy nhất trong các địa điểm trên màn. Act vẫn qua kiểm tra nghiệp vụ. Log ghi `heuristic:frame`, `heuristic:chip_echo` hoặc `heuristic:exact_command`.
+Edit, show, act của người dùng và router không gọi LLM. Ở Trip, trả lời một thẻ (chip hoặc chữ) và câu gõ tự do đều là một lượt agent: chip và `Bỏ qua` / `Không chắc` quay lại Agent dưới dạng chữ (Trip không tự áp chip). Ô "đáp án khác" là lựa chọn thay cho chip: một `answer` mang chip/giá trị **hoặc** chữ, không cả hai (gửi cả hai bị từ chối). Clef (`trip/infrastructure/clef.py`) gán nhãn lạc đề, phá hoại hoặc câu hỏi số liệu thực tế với xác suất đủ cao thì Trip trả câu cố định mà không gọi Agent, không ghi state, giữ nguyên thẻ đang mở; câu mà bộ từ khóa đã đọc được manh mối thì không bị coi là lạc đề. `decision/heuristics.py` nhận một lệnh chọn/thêm/bỏ/khóa với tên đầy đủ khớp duy nhất trong các địa điểm trên màn. Act vẫn qua kiểm tra nghiệp vụ. Log ghi `clef_reject:off_topic|abuse`, `clef_data` hoặc `heuristic:exact_command`. Adapter `Tools` của Trip và Decision phát thêm event nội bộ `trace {path}` (`agent` / `fallback` / `heuristic:*`); harness bỏ nó trước khi gửi web và ghi vào event dùng cho Admin (`docs/ANALYTICS.md`).
 
 Câu phủ định, điều kiện, nhiều ý không được heuristic hiểu hết hoặc tên trùng đi qua đường Agent hiện có. Prepass vẫn giữ clue đã đọc được và provenance khi Agent lỗi. Heuristic không tự confirm, nới constraint hoặc suy ra fact địa điểm.
 

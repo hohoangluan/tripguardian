@@ -27,7 +27,7 @@ Giao diện **không hỏi người dùng thuộc nhóm nào**. Nó đọc hai t
 
 Mặc định nghiêng về dẫn dắt nhiều, kèm lối tắt *"tôi đã có danh sách, kiểm tra giúp"* ở mọi bước. Chi tiết: `docs/Project_Context.md` §3.
 
-- **User Web ưu tiên điện thoại:** người dùng lên kế hoạch trên điện thoại, thường ngay sau khi xem TikTok.
+- **User Web chạy trên máy tính:** điện thoại mở web thì được mời tải ứng dụng (ứng dụng làm sau) và dùng máy tính trong lúc chờ (`docs/UI_SPEC_LANDING.md` §5).
 - **Admin Web là desktop:** dày thông tin, thao tác nhanh, có phím tắt.
 - Nội dung giao diện bằng **tiếng Việt**, từ ngữ đời thường, không dùng thuật ngữ hệ thống.
 
@@ -93,17 +93,13 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 
 | | User Web + landing | Admin Web |
 |---|---|---|
-| Hướng | **Trắng hồng, editorial nhẹ** — nhiều trắng, nét mảnh, bình minh Đà Lạt ám hồng (chốt 2026-10-04) | "Phòng điều khiển", chỉ desktop, sáng/tối theo hệ thống |
-| Chữ | Phudu (tiêu đề, nút; chữ hoa, chỉ câu ngắn), Geologica (nội dung, tên địa điểm), Space Mono (giờ, số, khoảng ước tính) | Mona Sans (độ rộng tạo phân cấp), JetBrains Mono (dữ liệu, phím tắt) |
-| Nền | Landing: thế giới 3D làm nền; hero và 5 bước căn giữa (bước dính giữa màn hình: tiêu đề trên, thẻ sản phẩm giữa, hai chú thích hai bên), rồi phần giấy kem (video demo, FAQ, CTA). App: giấy kem, bề mặt đặc, dải ảnh poster sau tiêu đề mỗi màn | Bề mặt trung tính; thẻ "Việc cần làm" nền thông đậm là điểm nhìn đầu tiên |
-| Màu | Nền `#FFF9F8` · thẻ `#FFFFFF` · mực `#3A2B32` · hồng phấn `#EFB8C4` (nút, chữ mận) · hồng đậm `#C97890` (nét, pin) · hồng nhạt `#FCEEF1` · mận `#6B3550` (quy tắc cứng, thanh dính) · hổ phách `#A8660F` (**chỉ** cảnh báo) · xanh mực `#4A6488` (link, nguồn) · dã quỳ `#F2B31B` **chỉ còn một chỗ: mặt trời trong 3D của landing** | Giữ nguyên hệ cũ; màu trạng thái theo `admin/model.ts` |
+| Hướng | **Nền giấy sáng, editorial dẫn bằng ảnh thật**; màu Thông (chính) + Nắng (điểm nhấn). Bảng màu, chữ, chuyển cảnh: `docs/UI_SPEC_USER_WEB.md` §8 | "Phòng điều khiển", chỉ desktop, sáng/tối theo hệ thống |
+| Chữ | Playfair Display (tiêu đề), Inter (nội dung), JetBrains Mono (giờ, số, giá, cỡ mẫu) | Mona Sans, JetBrains Mono |
+| Nền | Landing: ảnh sinh + GSAP cuộn (`docs/UI_SPEC_LANDING.md`). App: giấy `#FAF7F2`, thẻ trắng | Bề mặt trung tính; màu trạng thái theo `admin/model.ts` |
 
-- Quy tắc cứng là khối nền **mận đậm đặc** có khóa; sở thích mềm là chip **viền đứt** trên nền trắng, có × để bỏ và nhãn "từ hồ sơ của bạn" khi suy ra từ hồ sơ.
-- **Chưa áp vào code:** `web/src/user/user.css` và `web/src/styles.css` vẫn là giấy kem + xanh thông. Đổi sang bảng trên là một lần restyle thật, và `web/public/media/demo.mp4` phải quay lại (`web/scripts/record_demo.mjs`) vì video đang mang màu cũ.
-- Landing có đặc tả riêng: `docs/UI_SPEC_LANDING.md` (nhuộm lại thế giới 3D, ngân sách chữ, animation).
-- Ảnh poster sinh qua `web/scripts/gen_images.py`; chúng là minh họa, không phải ảnh địa điểm thật. Ảnh bìa thẻ địa điểm lấy từ frame clip thật của chính nơi đó, có ghi creator.
-- Video demo landing quay từ app thật bằng `web/scripts/record_demo.mjs`.
-- Vào `/app` lần đầu là màn đăng nhập: Google (nổi nhất), Zalo, Facebook, Apple, TikTok, hoặc email + mật khẩu (email để còn lấy lại mật khẩu, không dùng username); nút "Dùng thử, không cần tài khoản" mạnh nhất vì không bắt buộc tài khoản. Bản thử mô phỏng đăng nhập trong trình duyệt (`web/src/user/account.ts`, không lưu mật khẩu); auth thật thay module này.
+- Quy tắc cứng là **con dấu** viền đậm có khóa; sở thích mềm là chip **viền đứt**, có × để bỏ và ghi nguồn (*từ lời bạn / từ hồ sơ*).
+- Ảnh bìa thẻ địa điểm là ảnh thật của chính nơi đó (Google Maps / frame clip), có ghi nguồn. Ảnh sinh chỉ dùng cho không khí.
+- Vào `/app` lần đầu là màn Vào ứng dụng: "Dùng thử, không cần tài khoản" mạnh nhất; email + mật khẩu chỉ lưu trong trình duyệt (`web/src/user/account.ts`, không lưu mật khẩu); đăng nhập Google / Zalo / Facebook / Apple `sắp có`.
 
 ## 8. Câu hỏi mở cho designer
 

@@ -78,10 +78,17 @@ decision ──►  corpus.serving, corpus.ontology
 live     ──►  corpus.crawl            (chỉ 3 tên: open_sessions, maps_search, LoginRequired)
 planning ──►  live, decision, trip, corpus.serving, corpus.ontology
 agents   ──►  corpus.llm
-harness  ──►  trip, decision, planning, agents
+db       ──►  (không phụ thuộc gì)
+accounts ──►  db
+companion──►  db, accounts, decision, corpus.serving, corpus.ontology, live
+notify   ──►  db, companion, corpus.serving, corpus.ontology, live
+analytics──►  db                       (job `cluster` thêm corpus.llm)
+harness  ──►  trip, decision, planning, agents, accounts, companion, notify, db
 ```
 
 Agent của module dùng runtime public `agents`; `harness` gọi `Tools` public của module, router chọn module theo stage. Hành trình, capability và persistence: `docs/AGENT_HARNESS.md`.
+
+Quanh bốn giai đoạn có ba phần online chỉ ghi dữ liệu người dùng, không bao giờ ghi Place Intelligence: tài khoản (`docs/ACCOUNTS.md`), chế độ Đang đi + Google Calendar + thông báo (`docs/COMPANION.md`), sự kiện và số liệu Admin (`docs/ANALYTICS.md`). Check-in và thông báo không phải bằng chứng về địa điểm.
 
 `live` không biết `planning`. `corpus` không biết giai đoạn nào ở sau nó. Test khẳng định các ranh giới này (`tests/planning/test_planning_boundaries.py`, `tests/live/test_boundaries.py`).
 
@@ -112,10 +119,14 @@ Mọi ngưỡng nằm trong `config/`, không trong code:
 | `live.yaml` | live | endpoint và TTL từng nguồn live |
 | `climate.yaml`, `holidays.yaml` | live | khí hậu Đà Lạt theo tháng, lễ Việt Nam (nhập tay) |
 | `eval_trips.yaml` | decision + planning | 30 Trip State ẩn, dùng chung để đo cả hai bước |
+| `companion.yaml` | companion | gợi ý tại chỗ và gần đây, ngưỡng "phần còn lại hơi chật" |
+| `notifications.yaml` | notify | loại thông báo, mẫu câu đã duyệt, giờ yên lặng, giới hạn mỗi ngày |
 
 Dữ liệu: `data/<nguồn>/` thô và observation, `data/intel/` + `data/serving/` Place Intelligence (`docs/CORPUS.md` §Data model); `data/live/` cache live có TTL (`docs/PLANNING.md` §Ranh giới module). Không nguồn nào gộp với nguồn khác, cả trong code lẫn trong thư mục dữ liệu (`RULE.md` §2).
 
-User Web dùng journey chung; harness lưu snapshot các module, revision và receipt cùng file tại `data/harness/sessions/` (`docs/AGENT_HARNESS.md` §3). CLI/API module độc lập mirror state vào `data/{trip,decision,planning}/sessions/`. Một act sinh `State` mới; `scope.py` quyết định phần nào phải tính lại.
+Dữ liệu người dùng nằm trong **Postgres** của dự án (container `tripguardian-pg`, `127.0.0.1:5433`; bảng ở `migrations/`, chạy bằng `./run.sh db`): tài khoản, hành trình, event, chuyến đang đi, Calendar, thông báo. Role `tg_app` ghi; `tg_analytics` chỉ đọc và không đọc được bảng chứa bí mật. Avatar nằm ở `data/accounts/avatars/`.
+
+User Web dùng journey chung; harness lưu snapshot các module, revision và receipt trong bảng `journeys` (`docs/AGENT_HARNESS.md` §3). CLI/API module độc lập mirror state vào `data/{trip,decision,planning}/sessions/`. Một act sinh `State` mới; `scope.py` quyết định phần nào phải tính lại.
 
 ---
 
@@ -145,10 +156,14 @@ Hai vòng đầu là lý do Place Decision và Planning tách nhau mà vẫn n�
 ## 7. Giao diện và cổng
 
 ```text
-web (Vite, :5173)  /landing  giải thích vấn đề, một CTA
-                   /app      User Web   → harness :8769 → trip · decision · planning
-                   /admin    Admin Web  → review :8765
+web (Vite, :5173)  /          landing, public
+                   /app       User Web (cần đăng nhập Google) → /api/auth/*, /api/harness/* → harness :8769
+                   /admin     Admin Web → review :8765, analytics :8770 (private, chỉ đọc)
+notify worker      python -m notify run (không cổng) → Postgres, web push
+Postgres           127.0.0.1:5433 (container tripguardian-pg)
 ```
+
+Bản public (`web/server.mjs`, `./run.sh prod`) chỉ mở `/api/harness/*` và `/api/auth/*`; `/admin`, analytics và mọi `/api/*` khác trả 404.
 
 Chức năng từng màn theo vai trò: `docs/Role_Web_Functional_Design.md`. Nguyên tắc hiển thị và hệ thị giác: `docs/UX_Design_Brief.md`. Đặc tả trang cho designer: `docs/UI_SPEC_USER_WEB.md`. Cách chạy cả stack: `README.md`.
 

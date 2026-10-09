@@ -48,6 +48,14 @@ def preference(rec: dict, ws) -> tuple[float, float, list[tuple]]:
     return fit / total, missing / total, matches
 
 
+def preference_fit(rec: dict, soft_weights: list[dict]) -> tuple[float, list[tuple]]:
+    """Public: how one serving record matches a trip's soft wishes (Search Input soft_weights as dicts), as
+    (fit in -1..1, matches). Used outside Decision (companion's nearby picks) without building candidates."""
+    ws = [(w["feature"], w["value"], w.get("context"), w["weight"]) for w in soft_weights if w.get("weight")]
+    fit, _, matches = preference(rec, ws)
+    return fit, matches
+
+
 def _price_norm(rec: dict, cfg) -> float:
     p = rec["operation"].get("price_per_person")
     if not p:

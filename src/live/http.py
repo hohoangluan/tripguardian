@@ -20,3 +20,13 @@ def get_json(url: str, user_agent: str, timeout_s: float):
             return json.loads(r.read().decode("utf-8"))
     except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError, ValueError) as e:
         raise Unavailable(f"{url.split('?', 1)[0]}: {e}") from e
+
+
+def get_text(url: str, user_agent: str, timeout_s: float) -> str:
+    """One GET of a server-rendered page (Vexere), body as text."""
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent, "Accept-Language": "vi-VN,vi;q=0.9"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            return r.read().decode("utf-8")
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError, ValueError) as e:
+        raise Unavailable(f"{url.split('?', 1)[0]}: {e}") from e

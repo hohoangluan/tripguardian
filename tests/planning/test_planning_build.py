@@ -105,6 +105,15 @@ def test_the_base_the_entry_and_the_exit_become_the_start_and_end_of_the_trip():
     assert "entry_exit_unknown" not in {w["code"] for w in plan["warnings"]}
 
 
+def test_the_entry_point_only_opens_day_one_it_is_not_where_the_user_sleeps():
+    """A flight or coach gives where the user arrives, not where they stay: the later days do not start there."""
+    d, recs = trip(entry={"place_id": None, "text": "Sân bay"})
+    far = lambda text: {"lat": 11.7504, "lng": 108.3672, "label": text, "source": "nominatim", "fetched_at": "t"}
+    plan = build(d, recs, geocode=far)
+    starts = [next(i for i in day["items"] if i["kind"] == "travel").get("from") for day in plan["itinerary"] if day["items"]]
+    assert plan["ok"] and "@entry" not in starts[1:]
+
+
 def test_a_trip_without_dates_or_entry_points_says_what_it_could_not_check():
     d, recs = trip(start_date=None, days=None)
     codes = {w["code"] for w in build(d, recs)["warnings"]}

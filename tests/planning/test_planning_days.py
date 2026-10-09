@@ -178,3 +178,10 @@ def test_a_wanted_place_costs_more_on_a_short_or_rainy_day():
     rainy = day_ctx(recs, prefs={"a": 1.0}, rain=0.5)
     assert day_risk(full) == 0.0 and day_risk(short) == 0.5 and day_risk(rainy) == 0.5
     assert pref_risk(["a"], short) == 0.5 and pref_risk(["a"], day_ctx(recs)) == 0.0
+
+
+def test_a_lone_place_on_equal_days_goes_on_the_first_day():
+    recs = [rec("a", 1, 1)]
+    ctxs = [day_ctx(recs, weekday=wd, travel=line_travel({"a": 0})) for wd in ("mon", "tue", "wed")]
+    out, _ = assign_days([["a"]], ctxs)
+    assert out == [["a"], [], []]

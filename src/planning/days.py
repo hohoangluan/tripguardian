@@ -135,8 +135,9 @@ def assign_days(clusters: list[list[str]], ctxs: list[DayCtx]) -> tuple[list[lis
             while True:
                 prev = dp[d - 1][mask ^ sub]
                 if prev < inf:
-                    if (d, sub) not in cost:
-                        cost[(d, sub)] = day_cost(members(sub), ctxs[d - 1])
+                    if (d, sub) not in cost:     # still equal after day_cost: the earlier day takes the places
+                        ids = members(sub)
+                        cost[(d, sub)] = day_cost(ids, ctxs[d - 1]) + 1e-6 * (d - 1) * len(ids)
                     c = prev + cost[(d, sub)]
                     if c < dp[d][mask]:
                         dp[d][mask], back[d][mask] = c, sub

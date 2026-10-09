@@ -12,4 +12,4 @@ export const morePlaces = (id: string, group: string) => readJourney<{ view: Vie
 export const whyNot = (id: string, place: string) => readJourney<WhyNot>(id, `decision/why-not?place=${encodeURIComponent(place)}`)
 export async function sendText(id: string, text: string, h: TurnHandlers): Promise<void> { await mutateJourney(id, 'decision', 'turn', {text}, h as Record<string, ((d: any) => void) | undefined>) }
 export const previewPlan = (id: string) => fetch(`/api/harness/sessions/${id}/preview`).then(json<PlanPreview>)
-export const tripSummaries = (ids: string[]) => (ids.length ? fetch(`/api/harness/trips?ids=${ids.join(',')}`).then(json<TripSummary[]>) : Promise.resolve([]))
+export const tripSummaries = () => fetch('/api/harness/trips').then(json<TripSummary[]>)

@@ -2,9 +2,9 @@ from datetime import date
 
 import pytest
 
-from trip.compile import UnhandledSignal, compile_search_input
-from trip.state import Evidence, TripState, Update, apply
-from trip.understanding import view
+from trip.domain.compile import UnhandledSignal, compile_search_input
+from trip.domain.state import Evidence, TripState, Update, apply
+from trip.domain.understanding import view
 
 EV = Evidence(turn=1, quote="x")
 
@@ -28,7 +28,7 @@ def doc_example():
     s = up(s, "soft", ("hiking=present", "off"), "add")
     s = up(s, "pace", "slow", source="inferred")
     s = up(up(s, "novelty", "new"), "unmapped", "nhạc nhẹ", "add")
-    from trip.state import settle
+    from trip.domain.state import settle
     return settle(s)
 
 
@@ -66,8 +66,18 @@ def test_view_matching_drops_when_a_hard_limit_excludes(catalog, cfg):
     assert view(s, catalog, cfg)["matching"] < view(TripState(), catalog, cfg)["matching"] == len(catalog.places)
 
 
+def test_view_matching_counts_places_with_evidence_for_a_liked_thing(catalog, cfg):
+    c0 = next(c for c in catalog.places if c.known)
+    f, k = next(iter(c0.known.items()))
+    has = sum(1 for c in catalog.places if c.value(f) == k.value)
+    liked = up(TripState(), "soft", (f"{f}={k.value}", "love"), "add")
+    assert view(liked, catalog, cfg)["matching"] == has
+    avoided = up(TripState(), "soft", (f"{f}={k.value}", "avoid"), "add")
+    assert view(avoided, catalog, cfg)["matching"] == len(catalog.places) - has
+
+
 def test_context_carries_budget_and_experience():
-    from trip.state import Meta
+    from trip.domain.state import Meta
     s = TripState(meta=Meta(experience="returning"))
     s = up(s, "budget_vnd", 500000)
     si = compile_search_input(s)

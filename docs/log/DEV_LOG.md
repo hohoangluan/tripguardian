@@ -177,11 +177,11 @@ _không có_
 - file: `src/trip/` (toàn bộ), `config/trip.yaml`, `tests/trip/`, `web/src/user/tu/`, `web/src/user/screens/Understand.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/trip`; `python -m pytest -m live tests/trip/test_live.py` (Gemma thật); `python -m trip serve` + `/app/understand`
 
-### Hiện tại (2026-10-08, chiều)
-- hành vi: như bản trước, thêm hai điểm. (1) Câu có "giống / kiểu / như / tương tự" + tên một nơi trong catalog: `domain/traits.py` lấy tối đa 4 nét nổi bật của nơi đó (giá trị khác phổ biến trong cùng category, theo số người nhắc) đưa vào `compared_places`; guard chỉ nhận soft `inferred` nhắc nơi đó khi giá trị nằm trong các nét ấy, và cho `say` nhắc tên nơi đó. (2) `Engine.refine` / tool `trip.refine`: harness chuyển mong muốn gõ ở Chọn nơi sang, chạy như lượt chữ, giữ thẻ đang mở, compile lại và phát `done`; lời trả lời không kết bằng câu hỏi. (3) Soft suy từ nơi so sánh ghi `place:<id>`, vé hiện "Tránh: …, … (giống X)". (4) Chip của thẻ mang `effect` (+/− số nơi "Đang hợp với bạn" nếu chọn chip đó, `understanding.chip_effects`); màn Hiểu chuyến đi hiện số trên chip, số đếm chạy tới giá trị mới kèm "−N nơi" và bốn lựa chọn gần nhất.
+### Hiện tại (2026-10-08, tối)
+- hành vi: như bản trước, thêm: (1) câu mở `frame` là khung chat của web: lượt chữ đầu trong lúc nó mở là đã trả lời (`agent/nodes.finalize_text`), kể cả khi không ghi được gì, nên "Đúng rồi, hỏi tiếp" chia câu ngắn đầu tiên còn thiếu, không bao giờ chia lại `frame`; chat bao nhiêu lượt cũng được. (2) Ngân hàng câu hỏi bỏ `base`, `entry_exit` (trùng câu chỗ ở, phương tiện của hậu cần); `times` thành câu hậu cần, chỉ hỏi giờ mà chuyến xe / bay chưa cho (tự đi, bỏ qua chuyến, không có ngày). (3) Viết lại lời các câu gượng (dốc / bậc thang, lọc sức khỏe, giới hạn chưa xác minh, khoảnh khắc → trải nghiệm, chỗ đông, nhịp, chặng di chuyển, ngân sách…). (4) Web: khung chat bỏ bốn nút "cách bắt đầu", thêm đính kèm file chữ (`tu/attach.ts`: .txt, .csv Google Takeout, .json / .geojson, .kml → từng dòng tên nơi hoặc link) và nhắc dán link Maps / TikTok; thẻ câu hỏi nói rõ chọn một hay chọn nhiều (dòng hướng dẫn + dấu tròn / vuông). Kiểm chứng: 182 test trip; chat thật "đà lạt" → "hỏi tiếp" → thẻ Số ngày.
 
-### Trước đó (2026-10-08)
-- hành vi: như bản trước; `matching` của bản hiểu (`understanding.view`, ô "Đang hợp với bạn") giờ đếm nơi qua giới hạn cứng **và** hợp gu (`to_taste`): có bằng chứng cho ít nhất một giá trị soft được thích (chưa thích gì thì không xét), không có bằng chứng cho giá trị bị tránh; chưa rõ không tính là trái gu. Trước đó chỉ đếm giới hạn cứng nên trả lời sở thích không làm số đổi. Số này không loại nơi nào ở Place Decision. Lượt gõ chữ: call lập kế hoạch chạy song song với Clef (không cấp tool → dùng luôn), lượt đầu từ landing ~2,5 s trung vị qua Cloudflare (trước ~5 s).
+### Trước đó (2026-10-08, chiều)
+- hành vi: như bản trước, thêm hai điểm. (1) Câu có "giống / kiểu / như / tương tự" + tên một nơi trong catalog: `domain/traits.py` lấy tối đa 4 nét nổi bật của nơi đó (giá trị khác phổ biến trong cùng category, theo số người nhắc) đưa vào `compared_places`; guard chỉ nhận soft `inferred` nhắc nơi đó khi giá trị nằm trong các nét ấy, và cho `say` nhắc tên nơi đó. (2) `Engine.refine` / tool `trip.refine`: harness chuyển mong muốn gõ ở Chọn nơi sang, chạy như lượt chữ, giữ thẻ đang mở, compile lại và phát `done`; lời trả lời không kết bằng câu hỏi. (3) Soft suy từ nơi so sánh ghi `place:<id>`, vé hiện "Tránh: …, … (giống X)". (4) Chip của thẻ mang `effect` (+/− số nơi "Đang hợp với bạn" nếu chọn chip đó, `understanding.chip_effects`); màn Hiểu chuyến đi hiện số trên chip, số đếm chạy tới giá trị mới kèm "−N nơi" và bốn lựa chọn gần nhất.
 
 ## decision — Place Decision: Search Input tới Decision Output
 
@@ -213,6 +213,17 @@ _không có_
 - sửa: kế hoạch hiện ra là hợp lệ nhưng không xác nhận được (`plan has unresolved violations`) khi bộ xếp lịch đã bỏ ghim giờ của một nơi: `DayResult.unpinned` ghi lại, `validate` tôn trọng. Plan Output đã chốt giữ `day_conditions`, `crowd_tips`. Phát hiện bằng `scripts/journey_sim.py` (mô phỏng 11 kiểu người dùng + hành vi ngẫu nhiên trên dữ liệu thật, không gọi model).
 - giới hạn: thông báo thiên tai và lễ hội nhập tay (chưa có nguồn tự động; `advisories.yaml` rỗng không có nghĩa an toàn); ngưỡng thời tiết, hệ số đông khách là ước lượng chờ pilot; chưa kiểm cửa hàng đóng tạm thời trực tiếp (`place_live_status`).
 
+## landing — Landing 3D (máy tính) + Dùng ứng dụng (điện thoại)
+
+- file: `web/src/user/screens/{Landing,GetApp}.tsx`, `web/src/user/landing/{scene,terrain,device}.ts`, `web/src/user/landing/{places,points,stats}.json` (sinh bằng `web/scripts/pick_landing_places.py`), `web/src/user/css/landing.css`, `web/src/user/UserApp.tsx`; phụ thuộc `three`
+- cách kiểm chứng: `npm run build --prefix web` (chunk `scene` riêng chứa three.js); mở `/` ở 1440×900 và 1024×768, cuộn qua 6 đoạn; giả UA iPhone mở `/` phải thấy trang Dùng ứng dụng; bật `prefers-reduced-motion` thấy khung tĩnh + 4 chương xếp lưới
+
+### Hiện tại (2026-10-08, khuya)
+- hành vi: máy tính thấy sân khấu sticky với thung lũng Đà Lạt 3D lúc bình minh (three.js thuần, tải lười): bầu trời hồng đào, sương, đồi thông, hai hồ, phố mái ngói; 1.773 đốm sáng là toạ độ thật của mọi nơi; 5 nơi được chọn là bưu thiếp in ảnh thật, tuyến là đường chấm. Cuộn qua 6 đoạn theo bước sản phẩm (Mở đầu → Tìm hiểu → Lựa chọn → Lựa chọn · lý do → Lịch trình → Đánh giá), thanh bước bên phải 5 mục. Đoạn Đánh giá diễn 4 câu của màn Phản hồi. Ô nhập ở Mở đầu là ô thật. Sau sân khấu: bento ảnh thật, Hỏi nhanh cạnh Sắp có, CTA, footer. Chữ: Lora + Be Vietnam Pro, giọng "TripGuardian" / "bạn". Điện thoại vào `/` thấy trang Dùng ứng dụng (link cửa hàng từ `VITE_APP_IOS_URL` / `VITE_APP_ANDROID_URL`, chưa có thì `Sắp có` + `chưa mở`; `Gửi link sang máy tính`; `Tiếp tục với bản web` → `/app`).
+
+### Trước đó (2026-10-08, tối)
+- hành vi: landing 3D dạng sa bàn nổi trên nền giấy (khối đất có đế, ghim cầu cam, tuyến ống liền), 5 chương Mở đầu → Hiểu chuyến đi → Lọc địa điểm → Nguồn kiểm chứng → Lịch trình; điện thoại thấy trang Dùng ứng dụng như hiện tại.
+
 ## user-web — Giao diện người dùng chính thức (landing + `/app`)
 
 - file: `web/src/user/` (`UserApp.tsx`, `screens/`, `ui/`, `css/`, `store.ts`, `lib.ts`, `landing/`), `web/src/App.tsx`; backend `src/harness/{dispatch,server,session}.py` (`preview`, `summaries`, `feedback`, `report`), `src/planning/engine.py` (`preview`, cache theo hash Decision Output), `src/decision/{engine,tools}.py` (`draft`, `report`)
@@ -223,3 +234,67 @@ _không có_
 
 ### Trước đó (2026-10-08, chiều)
 - hành vi: như bản trước, tối ưu production: landing → hỏi chuyến không chờ snapshot (`/app/understand` tự render, landing tải trước snapshot lúc rảnh, covers + snapshot tải song song) — thẻ câu hỏi hiện sau ~0,4 s thay vì ~13 s qua Cloudflare. Câu gõ ở landing hiện thành thẻ "bạn kể" thay vì hỏi lại câu mở. Thẻ hỏi giữ một màu pine (trước đổi màu theo lượt). Ảnh dùng thumbnail WebP `/media/thumb` qua `srcset`, rơi về ảnh gốc khi thiếu. Thanh bước gọn một dòng trên điện thoại. Server: snapshot gọn + brotli (4,3 MB/10,5 s → 1,7 MB/0,9 s), ETag/304, keep-alive tới harness (README §Production).
+
+## detail-logistics — Xem chi tiết, hiện hết gợi ý, hỏi hậu cần, chỗ ở theo gu
+
+- file: `web/src/user/ui/{PlaceSheet,PlaceInput,TransitPick}.tsx`, `web/src/user/screens/{Understand,Lodging,Plan}.tsx`, `web/src/user/tu/`, `web/scripts/pick_covers.py`; `src/decision/pipeline.py` (danh sách đầy đủ, cửa sổ, gộp ít xáo trộn); `src/trip/domain/logistics.py`; `src/live/{flights,buses}/`, `src/live/geocode/photon.py`; `src/planning/{logistics,lodging}.py`; `src/harness/server.py` (`/geo`, `/lodging/suggest`, `/transit` + SSE); corpus nhóm `stay` (`config/queries.yaml` `stay:`, `listing.build_stay`); `scripts/prewarm_transit.py`
+- cách kiểm chứng: `python -m pytest -q tests/live tests/planning tests/harness tests/decision tests/trip`; `node web/scripts/shots_sheet.mjs <base> <journey>` (modal, 1440 / 390); `node web/scripts/shots_app.mjs <base>` (toàn luồng: xuất phát → máy bay → chọn chuyến → chưa có chỗ ở → chọn nơi → "Bạn ở đâu?" → lịch)
+
+### Hiện tại (2026-10-08)
+- hành vi:
+  - "Xem chi tiết" là một modal `PlaceSheet` (`?place=<id>`, Back / Esc đóng, ảnh bay vào chỗ bằng View Transitions / FLIP) mở từ đĩa, lưới, anchor, trợ lý, thanh "Đã chọn"; tab Hình ảnh hiện ≤ 12 ảnh/nơi do `pick_covers.py` chọn (YOLO + pHash + Gemma `photo_rank`; 1.704 nơi có gallery), thumbnail WebP cho mọi ảnh mới (`make_thumbs.py`).
+  - Chọn nơi hiện hết ứng viên qua lọc: cuộn tải thêm 24 nơi/lần; chat thu hẹp giữ nơi còn khớp đúng chỗ (`docs/PLACE_DECISION.md` §9.2–9.4).
+  - Trip Understanding hỏi hậu cần trước `ready` (`docs/TRIP_UNDERSTANDING.md` §Hậu cần); web: ô gõ có gợi ý cho xuất phát / chỗ ở, danh sách chuyến bay / xe khách thật (cache, thiếu thì crawl nền + SSE, lỗi thì mở trang đặt vé + nhập tay giờ), các dòng mới trên vé chuyến.
+  - Chỗ ở: corpus có nhóm `stay` chỉ Planning đọc; Planning xếp chỗ ở theo gu trước, vị trí sau (`docs/PLANNING.md` ⓐ); chưa có chỗ ở thì web hiện "Bạn ở đâu?" một lần trước lịch; đã đặt thì lịch neo thẳng vào chỗ đó.
+  - Đo 2026-10-08: chuyến bay SGN→DLI `pending` → `ready` sau ~18 s (5 chuyến), lần sau từ cache; xe khách ~1,5 s.
+
+### Trước đó
+- _không có_
+
+## tiktok-place-poi — Địa điểm TikTok (POI) của từng nơi Maps
+
+- file: `src/corpus/crawl/tiktok/{place_poi,poi_crawl,clips}.py`, `crawl.py` (`poi_of`, `video.json.poi`), `place_filter.py` (`places_by_video` đọc `poi_crawl/`), `src/corpus/llm/tasks.py` (`PLACE_POI_MATCH`), `scripts/free_tiktok_clips.py`, `web/server.mjs` (mp4 có Range), `web/scripts/export_snapshot.py`, `web/src/user/ui/PlaceSheet.tsx` (`<video>` khi `local`), `tests/crawl/tiktok/test_tiktok_{place_poi,poi_crawl}.py`
+- cách kiểm chứng: `python -m pytest tests/crawl/tiktok -q`; `python -m corpus tiktok place_poi --city dalat` rồi đọc mẫu `data/tiktok/place_poi/dalat.json`
+
+### Hiện tại (2026-10-09)
+- hành vi:
+  - Mô tả phase và layout file: `docs/CORPUS.md` §1 (Phase 2, `place_poi/`). `video.json` mới có `poi`; video cũ đọc `poi` từ `info.json` (5.722 / 11.356 video có gắn).
+  - Đo 2026-10-09, Đà Lạt: 983 nơi có ứng viên, 709 nơi được gán; 2 lần đọc lệch nhau ở 91 cặp (`unsure`). Một lần đọc đơn: 43 / 983 nơi đổi kết quả giữa hai lần chạy giống nhau, có ca sai kiểu "Nhà Hàng Datanla" = khu du lịch thác. Mẫu 20 nơi đã gán (trước luật một POI một nơi): 17 đúng rõ.
+  - Thử trang POI (`tiktok.com/place/<slug>-<poi_id>`): mở được khi không đăng nhập, không captcha; `/api/poi/item_list/` trả 25–30 item / trang kèm `playAddr` h264 tải được bằng phiên ẩn danh; một quán 1.009 video / 44 trang trong ~6 phút, không bị chặn.
+  - `poi_crawl` lô đầu 20 nơi: 90 video / nơi liệt kê trong 12–16 s, 187 video tải; 1 nơi dính 403 cả 10 lần tải cùng lúc, chạy lại thì được. Tỉ lệ `place_verify` = yes của video trang POI: chưa đo.
+
+### Trước đó
+- _không có_
+
+## accounts — Tài khoản, Postgres (`docs/ACCOUNTS.md`)
+
+- file: `src/db/`, `migrations/`, `src/accounts/`, `src/harness/server.py`, `run.sh` (`db`, `db-backup`), `web/src/user/{account.ts,screens/Auth.tsx,screens/Account.tsx}`
+- cách kiểm chứng: `./run.sh db` (chạy lại → `nothing new`); `TEST_DATABASE_URL=<DATABASE_URL> python -m pytest -q tests/db tests/accounts tests/harness`; walk Playwright với `TG_TEST_LOGIN=1` + `APP_BASE_URL` http
+
+### Hiện tại (2026-10-09)
+- hành vi: Postgres riêng (container `tripguardian-pg`, 127.0.0.1:5433, role `tg_app` / `tg_analytics`, migration SQL đánh số). `/app` cần đăng nhập Google (code + PKCE, state server + cookie), cookie `tg_session` 30 ngày trượt, đồng ý điều khoản lần đầu. Hồ sơ (avatar 256 px WebP, tên, thành phố, phương tiện, người đi cùng) là prior `source = profile` cho Trip. Xóa tài khoản giữ dữ liệu ẩn danh. Mọi `/api/harness/*` cần phiên (401), mutation kiểm `Origin` (403), hành trình người khác 404; hành trình lưu ở bảng `journeys` (`PgStore`, kiểm revision khi ghi), feedback ở bảng `feedback`; `import-files` nạp file cũ.
+
+### Trước đó
+- _không có_ (tài khoản giả lập trong localStorage, hành trình ở `data/harness/sessions/*.json`)
+
+## companion — Đang đi, Calendar, thông báo (`docs/COMPANION.md`)
+
+- file: `src/companion/`, `src/notify/`, `config/{companion,notifications}.yaml`, `web/src/user/{today.ts,notify.ts,screens/Today.tsx,screens/Inbox.tsx}`, `web/public/{sw.js,manifest.webmanifest}`
+- cách kiểm chứng: `TEST_DATABASE_URL=… python -m pytest -q tests/companion tests/notify`; `python -m notify run --once`; walk màn Hôm nay ở 1440 và 390 px
+
+### Hiện tại (2026-10-09)
+- hành vi: chốt lịch tạo `trips` / `trip_stops`; màn `/app/today` với Đã đến tự nguyện, bỏ qua, Hợp / Không hợp, gợi ý "Ở đây" chỉ từ serving (hard filter fail-closed, giờ chưa xác nhận giữ nguyên), "Tôi đang ở nơi khác", dòng "Phần còn lại hơi chật" với phương án `on_delay` qua Planning khi người dùng xác nhận. Google Calendar: calendar riêng mỗi chuyến, không reminder, xem trước → xác nhận theo `preview_hash`, lệch thì chỉ báo `drifted`. Thông báo 9 loại, giờ yên lặng 22–7, 1 / 3 mỗi ngày, tạm im sau 3 lần bỏ qua, biến thể thiếu dữ liệu thì không gửi, bandit khi đủ 200 lượt; web push + hộp thông báo; worker `python -m notify run`.
+
+### Trước đó
+- _không có_
+
+## analytics — Event và Analytics (`docs/ANALYTICS.md`)
+
+- file: `src/harness/events.py`, `src/analytics/`, `web/src/user/events.ts`, `web/src/admin/{analytics.ts,screens/Analytics.tsx,AnalyticsTabs.tsx,Sessions.tsx,Insights.tsx,Dashboard.tsx,Places.tsx}`
+- cách kiểm chứng: `TEST_DATABASE_URL=… python -m pytest -q tests/analytics tests/harness/test_events.py`; `python -m analytics serve` rồi mở `/admin/analytics`
+
+### Hiện tại (2026-10-09)
+- hành vi: harness ghi event sau mỗi mutation (`<stage>.<operation>[.<act>]`, latency, path agent / fallback / heuristic, lỗi, chất lượng lịch khi chốt) và các event đọc; web gửi lô event allowlist (sendBeacon). Server analytics private :8770 với role chỉ đọc: phễu (so sánh phiên bản), Trip, Quyết định, Lịch trình, Thực tế, Thông báo, Agent, Chất lượng, phiên + phát lại, Hôm nay, Insights, nhu cầu một nơi; job `python -m analytics cluster` nhóm ý người dùng viết mỗi tuần.
+
+### Trước đó
+- _không có_ (Admin Analytics là khung tĩnh, Phiên chỉ đọc localStorage)

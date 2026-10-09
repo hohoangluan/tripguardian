@@ -13,6 +13,8 @@ def centers(si, by_id: dict, cfg) -> list[tuple[str, tuple[float, float]]]:
     base = si.context.base
     if base and base.place_id and (r := by_id.get(base.place_id)) and point(r):
         out.append((r["identity"]["name"], point(r)))
+    elif base and base.lat is not None and base.lng is not None:  # a lodging picked from a search: no record
+        out.append((base.text, (base.lat, base.lng)))
     if not out:
         out.append((cfg.center["name"], (cfg.center["lat"], cfg.center["lng"])))
     for a in si.anchors:

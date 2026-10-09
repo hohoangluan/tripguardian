@@ -10,9 +10,11 @@ import live
 from agents import ToolError, load_skill, permit_tool
 from corpus.serving import load as load_records
 from decision import DecisionOutput
+from decision import load_settings as decision_settings
 
 from .conditions import fetch_live
 from .engine import Engine, NoSession, NotConfirmable
+from .logistics import Logistics
 from .session import Session, Store
 from .settings import ROOT, load
 
@@ -28,10 +30,15 @@ class Tools:
             raise ValueError("harness tools require a memory store")
         self.engine = engine
         self.skill = load_skill(Path(__file__).with_name("skills.yaml"))
+        self.logistics = Logistics(engine.records, engine.live_cfg)
 
     def create(self, payload: dict) -> dict:
         inp = StartInput.model_validate(payload)
         return self.engine.create(decision=inp.decision_output.model_dump(mode="json", by_alias=True))
+
+    def preview(self, payload: dict) -> dict:
+        inp = StartInput.model_validate(payload)
+        return self.engine.preview(inp.decision_output.model_dump(mode="json", by_alias=True))
 
     def load(self, sid: str) -> dict:
         try:
@@ -63,6 +70,15 @@ class Tools:
             return {"variants": self.engine.variants(sid)}
         raise ValueError(f"unknown Planning read {operation}")
 
+    def geo(self, q: str) -> list[dict]:
+        return self.logistics.geo(q)
+
+    def lodging_suggest(self, q: str) -> list[dict]:
+        return self.logistics.lodging_suggest(q)
+
+    def transit(self, params: dict) -> dict:
+        return self.logistics.transit(params)
+
     def snapshot(self, sid: str) -> dict:
         with self.engine.store.lock(sid):
             return self.engine.store.get(sid).model_dump(mode="json")
@@ -82,4 +98,4 @@ def create_engine(data_root: Path) -> Engine:
         return await run_proposal(fields, cfg)
     configured = all(os.environ.get(k) for k in ("AGENT_API_KEY", "AGENT_BASE_URL", "AGENT_MODEL"))
     return Engine(load_records(), cfg=cfg, store=Store(None), proposal_agent=agent if configured else None,
-                  conditions_fn=fetch_live(live.load_settings()))
+                  conditions_fn=fetch_live(live.load_settings()), labels=decision_settings().labels)

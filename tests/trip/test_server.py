@@ -6,17 +6,16 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from trip.agent import AgentError
-from trip.engine import Engine
-from trip.server import handler
-from trip.sessions import SessionStore
+from trip.api.engine import Engine
+from trip.api.server import handler
+from trip.infrastructure.sessions import SessionStore
 
-from trip_fixtures import FakeAgent
+from trip_fixtures import ScriptedChat, ask, fact, reply
 
 
 @pytest.fixture
 def base(catalog, cfg):
-    engine = Engine(catalog, cfg, SessionStore(None), FakeAgent(error=AgentError("down")),
+    engine = Engine(catalog, cfg, SessionStore(None), ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Đi cùng ai?", "Một mình", "Bạn bè"), text="Mình ghi rồi.")),
                     today=lambda: date(2026, 10, 2))
     srv = ThreadingHTTPServer(("127.0.0.1", 0), handler(engine))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -42,12 +41,11 @@ def sse(resp):
 def test_create_turn_and_reload(base):
     v = json.load(post(f"{base}/sessions", {"experience": "first", "start_with": "nothing"}))
     assert v["card"]["qid"] == "frame"
-    r = post(f"{base}/sessions/{v['id']}/turn", {"kind": "answer", "qid": "frame",
-                                                 "chips": ["days:3", "who:solo", "mobility:car"]})
+    r = post(f"{base}/sessions/{v['id']}/turn", {"kind": "text", "text": "đi 3 ngày"})
     assert r.headers["Content-Type"].startswith("text/event-stream")
-    assert [e for e, _ in sse(r)] == ["state", "card"]
+    assert [e for e, _ in sse(r)] == ["preview", "say", "state", "card"]
     again = json.load(urllib.request.urlopen(f"{base}/sessions/{v['id']}", timeout=5))
-    assert again["card"]["qid"] == "dates"
+    assert again["card"]["text"] == "Đi cùng ai?"
     places = json.load(urllib.request.urlopen(f"{base}/places?q=V%C6%B0%E1%BB%9Dn", timeout=5))
     assert places[0]["id"] == "0x11:0x1"
 

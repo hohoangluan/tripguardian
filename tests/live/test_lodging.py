@@ -104,3 +104,13 @@ def test_a_crawl_timeout_is_unavailable_not_a_crash(cfg, monkeypatch):
     monkeypatch.setattr(maps, "maps_search", timed_out)
     with pytest.raises(Unavailable):
         maps.lodging_near((11.94, 108.45), 3.0, None, None, None, cfg)
+
+
+def test_lodging_seen_lists_every_cached_card_once_with_its_provenance(cfg, search):
+    assert maps.lodging_seen(cfg) == []
+    maps.lodging_near((11.94, 108.45), 3.0, None, None, None, cfg)
+    maps.lodging_near((11.95, 108.46), 3.0, None, None, None, cfg)  # the same two cards from another area
+    seen = maps.lodging_seen(cfg)
+    assert sorted(c["id"] for c in seen) == ["h0", "h1"]
+    assert all(c["source"] == "gmaps" and c["fetched_at"] for c in seen)
+    assert len(search) == 2  # reading what was seen never searches

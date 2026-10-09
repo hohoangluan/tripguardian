@@ -7,13 +7,14 @@ from pydantic import ValidationError
 from ..infrastructure.catalog import Catalog
 from ..infrastructure.settings import Settings
 from .coverage import admissible, coverage
-from .questions import Question
+from .card import Question
 from .state import WEIGHT_SIGN, SoftKey, TripState, apply_drafts, pending_signals, unknown_fields
+from .readiness import DEFAULT_REQUIRED, missing
 from .values import jsonable
 
 MARKED = ("inferred", "anchor", "profile")
-TRIP_ROWS = ("start_date", "month", "days", "companions", "people", "base", "entry_point", "exit_point", "mobility",
-             "arrive_at", "leave_at", "day_end")
+TRIP_ROWS = ("start_date", "month", "days", "companions", "people", "origin", "arrival_mode", "inbound", "outbound",
+             "lodging_booked", "lodging", "base", "entry_point", "exit_point", "mobility", "arrive_at", "leave_at", "day_end")
 
 
 def to_taste(state: TripState):
@@ -90,6 +91,8 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
         "novelty": row("novelty"), "budget_vnd": row("budget_vnd"),
         "unknowns": unknown_fields(state),
         "unmapped": [{"target": f"unmapped:{i}", "phrase": u.phrase} for i, u in enumerate(state.unmapped)],
+        "ready": not (miss := missing(state, cfg.required if cfg else DEFAULT_REQUIRED)),
+        "missing": [{"target": k, "label": label} for k, label in miss],
         "safety_pending": bool(pending_signals(state)) or open_policy,
         # How many places fit the trip right now: past the hard limits and to the taste so far (to_taste). A fact about
         # the current state, never a forecast; soft values only rank later, this count does not remove anything.

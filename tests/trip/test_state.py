@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from trip.state import (Draft, Evidence, Field, SoftKey, TripState, Update, apply, apply_drafts, unknown_fields)
+from trip.domain.state import (Draft, Evidence, Field, SoftKey, TripState, Update, apply, apply_drafts, unknown_fields)
 
 EV = Evidence(turn=1, quote="x")
 

@@ -52,5 +52,23 @@
    768
   ],
   "at": "2026-10-07T16:59:10+00:00"
+ },
+ "bot-avatar": {
+  "model": "cx/gpt-6.1-sol",
+  "prompt": "Mascot avatar for 'TripGuardian', a friendly Da Lat highlands trip guardian spirit. A chubby, round, soft little pine-tree sprite (kodama-like) with three plump rounded tiers in deep plum #6b3550 with a lighter dusty-rose #c97890 rim light, a smooth cream #fff9f8 round face on the middle tier with two big glossy dark eyes with tiny white highlights, rosy pink #efb8c4 blush cheeks and a small happy smile. A little lake-blue #4a6488 scarf around its neck fluttering, and it holds a tiny glowing brass-free compass made of cream and pink light, with two small four-point sparkles floating nearby. Behind it a misty dusk valley sky as a soft gradient from pink #efb8c4 to cream, with two layered papercut hill silhouettes in dusty rose #c97890 and violet #6b5394. Handcrafted layered paper-cut and soft clay illustration style, gentle depth and soft shadows, charming, original, premium app mascot. The artwork is a full-bleed square, subject centered with generous safe margin so a circular crop keeps the whole character; no circle outline, no frame, no border. Face and silhouette readable at 32 pixels. No text, no letters, no watermark. Strict palette only: deep plum #6b3550, dusty rose #c97890, soft pink #efb8c4, warm cream #fff9f8, lake blue #4a6488, violet #6b5394.",
+  "size": [
+   160,
+   160
+  ],
+  "at": "2026-10-08T17:02:41+00:00"
+ },
+ "app-logo": {
+  "model": "cx/gpt-6.1-sol",
+  "prompt": "App icon logo mark for 'TripGuardian', a Da Lat trip planner. A single bold emblem: a shield that is also a location pin (rounded top shoulders, softly pointed bottom) filled with a dusk gradient from deep plum #6b3550 at the bottom to dusty rose #c97890 to soft pink #efb8c4 at the top. Inside it, in cream #fff9f8, one elegant pine tree silhouette whose center negative space is carved as a four-point compass star, with one thin curved trail line winding up from the pine's base like a path through hills, and a small cream sun dot at upper right. Flat modern vector with a subtle inner glow, very few shapes, confident geometry, distinctive and memorable, still reads clearly at 16 pixels as a favicon. Centered on a plain solid cream #fff9f8 background with generous margin. No text, no letters, no watermark, no 3D, no photo. Strict palette only: deep plum #6b3550, dusty rose #c97890, soft pink #efb8c4, warm cream #fff9f8, lake blue #4a6488, violet #6b5394.",
+  "size": [
+   1254,
+   1254
+  ],
+  "at": "2026-10-08T17:03:26+00:00"
  }
 }

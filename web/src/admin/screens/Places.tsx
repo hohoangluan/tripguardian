@@ -4,6 +4,7 @@ import { mapsEmbed, placeById } from '../../data/store'
 import type { Place, Snapshot, Status } from '../../data/types'
 import { navigate } from '../../router'
 import { GoogleMap, Icon } from '../../ui/bits'
+import { useAnalytics } from '../analytics'
 import { decide, useDecisions, VERDICT_LABEL, type Verdict } from '../decisions'
 import { STATUS_COLOR, worstStatus } from '../model'
 
@@ -123,6 +124,20 @@ export function StatusPill({ s }: { s: Status }) {
   )
 }
 
+// Nhu cầu (docs/ANALYTICS.md): how users met this place, from the private analytics server; last 30 days.
+function Demand({ id }: { id: string }) {
+  const { data } = useAnalytics<Record<string, number> & { drop_reasons: Record<string, number> }>(`places/${encodeURIComponent(id)}`)
+  if (!data) return null
+  const row: [string, number][] = [['Hiện thẻ', data.impressions], ['Mở chi tiết', data.opened], ['Được chọn', data.chosen], ['Bị bỏ', data.dropped], ['Hỏi sao không có', data.why_not], ['Trong lịch', data.planned], ['Đã đến', data.arrived], ['Bỏ qua khi đi', data.skipped], ['Hợp / Không hợp', data.up - data.down]]
+  return (
+    <>
+      <h3>Nhu cầu</h3>
+      <dl className="parts parts--wide">{row.map(([k, n]) => <div key={k}><dt>{k}</dt><dd>{k === 'Hợp / Không hợp' ? `${data.up} / ${data.down}` : n}</dd></div>)}</dl>
+      {Object.keys(data.drop_reasons).length > 0 && <p className="a-muted">Lý do bỏ: {Object.entries(data.drop_reasons).map(([r, n]) => `${r} ${n}`).join(', ')}</p>}
+    </>
+  )
+}
+
 function PlacePanel({ p }: { p: Place }) {
   const decisions = useDecisions()
   const [msg, setMsg] = useState<string | null>(null)
@@ -160,6 +175,7 @@ function PlacePanel({ p }: { p: Place }) {
         ))}
       </dl>
       <GoogleMap src={mapsEmbed(p, 15)} title={p.name} height={160} />
+      <Demand id={p.id} />
       <h3>Giá trị ({p.features.length})</h3>
       <table className="a-table a-table--compact">
         <thead>

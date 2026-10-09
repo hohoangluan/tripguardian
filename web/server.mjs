@@ -1,8 +1,8 @@
 // Public server for the built web (web/dist): what a Cloudflare tunnel may expose, and nothing else.
 //   public : landing, /app (SPA), /assets, /img, /data (snapshot, covers), /media photos (jpg only),
-//            /media/thumb WebP thumbnails (web/scripts/make_thumbs.py),
-//            /api/harness/* proxied to the harness on 127.0.0.1:8769 (JSON and SSE).
-//   private: /admin, every other /api/* (review server, module dev APIs), video files -> 404.
+//            /media/thumb WebP thumbnails (web/scripts/make_thumbs.py), /media/tiktok/<id>/video.mp4 clips (Range),
+//            /api/harness/* and /api/auth/* (Google sign-in) proxied to the harness on 127.0.0.1:8769 (JSON and SSE).
+//   private: /admin, every other /api/* (review server, module dev APIs), any other video file -> 404.
 // Speed: .br/.gz made by web/scripts/prod_assets.mjs are sent to clients that accept them (the tunnel carries
 // compressed bytes); every file has an ETag, so a revisit costs a 304; the harness is reached over keep-alive.
 // usage: npm run build:prod --prefix web && node web/server.mjs [port, default 28899]
@@ -22,8 +22,11 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.png': 'image/png', '.bin': 'application/octet-stream', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json',
 }
 const MEDIA_TYPES = new Set(['.jpg', '.jpeg', '.webp', '.png'])
+// Clips a place card plays (corpus tiktok clips): only the mp4 of a video directory, sent in ranges so it can seek.
+const CLIP = /^\/media\/tiktok\/\d+\/video\.mp4$/
 // Data files change only on a deploy: browsers and Cloudflare may reuse them briefly, then revalidate (ETag).
 const DATA_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
 
@@ -72,6 +75,24 @@ function sendFile(req, res, file, cache) {
   createReadStream(z?.path ?? file).pipe(res)
 }
 
+function sendRange(req, res, file) {
+  const st = statSync(file)
+  const head = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=604800', 'X-Content-Type-Options': 'nosniff' }
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''))
+  if (!m || (!m[1] && !m[2])) {
+    res.writeHead(200, { ...head, 'Content-Length': st.size })
+    return req.method === 'HEAD' ? res.end() : createReadStream(file).pipe(res)
+  }
+  const start = m[1] ? Number(m[1]) : Math.max(0, st.size - Number(m[2]))
+  const end = m[1] && m[2] ? Math.min(Number(m[2]), st.size - 1) : st.size - 1
+  if (start > end || start >= st.size) {
+    res.writeHead(416, { ...head, 'Content-Range': `bytes */${st.size}` })
+    return res.end()
+  }
+  res.writeHead(206, { ...head, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 })
+  return req.method === 'HEAD' ? res.end() : createReadStream(file, { start, end }).pipe(res)
+}
+
 function proxy(req, res) {
   const up = request({ ...HARNESS, method: req.method, path: req.url, headers: { ...req.headers, host: `${HARNESS.host}:${HARNESS.port}` } }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers)
@@ -86,9 +107,13 @@ function proxy(req, res) {
 
 createServer((req, res) => {
   const path = decodeURIComponent((req.url ?? '/').split('?')[0])
-  if (path.startsWith('/api/harness/')) return proxy(req, res)
+  if (path.startsWith('/api/harness/') || path.startsWith('/api/auth/')) return proxy(req, res)
   if (path.startsWith('/api') || path === '/admin' || path.startsWith('/admin/')) return notFound(res)
   if (req.method !== 'GET' && req.method !== 'HEAD') return notFound(res)
+  if (CLIP.test(path)) {
+    const file = inside(MEDIA['/media/tiktok/'], path.slice('/media/tiktok'.length))
+    return file ? sendRange(req, res, file) : notFound(res)
+  }
   for (const [mount, root] of Object.entries(MEDIA)) {
     if (!path.startsWith(mount)) continue
     const file = MEDIA_TYPES.has(extname(path).toLowerCase()) && inside(root, path.slice(mount.length - 1))

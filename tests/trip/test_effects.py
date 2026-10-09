@@ -1,4 +1,4 @@
-from trip.domain.questions import Chip, Question
+from trip.domain.card import Chip, Question
 from trip.domain.state import Draft, TripState, apply_drafts
 from trip.domain.understanding import chip_effects, matching
 

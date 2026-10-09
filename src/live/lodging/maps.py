@@ -8,6 +8,7 @@ import asyncio
 
 from corpus.crawl import maps_search, open_sessions
 
+from ..cache import entries as cache_entries
 from ..cache import get as cache_get
 from ..cache import put as cache_put
 from ..http import Unavailable
@@ -50,3 +51,15 @@ def lodging_near(center: tuple[float, float], radius_km: float, check_in: str | 
                                              for r in rows if r["lat"] is not None], "gmaps")
     return [{**r, "source": hit["source"], "fetched_at": hit["fetched_at"]} for r in hit["value"]
             if price_max is None or r["price_vnd"] is None or r["price_vnd"] <= price_max]
+
+
+def lodging_seen(cfg: Settings) -> list[dict]:
+    """Every lodging card any earlier search cached, newest first, one per id, with its source and fetched_at: what
+    a name typed into the lodging box is matched against on the spot, without waiting for the network. Prices here
+    may be stale; only name, point, rating are meant to be read."""
+    out: dict[str, dict] = {}
+    for e in sorted(cache_entries("lodging"), key=lambda e: e.get("fetched_at") or "", reverse=True):
+        for r in e["value"] if isinstance(e["value"], list) else []:
+            if isinstance(r, dict) and r.get("id") and r["id"] not in out:
+                out[r["id"]] = {**r, "source": e.get("source"), "fetched_at": e.get("fetched_at")}
+    return list(out.values())

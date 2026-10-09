@@ -9,15 +9,17 @@ import { Icon, Logo, type IconName } from './icons'
 
 const NAV: { to: string; label: string; icon: IconName; exact?: boolean }[] = [
   { to: '/', label: 'Khám phá', icon: 'compass', exact: true },
+  { to: '/today', label: 'Hôm nay', icon: 'sun' },
   { to: '/trips', label: 'Chuyến của tôi', icon: 'suitcase' },
   { to: '/saved', label: 'Đã lưu', icon: 'heart' },
+  { to: '/inbox', label: 'Thông báo', icon: 'bell' },
   { to: '/profile', label: 'Hồ sơ', icon: 'user' },
 ]
 
 function Me({ className }: { className: string }) {
   const account = useAccount()
   const initial = initialOf(account)
-  return <Link to="/profile" className={className} aria-label="Hồ sơ của bạn">{initial ? <span>{initial}</span> : <Icon name="user" size={18} />}</Link>
+  return <Link to="/profile" className={className} aria-label="Hồ sơ của bạn">{account?.avatar ? <img src={account.avatar} alt="" referrerPolicy="no-referrer" /> : initial ? <span>{initial}</span> : <Icon name="user" size={18} />}</Link>
 }
 
 // `path` is the part after /app ('' for Khám phá).

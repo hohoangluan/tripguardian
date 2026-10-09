@@ -1,4 +1,4 @@
-from trip.text import contains, fold, squash
+from trip.domain.text import contains, fold, squash
 
 
 def test_fold_keeps_length_and_strips_marks():

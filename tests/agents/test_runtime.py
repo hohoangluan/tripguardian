@@ -4,7 +4,7 @@ import json
 import pytest
 from pydantic import BaseModel
 
-from trip.settings import Settings
+from trip.infrastructure.settings import Settings
 
 
 class Plan(BaseModel):

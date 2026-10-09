@@ -1,0 +1,14 @@
+{
+  "name": "TripGuardian Đà Lạt",
+  "short_name": "TripGuardian",
+  "start_url": "/app/today",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#0f5f5a",
+  "lang": "vi",
+  "icons": [
+    { "src": "/img/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/img/favicon.png", "sizes": "any", "type": "image/png" }
+  ]
+}

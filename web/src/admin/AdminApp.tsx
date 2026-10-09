@@ -10,6 +10,7 @@ import { Evidence } from './screens/Evidence'
 import { Labels } from './screens/Labels'
 import { Places } from './screens/Places'
 import { Review } from './screens/Review'
+import { Insights } from './screens/Insights'
 import { Sessions } from './screens/Sessions'
 import { System } from './screens/System'
 import './admin.css'
@@ -22,6 +23,7 @@ const NAV = [
   { path: '/admin/evidence', label: 'Bằng chứng', icon: 'layers', key: 'e', group: 'Dữ liệu' },
   { path: '/admin/sessions', label: 'Phiên chuyến đi', icon: 'route', key: 's', group: 'Vận hành' },
   { path: '/admin/analytics', label: 'Phân tích', icon: 'chart', key: 'a', group: 'Vận hành' },
+  { path: '/admin/insights', label: 'Insights', icon: 'spark', key: 'i', group: 'Vận hành' },
   { path: '/admin/system', label: 'Hệ thống', icon: 'server', key: 'm', group: 'Vận hành' },
 ]
 const GROUPS = [...new Set(NAV.map((n) => n.group))]
@@ -111,6 +113,7 @@ export default function AdminApp() {
   else if (base === '/admin/evidence') screen = <Evidence snap={snap} />
   else if (base === '/admin/sessions') screen = <Sessions />
   else if (base === '/admin/analytics') screen = <Analytics />
+  else if (base === '/admin/insights') screen = <Insights />
   else if (base === '/admin/system') screen = <System snap={snap} />
   else screen = <p className="a-empty">Không có trang này.</p>
 

@@ -175,7 +175,7 @@ export interface PlanPreview {
   plan: { ok: boolean; days: number; warnings: { code: string; text: string }[]; back_to_decision: { reason: string; places: string[] } | null; variants: PreviewVariant[] } | null
 }
 
-// GET /api/harness/trips?ids=: one line per journey this browser started.
+// GET /api/harness/trips: one line per journey of the signed-in account, newest first.
 export interface TripSummary {
   id: string
   stage: 'trip' | 'decision' | 'planning'

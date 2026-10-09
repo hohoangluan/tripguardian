@@ -9,6 +9,10 @@ Operation = Literal["turn", "act", "advance", "back", "confirm", "recommend"]
 Emit = Callable[[str, dict], None]
 
 
+class Conflict(ValueError):
+    """A stale revision, a reused request_id, or a journey another writer changed first (HTTP 409)."""
+
+
 class Request(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     request_id: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
@@ -27,6 +31,7 @@ class Request(BaseModel):
 class Journey(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=r"^[0-9a-f]{12}$")
+    user_id: str | None = Field(None, pattern=r"^[0-9a-f]{32}$")  # the account that owns it (uuid hex)
     stage: Stage = "trip"
     revision: int = 0
     sessions: dict[Stage, str] = Field(default_factory=dict)

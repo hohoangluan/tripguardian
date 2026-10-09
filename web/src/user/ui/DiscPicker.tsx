@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { impression } from '../events'
 import * as Popover from '@radix-ui/react-popover'
 import { createPortal } from 'react-dom'
 import { fmtRange, info, priceText } from '../lib'
@@ -50,6 +51,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack }: {
   const shots = photos.length
   useEffect(() => { setActive(0); setActiveId(null) }, [tab, n === 0])
   useEffect(() => { setG(0) }, [i, tab])
+  useEffect(() => { if (c) impression(c.id, tab, i + 1) }, [c?.id, tab]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (found >= 0 && found !== active) setActive(found) }, [found, active])
   // Near the end of the loaded places: load the group's next page.
   useEffect(() => { if (group && n < group.total && i >= n - 4) more(group.id) }, [group, n, i, more])

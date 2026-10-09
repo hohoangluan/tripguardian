@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { impression } from '../events'
 import { useDecision } from '../pd/decision'
 import type { Card } from '../pd/types'
 import { requestStageEntry } from '../journey'
@@ -58,6 +59,7 @@ export function Explore() {
   const pinned = asst.open && asst.pinned
   const groups = view?.groups.filter((g) => g.id !== 'anchors' && g.cards.length) ?? []
   const current = groups.find((g) => g.id === tab) ?? groups[0]
+  useEffect(() => { if (mode === 'grid') current?.cards.forEach((c, i) => impression(c.id, current.id, i + 1)) }, [current?.id, current?.cards.length, mode]) // eslint-disable-line react-hooks/exhaustive-deps
   const foodSel = view ? view.groups.flatMap((g) => g.cards).filter((c) => c.chosen && /cà phê|coffee|cafe/i.test(c.category ?? '')).length : 0
   useEffect(() => { if (foodSel >= 3) nudge(`Bạn đã chọn ${foodSel} quán cà phê. Thêm một chỗ ăn trưa chứ?`) }, [foodSel])
   const onCmp = toggleCmp

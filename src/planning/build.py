@@ -111,6 +111,9 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     warnings: list[dict] = []
 
     placed, unplaced = pl.build_places(decision, by_id, cfg)
+    # A place known for several times of day (sunset and cloud hunting) is visited for the one the user asked for.
+    wants = {w["feature"] for w in tc.get("soft_weights") or [] if w.get("weight", 0) > 0 and w.get("value") == "present"}
+    placed = [replace(p, pins=tuple(f for f in p.pins if f in wants)) if wants & set(p.pins) else p for p in placed]
     by_place = {p.id: p for p in placed}
     # Near duplicates (the same kind of place, PLACE_DECISION §9.1) the user kept anyway: say so, never refuse.
     seen: dict = {}
@@ -127,7 +130,9 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     points, why = {}, {}
     for node, base in ((HOME, ctx.get("base")), (ENTRY, ctx.get("entry_point")), (EXIT, ctx.get("exit_point"))):
         points[node], why[node] = pl.resolve_point(base, by_id, geocode_fn)
-    home = HOME if points[HOME] else ENTRY if points[ENTRY] else None
+    # The entry point only says where day one opens (arrive_at, from the coach / flight). It is not where the user
+    # sleeps: with no base yet the later days have no start, exactly as when the user came by themselves.
+    home = HOME if points[HOME] else None
     entry = ENTRY if points[ENTRY] else None
     exit_ = EXIT if points[EXIT] else None
     if home is None:

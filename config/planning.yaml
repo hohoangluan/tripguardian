@@ -99,6 +99,10 @@ lodging_k: 6
 lodging_share: 0.3  # share of budget_vnd spent on lodging, over the whole stay
 min_reviews: 5
 split_min: 20       # minutes of real travel diameter beyond which the search area splits into two centres
+stay_min: 50        # served `stay` records in the search area needed to rank from the corpus; fewer -> Maps live
+lodging_pool: 18    # served stays (best taste fit first) the travel matrix is built for, before the final rank
+lodging_weights: {pref: 2.0, loc: 0.8, price: 0.5, rating: 0.3}  # taste outweighs location (docs/PLANNING.md ⓐ)
+loc_ref_min: 30     # mean minutes to the chosen places at which a lodging's location adds nothing
 
 # Sessions (P6, docs/PLANNING.md §Vòng người dùng sửa và góp ý).
 history_max: 20              # versions kept for undo / redo

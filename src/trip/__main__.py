@@ -5,13 +5,14 @@ import os
 
 from dotenv import load_dotenv
 
-from .agent import run_agent
-from .catalog import Catalog
-from .engine import Engine
-from .profile import ProfileStore
-from .server import run
-from .sessions import SessionStore
-from .settings import ROOT, load
+from .agent import openai_chat
+from .api.engine import Engine
+from .api.server import run
+from .infrastructure.catalog import Catalog
+from .infrastructure.clef import Judge, route
+from .infrastructure.profile import ProfileStore
+from .infrastructure.sessions import SessionStore
+from .infrastructure.settings import ROOT, load
 
 
 def main() -> None:
@@ -26,7 +27,8 @@ def main() -> None:
     data = ROOT / os.environ.get("DATA_DIR", "data")
     catalog = Catalog.load(data, cfg.n_min)
     engine = Engine(catalog, cfg, SessionStore(data / "trip" / "sessions"),
-                    agent=lambda fields, on_say: run_agent(fields, on_say, cfg),
+                    chat=openai_chat(cfg), route=lambda text, card, need: route(text, cfg, card, need),
+                    judge=Judge(cfg),
                     profiles=ProfileStore(ROOT / cfg.patterns.dir, cfg.patterns) if cfg.patterns.enabled else None)
     agent = os.environ.get("AGENT_MODEL", "policy fallback")
     print(f"Trip Understanding: http://127.0.0.1:{args.port} ({len(catalog.places)} places, model {agent})")

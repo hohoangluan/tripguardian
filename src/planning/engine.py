@@ -7,10 +7,12 @@ import asyncio
 import hashlib
 import json
 import threading
+import time
 import traceback
 import urllib.error
 import urllib.request
 from dataclasses import replace
+from datetime import datetime, timezone
 from json import loads
 from typing import Awaitable, Callable
 
@@ -18,6 +20,7 @@ import live
 
 from .build import prepare, pull_early, schedule_trip, with_home
 from .lodging import candidates as lodging_candidates
+from .lodging import booked, live_cards, price_cap, rank, refresh_prices, search_area, with_booked_base
 from .objectives import LABEL, add_lodging_cost, choose, metrics, score
 from .repair import repair_day
 from .robustness import robustness as robustness_of
@@ -32,6 +35,11 @@ from .session import ActCtx, ActionError, Session, State, Store
 from .session import apply_act as _apply
 from .settings import Settings
 from .settings import load as load_settings
+
+
+def _now() -> str:
+    """When a log entry was made (UTC, seconds), for the journey timeline in Admin."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _http_post(url: str) -> str:
@@ -67,7 +75,7 @@ class _Base:
         self.ok = ok
         self.warnings = warnings
         self.back_to_decision = back_to_decision
-        self.lodging_status = "pending"   # pending | ready | unavailable
+        self.lodging_status = "pending"   # pending | ready | unavailable | booked (the trip has its lodging)
         self.lodging_candidates: list[dict] = []   # every candidate ever crawled, never filtered in place
 
 
@@ -75,7 +83,7 @@ class Engine:
     def __init__(self, records: list[dict], cfg: Settings | None = None, live_cfg=None, store: Store | None = None,
                 geocode_fn=None, matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None,
                 decision_url: str | None = None, http_post=None, background: bool = True,
-                agent: "Agent | None" = None, proposal_agent=None, conditions_fn=None):
+                agent: "Agent | None" = None, proposal_agent=None, conditions_fn=None, labels: dict | None = None):
         self.by_id = {r["id"]: r for r in records}
         self.records = records
         self.cfg = cfg or load_settings()
@@ -92,8 +100,11 @@ class Engine:
         self.agent = agent
         self.proposal_agent = proposal_agent
         self.conditions_fn = conditions_fn      # (decision, by_id) -> (weather, signals); None = no live conditions
+        self.labels = labels or {}              # Place Decision's feature / value words, for "hợp vì" (tools.py)
         self._base: dict[str, _Base] = {}
         self._schedules: dict[str, list] = {}
+        self._previews: dict[str, tuple[float, _Base]] = {}   # Decision Output hash -> (built at, base)
+        self._previews_lock = threading.Lock()
 
     # ---------- resolving a Decision Output ----------
 
@@ -112,6 +123,7 @@ class Engine:
     # ---------- Trip / variants (no lodging) ----------
 
     def _prepare(self, decision: dict, extra_nodes: dict | None = None):
+        decision = with_booked_base(decision)  # a booked lodging is where every day starts and ends
         weather, signals = self.conditions_fn(decision, self.by_id) if self.conditions_fn else (None, None)
         return prepare(decision, self.records, self.cfg, self.live_cfg, self.geocode_fn, self.matrix_fn, self.sun_fn,
                        weather, extra_nodes=extra_nodes, signals=signals)
@@ -151,22 +163,54 @@ class Engine:
         _ensure_base's lazy rebuild). Any failure here -- not just live.Unavailable -- degrades to "unavailable"
         rather than leaving the session stuck at "pending" forever. The write-back happens under the session's own
         lock and merges in whatever lodging point the user may have set manually while the crawl (a real network
-        call, done outside the lock) was still running, so a concurrent set_lodging is never lost."""
+        call, done outside the lock) was still running, so a concurrent set_lodging is never lost. The pool is
+        ranked once the travel matrix reaches it (taste first, location after: lodging.rank); served stays then get
+        a date's live price in the background, without moving."""
         base = self._base[sid]
         decision = self.store.get(sid).decision
+        if booked(decision):
+            base.lodging_status = "booked"  # the user has a lodging: nothing to crawl or suggest
+            return
         try:
-            cands = lodging_candidates(base.trip.by_place, decision, self.cfg, self.lodging_fn, self.live_cfg)
+            cands = lodging_candidates(base.trip.by_place, decision, self.cfg, self.lodging_fn, self.live_cfg, self.records)
         except Exception:
             cands = []
         with self.store.lock(sid):
-            base.lodging_candidates = cands
             extra = {c["id"]: (c["lat"], c["lng"]) for c in cands}
             point = self.store.get(sid).state.lodging_point
             if point:
                 extra[point["id"]] = (point["lat"], point["lng"])
             if extra:
                 base.trip = self._prepare(decision, extra_nodes=extra)
+            cands = rank(cands, decision, self._avg_min(base.trip, cands), self.cfg, self.labels)
+            base.lodging_candidates = cands
             base.lodging_status = "ready" if cands else "unavailable"
+        if any(c["source"] == "corpus" for c in cands):
+            if self.background:
+                threading.Thread(target=self._lodging_prices, args=(sid,), daemon=True).start()
+            else:
+                self._lodging_prices(sid)
+
+    @staticmethod
+    def _avg_min(trip, cands: list[dict]) -> dict:
+        """Candidate id -> mean minutes to the trip's places on the travel matrix (None off the matrix)."""
+        ids = [p for p in trip.by_place if p in trip.travel.index]
+        return {c["id"]: sum(trip.travel.leg(c["id"], p)[0] for p in ids) / len(ids)
+                if ids and c["id"] in trip.travel.index else None for c in cands}
+
+    def _lodging_prices(self, sid: str) -> None:
+        """A date's live price for the served stays on screen; a dead source leaves the reference prices."""
+        base = self._base[sid]
+        decision = self.store.get(sid).decision
+        tc = decision["trip_context"]["context"]
+        try:
+            cards = live_cards(search_area(base.trip.by_place, tc.get("mobility"), self.cfg), tc, None,
+                               self.lodging_fn, self.live_cfg)
+        except Exception:
+            return
+        with self.store.lock(sid):
+            base.lodging_candidates = refresh_prices(base.lodging_candidates, cards,
+                                                     price_cap(tc, _nights(tc), self.cfg))
 
     def _ensure_base(self, sid: str) -> _Base:
         """Lazily rebuilds the in-RAM Trip / variants / schedule cache for a session the Store already knows about
@@ -199,7 +243,9 @@ class Engine:
     def create(self, decision: dict | None = None, decision_session_id: str | None = None) -> dict:
         decision = self._resolve(decision, decision_session_id)
         s = self.store.new(decision, decision_session_id)
-        base = self._build_base(decision)
+        if point := booked(decision):  # as if set_lodging had run: the user's own lodging, from the start
+            s.states[0] = State(lodging_touched=True, lodging_id=point["id"], lodging_point=point)
+        base = self._take_preview(decision) or self._build_base(decision)
         self._base[s.id] = base
         self.store.save(s)
         if self.background:
@@ -207,6 +253,43 @@ class Engine:
         else:
             self._crawl_lodging(s.id)
         return {"id": s.id, "view": self._view(s)}
+
+    # ---------- background preview (no session; reused by create) ----------
+
+    PREVIEW_TTL_S = 900
+    PREVIEW_KEEP = 16
+
+    @staticmethod
+    def _decision_key(decision: dict) -> str:
+        return hashlib.sha256(json.dumps(decision, sort_keys=True, default=str).encode()).hexdigest()
+
+    def _take_preview(self, decision: dict) -> "_Base | None":
+        """A base an earlier preview() built for exactly this Decision Output; create() owns it from here on."""
+        with self._previews_lock:
+            hit = self._previews.pop(self._decision_key(decision), None)
+        return hit[1] if hit and time.monotonic() - hit[0] < self.PREVIEW_TTL_S else None
+
+    def preview(self, decision: dict) -> dict:
+        """Variants for a Decision Output not confirmed yet: what the schedule would look like now. Creates no
+        session and writes nothing; the base is cached by the output's hash so create() for it skips the build."""
+        key = self._decision_key(decision)
+        with self._previews_lock:
+            hit = self._previews.get(key)
+        if hit and time.monotonic() - hit[0] < self.PREVIEW_TTL_S:
+            base = hit[1]
+        else:
+            base = self._build_base(decision)
+            with self._previews_lock:
+                self._previews[key] = (time.monotonic(), base)
+                while len(self._previews) > self.PREVIEW_KEEP:
+                    self._previews.pop(next(iter(self._previews)))
+        return {"ok": base.ok, "days": len(base.trip.days), "warnings": base.warnings,
+                "back_to_decision": base.back_to_decision,
+                "variants": [{"id": v["id"], "objective": v["objective"], "label": v["label"], "metrics": v["metrics"],
+                              "robustness": {"level": v["robustness"]["level"], "label": v["robustness"]["label"]},
+                              "places": [[it["place_id"] for it in d["items"] if it["kind"] == "visit" and it.get("place_id")]
+                                         for d in v["itinerary"]]}
+                             for v in base.variants]}
 
     def _get(self, sid: str) -> Session:
         try:
@@ -217,9 +300,12 @@ class Engine:
     def _offered_lodging(self, base: _Base, state: State) -> list[dict]:
         """Every crawled candidate still within the session's current price cap -- state.budget_override narrows
         what is *offered*, it never discards what was actually found (undo must be able to bring a candidate back,
-        and the chosen one must stay resolvable even if it falls outside a later-lowered cap)."""
+        and the chosen one must stay resolvable even if it falls outside a later-lowered cap). Without an override,
+        a served stay whose late live price went over the trip's cap is not offered."""
         cap = state.budget_override
-        return [c for c in base.lodging_candidates if cap is None or c["price_vnd"] is None or c["price_vnd"] <= cap]
+        if cap is None:
+            return [c for c in base.lodging_candidates if not c.get("over_cap")]
+        return [c for c in base.lodging_candidates if c["price_vnd"] is None or c["price_vnd"] <= cap]
 
     def _active_itinerary(self, s: Session, base: _Base) -> tuple[list, list] | None:
         """The itinerary / travel_load of the session's currently chosen variant, with every committed act applied
@@ -243,13 +329,21 @@ class Engine:
         return {"ok": base.ok, "variants": [{k: v for k, v in v.items() if not k.startswith("_")} for v in base.variants],
                "comparison": base.comparison, "warnings": base.warnings, "back_to_decision": base.back_to_decision,
                "lodging": {"status": base.lodging_status,
-                           "candidates": [{"id": c["id"], "name": c["name"], "price_vnd": c["price_vnd"]}
-                                         for c in self._offered_lodging(base, s.state)]},
+                           "candidates": [self._lodging_card(c) for c in self._offered_lodging(base, s.state)]},
                "itinerary": active[0] if active else None, "travel_load": active[1] if active else None,
                "day_conditions": [{"day": cx.day.index + 1, "date": cx.day.date.isoformat() if cx.day.date else None,
                                    **(describe(cx.cond) or {})} for cx in base.trip.ctxs if cx.cond],
                "crowd_tips": crowd_tips(list(base.trip.by_place.values()), [cx.cond for cx in base.trip.ctxs], self.cfg),
                "state": s.state.model_dump(mode="json")}
+
+    def _lodging_card(self, c: dict) -> dict:
+        """What the "Bạn ở đâu?" screen shows of a candidate (docs/Role_Web_Functional_Design.md §6)."""
+        names = self.labels.get("feature") or {}
+        return {"id": c["id"], "name": c["name"], "price_vnd": c["price_vnd"], "source": c.get("source"),
+                "price_at": c.get("price_at") if c.get("price_source") else None,
+                "rating": c.get("rating"), "reviews": c.get("reviews"), "avg_min": c.get("avg_min"),
+                "fit": [{k: f[k] for k in ("text", "mentions", "quote")} for f in c.get("fit") or []],
+                "unverified": [names.get(f, f.replace("_", " ")).lower() for f in c.get("unverified") or []]}
 
     def load(self, sid: str) -> dict:
         s = self._get(sid)
@@ -545,7 +639,7 @@ class Engine:
                 self._schedules[sid].append(None)
             self._schedules[sid] = self._schedules[sid][: len(s.states)]
             self._schedules[sid][s.position] = results
-            s.log = s.log[: s.position - 1] + [{"action": action}]
+            s.log = s.log[: s.position - 1] + [{"action": action, "at": _now()}]
             self.store.save(s)
             return {"view": self._view(s), "diff": {"scope": act_scope(action)}}
 
@@ -632,7 +726,8 @@ class Engine:
                     raise ActionError('objective_worse')
                 committed = session.model_copy(deep=True)
                 committed.states = session.states[:session.position + 1] + [state]
-                committed.log = session.log[:session.position] + [{'action': {'type': 'recommend', 'proposal': proposal}}]
+                committed.log = session.log[:session.position] + [{'action': {'type': 'recommend', 'proposal': proposal},
+                                                                  'at': _now()}]
                 committed.position += 1
                 self.store.save(committed)
                 session.states, session.log, session.position = committed.states, committed.log, committed.position

@@ -7,16 +7,18 @@ Three rules hold for everything in here:
 """
 
 from .advisories import advisories
+from .buses import buses, buses_url
 from .events import events
-from .geocode import geocode
+from .flights import flights, flights_url
+from .geocode import geocode, geosearch
 from .holidays import holidays
 from .http import Unavailable
 from .osrm import route_shape, travel_matrix
 from .settings import Settings
 from .settings import load as load_settings
-from .lodging import lodging_near
+from .lodging import lodging_near, lodging_seen
 from .sun import sun_times
 from .weather import weather
 
-__all__ = ["Settings", "Unavailable", "advisories", "events", "geocode", "holidays", "load_settings", "lodging_near", "route_shape",
+__all__ = ["Settings", "Unavailable", "advisories", "buses", "buses_url", "events", "flights", "flights_url", "geocode", "geosearch", "holidays", "load_settings", "lodging_near", "lodging_seen", "route_shape",
            "sun_times", "travel_matrix", "weather"]

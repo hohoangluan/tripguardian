@@ -108,14 +108,17 @@ def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place
 
 
 def resolve_point(base: dict | None, by_id: dict, geocode) -> tuple[Point | None, str | None]:
-    """A Base ({"place_id", "text"}) -> a Point and None, or None and why not. A corpus place wins; otherwise the
-    text is geocoded. geocode(text) -> {"lat", "lng", "label", "source", "fetched_at"} | None, may raise Unavailable."""
+    """A Base ({"place_id", "text", "lat"?, "lng"?}) -> a Point and None, or None and why not. A corpus place wins,
+    then a point the user picked from a search (no geocoding); otherwise the text is geocoded.
+    geocode(text) -> {"lat", "lng", "label", "source", "fetched_at"} | None, may raise Unavailable."""
     if not base:
         return None, "unknown"
     rec = by_id.get(base.get("place_id"))
     if rec and rec["identity"].get("lat") is not None and rec["identity"].get("lng") is not None:
         return Point(float(rec["identity"]["lat"]), float(rec["identity"]["lng"]),
                      rec["identity"].get("name") or base.get("text") or "", "corpus", None), None
+    if base.get("lat") is not None and base.get("lng") is not None:
+        return Point(float(base["lat"]), float(base["lng"]), base.get("text") or "", "user", None), None
     text = (base.get("text") or "").strip()
     if not text:
         return None, "unknown"

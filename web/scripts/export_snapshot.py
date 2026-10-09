@@ -55,7 +55,18 @@ def gmaps_place(fid: str) -> dict:
     return read(p) if p.exists() else {}
 
 
+CLIPS = DATA / "tiktok" / "clips" / "dalat.json"  # `python -m corpus tiktok clips`: verified clips on our server
+_clips: dict = {}
+
+
 def videos_for(fid: str) -> list[dict]:
+    """The place's verified clips on our server (local: played from /media/tiktok), else its caption-matched TikTok
+    videos (played in TikTok's embed)."""
+    if not _clips:
+        _clips["places"] = read(CLIPS)["places"] if CLIPS.exists() else {}
+    if _clips["places"].get(fid):
+        return [{"id": v["video_id"], "url": v["url"], "handle": v.get("author_id"),
+                 "desc": (v.get("desc") or "").strip()[:220], "local": True} for v in _clips["places"][fid]]
     p = DATA / "tiktok" / "place_filter" / f"{fid_dir(fid)}.json"
     if not p.exists():
         return []
