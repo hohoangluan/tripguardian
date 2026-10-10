@@ -22,6 +22,8 @@ class Place:
     flags: tuple[str, ...]          # warning texts Place Decision attached
     relaxed: tuple[str, ...]        # hard filters the user relaxed for this place
     rec: dict                       # the serving record, for the hard-constraint check
+    requested_start: int | None = None
+    requested_duration: int | None = None
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,7 @@ class Item:
     name: str | None = None
     from_id: str | None = None
     to_id: str | None = None
-    mode: str | None = None         # travel: walk | motorbike | car | ride
+    mode: str | None = None         # travel: walk | motorbike | car
     note: str | None = None
 
 
@@ -81,12 +83,14 @@ class DayResult:
     violations: tuple[Violation, ...]   # what the simulation tripped over; validate.py decides pass / fail
     travel_min: int
     wait_min: int
-    end: int
+    end: int                        # when the last stop (or the way back) is done; meal blocks after it aside
     notes: tuple[str, ...] = ()
     method: str = ""                # exact | heuristic | single
     unpinned: tuple[str, ...] = ()  # places whose time-of-day pin was given up to fit the day (the user is told)
 
+    timing_penalty: float = 0.0
+
     @property
-    def key(self) -> tuple[int, int, int]:
-        """Fewer violations first, then fewer skipped meals, then the earlier the day ends."""
-        return (len(self.violations), sum(n.startswith("meal_missed") for n in self.notes), self.end)
+    def key(self) -> tuple[int, int, float]:
+        """Fewer violations, then fewer skipped meals, then finish time with soft time suitability."""
+        return (len(self.violations), sum(n.startswith("meal_missed") for n in self.notes), self.end + self.timing_penalty)

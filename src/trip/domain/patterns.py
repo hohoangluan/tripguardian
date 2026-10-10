@@ -1,4 +1,4 @@
-"""Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17): which explicit choices a user keeps making.
+"""Long-term pattern learning (docs/P2_TRIP_UNDERSTANDING.md §17): which explicit choices a user keeps making.
 
 A vote is one explicit choice made in one session. Silence is no vote (unknown is not "dislike"), a visited place is no
 vote (visited is not "liked"), a value the user only confirmed from a stored pattern is no vote (no feedback loop), and

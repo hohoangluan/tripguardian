@@ -79,12 +79,13 @@ export const NotifyTab = ({ f }: { f: Filters }) => <Load path="notifications" f
   <section className="a-card"><h2>Bị bỏ không gửi</h2><Bars label="Lý do" rows={d.skipped.map((r: Rec) => [`${r.kind} · ${r.skip_reason}`, r.n])} /></section>
 </>}</Load>
 
-export const AgentTab = ({ f }: { f: Filters }) => <Load path="agent" f={f}>{(d) => (
+export const AgentTab = ({ f }: { f: Filters }) => <Load path="agent" f={f}>{(d) => (<>
   <section className="a-card"><h2>Yêu cầu dùng model</h2><p className="a-muted">Số liệu theo từng lời gọi của từng vai trò chưa được ghi; đây là các yêu cầu hành trình có dùng model.</p>
     <table className="a-table"><thead><tr><th>Yêu cầu</th><th className="num">Số lượt</th><th className="num">p50</th><th className="num">p95</th><th className="num">Tới event đầu (p50)</th><th className="num">Fallback</th><th>Lỗi</th></tr></thead>
       <tbody>{d.requests.map((r: Rec) => <tr key={r.name}><td>{r.name}</td><td className="num">{r.n}</td><td className="num">{r.p50_ms ?? '—'} ms</td><td className="num">{r.p95_ms ?? '—'} ms</td><td className="num">{r.first_event_p50_ms ?? '—'} ms</td><td className="num">{pct(r.fallback_rate)}</td><td className="a-small">{Object.entries(r.errors).map(([k, n]) => `${k} ${n}`).join(', ') || '—'}</td></tr>)}</tbody></table>
   </section>
-)}</Load>
+  {d.decision_fallback && <section className="a-card"><h2>Chat ở bước Lựa chọn: agent_fallback</h2><p className="a-muted">Đọc từ log phiên Decision: {d.decision_fallback.asked_agent} lượt gõ có hỏi agent, {d.decision_fallback.fallback} lượt rơi về bộ khớp từ khóa ({pct(d.decision_fallback.rate)}).</p><Bars label="Lý do" rows={entries(d.decision_fallback.reasons)} /></section>}
+</>)}</Load>
 
 export const QualityTab = ({ f }: { f: Filters }) => <Load path="quality" f={f}>{(d) => (
   <div className="tiles">

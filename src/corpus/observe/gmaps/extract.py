@@ -279,7 +279,7 @@ async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tupl
     """A failed batch is split in halves (shorter answers, other context); a single review gets ATTEMPTS tries."""
     refs = dict(batch)
     text = "\n".join(f"{ref}: {' '.join(r['text'].split())}" for ref, r in batch)
-    for attempt in range(1 if len(batch) > 1 else ATTEMPTS):
+    for _attempt in range(1 if len(batch) > 1 else ATTEMPTS):
         try:
             answer = await call(slots, lambda client, model, note=note: ask_batch(client, model, city, place,
                                                                                 ont.prompt_text(), text, note))
@@ -398,7 +398,7 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
     async with asyncio.TaskGroup() as tg:
         verdicts = [tg.create_task(check_span(slots, place, refs[ref]["text"], ont, o)) for ref, o in checks]
     rejected = set()
-    for (ref, o), v in zip(checks, verdicts):
+    for (_ref, o), v in zip(checks, verdicts):
         if v.result() != "supports":
             rejected.add(id(o))
             dropped[f"span_check_{v.result()}"] += 1

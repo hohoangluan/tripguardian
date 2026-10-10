@@ -1,41 +1,47 @@
-"""Decision Output + serving records -> a checked itinerary (docs/PLANNING.md, phase P3).
+"""Decision Output + serving records -> a checked itinerary (docs/P4_PLANNING.md, phase P3).
 
 One path, no randomness: places -> one travel matrix -> clusters -> days -> stop order -> clock -> validate.
 prepare() does once what every variant shares; schedule_trip() lays the trip out for one objective's weights.
 """
 
 from dataclasses import asdict, dataclass, field, replace
+import json
 
 import live
+from corpus.serving import check, feature
+from trip import nights as nights_of
 
 from . import places as pl
 from .cluster import cluster_places, split_to_fit
 from .conditions import build_cond, crowd_sensitive, crowd_tips, describe
-from .days import assign_days, day_load, isolate_constrained
+from .days import assign_days, can_start, day_load, isolate_constrained
 from .frame import trip_days
 from .model import Item
 from .route import order_day
-from .schedule import DayCtx, pin_window
-from .settings import Settings, fmt
+from .schedule import DAY_MINUTES, DayCtx, pin_window
+from .settings import Settings, fmt, to_min
 from .settings import load as load_settings
 from .traits import preference
-from .travel import Travel, build_travel
+from .travel import Travel, build_travel, km
 from .validate import validate
 
 HOME, ENTRY, EXIT = "@home", "@entry", "@exit"
 
 WARNING_TEXT = {
     "days_assumed": "Chưa biết số ngày: tạm xếp {n} ngày.",
-    "dates_unknown": "Chưa biết ngày đi: không kiểm giờ mở cửa theo thứ và không ghim giờ hoàng hôn / bình minh.",
-    "entry_exit_unknown": "Chưa biết điểm vào / ra thành phố: ngày đầu và ngày cuối chỉ cắt theo giờ đến / giờ rời, kém chắc hơn.",
-    "base_unknown": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối.",
-    "travel_rough": "Thời gian di chuyển là ước lượng thô (không có OSRM), không dùng để kết luận độ vững.",
-    "travel_pairs_rough": "{n} chặng không có đường trong OSRM, dùng ước lượng thô.",
-    "days_fallback": "Quá nhiều ngày hoặc cụm để tìm chính xác: chia ngày theo cách tham lam.",
-    "hours_unknown": "{name}: chưa có giờ mở cửa, không kiểm.",
+    "dates_unknown": "Chưa biết ngày đi nên mình chưa đối chiếu giờ mở cửa theo thứ và giờ hoàng hôn / bình minh.",
+    "entry_exit_unknown": "Chưa biết bạn đến và rời Đà Lạt ở đâu, nên ngày đầu và ngày cuối chỉ tính theo giờ đến và giờ về.",
+    "base_unknown": "Chưa có chỗ ở: mỗi ngày tính từ nơi đầu tiên đến nơi cuối cùng. Chọn chỗ ở để giờ đi lại sát hơn.",
+    "travel_rough": "Giờ di chuyển trong lịch được ước tính theo khoảng cách, có thể lệch vài phút.",
+    "walk_only": "Bạn không thuê xe nên lịch chỉ đi bộ quanh khu: những nơi xa chỗ ở sẽ mất nhiều thời gian hoặc không kịp. "
+                 "Thuê xe máy sẽ đi được xa hơn nhiều.",
+    "travel_pairs_rough": "{n} chặng đi được ước tính theo khoảng cách, có thể lệch vài phút.",
+    "days_fallback": "Chuyến có nhiều nơi nên mình chia ngày theo cách nhanh, có thể chưa gọn nhất.",
+    "hours_unknown": "{name}: chưa có giờ mở cửa, bạn hỏi lại trước khi đi nhé.",
     "meal_missed": "Ngày {day}: quá khung giờ {meal}, chưa xếp bữa.",
     "hours_vary": "{name}: giờ mở cửa khác nhau theo thứ, chưa biết ngày đi nên dùng khung giờ chung các ngày mở.",
     "early_start": "Ngày {day}: bắt đầu sớm lúc {start} để kịp {name}.",
+    "dawn_full": "Chỉ có {n} buổi sáng sớm hợp trong chuyến nên {name} được xếp vào giờ khác trong ngày.",
     "pin_dropped": "Ngày {day}: không xếp kịp {name} vào đúng giờ đẹp nhất (hoàng hôn / bình minh / nhạc), vẫn ghé nơi này lúc khác trong ngày.",
     "near_duplicate": "{a} và {b} cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn.",
     "severe_weather": "Ngày {day}: dự báo thời tiết rất xấu ({what}); không xếp nơi ngoài trời vào ngày này.",
@@ -80,6 +86,7 @@ class Trip:
     weather: dict | None
     lodging_ids: tuple = ()         # ids of the extra nodes added to the matrix as lodging candidates (P5)
     routes: dict = field(default_factory=dict)      # (day index, sorted ids) -> DayResult, shared by every variant
+    expires_at: float | None = None               # earliest expiry of cached preparation resources
 
 
 @dataclass(frozen=True)
@@ -90,6 +97,15 @@ class Schedule:
     ctxs: list
     violations: list
     warnings: list
+
+
+def _arrive_extra(p, mobility: str | None, cfg: Settings) -> int:
+    """Minutes it costs to arrive at this place by vehicle: a car finds a space (more where parking is known to be
+    hard; unknown adds nothing), a motorbike goes to the door. Walking pays nothing."""
+    extra = cfg.park_min.get(mobility or "motorbike", 0)
+    if mobility == "car" and (feature(p.rec, "parking") or {}).get("value") == "hard":
+        extra += cfg.park_hard_extra_min
+    return extra
 
 
 def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, live_cfg=None, geocode_fn=None,
@@ -111,10 +127,6 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     warnings: list[dict] = []
 
     placed, unplaced = pl.build_places(decision, by_id, cfg)
-    # A place known for several times of day (sunset and cloud hunting) is visited for the one the user asked for.
-    wants = {w["feature"] for w in tc.get("soft_weights") or [] if w.get("weight", 0) > 0 and w.get("value") == "present"}
-    placed = [replace(p, pins=tuple(f for f in p.pins if f in wants)) if wants & set(p.pins) else p for p in placed]
-    by_place = {p.id: p for p in placed}
     # Near duplicates (the same kind of place, PLACE_DECISION §9.1) the user kept anyway: say so, never refuse.
     seen: dict = {}
     for p in placed:
@@ -130,7 +142,7 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     points, why = {}, {}
     for node, base in ((HOME, ctx.get("base")), (ENTRY, ctx.get("entry_point")), (EXIT, ctx.get("exit_point"))):
         points[node], why[node] = pl.resolve_point(base, by_id, geocode_fn)
-    # The entry point only says where day one opens (arrive_at, from the coach / flight). It is not where the user
+    # The entry point only says where day one opens (from the coach / flight). It is not where the user
     # sleeps: with no base yet the later days have no start, exactly as when the user came by themselves.
     home = HOME if points[HOME] else None
     entry = ENTRY if points[ENTRY] else None
@@ -143,7 +155,9 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     nodes = {p.id: (p.lat, p.lng) for p in placed}
     nodes.update({n: (pt.lat, pt.lng) for n, pt in points.items() if pt})
     nodes.update(extra_nodes or {})
-    travel = build_travel(nodes, mobility, cfg, live_cfg, matrix_fn)
+    travel = build_travel(nodes, mobility, cfg, live_cfg, matrix_fn, {p.id: _arrive_extra(p, mobility, cfg) for p in placed})
+    if mobility == "walk":
+        warnings.append(_warn("walk_only"))
     if travel.source == "rough":
         warnings.append(_warn("travel_rough"))
     elif travel.rough_pairs:
@@ -156,20 +170,86 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
         warnings.append(_warn("dates_unknown"))
     centre = (sum(p.lat for p in placed) / len(placed), sum(p.lng for p in placed) / len(placed)) if placed else None
     soft = tc.get("soft_weights") or []
-    prefs = {p.id: preference(p, soft) for p in placed}
 
     def rain_on(d) -> float | None:
         day = (weather or {}).get(d.date.isoformat()) if d.date else None
         return day.get("rain_prob") if day else None
 
     crowd_tol = (tc.get("pace") or {}).get("crowd_tolerance")
-    ctxs = [DayCtx(d, by_place, travel, cfg, pace,
-                   sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None, rain_on(d), prefs,
-                   build_cond(d, weather, signals, cfg), crowd_tol)
-            for d in days]
+    suns = [sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None for d in days]
+    wants = {w["feature"] for w in soft if w.get("weight", 0) > 0 and w.get("value") == "present"}
+    placed, notes = timed_pins(placed, wants, [DayCtx(d, {}, travel, cfg, pace, sun) for d, sun in zip(days, suns)], cfg)
+    warnings += notes
+    by_place = {p.id: p for p in placed}
+    prefs = {p.id: preference(p, soft) for p in placed}
+    ctxs = [DayCtx(d, by_place, travel, cfg, pace, sun, rain_on(d), prefs, build_cond(d, weather, signals, cfg), crowd_tol, soft)
+            for d, sun in zip(days, suns)]
     warnings += condition_warnings(ctxs)
     return Trip(decision, cfg, pace, by_place, unplaced, by_id, points, travel, days, ctxs, warnings, weather,
                lodging_ids=tuple(extra_nodes or {}))
+
+
+def timed_pins(placed: list, wants: set, ctxs: list, cfg: Settings) -> tuple[list, list[dict]]:
+    """Which timed features each place is visited for, and what the user is told about it. A place known for several
+    times of day is visited for the one the user asked for, else for any of them; a place known more for another time
+    of day than for the wished one (a cafe with 67 sunset reviews and 48 cloud reviews) is visited at that other time.
+    Every other place wished for a sunrise feature keeps its dawn: the system never plans fewer dawns than the user
+    chose. Only the mornings limit it: one dawn stop a morning, on a day whose window can host it (not an arrival
+    after dawn); when the places outnumber those mornings, the ones with the least evidence are visited at another
+    hour and the plan says so."""
+    early = {f for f, pin in cfg.pins.items() if pin["anchor"] == "sunrise"}
+    n = lambda p, f: (feature(p.rec, f) or {}).get("n") or 0
+    mornings = lambda p, f: slot_days(replace(p, pins=(f,)), ctxs)
+
+    taken: dict[int, str] = {}          # day index -> the place that has that morning's dawn
+    drop: dict[str, set] = {}
+    notes = []
+    for p, f in sorted(((p, f) for p in placed for f in wants & early & set(p.pins)), key=lambda x: (-n(*x), x[0].id)):
+        days = mornings(p, f)
+        if not days or p.id in taken.values():
+            continue                    # its hours or the sun cannot host a dawn at all: the pin is ignored anyway
+        if any(n(p, g) > n(p, f) for g in p.pins if g != f):
+            drop.setdefault(p.id, set()).add(f)
+            continue
+        free = [d for d in days if d not in taken]
+        if free:
+            taken[free[0]] = p.id
+        else:
+            drop.setdefault(p.id, set()).add(f)
+            notes.append(_warn("dawn_full", n=len(days), name=p.name))
+    out = []
+    for p in placed:
+        pins = tuple(f for f in p.pins if f not in drop.get(p.id, ()))
+        out.append(replace(p, pins=tuple(f for f in pins if f in wants) or pins))
+    return out, notes
+
+
+SLOT_ANCHOR = {"dawn": "sunrise", "sunset": "sunset", "evening": "clock"}   # the time-of-day choice of a stop
+SLOTS = (*SLOT_ANCHOR, "any")                                                  # "any": no time of day held
+
+
+def slot_days(p, ctxs: list) -> list[int]:
+    """The days on which the place can be visited at its pinned time of day (its hours, the sun, the day's window)."""
+    return [cx.day.index for cx in ctxs if pin_window(p, cx) != (0, DAY_MINUTES) and can_start(p, cx)]
+
+
+def slot_pins(p, slot: str, cfg: Settings) -> tuple:
+    """The place's timed features (from its record, whatever the default kept) that hold it to `slot`."""
+    timed = [f for f in cfg.pins if (feature(p.rec, f) or {}).get("value") == "present"]
+    return () if slot == "any" else tuple(f for f in timed if cfg.pins[f]["anchor"] == SLOT_ANCHOR[slot])
+
+
+def slot_of(p, cfg: Settings) -> str:
+    """The time of day the place is held to now: its first pin's, or "any"."""
+    anchor = {v: k for k, v in SLOT_ANCHOR.items()}
+    return anchor[cfg.pins[p.pins[0]]["anchor"]] if p.pins else "any"
+
+
+def slot_options(p, ctxs: list, cfg: Settings) -> list[str]:
+    """The times of day the user may hold this stop to: those its timed features, hours and the trip's days allow,
+    plus "any". [] when the place has no timed feature it could be held to (nothing to choose)."""
+    ok = [s for s in SLOT_ANCHOR if (pins := slot_pins(p, s, cfg)) and slot_days(replace(p, pins=pins), ctxs)]
+    return [*ok, "any"] if ok else []
 
 
 def condition_warnings(ctxs: list) -> list[dict]:
@@ -196,13 +276,73 @@ def pull_early(cx: DayCtx, day_ids, by_place: dict, travel) -> tuple[DayCtx, str
     """A sunrise place pulls a later day's start forward: (the day, the place that pulled it, or None). The scheduler
     and every later check of a laid-out day use this one rule, so a plan shown as valid passes the check at confirm."""
     early = [(pin_window(by_place[i], cx)[0], i) for i in day_ids
-             if i in by_place and 0 < pin_window(by_place[i], cx)[0] < cx.day.start]
+             if i in by_place and by_place[i].requested_start is None
+             and 0 < pin_window(by_place[i], cx)[0] < cx.day.start]
     if not early or cx.day.index == 0:
         return cx, None
     lo, pid = min(early)
     first = cx.day.start_node
     start = max(0, lo - (travel.leg(first, pid)[0] if first else 0))
     return replace(cx, day=replace(cx.day, start=start)), pid
+
+
+def route_key(ids, cx, shrink=True):
+    """Canonical dependencies of one day, excluding unused places and objective split weights."""
+    ids = sorted(ids)
+    nodes = sorted(set(ids) | {n for n in (cx.day.start_node, cx.day.end_node) if n})
+    settings = asdict(cx.cfg)
+    settings.pop("weights", None)
+    payload = {"day": asdict(cx.day), "places": [asdict(cx.places[i]) for i in ids],
+               "settings": settings, "pace": cx.pace, "sun": cx.sun, "rain": cx.rain,
+               "cond": asdict(cx.cond) if cx.cond else None, "crowd_tol": cx.crowd_tol,
+               "prefs": {i: (cx.prefs or {}).get(i) for i in ids}, "soft_weights": cx.soft_weights,
+               "shrink": shrink and cx.allow_shrink,
+               "legs": [[cx.travel.leg(a, b) for b in nodes] for a in nodes]}
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def relocate_days(per_day, ctxs, trip, hard, budget, max_leg):
+    """Move a visit to any feasible spare day at its full estimate before flexible shrinking."""
+    per_day = [list(ids) for ids in per_day]
+    ctxs = list(ctxs)
+
+    def full(ids, cx):
+        adjusted, _ = pull_early(cx, ids, trip.by_place, trip.travel)
+        key = route_key(ids, adjusted, shrink=False)
+        if key not in trip.routes:
+            trip.routes[key] = order_day(ids, replace(adjusted, allow_shrink=False))
+        result = trip.routes[key]
+        failures = validate([adjusted], [result], hard, set(), budget, max_leg)
+        if not failures:
+            trip.routes.setdefault(route_key(ids, adjusted), result)
+        return adjusted, result, len(failures)
+
+    for source in range(len(per_day)):
+        while per_day[source]:
+            _, _, failures = full(per_day[source], ctxs[source])
+            if not failures:
+                break
+            changed = False
+            # Prefer later days, then earlier spare days; each move reduces total failures.
+            for target in [*range(source + 1, len(per_day)), *range(source)]:
+                _, _, target_failures = full(per_day[target], ctxs[target])
+                for pid in sorted(per_day[source]):
+                    source_ids = [i for i in per_day[source] if i != pid]
+                    target_ids = [*per_day[target], pid]
+                    target_cx, _, after_target = full(target_ids, ctxs[target])
+                    if after_target:
+                        continue
+                    source_cx, _, after_source = full(source_ids, ctxs[source])
+                    if after_source < failures + target_failures:
+                        per_day[source], per_day[target] = source_ids, target_ids
+                        ctxs[source], ctxs[target] = source_cx, target_cx
+                        changed = True
+                        break
+                if changed:
+                    break
+            if not changed:
+                break
+    return per_day, ctxs
 
 
 def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
@@ -215,7 +355,7 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
     cap = int(cfg.fill_ratio * max(d.end - d.start for d in trip.days))
     clusters = cluster_places(ids, {p.id: p.area for p in trip.by_place.values()}, trip.travel, cfg)
     # a cluster is cut when it holds more places than a day is planned for, or more than a day can carry
-    size = lambda c: cap + 1 if len(c) > cfg.per_day[trip.pace] else day_load(c, trip.by_place, cfg, trip.pace)
+    size = lambda c: cap + 1 if len(c) > cfg.per_day[trip.pace] else day_load(c, trip.by_place, cfg, trip.pace, ctxs[0].soft_weights)
     clusters = split_to_fit(clusters, size, cap, trip.travel)
     per_day, flag = assign_days(isolate_constrained(clusters, ctxs), ctxs)
     if flag:
@@ -229,9 +369,10 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
     tc = trip.decision["trip_context"]
     hard, budget = tc.get("hard_filters") or [], tc["context"].get("budget_vnd")
     max_leg = (tc.get("pace") or {}).get("max_leg_min")
+    per_day, ctxs = relocate_days(per_day, ctxs, trip, hard, budget, max_leg)
     results = []
     for k, (day_ids, cx) in enumerate(zip(per_day, ctxs)):
-        key = (cx.day.index, cx.day.start_node, cx.day.end_node, tuple(sorted(day_ids)))
+        key = route_key(day_ids, cx)
         if key not in trip.routes:      # the order inside a day does not depend on the day-split weights
             trip.routes[key] = order_day(day_ids, cx)
         r = trip.routes[key]
@@ -255,7 +396,7 @@ def _unpin(cx: DayCtx, r, day_ids: list, hard: list, budget, max_leg):
     an evening show): give up the time of day of the latest one first, until the day passes. The visit stays; only
     the "be there at sunset / for the music" wish is dropped, and the caller says so. Nothing helps: unchanged."""
     first = {it.place_id: it.start for it in r.items if it.kind == "visit"}
-    pinned = sorted((i for i in day_ids if cx.places[i].pins), key=lambda i: -first.get(i, 0))
+    pinned = sorted((i for i in day_ids if cx.places[i].pins and cx.places[i].requested_start is None), key=lambda i: -first.get(i, 0))
     tried, dropped = cx, []
     for pid in pinned:
         tried = replace(tried, places={**tried.places, pid: replace(tried.places[pid], pins=())})
@@ -282,6 +423,72 @@ def itinerary(days: list, results: list) -> list[dict]:
     return [{"day": d.index + 1, "date": d.date.isoformat() if d.date else None, "weekday": d.weekday,
              "window": [fmt(d.start), fmt(d.end)], "method": r.method,
              "items": [_item(i) for i in r.items]} for d, r in zip(days, results)]
+
+
+def meal_options(itin: list[dict], records: dict, hard: list, cfg: Settings) -> list[dict]:
+    """The rendered itinerary with each free meal block offering up to meal_options served restaurants to pick from:
+    open for the whole block that weekday (known hours only), within meal_radius_km of the stop before the block (or
+    after it), not already in the plan, failing none of the trip's hard filters; nearest first. A suggestion on the
+    block, never a stop added to the plan."""
+    in_plan = {i.get("place_id") for d in itin for i in d["items"]}
+    shops = [(r, pl.parse_hours(r["operation"]["hours"]["value"])) for r in records.values()
+             if r["identity"].get("category_group") == "restaurant" and "meal" in (r.get("usable_as") or [])
+             and r["identity"].get("lat") is not None and r["identity"].get("lng") is not None
+             and (r["operation"].get("hours") or {}).get("value") and r["id"] not in in_plan
+             and not any(hf["op"] == "ne" and check(r, hf["feature"], hf["value"]) == "fail" for hf in hard)]
+    for d in itin:
+        stops = [(k, records[i["place_id"]]["identity"]) for k, i in enumerate(d["items"])
+                 if i["kind"] == "visit" and i.get("place_id") in records]
+        for k, it in enumerate(d["items"]):
+            if it["kind"] != "meal_free":
+                continue
+            near = [s for j, s in reversed(stops) if j < k] + [s for j, s in stops if j > k]
+            if not near:
+                continue
+            at = (near[0]["lat"], near[0]["lng"])
+            a, b = to_min(it["start"]), to_min(it["end"])
+            hits = sorted((km(at, (r["identity"]["lat"], r["identity"]["lng"])), r["id"], r) for r, hours in shops
+                          if any(o <= a and b <= c for o, c in pl.windows_on(hours, d["weekday"]) or []))
+            it["options"] = [{"place_id": pid, "name": r["identity"]["name"], "km": round(dist, 1)}
+                             for dist, pid, r in hits[:cfg.meal_options] if dist <= cfg.meal_radius_km]
+    return itin
+
+
+NIGHT_EMPTY = "Chưa có nơi hợp ban đêm gần chặng cuối ngày trong dữ liệu, nên đêm này để trống."
+
+
+def night_slots(itin: list[dict], records: dict, hard: list, ctx: dict, cfg: Settings) -> list[dict]:
+    """The rendered itinerary with a `night` on every day that is followed by a night the trip really sleeps in (the
+    first nights_of(ctx) days; none for a day trip): a free block from the day's end (day_end) to night_end that offers up
+    to night_options places to pick from. A place is offered only when the corpus knows its hours and it is open at least
+    night_min minutes of the block that weekday, it is a night_groups place (never a stay or an all-day park), within
+    night_radius_km of the day's last stop, not already in the plan and failing none of the trip's hard filters; nearest
+    first. No such place -> options [] and the text says so: the night stays empty, nothing is invented. Days with no
+    night after them get night: None."""
+    in_plan = {i.get("place_id") for d in itin for i in d["items"]}
+    start = to_min(ctx["day_end"]) if ctx.get("day_end") else cfg.day_end
+    end = cfg.night_end
+    shops = [(r, pl.parse_hours(r["operation"]["hours"]["value"])) for r in records.values()
+             if r["identity"].get("category_group") in cfg.night_groups
+             and r["identity"].get("lat") is not None and r["identity"].get("lng") is not None
+             and (r["operation"].get("hours") or {}).get("value") and r["id"] not in in_plan
+             and not any(hf["op"] == "ne" and check(r, hf["feature"], hf["value"]) == "fail" for hf in hard)]
+    real = nights_of(ctx)
+    for k, d in enumerate(itin):
+        if k >= real:
+            d["night"] = None
+            continue
+        stops = [records[i["place_id"]]["identity"] for i in d["items"] if i["kind"] == "visit" and i.get("place_id") in records]
+        hits = []
+        if stops and end - start >= cfg.night_min:
+            at = (stops[-1]["lat"], stops[-1]["lng"])
+            hits = sorted((km(at, (r["identity"]["lat"], r["identity"]["lng"])), r["id"], r) for r, hours in shops
+                          if any(min(c, end) - max(o, start) >= cfg.night_min for o, c in pl.windows_on(hours, d["weekday"]) or []))
+        options = [{"place_id": pid, "name": r["identity"]["name"], "km": round(dist, 1)}
+                   for dist, pid, r in hits[:cfg.night_options] if dist <= cfg.night_radius_km]
+        d["night"] = {"night": k + 1, "start": fmt(start), "end": fmt(end), "options": options,
+                      "empty": not options, "text": None if options else NIGHT_EMPTY}
+    return itin
 
 
 def travel_load(days: list, results: list) -> list[dict]:
@@ -321,9 +528,11 @@ def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None,
     trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn)
     sched = schedule_trip(trip)
     days = [cx.day for cx in sched.ctxs]      # schedule_trip may pull a later day's start earlier (early_start)
+    ctx = decision["trip_context"]["context"]
     return {
         "ok": not sched.violations,
-        "itinerary": itinerary(days, sched.results),
+        "itinerary": night_slots(itinerary(days, sched.results), {r["id"]: r for r in records},
+                                 decision["trip_context"].get("hard_filters") or [], ctx, trip.cfg),
         "travel_load": travel_load(days, sched.results),
         "violations": [asdict(v) for v in sched.violations],
         "warnings": trip.warnings + sched.warnings + flag_warnings(decision),
@@ -349,6 +558,10 @@ def render_text(plan: dict) -> str:
             else:
                 out.append(span + (WAIT_TEXT.get(i.get("note"), "chờ") if i["kind"] == "wait"
                                    else {"buffer": "đệm", "rest": "nghỉ"}[i["kind"]]))
+        if night := d.get("night"):
+            head = f'  Đêm {night["night"]} {night["start"]}-{night["end"]}: '
+            out.append(head + (night["text"] if night["empty"]
+                               else "gợi ý " + ", ".join(o["name"] for o in night["options"]) + " (tự chọn)"))
     for w in plan["warnings"]:
         out.append("! " + w["text"])
     for v in plan["violations"]:

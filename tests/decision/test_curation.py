@@ -2,7 +2,7 @@ import pytest
 from fixtures import si, srec
 
 from decision.curation import ActionError, apply, pending
-from decision.session import Chip, Drop, Pending, State
+from decision.session import Drop, State
 from decision.settings import default
 
 CFG = default()

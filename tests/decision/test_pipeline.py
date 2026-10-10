@@ -100,7 +100,7 @@ def test_no_days_means_no_weekday_checks_even_with_a_start_date():
 
 
 def many_cafes(n):
-    return Data([srec(f"CAFE{i:02d}", features={"steep_or_stairs": "absent", "cozy_decor": "present"},
+    return Data([srec(f"CAFE{i:02d}", features={"steep_or_stairs": "absent", "cozy_decor": "present", "scenic_view": "present"},
                       lng=108.44 + i / 1000) for i in range(n)])
 
 
@@ -142,3 +142,58 @@ def test_lodging_never_reaches_explore():
     v = run(s, Data([*data().records, hotel]), CFG).view
     shown = {c["id"] for g in v["groups"] for c in g["cards"] if c["id"] == "HOTEL"}
     assert not shown and "HOTEL" not in v["shortlist"]
+
+
+def crowd_data():
+    from fixtures import feat
+    busy = {"scenic_view": "present", "steep_or_stairs": "absent", "crowd": feat("high", n=38, dist={"high": 33, "low": 5})}
+    calm = {"scenic_view": "present", "steep_or_stairs": "absent"}
+    return Data([srec("BUSY", features=busy), *[srec(f"CALM{i}", features=calm, lng=108.44 + i / 1000) for i in range(3)],
+                 srec("HILL", group="nature", features=calm), srec("PLAIN", features={"steep_or_stairs": "absent"})])
+
+
+def test_a_place_with_a_crowd_warning_is_never_best_fit_when_the_trip_avoids_crowds():
+    """Bug D-2: "Độ đông: đông, theo 38 người" carried the "Hợp nhất" badge on a trip that avoids crowds."""
+    cards = {c["id"]: c for g in run(session(trip(pace={"crowd_tolerance": "avoid"})), crowd_data(), CFG).view["groups"]
+             for c in g["cards"]}
+    assert not cards["BUSY"]["top"] and cards["CALM0"]["top"]
+    assert not cards["PLAIN"]["top"]  # matches no wish of the trip: listed, never "Hợp nhất"
+    cards = {c["id"]: c for g in run(session(), crowd_data(), CFG).view["groups"] for c in g["cards"]}
+    assert cards["BUSY"]["top"]  # crowds are fine for this trip
+
+
+def test_asking_to_drop_crowded_places_removes_them_from_the_list():
+    from decision.curation import apply
+    st = apply(State(), {"type": "feedback", "reason": "crowded"}, lambda p: True, {}, None, CFG)
+    assert st.profile.hide_crowded and st.profile.crowd_tolerance == "avoid"
+    res = run(session(state=st), crowd_data(), CFG)
+    assert "BUSY" not in res.view["shortlist"] and "CALM0" in res.view["shortlist"]
+    assert why_not(res, "BUSY", session(state=st).search_input, CFG)["reasons"][0].startswith("Nhiều người nói")
+    kept = run(session(state=st.model_copy(update={"selected": ["BUSY"]})), crowd_data(), CFG).view
+    assert "BUSY" in kept["shortlist"]  # a chosen place is never dropped silently
+
+
+def test_focus_tab_follows_the_trips_main_interest():
+    assert run(session(trip(liked_groups=["chill"])), crowd_data(), CFG).view["focus"] == "chill"
+    nature = Data([srec(f"H{i}", group="nature", features=FLAT, lng=108.44 + i / 1000) for i in range(4)]
+                  + [srec("C", features={"steep_or_stairs": "absent"})])
+    assert run(session(), nature, CFG).view["focus"] == "nature"  # no named interest: where the best fits are
+
+
+def test_the_rain_warning_is_said_once_for_the_trip_not_on_every_card():
+    """Bug D-5: every outdoor card carried "Ngoài trời, tháng 10 hay mưa" as its trade-off."""
+    out = {"scenic_view": "present", "steep_or_stairs": "absent", "setting": "outdoor"}
+    d = Data([srec(f"OUT{i}", group="nature", features=out, lng=108.44 + i / 1000) for i in range(3)])
+    v = run(session(trip(context={"start_date": "2026-10-25", "days": 3})), d, CFG).view
+    cards = [c for g in v["groups"] for c in g["cards"]]
+    assert [n["code"] for n in v["notes"]] == ["rain"] and "Tháng 10" in v["notes"][0]["text"]
+    assert all(c["outdoor"] and not any("mưa" in t["text"] for t in c["tradeoffs"]) for c in cards)
+    assert run(session(), d, CFG).view["notes"] == []  # December: not a rainy month
+
+
+def test_a_tab_with_no_place_reaching_the_bar_has_no_badge_but_keeps_its_ranking():
+    d = Data([srec("HILL", group="nature", features=FLAT),
+              *[srec(f"C{i}", features={"steep_or_stairs": "absent"}, voices=10 + i, lng=108.44 + i / 1000) for i in range(3)]])
+    chill = next(g for g in run(session(), d, CFG).view["groups"] if g["id"] == "chill")
+    assert chill["total"] == 3 and not any(c["top"] for c in chill["cards"])
+    assert [c["score"] for c in chill["cards"]] == sorted((c["score"] for c in chill["cards"]), reverse=True)

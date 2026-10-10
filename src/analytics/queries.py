@@ -2,7 +2,7 @@
 connections can only SELECT; nothing here writes."""
 
 import statistics
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone, UTC
 
 # Funnel steps per journey: (key, label, event name, extra condition on props). Order is the product flow.
 FUNNEL = (
@@ -138,7 +138,7 @@ def sessions(pool, params: dict) -> list[dict]:
     low_feedback=1 (a score ≤ 2), error=1 (an event with an error or a fallback)."""
     start, end = _range(params)
     sql = """
-        SELECT j.id, j.stage, j.revision, j.created_at, j.updated_at, j.app_version, u.email, u.display_name,
+        SELECT j.id, j.stage, j.revision, j.created_at, j.updated_at, j.app_version, u.email, u.display_name, u.role,
           (SELECT count(*) FROM events e WHERE e.journey_id = j.id AND (e.props ? 'error' OR e.props->>'path' = 'fallback')) AS errors,
           (SELECT min((v.value)::int) FROM feedback f, jsonb_each_text(f.scores) v WHERE f.journey_id = j.id) AS min_score,
           EXISTS (SELECT 1 FROM events e WHERE e.journey_id = j.id AND e.name = 'planning.confirm') AS confirmed,
@@ -152,7 +152,7 @@ def sessions(pool, params: dict) -> list[dict]:
     sql += " ORDER BY j.updated_at DESC LIMIT 500"
     with pool.connection() as conn:
         out = [dict(r) for r in conn.execute(sql, args)]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if params.get("reached") in STAGES:
         out = [r for r in out if STAGES.index(r["stage"]) >= STAGES.index(params["reached"]) or r["confirmed"]]
     if params.get("abandoned"):
@@ -169,7 +169,7 @@ def sessions(pool, params: dict) -> list[dict]:
 def session(pool, jid: str) -> dict:
     """One journey for replay: its saved envelope (transcripts, module logs, receipts), events and feedback."""
     with pool.connection() as conn:
-        row = conn.execute("SELECT j.*, u.email, u.display_name FROM journeys j LEFT JOIN users u ON u.id = j.user_id "
+        row = conn.execute("SELECT j.*, u.email, u.display_name, u.role FROM journeys j LEFT JOIN users u ON u.id = j.user_id "
                            "WHERE j.id = %s", (jid,)).fetchone()
         if not row:
             raise KeyError(jid)
@@ -181,7 +181,7 @@ def session(pool, jid: str) -> dict:
     snaps = env.get("snapshots") or {}
     return {"id": row["id"], "stage": row["stage"], "revision": row["revision"], "created_at": row["created_at"],
             "updated_at": row["updated_at"], "app_version": row["app_version"], "email": row["email"],
-            "name": row["display_name"],
+            "name": row["display_name"], "role": row["role"],
             "trip_transcript": (snaps.get("trip") or {}).get("transcript") or [],
             "decision_log": (snaps.get("decision") or {}).get("log") or [],
             "planning_log": (snaps.get("planning") or {}).get("log") or [],
@@ -205,9 +205,10 @@ def today(pool) -> dict:
             "count(*) FILTER (WHERE props ? 'error') AS errors, "
             "count(*) FILTER (WHERE props->>'path' = 'fallback') AS fallbacks, "
             "count(DISTINCT user_id) AS active_users FROM events WHERE at >= %s AND at < %s", (start, end)).fetchone()
-        new = conn.execute("SELECT count(*) AS n FROM users WHERE created_at >= %s AND created_at < %s "
-                           "AND deleted_at IS NULL", (start, end)).fetchone()["n"]
-    return {**dict(r), "new_users": new, "day": start.date().isoformat()}
+        new = conn.execute("SELECT count(*) FILTER (WHERE role <> 'guest') AS users, "
+                           "count(*) FILTER (WHERE role = 'guest') AS guests FROM users "
+                           "WHERE created_at >= %s AND created_at < %s AND deleted_at IS NULL", (start, end)).fetchone()
+    return {**dict(r), "new_users": new["users"], "guests": new["guests"], "day": start.date().isoformat()}
 
 
 def versions(pool) -> list[str]:

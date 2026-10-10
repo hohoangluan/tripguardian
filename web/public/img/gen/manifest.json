@@ -8,51 +8,6 @@
   ],
   "at": "2026-10-07T16:55:53+00:00"
  },
- "journey-travel": {
-  "model": "cx/gpt-6.1-sol",
-  "prompt": "Quiet winding road through tall pine forest in the Da Lat highlands on a misty morning, soft diffused light, calm and slow mood, muted green and cream palette, shallow depth of field. No people, no vehicles, no text, no logos, photographic editorial look.",
-  "size": [
-   1536,
-   1024
-  ],
-  "at": "2026-10-07T16:56:33+00:00"
- },
- "journey-experience": {
-  "model": "cx/gpt-6.1-sol",
-  "prompt": "Golden sunrise above a sea of clouds between green hills in the Vietnamese highlands, dramatic warm light rays, vivid but natural colors, a wooden viewing deck in the foreground silhouette without people. No text, no logos, photographic editorial look.",
-  "size": [
-   1536,
-   1024
-  ],
-  "at": "2026-10-07T16:57:14+00:00"
- },
- "journey-budget": {
-  "model": "cx/gpt-6.1-sol",
-  "prompt": "Cozy homestay terrace surrounded by pine trees in Da Lat at late afternoon, warm sunlight, wooden table with two coffee cups, soft mist in the background hills, inviting and relaxed. No people, no text, no logos, photographic editorial look.",
-  "size": [
-   1536,
-   1024
-  ],
-  "at": "2026-10-07T16:58:06+00:00"
- },
- "dusk": {
-  "model": "cx/gpt-6.1-sol",
-  "prompt": "Da Lat lake at blue hour, warm street lights reflecting on calm water, pine silhouettes and a small city skyline in distance, soft pink and teal sky, tranquil evening mood. No people, no text, no logos, photographic editorial look.",
-  "size": [
-   1672,
-   941
-  ],
-  "at": "2026-10-07T16:58:58+00:00"
- },
- "hero-alt": {
-  "model": "ag/gemini-3.8-flash",
-  "prompt": "Wide morning view of coffee plantations and pine hills near Da Lat, Vietnam, thin mist rising, warm sunlight, light airy colors, empty space on the left for text. No people, no text, no logos, photographic.",
-  "size": [
-   1376,
-   768
-  ],
-  "at": "2026-10-07T16:59:10+00:00"
- },
  "bot-avatar": {
   "model": "cx/gpt-6.1-sol",
   "prompt": "Mascot avatar for 'TripGuardian', a friendly Da Lat highlands trip guardian spirit. A chubby, round, soft little pine-tree sprite (kodama-like) with three plump rounded tiers in deep plum #6b3550 with a lighter dusty-rose #c97890 rim light, a smooth cream #fff9f8 round face on the middle tier with two big glossy dark eyes with tiny white highlights, rosy pink #efb8c4 blush cheeks and a small happy smile. A little lake-blue #4a6488 scarf around its neck fluttering, and it holds a tiny glowing brass-free compass made of cream and pink light, with two small four-point sparkles floating nearby. Behind it a misty dusk valley sky as a soft gradient from pink #efb8c4 to cream, with two layered papercut hill silhouettes in dusty rose #c97890 and violet #6b5394. Handcrafted layered paper-cut and soft clay illustration style, gentle depth and soft shadows, charming, original, premium app mascot. The artwork is a full-bleed square, subject centered with generous safe margin so a circular crop keeps the whole character; no circle outline, no frame, no border. Face and silhouette readable at 32 pixels. No text, no letters, no watermark. Strict palette only: deep plum #6b3550, dusty rose #c97890, soft pink #efb8c4, warm cream #fff9f8, lake blue #4a6488, violet #6b5394.",

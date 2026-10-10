@@ -1,4 +1,4 @@
-"""Place name or link -> catalog place (docs/PLACE_DECISION.md §4). Port of web/src/user/search.ts."""
+"""Place name or link -> catalog place (docs/P3_PLACE_DECISION.md §4). Port of web/src/user/search.ts."""
 
 import re
 

@@ -1,4 +1,4 @@
-"""replan_scope (docs/PLACE_DECISION.md §14): the earliest step a change must re-run from, and what stays as is.
+"""replan_scope (docs/P3_PLACE_DECISION.md §14): the earliest step a change must re-run from, and what stays as is.
 The pipeline re-runs everything (cheap); the scope explains the change and is what the table promises."""
 
 STEPS = ("resolve", "screen", "fit", "rank", "diversify", "feasibility")

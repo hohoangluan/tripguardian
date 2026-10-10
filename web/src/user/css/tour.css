@@ -1,0 +1,24 @@
+/* ui/Tour.tsx: ring + popover over the live page. Nothing here captures pointer events outside the popover itself. */
+.tg-tour__ring { position: fixed; z-index: 120; pointer-events: none; border-radius: 22px; border: 2px solid var(--tg-sun); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tg-sun) 30%, transparent), 0 0 0 200vmax color-mix(in srgb, var(--tg-shade) 30%, transparent); animation: tg-fade 220ms both; }
+.tg-tour__pop { position: fixed; z-index: 121; box-sizing: border-box; max-width: calc(100vw - 32px); display: grid; gap: 8px; padding: 18px 20px 16px; border-radius: 20px; background: var(--tg-surface); color: var(--tg-ink); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-2); animation: tg-pop 220ms var(--tg-ease) both; }
+.tg-tour__n { font: 600 0.72rem/1 var(--tg-mono); letter-spacing: 0.06em; color: var(--tg-ink-3); }
+.tg-tour__t { padding-right: 28px; font-family: var(--tg-display); font-size: 1.22rem; line-height: 1.25; color: var(--tg-ink); }
+.tg-tour__b { font-size: 0.93rem; line-height: 1.55; color: var(--tg-ink-2); }
+.tg-tour__b ol, .tg-tour__b ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tg-tour__b li b { color: var(--tg-ink); }
+.tg-tour__x { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--tg-ink-3); transition: background 150ms, color 150ms; }
+.tg-tour__x:hover, .tg-tour__x:focus-visible { background: var(--tg-pine-soft); color: var(--tg-pine); }
+.tg-tour__dots { display: flex; gap: 6px; margin-top: 4px; }
+.tg-tour__dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--tg-line-2); }
+.tg-tour__dots i.is-done { background: var(--tg-pine-line); }
+.tg-tour__dots i.is-now { width: 18px; border-radius: 3px; background: var(--tg-pine); }
+.tg-tour__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.tg-tour__nav { display: inline-flex; gap: 8px; }
+.tg-tour__pop button:focus-visible { outline: 2px solid var(--tg-pine); outline-offset: 2px; }
+
+/* The small replay button (top right of the page it belongs to). */
+.tg-tourbtn { position: absolute; z-index: 3; top: 20px; right: 28px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--tg-surface) 88%, transparent); border: 1px solid var(--tg-line-2); color: var(--tg-ink-2); backdrop-filter: blur(8px); transition: background 150ms, color 150ms, border-color 150ms; }
+.tg-tourbtn:hover, .tg-tourbtn:focus-visible { background: var(--tg-surface); border-color: var(--tg-pine); color: var(--tg-pine); }
+.tg-tourbtn:focus-visible { outline: 2px solid var(--tg-pine); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { .tg-tour__ring, .tg-tour__pop { animation: none; } }

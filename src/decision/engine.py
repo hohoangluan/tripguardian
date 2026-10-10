@@ -1,11 +1,11 @@
-"""Place Decision sessions for the web (docs/PLACE_DECISION.md §12-15, §18): create, act (chips / buttons, no model), turn (typed text, one
+"""Place Decision sessions for the web (docs/P3_PLACE_DECISION.md §12-15, §18): create, act (chips / buttons, no model), turn (typed text, one
 agent call), compare, why-not, confirm. One lock per session; each change is one version that undo restores."""
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from functools import cache
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from corpus.ontology import load as load_ontology
 from trip import SearchInput, squash
@@ -17,7 +17,8 @@ from .curation import ActionError, apply
 from .guard import TurnPlan, guard
 from .heuristics import exact_command
 from .pipeline import Data, Result, run, wanted, why_not
-from .policy import DONE, NONE, policy
+from .rank import fit_level
+from .policy import BUSY, DONE, NONE, policy
 from .scope import STEPS, replan_scope
 from .session import Pending, Session, State, Store
 from .settings import Settings
@@ -45,7 +46,7 @@ def _ontology_version() -> int:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _list_text(change: dict) -> str:
@@ -67,8 +68,15 @@ def diff(before: dict, after: dict, scope: dict | None, rebuilt: bool = False) -
     def sign(n: int) -> str:
         return f"+{n}" if n > 0 else str(n)
 
-    parts = [f"{sign(delta['places'])} nơi, {sign(delta['visit'])} phút tham quan, {sign(delta['travel'])} phút đi lại"
-             ] if any(delta.values()) else []
+    def span(n: int) -> str:  # "+1 giờ 30 phút", not "+90 phút"
+        h, m = divmod(abs(n), 60)
+        text = " ".join(x for x in (f"{h} giờ" if h else "", f"{m} phút" if m or not h else "") if x)
+        return ("+" if n > 0 else "-" if n < 0 else "") + text
+
+    said = [f"{sign(delta['places'])} nơi" if delta["places"] else "",
+            f"{span(delta['visit'])} tham quan" if delta["visit"] else "",
+            f"{span(delta['travel'])} đi lại" if delta["travel"] else ""]
+    parts = [", ".join(x for x in said if x)] if any(delta.values()) else []
     if rebuilt:
         parts.append(_list_text(after.get("change") or {}))
     return {"added": sorted(a - b), "removed": sorted(b - a),
@@ -162,6 +170,16 @@ class Engine:
             self.store.save(s)
             return {"view": self._result(s).view}
 
+    def fits(self, sid: str, ids: list[str]) -> dict:
+        """Card.fit of the asked places, shown or not: the stars the trip's own ranking gave them (rank.stars), `None` for
+        a place the trip has no taste to judge it by or that is not a candidate. Read-only; Lịch trình orders its meal and
+        evening suggestions with it, so those restaurants need not be in the shown window."""
+        s = self._get(sid)
+        with self.store.lock(sid):
+            cands = self._result(s).cands
+        return {"fits": {i: ({"stars": c.stars, "level": fit_level(c.stars, self.cfg)} if (c := cands.get(i)) and c.stars is not None else None)
+                         for i in dict.fromkeys(ids)}}
+
     def report(self, place_id, text, reporter) -> dict:
         """A traveller reports something about a place in their own words. It is only stored here; it changes the
         corpus once enough different people report the same thing (corpus.observe.reports, next build)."""
@@ -215,6 +233,8 @@ class Engine:
             trips = [a["text"] for a in actions if a.get("type") == "trip"]
             actions = [a for a in actions if a.get("type") != "trip"]
             new, done, skipped = self._apply(s, actions, before, strict=False)
+            if log and log[0].startswith("agent_fallback") and not done:
+                say = BUSY  # the agent failed and the keywords changed nothing: never "not understood"
             say = say or (DONE if done or trips else NONE)  # a guard-dropped say never leaves an empty bubble
             if say != "".join(streamed):
                 emit("say", {"replace": say})

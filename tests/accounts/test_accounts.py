@@ -176,3 +176,60 @@ def test_delete_account_removes_personal_data_and_keeps_anonymous_rows(accounts)
     assert not any((accounts.avatars).glob("*.webp"))
     fresh = accounts.user_for(login(accounts, "g-9")["token"])[0]["id"]
     assert fresh != uid  # signing in again starts a new account
+
+
+def test_saved_places_belong_to_the_account_newest_first_and_merge_once(accounts):
+    a = accounts.user_for(login(accounts, "g-a")["token"])[0]["id"]
+    b = accounts.user_for(login(accounts, "g-b")["token"])[0]["id"]
+    assert accounts.saved(a) == []
+    p1, p2, p3 = "0x1:0xa", "0x2:0xb", "0x3:0xc"
+    assert accounts.save_places(a, [p1]) == [p1]
+    assert accounts.save_places(a, [p2]) == [p2, p1]  # a new heart is the newest
+    assert accounts.save_places(a, [p3, p1]) == [p3, p2, p1]  # a browser's local list merged: p1 kept once
+    assert accounts.saved(b) == []  # another account sees nothing
+    assert accounts.unsave_place(a, p2) == [p3, p1]
+    assert accounts.unsave_place(a, "0x9:0xz") == [p3, p1]  # not saved: nothing to do
+    for bad in ([], ["../x"], [1], "0x1:0xa", ["x" * 200]):
+        with pytest.raises(ValueError):
+            accounts.save_places(a, bad)
+    with pytest.raises(ValueError):
+        accounts.unsave_place(a, "a b")
+    accounts.delete(a)
+    assert accounts.saved(a) == []  # personal: goes with the account
+
+
+# --- guests (docs/ACCOUNTS.md §Khách) -------------------------------------------------------------------------------
+
+def test_guest_is_a_role_with_no_identity_and_a_one_day_session(accounts):
+    token = accounts.guest("agent")
+    user, refreshed = accounts.user_for(token)
+    assert user["role"] == "guest" and not refreshed
+    me = accounts.me(user["id"])
+    assert me["role"] == "guest" and me["email"] is None and me["needs_consent"] is False
+    with accounts.pool.connection() as conn:
+        left = conn.execute("SELECT extract(epoch FROM expires_at - now()) AS s FROM auth_sessions").fetchone()["s"]
+        assert 0 < left <= 86400
+
+
+def test_guest_session_does_not_slide(accounts):
+    token = accounts.guest()
+    with accounts.pool.connection() as conn:
+        conn.execute("UPDATE auth_sessions SET last_seen_at = now() - interval '2 hours'")
+    assert accounts.user_for(token)[1] is False
+    with accounts.pool.connection() as conn:
+        left = conn.execute("SELECT extract(epoch FROM expires_at - now()) AS s FROM auth_sessions").fetchone()["s"]
+        assert left <= 86400
+
+
+def test_each_guest_is_its_own_user(accounts):
+    a, b = accounts.user_for(accounts.guest())[0], accounts.user_for(accounts.guest())[0]
+    assert a["id"] != b["id"]
+
+
+def test_remembering_choices_is_its_own_consent_and_can_be_withdrawn(accounts):
+    uid = accounts.user_for(login(accounts)["token"])[0]["id"]
+    assert accounts.me(uid)["consents"].get("patterns") is None
+    assert accounts.set_patterns(uid, True)["consents"]["patterns"] is True
+    assert accounts.set_patterns(uid, False)["consents"]["patterns"] is False
+    with pytest.raises(ValueError):
+        accounts.set_patterns(uid, "yes")

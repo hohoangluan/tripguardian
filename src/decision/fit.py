@@ -1,10 +1,28 @@
-"""④ Context fit (docs/PLACE_DECISION.md §7): rough, cheap, before the shortlist; no route service."""
+"""④ Context fit (docs/P3_PLACE_DECISION.md §7): rough, cheap, before the shortlist; no route service."""
+
+from corpus.serving import feature
 
 from .geo import km, minutes, point
-from .model import Cand, value
+from .model import FIRM, Cand, value
+from .rank import strength
 from .trip_days import month_of
 
 DAYTIME = ("morning", "noon", "afternoon", "evening")
+CROWD_BAD = (("crowd", "high"), ("wait_time", "long"))
+
+
+def crowd_evidence(rec: dict) -> tuple[float, bool]:
+    """(level 0..1, settled): the share of authors who found the place crowded or the wait long, weighed by how many
+    they are; settled when that is its firm value, said by two or more (the trade-off its card shows)."""
+    level, settled = 0.0, False
+    for fid, bad in CROWD_BAD:
+        f = feature(rec, fid)
+        k = (f or {}).get("distribution", {}).get(bad, 0)
+        if not k:
+            continue
+        level = max(level, k / sum(f["distribution"].values()) * strength(round(k)))
+        settled = settled or (f["value"] == bad and f["status"] in FIRM and f["n"] >= 2)
+    return round(level, 4), settled
 
 
 def centers(si, by_id: dict, cfg) -> list[tuple[str, tuple[float, float]]]:
@@ -45,6 +63,7 @@ def fit(c: Cand, si, days, ctrs, anchor_areas: set[str], profile, cfg) -> None:
     area = cfg.area_bonus if c.rec["identity"].get("area") in anchor_areas else 0.0
     crowd = 0.0
     cbt = c.rec["operation"].get("crowd_by_time")
+    c.crowd, c.crowd_warn = crowd_evidence(c.rec)
     if (profile.crowd_tolerance or si.pace.crowd_tolerance) == "avoid" and cbt:
         known = sorted({d.day_type for d in days if d.day_type})
         busy = [(dt, b) for dt in (known or ["weekday", "weekend"]) for b in DAYTIME
@@ -52,6 +71,7 @@ def fit(c: Cand, si, days, ctrs, anchor_areas: set[str], profile, cfg) -> None:
         if busy:
             dt, b = busy[0]
             flags.append({"code": "crowded", "text": f"Đông {t[b]} {t[dt]} (Google)", "sid": None})
+            c.crowd_warn = True  # a card that warns of crowds is never "Hợp nhất" on a trip that avoids them
             if known:
                 crowd = -cfg.crowd_penalty
     m = month_of(si.context)
@@ -61,6 +81,8 @@ def fit(c: Cand, si, days, ctrs, anchor_areas: set[str], profile, cfg) -> None:
                       "sid": "weather_exposed" if exposed else "setting"})
     if value(c.rec, "rough_road_access") == "present":
         flags.append({"code": "rough_road", "sid": "rough_road_access",
-                      "text": "Đường vào xấu, xe công nghệ khó vào" if mob == "ride" else "Đường vào xấu, đi xe cẩn thận"})
+                      "text": "Đường vào xấu, ô tô khó vào" if mob == "car" else "Đường vào xấu, đi xe cẩn thận"})
+    if mob == "car" and value(c.rec, "parking") == "hard":   # unknown parking says nothing
+        flags.append({"code": "parking_hard", "sid": "parking", "text": "Khó đỗ ô tô"})
     c.flags = flags
     c.fit = round(max(0.0, min(1.0, dist + area + crowd)), 4)

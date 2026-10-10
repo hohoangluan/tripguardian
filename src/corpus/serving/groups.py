@@ -1,4 +1,4 @@
-"""Areas, near-duplicate groups and MMR picking over serving records (docs/PLACE_DECISION.md §7, §9). Pure functions.
+"""Areas, near-duplicate groups and MMR picking over serving records (docs/P3_PLACE_DECISION.md §7, §9). Pure functions.
 
 Area: places within area_km of a dense leader share one area id, a coarse "khu vực" for context fit.
 Near duplicate: same category group, same roles, and Jaccard of their evidenced experience / environment

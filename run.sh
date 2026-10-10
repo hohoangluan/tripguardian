@@ -2,7 +2,7 @@
 # Start / stop TripGuardian.
 #   ./run.sh start      dev: harness + analytics (private, :8770) + review + Vite dev server (localhost only)
 #   ./run.sh stop       stop the dev stack (and anything still holding its ports)
-#   ./run.sh prod       production: thumbnails, build web (slim + precompressed), harness, public web server on :28899, Cloudflare tunnel
+#   ./run.sh prod       production: thumbnails, light clips (background), build web (slim + precompressed), harness, public web server on :28899, Cloudflare tunnel
 #   ./run.sh prod-stop  stop the production stack (tunnel included)
 #   ./run.sh prewarm    fill the coach / flight caches for the next weeks (cron, once a day; scripts/prewarm_transit.py)
 #   ./run.sh db         start the project Postgres (container tripguardian-pg, 127.0.0.1:5433), create roles, migrate
@@ -37,8 +37,9 @@ web|5173|node web/node_modules/vite/bin/vite.js web --port 5173 --strictPort"
 PROD_SERVICES="harness|8769|$PYTHON -m harness serve --port 8769
 public|$PUBLIC_PORT|node web/server.mjs $PUBLIC_PORT"
 
-# Workers with no port: name | command. The notification worker plans, checks the forecast and sends web push.
-WORKERS="notify|$PYTHON -u -m notify run"
+# Workers with no port: name | command. The notification worker plans, checks the forecast and sends web push; tts is the assistant's voice (VieNeu-TTS, :8780).
+WORKERS="notify|$PYTHON -u -m notify run
+tts|sh scripts/vieneu_server.sh"
 
 worker_start() {
   echo "$WORKERS" | while IFS='|' read -r name cmd; do
@@ -203,8 +204,13 @@ prod() {
     echo "web/public/data/snapshot.json missing: unpack the data zip or run web/scripts/export_snapshot.py."
     exit 1
   fi
+  # A shell left over from a walk-through must not reach production: APP_BASE_URL comes from .env (an http one
+  # refuses every request from the real domain as cross-origin) and the test sign-in route stays closed.
+  unset APP_BASE_URL TG_TEST_LOGIN
   echo "[build] thumbnails (new photos only)"
   $PYTHON web/scripts/make_thumbs.py > "$RUN_DIR/thumbs.log" 2>&1 || echo "[build] thumbnails failed (originals are served instead), see $RUN_DIR/thumbs.log"
+  echo "[build] light clips in the background (new clips only; originals are served until then), see $RUN_DIR/clips.log"
+  nohup $PYTHON web/scripts/make_clips.py > "$RUN_DIR/clips.log" 2>&1 &
   echo "[build] web (slim snapshot, brotli/gzip)"
   npm run build:prod --prefix web > "$RUN_DIR/build.log" 2>&1 || { echo "[build] FAILED, see $RUN_DIR/build.log"; exit 1; }
   echo "$PROD_SERVICES" | while IFS='|' read -r name port cmd; do

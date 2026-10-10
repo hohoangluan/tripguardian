@@ -1,5 +1,5 @@
 import pytest
-from plan_fixtures import CFG, FakeLive, fake_matrix, no_geocode, rec
+from plan_fixtures import CFG, FakeLive, fake_matrix, no_geocode
 from fixtures import srec
 
 from trip import Catalog, Engine as TripEngine, SessionStore, Settings

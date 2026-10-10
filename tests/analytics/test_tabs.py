@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, UTC
 
 import pytest
 from psycopg.types.json import Jsonb
@@ -30,7 +30,7 @@ def test_trip_tab_counts_turns_to_compile_skips_and_unmapped(pool):
 
 
 def trip_with_stops(pool, statuses):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with pool.connection() as conn:
         tid = conn.execute("INSERT INTO trips (journey_id, start_date, end_date, plan_hash) VALUES ('j1', %s, %s, 'h') "
                            "RETURNING id", (date.today(), date.today())).fetchone()["id"]
@@ -51,7 +51,7 @@ def test_reality_reports_next_checkin_rate_lateness_and_coverage(pool):
 
 
 def test_notifications_tab_open_and_useful_rates_and_offs(pool):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with pool.connection() as conn:
         conn.execute("INSERT INTO users (id) VALUES (%s)", (UID,))
         for i, opened in enumerate([True, True, False]):
@@ -97,3 +97,17 @@ def test_cluster_job_stores_this_weeks_groups_and_replaces_on_rerun(pool):
     assert cluster_run(pool, ask) == 1 and cluster_run(pool, ask) == 1
     rows = analytics.clusters(pool)
     assert len(rows) == 1 and rows[0]["size"] == 2 and rows[0]["source"] == "feedback" and asked == ["after-trip notes"] * 2
+
+
+def test_agent_tab_reads_the_decision_agent_fallback_rate_and_reasons_from_session_logs(pool):
+    def turn(*log):
+        return {"version": 0, "action": {"type": "turn", "text": "x", "actions": [], "log": list(log)}, "scope": None}
+    put(pool, "aaaaaaaaaaaa", "journey.create")
+    logs = [turn(), turn("agent_fallback: first token too slow"), turn("agent_fallback: first token too slow"),
+            turn("agent_fallback: bad plan: 1 validation error"), turn("heuristic:exact_command"),
+            {"version": 1, "action": {"type": "select", "place_id": "p"}, "scope": None}]
+    with pool.connection() as conn:
+        conn.execute("UPDATE journeys SET envelope = %s", (Jsonb({"snapshots": {"decision": {"log": logs}}}),))
+    d = analytics.agent(pool, {})["decision_fallback"]
+    assert d == {"turns": 5, "asked_agent": 4, "fallback": 3, "rate": 0.75,
+                 "reasons": {"first token too slow": 2, "bad plan": 1}}

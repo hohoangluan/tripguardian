@@ -1,7 +1,9 @@
 import json
 
-from plan_fixtures import CENTRE, CFG, all_days, decision, fake_matrix, fixed_sun, no_geocode, prepared, rec, spot
+from plan_fixtures import CENTRE, CFG, all_days, decision, fake_matrix, fixed_sun, no_geocode, rec, spot
 
+from decision import day_visit
+from decision import load_settings as decision_settings
 from live import Unavailable
 from planning import build_plan, render_text
 
@@ -129,6 +131,9 @@ def test_places_without_hours_are_flagged_not_assumed_open_silently():
 def test_a_hard_filter_the_confirmed_place_breaks_fails_the_plan_as_physical():
     d, recs = trip(hard=[{"feature": "steep_or_stairs", "op": "ne", "value": "present", "unknown_policy": "exclude"}])
     recs[0] = spot("c1", CENTRE, 0, features={"steep_or_stairs": "present"})
+    for record in recs[1:]:
+        record["effort"]["steep_or_stairs"] = {
+            "value": "absent", "distribution": {"absent": 3}, "status": "VERIFIED", "n": 3}
     plan = build(d, recs)
     assert not plan["ok"]
     assert [(v["kind"], v["physical"], v["place_id"]) for v in plan["violations"]] == [("hard", True, "c1")]
@@ -163,7 +168,7 @@ def test_a_trip_with_no_places_is_an_empty_valid_plan():
 
 
 def test_a_meal_window_the_day_opens_after_is_a_warning_in_vietnamese():
-    d, recs = trip(days=1, arrive_at="14:00")
+    d, recs = trip(days=1, checkin_at="14:00")
     d["confirmed"] = d["confirmed"][:2]
     texts = [w["text"] for w in build(d, recs)["warnings"] if w["code"] == "meal_missed"]
     assert "Ngày 1: quá khung giờ trưa, chưa xếp bữa." in texts
@@ -239,3 +244,84 @@ def test_a_plan_that_gave_up_a_pin_still_passes_the_check_it_is_confirmed_with()
     _, r, dropped = _unpin(cx, order_day(["m1", "m2"], cx), ["m1", "m2"], [], None, None)
     assert validate([cx], [replace(r, unpinned=tuple(dropped))], [], set(), None, None) == []      # original ctx, pins intact
     assert validate([cx], [r], [], set(), None, None)                                                # undeclared: still refused
+
+
+def _timed(r: dict, **n) -> dict:
+    """rec(...) with the given number of reviewers behind each feature (rec() gives every feature 3)."""
+    for group in ("experience", "environment"):
+        for fid, k in n.items():
+            if fid in r[group]:
+                r[group][fid]["n"] = k
+    return r
+
+
+def report_trip():
+    """The UX report's trip (docs/plans/OPEN_TASKS.md P-1): a sunset / cloud-hunting cafe, a live-music cafe that a
+    single review calls good for clouds, and a cloud-hunting hill that is a camping ground (its estimate counts the
+    night); arrive 25/10 at 12:00, leave 27/10 at 14:30, the user wants cloud hunting and a view."""
+    cafe = ("experience", "meal", "backup")
+    recs = [_timed(spot("hoang_hon", CENTRE, 0, group="cafe", usable=cafe, hours=all_days("05:00", "20:00"),
+                        visit=(45, 75, 150), features={"sunset_view": "present", "cloud_hunting": "present",
+                                                       "scenic_view": "present"}), cloud_hunting=48, sunset_view=67),
+            _timed(spot("em_trinh", CENTRE, 2, group="cafe", usable=cafe, hours=all_days("06:30", "22:30"),
+                        visit=(45, 75, 150), features={"cloud_hunting": "present", "live_music": "present"}),
+                   cloud_hunting=1, live_music=10),
+            _timed(spot("da_phu", FAR, 0, group="camping", usable=("experience", "anchor"), hours=None,
+                        visit=(180, 360, 1080), features={"cloud_hunting": "present", "sunset_view": "present"}),
+                   cloud_hunting=83, sunset_view=71)]
+    d = decision([r["id"] for r in recs], days=3, start_date="2026-10-25", checkin_at="12:00", checkout_at="14:30")
+    for c, r in zip(d["confirmed"], recs):     # as Place Decision writes it: a day visit, not the camping night
+        c["visit"] = day_visit(r, decision_settings())
+    d["trip_context"]["soft_weights"] = [{"feature": "scenic_view", "value": "present", "weight": 1.0},
+                                         {"feature": "cloud_hunting", "value": "present", "weight": 1.0}]
+    d["trip_context"]["pace"]["crowd_tolerance"] = "avoid"
+    return d, recs
+
+
+def test_the_report_trip_uses_the_arrival_afternoon_keeps_one_dawn_and_plans_the_meals():
+    plan = build(*report_trip())
+    assert plan["ok"], plan["violations"]
+    days = plan["itinerary"]
+    visits = {i["place_id"]: (d["day"], i["start"], i["end"]) for d in days for i in d["items"] if i["kind"] == "visit"}
+    assert any(day == 1 for day, _, _ in visits.values())                      # the free afternoon of day one is used
+    sunrise, sunset = fixed_sun(None, 0, 0, 7)
+    to = lambda hhmm: int(hhmm[:2]) * 60 + int(hhmm[3:])
+    # the hill with the most cloud-hunting evidence is the one dawn of the trip; the cafes keep ordinary hours
+    assert sunrise - 30 <= to(visits["da_phu"][1]) <= sunrise + 60
+    assert all(to(visits[c][1]) >= 7 * 60 for c in ("hoang_hon", "em_trinh"))
+    assert sunset - 75 <= to(visits["hoang_hon"][1]) <= sunset - 20             # the sunset cafe at sunset
+    assert to(visits["da_phu"][2]) - to(visits["da_phu"][1]) <= 150            # a day visit, not the camping night
+    for d in days:                                                             # a day in town over a meal gets one
+        meals = {i["name"] for i in d["items"] if i["kind"] == "meal_free"}
+        if to(d["window"][0]) <= 12 * 60 and to(d["window"][1]) >= 13 * 60 + 30:
+            assert "lunch" in meals, d
+        if to(d["window"][1]) >= 20 * 60:
+            assert "dinner" in meals, d
+    assert sum(w["code"] == "early_start" for w in plan["warnings"]) == 1
+
+
+def test_a_shop_with_unknown_hours_is_not_planned_before_seven():
+    from planning.schedule import intervals_for
+    from plan_fixtures import day_ctx
+    cx = day_ctx([rec("cafe", 1, 1, hours=None, group="cafe"), rec("hill", 1, 1, hours=None, group="nature")])
+    assert intervals_for(cx.places["cafe"], cx) == [(7 * 60, 1440)]
+    assert intervals_for(cx.places["hill"], cx) == [(0, 1440)]
+
+
+def test_every_chosen_dawn_place_keeps_its_dawn_one_a_morning_and_an_extra_one_is_told():
+    """The user picked three cloud-hunting hills for a trip with two mornings (arriving at noon): the system keeps a
+    dawn for as many as the mornings allow, never fewer, and says which one moved to another hour."""
+    hill = lambda pid, i, n: _timed(spot(pid, FAR, i, group="nature", hours=None, visit=(60, 90, 120),
+                                         features={"cloud_hunting": "present"}), cloud_hunting=n)
+    recs = [hill("h1", 0, 80), hill("h2", 3, 50), hill("h3", 6, 10)]
+    d = decision([r["id"] for r in recs], days=3, start_date="2026-10-25", checkin_at="12:00", checkout_at="14:30")
+    d["trip_context"]["soft_weights"] = [{"feature": "cloud_hunting", "value": "present", "weight": 1.0}]
+    plan = build(d, recs)
+    assert plan["ok"], plan["violations"]
+    sunrise = fixed_sun(None, 0, 0, 7)[0]
+    to = lambda hhmm: int(hhmm[:2]) * 60 + int(hhmm[3:])
+    dawn = {i["place_id"]: day["day"] for day in plan["itinerary"] for i in day["items"]
+            if i["kind"] == "visit" and sunrise - 30 <= to(i["start"]) <= sunrise + 60}
+    assert sorted(dawn) == ["h1", "h2"] and sorted(dawn.values()) == [2, 3]   # day 2 and the leaving day
+    assert [w["text"] for w in plan["warnings"] if w["code"] == "dawn_full"] == [
+        "Chỉ có 2 buổi sáng sớm hợp trong chuyến nên h3 được xếp vào giờ khác trong ngày."]

@@ -1,4 +1,4 @@
-"""Simulated users: the chip-only tapper's mapping table and the fixed-form baseline (docs/plans/BENCH.md)."""
+"""Simulated users: the chip-only tapper's mapping table and the fixed-form baseline (docs/P2_TRIP_UNDERSTANDING.md §16)."""
 
 from functools import cache
 
@@ -126,7 +126,7 @@ def form_search_input(t: HiddenTrip) -> dict:
         "context": {"start_date": t.dates.start_date.isoformat() if t.dates.start_date else None, "month": t.dates.month,
                     "days": t.days, "base": {"place_id": None, "text": t.base} if t.base else None,
                     "entry_point": None, "exit_point": None, "mobility": t.mobility,
-                    "companions": sorted(t.companions), "people": t.people, "arrive_at": None, "leave_at": None,
+                    "companions": sorted(t.companions), "people": t.people, "checkin_at": None, "checkout_at": None,
                     "day_end": None, "budget_vnd": t.budget_vnd, "experience": t.experience},
         "hard_filters": [{**h.model_dump(), "unknown_policy": "exclude"} for h in t.hard],
         "anchors": [{"place_id": a.place_id, "priority": a.priority} for a in t.anchors],

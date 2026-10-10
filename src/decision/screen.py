@@ -1,4 +1,4 @@
-"""③ Constraint screen (docs/PLACE_DECISION.md §6): physical first, then each hard filter, pass | fail | unknown."""
+"""③ Constraint screen (docs/P3_PLACE_DECISION.md §6): physical first, then each hard filter, pass | fail | unknown."""
 
 from functools import cache
 from types import SimpleNamespace

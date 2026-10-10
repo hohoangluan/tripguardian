@@ -15,7 +15,7 @@ covers/<id with ':' -> '_'>.json and covers.json keeps only the cover; the web l
 Model scores are cached in .cache/photo_rank.json by the photos sent and the prompt, so a rerun only asks for new sets.
 
 Usage (repo root): .venv/bin/python web/scripts/pick_covers.py [--limit N] [--ids a,b] [--dry-run] [--resume]
-Ops (docs/plans/SESSION_TIKTOK.md, user 2026-10-08): pause logs/tiktok_lan_uit_lane.sh while this runs, restart after.
+Ops (docs/plans/OPEN_TASKS.md, user 2026-10-08): pause logs/tiktok_lan_uit_lane.sh while this runs, restart after.
 Then: python web/scripts/make_thumbs.py for the thumbnails of the new photos.
 """
 

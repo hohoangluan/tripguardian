@@ -76,6 +76,14 @@ def cost_of(op: dict) -> int | None:
     return None
 
 
+def day_visit(confirmed: dict, op: dict) -> dict:
+    """Minutes of one visit on a day of the trip. Place Decision owns the rule (decision.day_visit: a camping
+    ground's 3-18 h estimate counts the night, a day visit does not) and writes it into each confirmed place's
+    `visit`; the record's own estimate is used only when the Decision Output has none."""
+    v = confirmed.get("visit") or {}
+    return v if all(v.get(k) is not None for k in ("short", "typical", "long")) else op["visit_minutes"]
+
+
 def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place], list[Unplaced]]:
     places, unplaced = [], []
     for c in decision["confirmed"]:
@@ -101,7 +109,7 @@ def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place
                 dup_group=rec.get("near_duplicate_group"),
                 hours=parse_hours(hours["value"]) if hours else None,
                 hours_status=hours["status"] if hours else None,
-                visit=op["visit_minutes"], cost_vnd=cost_of(op),
+                visit=day_visit(c, op), cost_vnd=cost_of(op),
                 pins=tuple(f for f in cfg.pins if (feature(rec, f) or {}).get("value") == "present"),
                 flags=tuple(c.get("flags") or ()), relaxed=tuple(c.get("relaxed") or ()), rec=rec))
     return places, unplaced

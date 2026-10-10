@@ -1,6 +1,7 @@
-"""⑩ Decision Output (docs/PLACE_DECISION.md §15): the input of Planning & Validation."""
+"""⑩ Decision Output (docs/P3_PLACE_DECISION.md §15): the input of Planning & Validation."""
 
 from .cards import warning_text
+from .model import day_visit
 
 
 def build(s, res, cfg) -> dict:
@@ -16,7 +17,7 @@ def build(s, res, cfg) -> dict:
             continue
         confirmed.append({"id": pid, "name": c.name,
                           "role": "anchor" if pid in anchors else "locked" if pid in st.locked else "selected",
-                          "visit": c.rec["operation"].get("visit_minutes"),
+                          "visit": day_visit(c.rec, cfg),
                           "flags": [f["text"] for f in c.flags] + [warning_text(w, cfg) for w in c.warnings],
                           "relaxed": relaxed.get(pid, [])})
     backup, seen = [], set(st.selected)

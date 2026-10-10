@@ -1,4 +1,4 @@
-"""What the date itself changes (docs/PLANNING.md §Điều kiện từng ngày): weather beyond rain probability, crowds on
+"""What the date itself changes (docs/P4_PLANNING.md §Điều kiện từng ngày): weather beyond rain probability, crowds on
 weekends / holidays / festivals, shops closed for Tết, hazard notices.
 
 Pure: the facts arrive from src/live (fetch() is the one place that calls it). A day with no signal has no DayCond, so

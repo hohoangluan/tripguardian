@@ -3,10 +3,10 @@ import * as Popover from '@radix-ui/react-popover'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { WHO_LABEL, type Who } from '../trip'
 import { geoSearch, lodgingSuggest, searchPlaces } from '../tu/api'
-import { ARRIVAL_LABEL, CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softGroups, softText, valueText } from '../tu/labels'
+import { ARRIVAL_LABEL, CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, monthText, softGroups, softText, valueText } from '../tu/labels'
 import type { GeoHit, HardRow, LodgingHit, Row, Understanding } from '../tu/types'
 import { Icon } from './icons'
-import { PlaceInput } from './PlaceInput'
+import { PlaceInput, geoRow, lodgingRow } from './PlaceInput'
 
 // One answered question: which intent it served and what it changed on the ticket.
 export interface Turn {
@@ -35,14 +35,15 @@ export function dateLine(u: Understanding) {
       b.setDate(a.getDate() + days - 1)
       bits.push(a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()}/${a.getMonth() + 1}` : `${a.getDate()}/${a.getMonth() + 1}–${b.getDate()}/${b.getMonth() + 1}`)
     } else bits.push(a.toLocaleDateString('vi-VN'))
-  } else if (t.month) bits.push(`tháng ${t.month.value}`)
-  if (days) bits.push(`${days} ngày`)
+  } else if (t.month) bits.push(monthText(t.month.value, t.month_part?.value))
+  if (days) bits.push(t.nights ? `${days} ngày ${t.nights.value} đêm` : `${days} ngày`)
   return bits.join(' · ')
 }
 const whoText = (t: TripRows) => [t.people ? `${t.people.value} người` : '', t.companions ? valueText('companions', t.companions.value).toLowerCase() : ''].filter(Boolean).join(' · ')
-const timesText = (t: TripRows) => [t.arrive_at && `tới ${t.arrive_at.value}`, t.leave_at && `rời ${t.leave_at.value}`, t.day_end && `xong trước ${t.day_end.value}`].filter(Boolean).join(' · ')
+// Without a lodging there is no room to check into: the hours are when the first day starts and the last day ends.
+const timesText = (t: TripRows) => [t.checkin_at && `${t.lodging_booked?.value === 'no' ? 'bắt đầu' : 'nhận phòng'} ${t.checkin_at.value}`, t.checkout_at && `${t.lodging_booked?.value === 'no' ? 'kết thúc' : 'trả phòng'} ${t.checkout_at.value}`, t.day_end && `xong trước ${t.day_end.value}`].filter(Boolean).join(' · ')
 const paceText = (u: Understanding) =>
-  [u.pace && valueText('pace', u.pace.value).toLowerCase(), u.max_leg_min && `≤ ${u.max_leg_min.value}′ mỗi chặng`, u.crowd_tolerance && `chỗ đông: ${valueText('crowd_tolerance', u.crowd_tolerance.value).toLowerCase()}`].filter(Boolean).join(' · ')
+  [u.pace && valueText('pace', u.pace.value).toLowerCase(), u.max_leg_min && `≤ ${u.max_leg_min.value}′ mỗi chặng`].filter(Boolean).join(' · ')
 // Excluded right now by one hard limit: failed, plus unknown unless the user chose to see those flagged.
 const excluding = (h: HardRow) => h.coverage.failed + (h.unknown_policy === 'flag' ? 0 : h.coverage.unknown)
 
@@ -63,9 +64,12 @@ export function linesOf(u: Understanding): Line[] {
   if (t.lodging) out.push({ key: 'lodging', label: 'Chỗ ở', value: valueText('lodging', t.lodging.value), target: 'lodging' })
   else if (t.base) out.push({ key: 'base', label: 'Chỗ ở', value: valueText('base', t.base.value), target: 'base', mark: t.base.mark })
   else if (t.lodging_booked) out.push({ key: 'lodging_booked', label: 'Chỗ ở', value: valueText('lodging_booked', t.lodging_booked.value), target: 'lodging_booked' })
-  if (t.arrive_at || t.leave_at || t.day_end) out.push({ key: 'times', label: 'Giờ giấc', value: timesText(t), target: 'arrive_at' })
+  if (t.checkin_at || t.checkout_at || t.day_end) out.push({ key: 'times', label: 'Giờ giấc', value: timesText(t), target: 'checkin_at' })
   if (u.purpose) out.push({ key: 'purpose', label: 'Mục đích', value: valueText('purpose', u.purpose.value), target: 'purpose', mark: u.purpose.mark })
-  if (u.pace || u.max_leg_min || u.crowd_tolerance) out.push({ key: 'pace', label: 'Nhịp độ', value: paceText(u), target: 'pace', mark: u.pace?.mark })
+  if (u.liked_groups) out.push({ key: 'liked_groups', label: 'Muốn đi', value: valueText('liked_groups', u.liked_groups.value), target: 'liked_groups', mark: u.liked_groups.mark })
+  if (u.pace || u.max_leg_min) out.push({ key: 'pace', label: 'Nhịp độ', value: paceText(u), target: 'pace', mark: u.pace?.mark })
+  // Crowds are their own line: "tránh chỗ đông" is not a pace, and pace may still be unknown.
+  if (u.crowd_tolerance) out.push({ key: 'crowd', label: 'Chỗ đông', value: valueText('crowd_tolerance', u.crowd_tolerance.value), target: 'crowd_tolerance', mark: u.crowd_tolerance.mark })
   if (u.novelty) out.push({ key: 'novelty', label: 'Mới hay quen', value: valueText('novelty', u.novelty.value), target: 'novelty', mark: u.novelty.mark })
   if (u.budget_vnd) out.push({ key: 'budget', label: 'Ngân sách', value: valueText('budget_vnd', u.budget_vnd.value), target: 'budget_vnd', mark: u.budget_vnd.mark })
   return out
@@ -196,9 +200,10 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
   const companions: Who[] = t.companions?.value ?? []
   const editors: Record<string, ReactNode> = {
     dates: (
-      <div className="tg-full__edit">
+      <div className="tg-full__edit is-stack">
         <input className="tg-input" type="date" value={t.start_date?.value ?? ''} onChange={(e) => onEdit('start_date', e.target.value || null)} aria-label="Ngày đi" />
         <Seg label="Số ngày" value={(t.days?.value as number) ?? null} options={[1, 2, 3, 4, 5].map((d) => ({ value: d, label: `${d} ngày` }))} onChange={(v) => onEdit('days', String(v))} />
+        {t.days && <Seg label="Số đêm" value={(t.nights?.value as number) ?? null} options={Array.from({ length: Math.min(7, t.days.value) + 1 }, (_, n) => ({ value: n, label: `${n} đêm` }))} onChange={(v) => onEdit('nights', String(v))} />}
       </div>
     ),
     who: (
@@ -206,9 +211,9 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
         {(Object.keys(WHO_LABEL) as Who[]).map((w) => <button key={w} type="button" className="tg-chip" aria-pressed={companions.includes(w)} onClick={() => onEdit('companions', (companions.includes(w) ? companions.filter((x) => x !== w) : [...companions, w]).join(','))}>{WHO_LABEL[w]}</button>)}
       </div>
     ),
-    mobility: <Seg label="Đi lại" value={t.mobility?.value ?? null} options={[{ value: 'motorbike', label: 'Xe máy' }, { value: 'car', label: 'Ô tô' }, { value: 'ride', label: 'Xe công nghệ' }]} onChange={(v) => onEdit('mobility', v)} />,
+    mobility: <Seg label="Đi lại" value={t.mobility?.value ?? null} options={[{ value: 'motorbike', label: 'Xe máy' }, { value: 'car', label: 'Ô tô' }, ...(t.arrival_mode && t.arrival_mode.value !== 'self' ? [{ value: 'walk', label: 'Đi bộ' }] : [])]} onChange={(v) => onEdit('mobility', v)} />,
     base: <PlaceSearch placeholder="Chọn nơi gần chỗ ở" onPick={(p) => onEdit('base', p.id)} />,
-    origin: <PlaceInput<GeoHit> label="Nơi bạn khởi hành" placeholder="Thành phố, quận hoặc địa chỉ" icon="home" fetcher={geoSearch} row={(g) => ({ key: `${g.lat},${g.lng}`, icon: 'pin', name: g.text, sub: g.address })} onPick={(g) => onEdit('origin', JSON.stringify({ text: g.text, lat: g.lat, lng: g.lng, province: g.province }))} />,
+    origin: <PlaceInput<GeoHit> label="Nơi bạn khởi hành" placeholder="Thành phố, quận hoặc địa chỉ" icon="home" fetcher={geoSearch} row={geoRow} onPick={(g) => onEdit('origin', JSON.stringify({ text: g.text, lat: g.lat, lng: g.lng, province: g.province }))} />,
     arrival_mode: <Seg label="Tới Đà Lạt bằng" value={t.arrival_mode?.value ?? null} options={Object.entries(ARRIVAL_LABEL).map(([value, label]) => ({ value, label }))} onChange={(v) => onEdit('arrival_mode', v)} />,
     ...Object.fromEntries((['inbound', 'outbound'] as const).map((w) => [w, (
       <div className="tg-full__edit">
@@ -218,13 +223,13 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
     )])),
     ...Object.fromEntries((['lodging', 'lodging_booked'] as const).map((k) => [k, (
       <div className="tg-full__edit is-stack">
-        <PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" fetcher={lodgingSuggest} row={(h) => ({ key: h.id ?? `${h.lat},${h.lng}`, icon: h.kind === 'address' ? 'pin' : 'bed', name: h.text, sub: h.address, rating: h.rating })} onPick={(h) => onEdit('lodging', JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }))} />
+        <PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" fetcher={lodgingSuggest} row={lodgingRow} onPick={(h) => onEdit('lodging', JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }))} />
         <button type="button" className="tg-chip" aria-pressed={t.lodging_booked?.value === 'no'} onClick={() => onEdit('lodging_booked', 'no')}>Chưa có, gợi ý giúp mình</button>
       </div>
     )])),
     times: (
       <div className="tg-full__edit">
-        {(['arrive_at', 'leave_at', 'day_end'] as const).map((k) => <label key={k} className="tg-full__time"><span className="tg-faint">{FIELD_LABEL[k]}</span><input className="tg-input" type="time" value={t[k]?.value ?? ''} onChange={(e) => onEdit(k, e.target.value || null)} /></label>)}
+        {(['checkin_at', 'checkout_at', 'day_end'] as const).map((k) => <label key={k} className="tg-full__time"><span className="tg-faint">{FIELD_LABEL[k]}</span><input className="tg-input" type="time" value={t[k]?.value ?? ''} onChange={(e) => onEdit(k, e.target.value || null)} /></label>)}
       </div>
     ),
     purpose: <Seg label="Mục đích" value={u.purpose?.value ?? null} options={Object.entries(PURPOSE_LABEL).map(([value, label]) => ({ value, label }))} onChange={(v) => onEdit('purpose', v)} />,
@@ -241,7 +246,7 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
     ...linesOf(u),
     ...(['dates', 'who', 'mobility', 'base', 'times', 'purpose', 'pace', 'novelty'] as const)
       .filter((k) => !linesOf(u).some((l) => l.key === k))
-      .map((k) => ({ key: k, label: { dates: 'Ngày đi', who: 'Đi với', mobility: 'Phương tiện', base: 'Chỗ ở', times: 'Giờ giấc', purpose: 'Mục đích', pace: 'Nhịp độ', novelty: 'Mới hay quen' }[k], value: '', target: k === 'dates' ? 'start_date' : k === 'who' ? 'companions' : k === 'times' ? 'arrive_at' : k })),
+      .map((k) => ({ key: k, label: { dates: 'Ngày đi', who: 'Đi với', mobility: 'Phương tiện', base: 'Chỗ ở', times: 'Giờ giấc', purpose: 'Mục đích', pace: 'Nhịp độ', novelty: 'Mới hay quen' }[k], value: '', target: k === 'dates' ? 'start_date' : k === 'who' ? 'companions' : k === 'times' ? 'checkin_at' : k })),
   ]
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()} modal={false}>

@@ -1,4 +1,4 @@
-"""python -m corpus build: one incremental build from whatever the crawls have written so far (docs/CORPUS.md §CLI).
+"""python -m corpus build: one incremental build from whatever the crawls have written so far (docs/P1_CORPUS.md §CLI).
 
 qc -> every source's observe (travellers' reports included) -> judge (dedup, status, audit) -> aggregate -> serving. Every step skips work whose
 input did not change (qc and observe by input hash, the Judge by labels and decisions already written), so a build

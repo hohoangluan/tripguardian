@@ -11,7 +11,6 @@ Run with --dry-run first to see the count and size.
 
 import json
 import sys
-from pathlib import Path
 
 from corpus.crawl.common.files import data_dir, safe_name
 from corpus.crawl.tiktok.clips import picked

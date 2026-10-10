@@ -3,11 +3,10 @@
    Colors come from tokens only. */
 .tg-disc { --step: 16deg; --R: clamp(300px, calc((100vh - var(--tg-top) - var(--tg-bar)) * 0.6), 560px); --r1: calc(var(--R) * 0.34); --W: calc(var(--R) - var(--r1)); --cx: calc(var(--r1) * -0.32); --gap: 6px; --rc: calc(var(--r1) - 40px); --rh: calc(var(--r1) - 10px); --zw: calc(var(--cx) + var(--R) + 44px); --mh: clamp(240px, calc(100vh - var(--tg-top) - var(--tg-bar) - 260px), 640px); position: fixed; z-index: 25; inset: var(--tg-top) 0 0 0; background: var(--tg-bg); outline: none; overscroll-behavior: contain; overflow-x: hidden; overflow-y: auto; }
 .tg-disc__field { position: relative; min-height: 100%; }
-.tg-disc__back { position: fixed; z-index: 5; left: 18px; top: calc(var(--tg-top) + 18px); display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-1); transition: transform 200ms var(--tg-ease), border-color 150ms; }
-.tg-disc__back:hover { border-color: var(--tg-pine); transform: translateX(-3px); }
 .tg-disc__none { padding: 48px 0; text-align: center; color: var(--tg-ink-2); font-size: 0.95rem; }
 .tg-disc__tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .tg-disc__tabs .tg-tab { min-height: 40px; padding: 0 14px; font-size: 0.86rem; }
+@media (max-width: 1360px) { .tg-disc__tabs .tg-tab > svg { display: none; } } /* four group names with their counts then fit one row at 1280 */
 
 /* hub: the still half disc at the centre of the wheel, coming out of the left edge */
 .tg-disc__zone { position: fixed; z-index: 1; left: 0; top: var(--tg-top); bottom: calc(var(--tg-bar) + 8px); width: var(--zw); touch-action: none; cursor: grab; user-select: none; }
@@ -17,10 +16,10 @@
 /* rim: each wedge sits at its offset --d from the active one (d × --step), so turning moves every wedge along the arc;
    a wedge is a trapezoid cut from a box that starts at radius --r1. */
 .tg-disc__wheel { --hs: calc(var(--step) / 2); --g: 8px; --ho: calc(var(--R) * 2 * tan(var(--hs))); --x0: calc(var(--r1) * cos(var(--hs)) - 6px); position: absolute; left: var(--cx); top: 50%; width: 0; height: 0; z-index: 1; animation: tg-fade 360ms; }
-.tg-disc__wedge { position: absolute; left: var(--x0); top: calc(var(--ho) / -2); width: calc(var(--R) - var(--x0)); height: var(--ho); transform-origin: calc(var(--x0) * -1) 50%; rotate: calc(var(--d) * var(--step)); opacity: var(--fade, 1); transition: rotate 460ms var(--tg-ease), opacity 400ms; filter: drop-shadow(0 6px 8px rgba(27, 42, 47, 0.16)); }
+.tg-disc__wedge { position: absolute; left: var(--x0); top: calc(var(--ho) / -2); width: calc(var(--R) - var(--x0)); height: var(--ho); transform-origin: calc(var(--x0) * -1) 50%; rotate: calc(var(--d) * var(--step)); opacity: var(--fade, 1); transition: rotate 460ms var(--tg-ease), opacity 400ms; filter: drop-shadow(0 6px 8px color-mix(in srgb, var(--tg-ink) 16%, transparent)); }
 .tg-disc__wedge.is-jump, .tg-disc__wedge.is-jump .tg-disc__nm { transition: none; animation: tg-fade 300ms; }
-.tg-disc__wedge.is-on { z-index: 2; filter: drop-shadow(2px 0 0 var(--tg-pine)) drop-shadow(-2px 0 0 var(--tg-pine)) drop-shadow(0 2px 0 var(--tg-pine)) drop-shadow(0 -2px 0 var(--tg-pine)) drop-shadow(0 12px 18px rgba(27, 42, 47, 0.28)); }
-.tg-disc__cut { position: absolute; inset: 0; display: block; overflow: hidden; background: #e9e2d4; text-align: left; --ix: calc(var(--r1) * cos(var(--hs)) + var(--g) * sin(var(--hs)) / 2 - var(--x0)); --iy: calc(var(--r1) * sin(var(--hs)) - var(--g) * cos(var(--hs)) / 2); --ox: calc(var(--R) * cos(var(--hs)) + var(--g) * sin(var(--hs)) / 2 - var(--x0)); --oy: calc(var(--R) * sin(var(--hs)) - var(--g) * cos(var(--hs)) / 2); clip-path: polygon(var(--ix) calc(50% - var(--iy)), var(--ox) calc(50% - var(--oy)), var(--ox) calc(50% + var(--oy)), var(--ix) calc(50% + var(--iy))); transition: translate 560ms var(--tg-ease), filter 200ms; }
+.tg-disc__wedge.is-on { z-index: 2; filter: drop-shadow(2px 0 0 var(--tg-pine)) drop-shadow(-2px 0 0 var(--tg-pine)) drop-shadow(0 2px 0 var(--tg-pine)) drop-shadow(0 -2px 0 var(--tg-pine)) drop-shadow(0 12px 18px color-mix(in srgb, var(--tg-ink) 28%, transparent)); }
+.tg-disc__cut { position: absolute; inset: 0; display: block; overflow: hidden; background: var(--tg-photo); text-align: left; --ix: calc(var(--r1) * cos(var(--hs)) + var(--g) * sin(var(--hs)) / 2 - var(--x0)); --iy: calc(var(--r1) * sin(var(--hs)) - var(--g) * cos(var(--hs)) / 2); --ox: calc(var(--R) * cos(var(--hs)) + var(--g) * sin(var(--hs)) / 2 - var(--x0)); --oy: calc(var(--R) * sin(var(--hs)) - var(--g) * cos(var(--hs)) / 2); clip-path: polygon(var(--ix) calc(50% - var(--iy)), var(--ox) calc(50% - var(--oy)), var(--ox) calc(50% + var(--oy)), var(--ix) calc(50% + var(--iy))); transition: translate 560ms var(--tg-ease), filter 200ms; }
 /* a wedge is a piece of a ring: its outer edge on the circle of radius --R, its inner edge on --r1, its sides a gap --g
    apart from the next wedge, so the wedges close up into one round wheel; browsers without shape() get straight edges */
 @supports (clip-path: shape(from 0 0, line to 1px 1px)) {
@@ -30,7 +29,7 @@
 }
 .tg-disc__wedge.is-on .tg-disc__cut { translate: none; }
 .tg-disc__wedge:not(.is-on) .tg-disc__cut:hover { filter: brightness(1.08); }
-.tg-disc__cut::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 20, 22, 0.34), rgba(8, 20, 22, 0.12) 55%, transparent 85%); pointer-events: none; }
+.tg-disc__cut::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--tg-shade) 34%, transparent), color-mix(in srgb, var(--tg-shade) 12%, transparent) 55%, transparent 85%); pointer-events: none; }
 .tg-disc__ph { position: absolute !important; inset: 0; }
 .tg-disc__ph.is-fade img { animation: tg-fade 420ms; }
 .tg-disc__nm { position: absolute; z-index: 1; left: 38%; top: 50%; translate: 0 -50%; width: 56%; rotate: calc(var(--d) * var(--step) * -1); transition: rotate 460ms var(--tg-ease); font: 700 clamp(0.95rem, calc(var(--ho) / 9), 1.35rem)/1.2 var(--tg-sans); color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 2px 12px rgba(0, 0, 0, 0.45); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -49,14 +48,21 @@
 .tg-disc__fit { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-weight: 700; font-size: 0.82rem; }
 .tg-disc__fit.is-a { background: var(--tg-pine); color: #fff; }
 .tg-disc__fit.is-b { background: var(--tg-pine-soft); color: var(--tg-pine); }
-.tg-disc__fit.is-c { background: #eee9de; color: var(--tg-ink-2); }
+.tg-disc__fit.is-c { background: var(--tg-well); color: var(--tg-ink-2); }
+.tg-stars { display: inline-flex; gap: 1px; }
+.tg-star { position: relative; display: inline-block; width: 14px; height: 14px; color: currentColor; opacity: 1; }
+.tg-star svg { display: block; width: 14px; height: 14px; }
+.tg-star > svg { opacity: 0.28; }
+.tg-star b { position: absolute; inset: 0 auto 0 0; overflow: hidden; }
+.tg-star b svg { width: 14px; max-width: none; }
+.tg-disc__why { font-size: 0.82rem; color: var(--tg-ink-2); }
 .tg-disc__trade { display: inline-flex; align-items: flex-start; gap: 7px; font-size: 0.85rem; line-height: 1.4; color: var(--tg-warn); }
 .tg-disc__trade svg { flex: none; margin-top: 1px; }
 .tg-disc__act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
 .tg-disc__ic { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--tg-line-2); background: var(--tg-surface); color: var(--tg-ink); transition: all 150ms; }
 .tg-disc__ic:hover { border-color: var(--tg-pine); color: var(--tg-pine); }
 .tg-disc__ic.is-on { background: var(--tg-pine-soft); color: var(--tg-pine); border-color: var(--tg-pine-line); }
-.tg-disc__cta { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 999px; background: var(--tg-pine); color: #fff; font: 700 1rem var(--tg-sans); box-shadow: 0 8px 20px rgba(15, 95, 90, 0.26); transition: background 150ms, transform 150ms var(--tg-ease); }
+.tg-disc__cta { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 999px; background: var(--tg-pine); color: #fff; font: 700 1rem var(--tg-sans); box-shadow: 0 8px 20px color-mix(in srgb, var(--tg-pine) 26%, transparent); transition: background 150ms, transform 150ms var(--tg-ease); }
 .tg-disc__cta:hover { background: var(--tg-pine-d); transform: translateY(-1px); }
 .tg-disc__ic.is-sel { background: var(--tg-pine); border-color: var(--tg-pine); color: #fff; }
 .tg-disc__menu { z-index: 60; display: grid; gap: 2px; min-width: 210px; padding: 6px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-2); animation: tg-pop 160ms var(--tg-ease); }
@@ -66,7 +72,7 @@
 
 .tg-disc__media { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 10px; height: var(--mh); }
 .tg-disc__media:not(:has(.tg-disc__thumbs)) { grid-template-columns: minmax(0, 1fr); }
-.tg-disc__big, .tg-disc__thumb { position: relative; overflow: hidden; border-radius: 18px; background: #e9e2d4; box-shadow: 0 10px 28px rgba(27, 42, 47, 0.16); }
+.tg-disc__big, .tg-disc__thumb { position: relative; overflow: hidden; border-radius: 18px; background: var(--tg-photo); box-shadow: 0 10px 28px color-mix(in srgb, var(--tg-ink) 16%, transparent); }
 .tg-disc__big { min-height: 0; }
 .tg-disc__thumbs { display: grid; grid-auto-rows: 1fr; gap: 10px; min-height: 0; }
 .tg-disc__thumb { display: block; border-radius: 14px; box-shadow: none; border: 2px solid transparent; transition: transform 180ms var(--tg-ease), border-color 150ms; }
@@ -83,12 +89,11 @@
 
 @media (max-width: 1280px) { .tg-disc { --R: clamp(240px, calc((100vh - var(--tg-top) - var(--tg-bar)) / 2 - 22px), 400px); } .tg-disc__show { gap: 22px; } }
 @media (max-width: 1100px) { .tg-disc__copy h2 { font-size: 1.8rem; } }
-@media (max-height: 780px) { .tg-disc__copy { gap: 8px; } .tg-disc__quote { display: none; } }
+@media (max-height: 960px) { .tg-disc__copy { gap: 8px; } .tg-disc__quote { display: none; } }
 
 /* small screens: the wheel opens up into a strip of wedges, the hub is gone; the layer scrolls */
 @media (max-width: 900px) {
   .tg-disc__field { padding: 78px 0 calc(var(--tg-bar) + 36px); }
-  .tg-disc__back { position: absolute; top: 18px; }
   .tg-disc__zone { position: static; width: auto; touch-action: auto; cursor: auto; user-select: auto; }
   .tg-disc__wheel { left: auto; top: auto; }
   .tg-disc__hub { display: none; }
@@ -111,3 +116,32 @@
 @media (prefers-reduced-motion: reduce) { .tg-disc__wheel, .tg-disc__cut, .tg-disc__wedge, .tg-disc__thumb { transition: none; } .tg-disc__wheel, .tg-disc__show, .tg-disc__ph.is-fade img { animation: none; } }
 
 .tg-disc__top { position: static; }
+
+/* the open chat: a column of its own over the right edge of the layer; the place makes room and stacks */
+.tg-disc__chat { position: fixed; z-index: 6; right: 20px; top: calc(var(--tg-top) + 16px); bottom: calc(var(--tg-bar) + 20px); width: 380px; display: flex; }
+.tg-disc__chat .tg-asst { position: static; flex: 1; min-width: 0; height: auto; border-radius: 22px; box-shadow: var(--tg-sh-2); }
+.tg-disc.has-chat .tg-disc__main { margin-right: 420px; max-width: none; padding-right: 0; }
+.tg-disc.has-chat .tg-disc__show { grid-template-columns: minmax(0, 1fr); }
+.tg-disc.has-chat .tg-disc__media { order: -1; height: 260px; }
+
+/* first-visit hint: a hand swipes up and down over the active wedge (a few swipes, then it fades); never takes the pointer */
+.tg-disc__hand { position: absolute; z-index: 3; left: calc(var(--cx) + var(--R) * 0.84); top: 50%; translate: -50% -50%; display: grid; justify-items: center; gap: 8px; padding: 12px 10px; border-radius: 999px; background: color-mix(in srgb, var(--tg-night) 68%, transparent); color: #fff; box-shadow: 0 6px 18px color-mix(in srgb, var(--tg-ink) 30%, transparent); pointer-events: none; opacity: 0; animation: tg-hand 5s ease-in-out 700ms forwards; }
+.tg-disc__hand svg:nth-child(2) { animation: tg-swipe 5s ease-in-out 700ms forwards; }
+@keyframes tg-hand { 0% { opacity: 0; } 6%, 88% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes tg-swipe { 0%, 6% { transform: translateY(26px); } 22% { transform: translateY(-26px); } 38% { transform: translateY(26px); } 54% { transform: translateY(-26px); } 70% { transform: translateY(26px); } 84%, 100% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .tg-disc__hand { animation-duration: 3s; } .tg-disc__hand svg:nth-child(2) { animation: none; } }
+/* wide screens: the layer holds still (scrolling turns the disc, see DiscPicker), so the place gets the height that is left
+   between the top bar and the selected-bar, and nothing slides under that bar. */
+@media (min-width: 901px) {
+  .tg-disc { overflow: hidden; }
+  .tg-disc__field { height: 100%; min-height: 0; }
+  .tg-disc__main { height: 100%; min-height: 0; padding-bottom: calc(var(--tg-bar) + 30px); }
+  .tg-disc__show { flex: 1 1 0; min-height: 200px; margin: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+  .tg-disc__copy { align-self: safe center; min-height: 0; } /* safe: a copy taller than the room starts at the top of it, never rides up over the tabs */
+  .tg-disc__copy h2 { font-size: clamp(1.7rem, min(3.4vw, 5vh), 3.1rem); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .tg-disc__media, .tg-disc.has-chat .tg-disc__media { height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  .tg-disc.has-chat .tg-disc__show { grid-template-rows: minmax(0, 1fr) auto; }
+  .tg-disc__tabs, .tg-disc__stats { flex: none; }
+  .tg-disc__foot { flex: 0 1 auto; min-height: 0; max-height: clamp(48px, 20vh, 180px); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; }
+  .tg-disc__foot > * { flex: none; }
+}

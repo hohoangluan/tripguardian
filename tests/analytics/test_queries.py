@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 import pytest
 from psycopg.types.json import Jsonb
@@ -17,7 +17,7 @@ def pool(pg_url):
 
 
 def put(pool, jid, *names, at=None, **props):
-    at = at or datetime.now(timezone.utc) - timedelta(hours=1)
+    at = at or datetime.now(UTC) - timedelta(hours=1)
     with pool.connection() as conn:
         conn.execute("INSERT INTO journeys (id, stage, revision, envelope, created_at, updated_at) "
                      "VALUES (%s, 'trip', 0, '{}', %s, %s) ON CONFLICT DO NOTHING", (jid, at, at))
@@ -65,9 +65,23 @@ def test_decision_tab_counts(pool):
 
 
 def test_session_replay_and_today(pool):
-    put(pool, "aaaaaaaaaaaa", "journey.create", at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    put(pool, "aaaaaaaaaaaa", "journey.create", at=datetime.now(UTC) - timedelta(minutes=5))
     one = analytics.session(pool, "aaaaaaaaaaaa")
     assert one["events"][0]["name"] == "journey.create" and one["trip_transcript"] == []
     with pytest.raises(KeyError):
         analytics.session(pool, "000000000000")
     assert analytics.today(pool)["journeys"] == 1
+
+
+def test_a_guests_journey_is_readable_and_guests_are_counted_apart_from_new_users(pool):
+    with pool.connection() as conn:
+        guest = conn.execute("INSERT INTO users (role, display_name) VALUES ('guest', 'Khách') RETURNING id").fetchone()["id"]
+        conn.execute("INSERT INTO users (email, role) VALUES ('a@example.com', 'user')")
+        conn.execute("INSERT INTO journeys (id, user_id, stage, revision, envelope) VALUES ('gggggggggggg', %s, 'trip', 0, '{}')",
+                     (guest,))
+        conn.execute("INSERT INTO events (user_id, journey_id, source, name) VALUES (%s, 'gggggggggggg', 'server', 'journey.create')",
+                     (guest,))
+    assert [(s["id"], s["role"]) for s in analytics.sessions(pool, {})] == [("gggggggggggg", "guest")]
+    assert analytics.session(pool, "gggggggggggg")["role"] == "guest"
+    day = analytics.today(pool)
+    assert (day["new_users"], day["guests"]) == (1, 1)

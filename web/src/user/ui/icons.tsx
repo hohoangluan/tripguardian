@@ -14,6 +14,7 @@ const P: Record<string, string> = {
   users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 19a6.5 6.5 0 0 1 13 0M16 4.2a3.5 3.5 0 0 1 0 6.6M18 14.2a6.5 6.5 0 0 1 3.5 4.8',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z',
   arrow: 'M5 12h14M13 6l6 6-6 6',
+  hand: 'M22 14a8 8 0 0 1-8 8M18 11v-1a2 2 0 0 0-2-2 2 2 0 0 0-2 2M14 10V9a2 2 0 0 0-2-2 2 2 0 0 0-2 2v1M10 9.5V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v10M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15',
   arrowLeft: 'M19 12H5M11 6l-6 6 6 6',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   x: 'M6 6l12 12M18 6L6 18',
@@ -65,6 +66,10 @@ const P: Record<string, string> = {
   plane: 'M10.5 13.5 4 16v-1.8l6.5-4.2V5a1.5 1.5 0 0 1 3 0v5l6.5 4.2V16l-6.5-2.5V18l2 1.5V21L12 20l-3.5 1v-1.5l2-1.5v-4.5Z',
   bus: 'M6 4h12a1.5 1.5 0 0 1 1.5 1.5V17H4.5V5.5A1.5 1.5 0 0 1 6 4ZM4.5 11h15M4.5 7.5h15M7.5 17v2.5M16.5 17v2.5M8 14h.01M16 14h.01',
   clip: 'M20 11.5l-7.8 7.8a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8',
+  mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3',
+  volume: 'M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4ZM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11',
+  volumeOff: 'M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4ZM16 9.5l5 5M21 9.5l-5 5',
+  stop: 'M7.5 7.5h9v9h-9z',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
 }
 
@@ -87,12 +92,12 @@ export function BotAvatar({ size = 32, live = false }: { size?: number; live?: b
   return (
     <span className={`tg-bot ${live ? 'is-live' : ''}`} style={{ width: size, height: size }} aria-hidden="true">
       {img ? <img src="/img/gen/bot-avatar.webp" alt="" width={size} height={size} onError={() => { botImage = false; setImg(false) }} /> : <svg viewBox="0 0 32 32" width={size} height={size}>
-        <circle cx="16" cy="16" r="16" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
+        <circle cx="16" cy="16" r="16" style={{ fill: 'var(--tg-pine, #6b3550)' }} />
         <path d="M16 6.5l6.2 8.3h-3.4l4.7 6.7H8.5l4.7-6.7H9.8L16 6.5Z" style={{ fill: '#fff' }} />
         <rect x="14.6" y="21.5" width="2.8" height="3.6" rx="1" style={{ fill: '#fff' }} />
-        <circle cx="13.9" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
-        <circle cx="18.1" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
-        <circle cx="24.3" cy="8.2" r="2.3" style={{ fill: 'var(--tg-sun, #e8590c)' }} />
+        <circle cx="13.9" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #6b3550)' }} />
+        <circle cx="18.1" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #6b3550)' }} />
+        <circle cx="24.3" cy="8.2" r="2.3" style={{ fill: 'var(--tg-sun, #c97890)' }} />
       </svg>}
     </span>
   )
@@ -105,9 +110,9 @@ export function Logo({ size = 28, dark = false }: { size?: number; dark?: boolea
   if (img) return <img className="tg-logo" src="/img/logo.webp" alt="" width={size} height={size} onError={() => { logoImage = false; setImg(false) }} />
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="9" style={{ fill: dark ? '#fff' : 'var(--tg-pine, #0f5f5a)' }} />
-      <path d="M16 6l8 11h-5l5 7H8l5-7H8l8-11Z" style={{ fill: dark ? 'var(--tg-pine, #0f5f5a)' : '#fff' }} />
-      <circle cx="24" cy="8" r="2.4" style={{ fill: 'var(--tg-sun, #e8590c)' }} />
+      <rect width="32" height="32" rx="9" style={{ fill: dark ? '#fff' : 'var(--tg-pine, #6b3550)' }} />
+      <path d="M16 6l8 11h-5l5 7H8l5-7H8l8-11Z" style={{ fill: dark ? 'var(--tg-pine, #6b3550)' : '#fff' }} />
+      <circle cx="24" cy="8" r="2.4" style={{ fill: 'var(--tg-sun, #c97890)' }} />
     </svg>
   )
 }

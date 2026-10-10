@@ -1,4 +1,4 @@
-"""Deterministic first read of a user message (docs/TRIP_UNDERSTANDING.md §4).
+"""Deterministic first read of a user message (docs/P2_TRIP_UNDERSTANDING.md §4).
 
 Numbers, dates, who, transport, health hints, money and keyword features. Runs before the agent, so the screen reacts at
 once and a failed agent call still records something. Every proposal quotes the user's own words.
@@ -83,7 +83,7 @@ GROUPS = [
     (r"\b(thien nhien|rung thong|thac nuoc|cam trai|glamping|vuon hoa|doi hoa)\b", "nature"),
     (r"\b(tham quan|bao tang|di tich|nha tho|kien truc)\b", "sights"),
 ]
-# Minimal lexicon until the span lexicon exists (docs/TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
+# Minimal lexicon until the span lexicon exists (docs/P2_TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
 # several = a subjective word to clarify.
 LEXICON = [
     (r"\b(chill|thu gian|thu thai)\b", ("long_stay_chill=present", "noise=quiet", "crowd=low", "scenic_view=present",

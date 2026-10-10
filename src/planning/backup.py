@@ -1,4 +1,4 @@
-"""Backups (docs/PLANNING.md ⓗ, docs/ARCHITECTURE.md §13).
+"""Backups (docs/P4_PLANNING.md ⓗ, docs/ARCHITECTURE.md §13).
 
 A sensitive visit: weather-exposed on a rainy day · opening hours UNCERTAIN / OUTDATED · ending close to closing time
 · far from where its day starts · busy on a peak day · a meal place when shops close for Tết · covered by a warning notice. Its replacements come only from the Decision's backup_pool: close by (rough minutes,

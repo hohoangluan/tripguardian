@@ -1,4 +1,4 @@
-"""Fetch the real Đà Lạt landscape for the landing's 3D model (docs/UI_SPEC_LANDING.md §2, §4).
+"""Fetch the real Đà Lạt landscape for the landing's 3D model (docs/UI_DESIGN.md §7, §4).
 
 Writes web/src/user/landing/dem.json (elevation grid) and osm.json (water, roads, land cover, town buildings).
 Sources: OpenTopoData elevation (SRTM 30 m) and OpenStreetMap through Overpass (ODbL).

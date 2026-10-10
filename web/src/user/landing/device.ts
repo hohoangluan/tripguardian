@@ -1,4 +1,4 @@
-// Phones get the "use the app" page instead of the landing (docs/UI_SPEC_LANDING.md §5).
+// Phones get the "use the app" page instead of the landing (docs/UI_DESIGN.md §7).
 // Store links come from the build env (web/.env: VITE_APP_IOS_URL, VITE_APP_ANDROID_URL); empty = not released yet.
 export const APP_LINKS = {
   ios: (import.meta.env.VITE_APP_IOS_URL as string | undefined)?.trim() || '',

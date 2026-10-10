@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 // /api/auth/google/start sends the browser to Google and back with an HttpOnly session cookie.
 // undefined = still asking the server; null = signed out. Any /api/harness call answered 401 signs out here too.
 
-export type Mobility = 'motorbike' | 'car' | 'ride'
+export type Mobility = 'motorbike' | 'car'
 export type Companions = 'solo' | 'partner' | 'friends' | 'kids' | 'parents'
 
 export type Me = {
@@ -12,7 +12,7 @@ export type Me = {
   email: string | null
   name: string
   avatar: string | null
-  role: 'user' | 'admin'
+  role: 'user' | 'admin' | 'guest'
   home_city: string | null
   usual_mobility: Mobility | null
   usual_companions: Companions | null
@@ -89,7 +89,14 @@ export async function signOut() {
 const send = (method: string, path: string, body: unknown) =>
   fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(answer)
 
-export const acceptTerms = (version: string) => send('POST', '/api/harness/me/consent', { version }).then(keep)
+// A trial visitor (docs/ACCOUNTS.md §Khách): one trip for a day, no history, no account features.
+export const startGuest = () => send('POST', '/api/auth/guest', {}).then(keep)
+export const isGuest = (a: Account | null | undefined) => a?.role === 'guest'
+
+export const acceptTerms = (version: string, patterns: boolean) => send('POST', '/api/harness/me/consent', { version, patterns }).then(keep)
+
+// Whether TripGuardian remembers the user's explicit choices across trips to ask less; turning it off also forgets them.
+export const setPatterns = (on: boolean) => send('POST', '/api/harness/me/consent', { patterns: on }).then(keep)
 
 export const updateProfile = (patch: Partial<Pick<Me, 'home_city' | 'usual_mobility' | 'usual_companions'>> & { display_name?: string | null }) =>
   send('PATCH', '/api/harness/me', patch).then(keep)

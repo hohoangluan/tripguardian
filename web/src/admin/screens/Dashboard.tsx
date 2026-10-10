@@ -209,7 +209,7 @@ function TodayRow() {
     <section aria-label="Hôm nay">
       <h2 className="a-small">Hôm nay · {data.day}</h2>
       <div className="tiles">
-        <Tile n={data.new_users} label="Người dùng mới" sub={`${data.active_users} người có hoạt động`} />
+        <Tile n={data.new_users} label="Người dùng mới" sub={`${data.active_users} người có hoạt động · ${data.guests} khách dùng thử`} />
         <Tile n={data.journeys} label="Hành trình tạo mới" sub={`${data.confirmed} lịch đã chốt`} />
         <Tile n={data.feedback} label="Phản hồi sau chuyến" sub="xem ở Phiên chuyến đi" />
         <Tile n={data.errors + data.fallbacks} label="Lỗi và fallback" sub={`${data.errors} lỗi · ${data.fallbacks} fallback`} tone={data.errors ? 'warn' : undefined} />

@@ -1,4 +1,4 @@
-"""Hidden trips: the whole truth of one simulated traveller, in Trip State terms (docs/plans/BENCH.md)."""
+"""Hidden trips: the whole truth of one simulated traveller, in Trip State terms (docs/P2_TRIP_UNDERSTANDING.md §16)."""
 
 from datetime import date
 from pathlib import Path
@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TRIPS = ROOT / "config" / "bench_trips.yaml"
 
 Who = Literal["solo", "partner", "friends", "kids", "parents"]
-Vehicle = Literal["motorbike", "car", "ride"]
+Vehicle = Literal["motorbike", "car"]
 SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "vegetarian", "motion_sick", "height"]
 Effort = Literal["steep", "walk", "both", "none"]
 EFFORT_SIGNALS = ("knee", "elderly", "kids", "wheelchair")

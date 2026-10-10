@@ -12,7 +12,7 @@ import json
 from playwright.async_api import BrowserContext
 
 from ..common.browser import LoginRequired, open_profile, pause
-from ..common.files import data_dir, load_config, log_error, now, safe_name, write_json
+from ..common.files import data_dir, load_config, log_error, now, write_json
 from ..common.throttle import Throttle
 from .gate import GateThrottle
 from .crawl import EXPAND_JS, LIST_END_JS, REVIEW_DIV, count, parse_reviews

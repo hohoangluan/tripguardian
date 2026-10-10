@@ -18,7 +18,8 @@ export function watchTransit(p: TransitParams, onResult: (r: TransitResult) => v
   let active = true
   const forward = (ev: MessageEvent) => {
     if (!active || !ev.data) return
-    const d = JSON.parse(ev.data)
+    let d: any
+    try { d = JSON.parse(ev.data) } catch { return } // a broken frame is not an answer: wait for the next or for onerror
     const r = (d && 'status' in d ? d : d?.data) as TransitResult | undefined
     if (r && 'status' in r && r.status !== 'pending') { active = false; es.close(); onResult(r) }
   }

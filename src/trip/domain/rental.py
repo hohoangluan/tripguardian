@@ -1,4 +1,4 @@
-"""Whether a trip rents its motorbike in the city (docs/TRIP_UNDERSTANDING.md §Hậu cần)."""
+"""Whether a trip rents its motorbike in the city (docs/P2_TRIP_UNDERSTANDING.md §Hậu cần)."""
 
 from collections.abc import Mapping
 

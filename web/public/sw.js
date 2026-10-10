@@ -1,4 +1,4 @@
-// TripGuardian service worker: web push only (docs/COMPANION.md §Thông báo). No offline cache.
+// TripGuardian service worker: web push only (docs/P5_COMPANION.md §Thông báo). No offline cache.
 // A push shows the note; a click marks it opened and opens its deep link (?n=<id>).
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))

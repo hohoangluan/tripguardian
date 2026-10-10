@@ -1,4 +1,4 @@
-"""Two or three checked variants, each best on a different objective (docs/PLANNING.md ⓖ).
+"""Two or three checked variants, each best on a different objective (docs/P4_PLANNING.md ⓖ).
 
 One prepare() and one travel matrix for all of them. Each chosen objective lays the trip out with its own day-split
 weights; a variant validate rejects is dropped, two variants with the same days in the same order are one. No variant
@@ -8,13 +8,15 @@ valid -> back to Place Decision with the places that broke it. Lodging joins the
 from dataclasses import asdict
 
 import live
+from trip import nights as nights_of
 
 from .backup import backups
-from .build import ENTRY, EXIT, flag_warnings, itinerary, prepare, render_text, schedule_trip, shared_output, \
+from .build import flag_warnings, itinerary, prepare, render_text, schedule_trip, shared_output, \
     travel_load, with_home
 from .lodging import candidates as lodging_candidates
 from .objectives import LABEL, add_lodging_cost, choose, metrics, score
 from .robustness import robustness
+from .validate import blockers
 from .settings import load as load_settings
 
 WARNING_TEXT = {
@@ -51,14 +53,11 @@ def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None,
     valid = [(obj, s) for obj, s in tried if not s.violations]
     if not valid:
         first = tried[0][1]
-        places = sorted({v.place_id for _, s in tried for v in s.violations if v.place_id})
-        if not places:
-            places = sorted({i for _, s in tried for v in s.violations if v.day is not None
-                             for i in s.per_day[v.day]})
+        back = blockers([v for _, s in tried for v in s.violations], first.per_day)
         return {"ok": False, "variants": [], "chosen": None, "comparison": [],
                 "violations": [asdict(v) for v in first.violations],
                 "warnings": warnings + first.warnings + flag_warnings(decision),
-                "back_to_decision": {"reason": "no_valid_variant", "places": places}, **shared_output(trip)}
+                "back_to_decision": back, **shared_output(trip)}
     warnings += [_warn("variant_invalid", label=LABEL[obj]) for obj, s in tried if s.violations]
     seen, variants = set(), []
     for obj, s in valid:
@@ -117,14 +116,10 @@ def render_variants(out: dict) -> str:
     return "\n".join(lines)
 
 
-def _nights(ctx: dict) -> int:
-    return max((ctx.get("days") or 1) - 1, 0)
-
-
 def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None,
                            matrix_fn=None, sun_fn=None, weather: dict | None = None, lodging_fn=None,
                            signals: dict | None = None) -> dict:
-    """build_variants, with lodging candidates competing as each day's anchor (docs/PLANNING.md ⓐ ⓖ).
+    """build_variants, with lodging candidates competing as each day's anchor (docs/P4_PLANNING.md ⓐ ⓖ).
 
     Every candidate (plus the original base, as "no lodging") is tried under every chosen objective, sharing one
     travel matrix and one day-order cache keyed on where each day starts and ends. An objective keeps whichever
@@ -147,7 +142,7 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
     home0 = trip.days[0].start_node if trip.days else None
     options = [{"id": None, "home": home0, "price": None, "name": None}] + \
         [{"id": c["id"], "home": c["id"], "price": c["price_vnd"], "name": c["name"]} for c in cands]
-    nights = _nights(decision["trip_context"]["context"])
+    nights = nights_of(decision["trip_context"]["context"])
     objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
 
     rows = {obj: [] for obj in objectives}
@@ -169,14 +164,11 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
     best = {obj: r for obj, r in best.items() if r is not None}
     if not best:
         first = rows[objectives[0]][0]["sched"]
-        places = sorted({v.place_id for rs in rows.values() for r in rs for v in r["sched"].violations if v.place_id})
-        if not places:          # a violation with no place_id (e.g. a day-window overflow): name the day's places
-            places = sorted({i for rs in rows.values() for r in rs for v in r["sched"].violations
-                             if v.day is not None for i in r["sched"].per_day[v.day]})
+        back = blockers([v for rs in rows.values() for r in rs for v in r["sched"].violations], first.per_day)
         return {"ok": False, "variants": [], "chosen": None, "comparison": [], "lodging": None,
                 "violations": [asdict(v) for v in first.violations],
                 "warnings": warnings + first.warnings + flag_warnings(decision),
-                "back_to_decision": {"reason": "no_valid_variant", "places": places}, **shared_output(trip)}
+                "back_to_decision": back, **shared_output(trip)}
     warnings += [_warn("variant_invalid", label=LABEL[obj]) for obj in objectives if obj not in best]
 
     seen, variants = set(), []

@@ -697,7 +697,7 @@ DECISION_OPS = ["select", "drop", "lock", "travel", "crowd", "price", "trip", "v
 DECISION_TURN = Task(
     name="decision_turn",
     role=AGENT,
-    max_tokens=700,
+    max_tokens=900,
     temperature=0.2,
     parallel=4,
     # `say` first: the server streams it before the updates arrive (src/decision/agent.py).
@@ -731,9 +731,13 @@ fact that is not in PLACES or in the user's message. If OPEN QUESTION is not "no
 `updates`: one entry per request in the message.
 - select | lock: the user wants place `place` in the trip (lock: must keep it). value "".
 - drop: the user does not want `place`; value = the reason if stated: far | crowded | pricey | dislike | visited,
-  else "".
+  else "". A long wait or queue counts as crowded.
 - visited: the user has been to `place` already. value "".
-- travel | crowd | price: the user wants places closer | less crowded | cheaper in general, no single place. value "".
+- crowd: the user wants fewer crowded or busy places in general, no single place ("bỏ mấy chỗ đông đi", "ít người
+  thôi", "tránh chỗ phải xếp hàng"). value "".
+- travel: the user wants places closer in general, less riding ("gần hơn", "đừng đi xa quá"). value "".
+- price: the user wants cheaper places in general ("rẻ hơn chút"). value "".
+  For these three, `op` names the wish and `value` stays ""; never put the wish into `value`.
 - trip: a wish about the trip or the kind of place, not one place on screen: quieter, vegetarian, no stairs, near
   the centre, a budget, who comes along, "not like <a place>", "like <a place>". value "". quote = the exact words
   of that wish. Trip Understanding reads it and the list is rebuilt; do not also turn it into select or drop,
@@ -963,7 +967,7 @@ AUDIT_SCHEMA = {
     "additionalProperties": False,
 }
 
-# The Judge in place of a person (docs/CORPUS.md §6): it reads what a small model claimed about one feature of one
+# The Judge in place of a person (docs/P1_CORPUS.md §6): it reads what a small model claimed about one feature of one
 # place next to the source, and says whether each claim holds for this place in the ontology's sense. Its verdicts are
 # labels (corpus.review.labels, by = judge model): wrong claims leave the evidence, and they measure precision.
 _AUDIT_PROMPT = """You audit a travel database about {city}, Vietnam, built from Google Maps reviews and photos and
@@ -1175,10 +1179,10 @@ Text:
 )
 
 
-# Benchmark users (python -m bench, docs/plans/BENCH.md): a model plays one traveller whose trip it knows in full.
+# Benchmark users (python -m bench, docs/P2_TRIP_UNDERSTANDING.md §16): a model plays one traveller whose trip it knows in full.
 USER_SIM_CODES = (
-    "What the codes in the JSON mean: mobility motorbike = you ride your own motorbike, car = your own car, ride = "
-    "Grab or taxi (you do not drive); companions solo = alone, partner = your partner, friends, kids = young children, "
+    "What the codes in the JSON mean: mobility motorbike = you ride your own motorbike, car = your own car; "
+    "companions solo = alone, partner = your partner, friends, kids = young children, "
     "parents = your parents / older people; pace slow = few places a day, normal, packed = as many as possible; "
     "crowd_tolerance avoid = you avoid crowds, ok_if_worth = crowds are fine if the place is worth it, fine = you do "
     "not mind; novelty familiar = well-known places, new = places you have not seen, mix; budget_vnd = what one "

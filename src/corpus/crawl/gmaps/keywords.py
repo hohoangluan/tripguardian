@@ -8,7 +8,7 @@ eat. A place's words are searched and the first `keyword_reviews_per_word` hits 
 more reviews than crawl kept are opened, and only for words not searched yet (a new set adds its words to the
 existing file). A word's list is complete at n hits or at Maps' end-of-list signal (no hit: Maps says NO_HIT;
 checked on the live page 2026-10-05); observe merges the file by review_id and tags its reviews
-`sample = keywords` (they count only for effort and facts, docs/CORPUS.md §5).
+`sample = keywords` (they count only for effort and facts, docs/P1_CORPUS.md §5).
 """
 
 import asyncio

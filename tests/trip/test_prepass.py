@@ -73,8 +73,8 @@ def test_ordinary_sentences_are_not_trip_facts():
 
 
 def test_negated_transport_falls_through_to_the_real_one():
-    g = got("mình không chạy xe máy được, đi grab")
-    assert ("mobility", "ride", False) in g and ("mobility", "motorbike", False) not in g
+    g = got("mình không chạy xe máy được, đi ô tô")
+    assert ("mobility", "car", False) in g and ("mobility", "motorbike", False) not in g
 
 
 def test_number_words_still_count_days():

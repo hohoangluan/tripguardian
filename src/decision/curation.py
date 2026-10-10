@@ -1,4 +1,4 @@
-"""⑧ Curation (docs/PLACE_DECISION.md §12): typed actions on the session state, the Session Profile they teach, and
+"""⑧ Curation (docs/P3_PLACE_DECISION.md §12): typed actions on the session state, the Session Profile they teach, and
 the one question the rules may open (pattern, gap, rethink). Pure: apply() returns a new State."""
 
 from collections import Counter
@@ -42,6 +42,8 @@ def _feedback(s: State, reason: str | None, pid: str | None, cfg) -> None:
         p.travel_mult = max(cfg.travel_mult_min, round(p.travel_mult * cfg.far_step, 3))
     elif reason == "crowded":
         p.crowd_tolerance = "avoid"
+        if pid is None:  # a wish about the whole list, not one place: the crowded ones go, not only rank lower
+            p.hide_crowded = True
     elif reason == "pricey":
         p.price_sensitivity = round(p.price_sensitivity + cfg.price_step, 3)
     elif reason == "visited" and pid and pid not in p.visited:

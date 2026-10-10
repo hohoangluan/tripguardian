@@ -13,17 +13,17 @@ export type DecisionNums = {
   search_misses: { q: string; n: number }[]
   acts_per_journey_median: number | null
 }
-export type SessionRow = { id: string; stage: string; revision: number; created_at: string; updated_at: string; app_version: string | null; email: string | null; display_name: string | null; errors: number; min_score: number | null; confirmed: boolean; start_with: string | null }
+export type SessionRow = { id: string; stage: string; revision: number; created_at: string; updated_at: string; app_version: string | null; email: string | null; display_name: string | null; role: 'user' | 'admin' | 'guest' | null; errors: number; min_score: number | null; confirmed: boolean; start_with: string | null }
 export type Event = { at: string; source: string; name: string; props: Record<string, unknown>; app_version: string | null }
 export type SessionDetail = {
-  id: string; stage: string; revision: number; created_at: string; updated_at: string; app_version: string | null; email: string | null; name: string | null
+  id: string; stage: string; revision: number; created_at: string; updated_at: string; app_version: string | null; email: string | null; name: string | null; role: 'user' | 'admin' | 'guest' | null
   trip_transcript: { role: string; text: string; turn: number }[]
   decision_log: { action: Record<string, unknown>; at?: string }[]
   planning_log: { action: Record<string, unknown>; at?: string }[]
   receipts: { request_id: string; at: string | null; revision: number; stage: string; events: string[] }[]
   outputs: string[]; events: Event[]; feedback: { at: string; scores: Record<string, number>; more_search: boolean | null; note: string }[]
 }
-export type Today = { day: string; journeys: number; confirmed: number; feedback: number; errors: number; fallbacks: number; active_users: number; new_users: number }
+export type Today = { day: string; journeys: number; confirmed: number; feedback: number; errors: number; fallbacks: number; active_users: number; new_users: number; guests: number }
 
 const qs = (f: Record<string, string | undefined>) => {
   const p = new URLSearchParams(Object.entries(f).filter((e): e is [string, string] => !!e[1]))

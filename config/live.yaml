@@ -1,4 +1,4 @@
-# Live Context settings (docs/PLANNING.md §Live Context).
+# Live Context settings (docs/P4_PLANNING.md §Live Context).
 # Planning reads config/planning.yaml; this file belongs to src/live alone, so src/live needs no other package.
 version: 1
 
@@ -10,7 +10,6 @@ osrm_profile: driving
 mode_factor:
   car: 1.0
   motorbike: 0.95
-  ride: 1.0
   walk: 1.0
 
 timeout_s: 10
@@ -21,11 +20,12 @@ user_agent: "TripGuardian/0.1 (contact: {contact})"
 nominatim_min_interval_s: 1.0
 # Photon (komoot, OSM): search-as-you-type for the origin and lodging inputs (live.geosearch); Nominatim when it fails.
 photon_url: https://photon.komoot.io/api/
+suggest_timeout_s: 4  # Photon answers in ~2 s; slower than this falls back to Nominatim
 
 # Open-Meteo: free, no key, daily forecast up to 16 days ahead; config/climate.yaml covers dates beyond that.
 open_meteo_url: https://api.open-meteo.com/v1/forecast
 
-# Maps' hotel list ("Khách sạn"), queried through corpus.crawl's public API (docs/PLANNING.md §Chỗ ở (crawl live)).
+# Maps' hotel list ("Khách sạn"), queried through corpus.crawl's public API (docs/P4_PLANNING.md §Chỗ ở (crawl live)).
 lodging_query_limit: 40
 
 # Seconds. Roads change slowly, forecasts quickly, OTA prices daily.

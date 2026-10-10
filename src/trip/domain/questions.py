@@ -1,4 +1,4 @@
-"""Deterministic quiz bank for the quiz phase (docs/TRIP_UNDERSTANDING.md §5).
+"""Deterministic quiz bank for the quiz phase (docs/P2_TRIP_UNDERSTANDING.md §5).
 
 Every chip carries the updates it writes (Draft), so answering a chip never needs
 the model: the engine applies the drafts and moves to the next question. The chat
@@ -315,7 +315,9 @@ def mobility_q(arrival: str | None = None, entry: Base | None = None) -> Questio
 
 
 def dates_q() -> Question:
-    return with_other(Question(qid="dates", group="A", tier=1, input="date", input_field="start_date",
+    # No exits: "Chưa chốt ngày" is the single way past this card (it explicitly unfixes the date); the date
+    # picker and the free text box answer it, so a skip / unsure button would only duplicate that chip.
+    return with_other(Question(qid="dates", group="A", tier=1, input="date", input_field="start_date", exits=False,
                                text="Bạn đi từ ngày nào?", reason="Để kiểm tra giờ mở cửa đúng ngày bạn đi.",
                                chips=(Chip(id="undecided", label="Chưa chốt ngày", drafts=(d("start_date", op="remove"),)),)))
 
@@ -374,16 +376,20 @@ def novelty_q() -> Question:
         Chip(id="mix", label="Trộn cả hai", drafts=(d("novelty", "mix"),)))))
 
 
-def stay_times_q() -> Question:
+def stay_times_q(no_lodging: bool = False) -> Question:
     """The hours the user wants the trip to start and end: lodging check-in on the first day, check-out on the last.
-    Asked whether or not a lodging is booked; a skipped answer leaves the planner to suggest the hours."""
+    Asked whether or not a lodging is booked; a skipped answer leaves the planner to suggest the hours. Without a
+    lodging the question speaks of the days, not of a room, but fills the same checkin_at / checkout_at."""
+    first, last = ("Ngày đầu bắt đầu lúc", "Ngày cuối kết thúc lúc") if no_lodging else ("Nhận phòng lúc", "Trả phòng lúc")
     return with_other(Question(
-        qid="stay_times", group="A", multi=True, single_rows=("Nhận phòng lúc", "Trả phòng lúc"),
-        text="Bạn muốn nhận phòng lúc mấy giờ và trả phòng lúc mấy giờ?",
-        reason="Giờ nhận phòng là lúc ngày đầu bắt đầu, giờ trả phòng là lúc ngày cuối kết thúc. Chưa đặt khách sạn cũng chọn được.",
-        chips=tuple(Chip(id=f"checkin:{h}", label=f"{h}h", row="Nhận phòng lúc", drafts=(d("checkin_at", f"{h:02d}:00"),))
+        qid="stay_times", group="A", multi=True, single_rows=(first, last),
+        text=("Ngày đầu bạn muốn bắt đầu đi lúc mấy giờ, và ngày cuối kết thúc lúc mấy giờ?" if no_lodging
+              else "Bạn muốn nhận phòng lúc mấy giờ và trả phòng lúc mấy giờ?"),
+        reason=("Giờ bắt đầu là lúc ngày đầu mở lịch, giờ kết thúc là lúc ngày cuối đóng lịch." if no_lodging
+                else "Giờ nhận phòng là lúc ngày đầu bắt đầu, giờ trả phòng là lúc ngày cuối kết thúc. Chưa đặt khách sạn cũng chọn được."),
+        chips=tuple(Chip(id=f"checkin:{h}", label=f"{h}h", row=first, drafts=(d("checkin_at", f"{h:02d}:00"),))
                     for h in (7, 9, 12, 14))
-        + tuple(Chip(id=f"checkout:{h}", label=f"{h}h", row="Trả phòng lúc", drafts=(d("checkout_at", f"{h:02d}:00"),))
+        + tuple(Chip(id=f"checkout:{h}", label=f"{h}h", row=last, drafts=(d("checkout_at", f"{h:02d}:00"),))
                 for h in (11, 12, 15, 18))))
 
 
@@ -441,60 +447,64 @@ def anchor_priority_q(state: TripState, catalog: Catalog) -> Question | None:
                                                 drafts=(d("anchor_priority", (i, "want")),)) for i, a in matched)))
 
 
-def quiz_queue(state: TripState, catalog: Catalog, cfg: Settings) -> list[Question]:
-    """Fixed order, safety first; known or already-asked questions are left out."""
+def quiz_queue(state: TripState, catalog: Catalog, cfg: Settings, redo: bool = False) -> list[Question]:
+    """Fixed order, safety first; known or already-asked questions are left out.
+    A redo pass (meta.requiz) shows the cards again even where answers exist, so
+    answers can change; only the structural conditions stay (a coach trip still
+    asks its ways, nights still need days). Cards answered in this pass drop out
+    as usual: the redo starts with asked cleared, so each card shows exactly once."""
     done = set(state.meta.asked)
     out = list(safety_queue(state, catalog, cfg))
 
     def want(qid: str, cond: bool) -> bool:
         return cond and qid not in done
 
-    if want("days", not state.days.known):
+    if want("days", redo or not state.days.known):
         out.append(days_q())
-    if want("nights", state.days.known and not state.nights.known):
+    if want("nights", state.days.known and (redo or not state.nights.known)):
         out.append(nights_q(state.days.value))
-    if want("companions", not state.companions.known):
+    if want("companions", redo or not state.companions.known):
         out.append(companions_q())
-    if want("arrival", not state.arrival_mode.known):
+    if want("arrival", redo or not state.arrival_mode.known):
         out.append(arrival_q(state.mobility.known))
     by_transit = state.arrival_mode.value in ARRIVES_WITHOUT_A_VEHICLE
-    if want("origin", by_transit and not state.origin.known):
+    if want("origin", by_transit and (redo or not state.origin.known)):
         out.append(origin_q())
-    if want("mobility", not state.mobility.known):
+    if want("mobility", redo or not state.mobility.known):
         out.append(mobility_q(state.arrival_mode.value, state.entry_point.value))
-    if want("dates", not (state.start_date.known or state.month.known)):
+    if want("dates", redo or not (state.start_date.known or state.month.known)):
         out.append(dates_q())
     for way in ("inbound", "outbound"):
-        if want(way, by_transit and not getattr(state, way).known) and (q := transit_q(way, state, cfg)):
+        if want(way, by_transit and (redo or not getattr(state, way).known)) and (q := transit_q(way, state, cfg)):
             out.append(q)
-    if want("lodging", not state.lodging.known and state.lodging_booked.value != "no"):
+    if want("lodging", (redo or not state.lodging.known) and state.lodging_booked.value != "no"):
         out.append(lodging_q())
-    if want("stay_times", state.days.known and not (state.checkin_at.known or state.checkout_at.known)):
-        out.append(stay_times_q())
-    if want("purpose", not state.purpose.known):
+    if want("stay_times", state.days.known and (redo or not (state.checkin_at.known or state.checkout_at.known))):
+        out.append(stay_times_q(state.lodging_booked.value == "no"))
+    if want("purpose", redo or not state.purpose.known):
         out.append(purpose_q())
     experience = ontology().features
     has_wish = any(f.value == "love" and experience[SoftKey.parse(k).feature].group == "experience"
                    for k, f in state.soft.items())
-    if want("vibe", not has_wish) and (q := vibe_q(catalog, cfg)):
+    if want("vibe", redo or not has_wish) and (q := vibe_q(catalog, cfg)):
         out.append(q)
-    if want("crowd", not state.crowd_tolerance.known):
+    if want("crowd", redo or not state.crowd_tolerance.known):
         out.append(crowd_q())
-    if want("pace", not state.pace.known):
+    if want("pace", redo or not state.pace.known):
         out.append(pace_q())
-    if want("budget", not state.budget_vnd.known):
+    if want("budget", redo or not state.budget_vnd.known):
         out.append(budget_q())
-    if want("novelty", state.meta.experience == "returning" and not state.novelty.known):
+    if want("novelty", state.meta.experience == "returning" and (redo or not state.novelty.known)):
         out.append(novelty_q())
     if "anchor_priority" not in done and (q := anchor_priority_q(state, catalog)):
         out.append(q)
     return out
 
 
-def find_quiz(qid: str, state: TripState, catalog: Catalog, cfg: Settings) -> Question | None:
+def find_quiz(qid: str, state: TripState, catalog: Catalog, cfg: Settings, redo: bool = False) -> Question | None:
     """Rebuild the quiz card with this id from the current state (cards are not
     stored across turns; the id is stable)."""
-    return next((q for q in quiz_queue(state, catalog, cfg) if q.qid == qid), None)
+    return next((q for q in quiz_queue(state, catalog, cfg, redo) if q.qid == qid), None)
 
 
 def apply_chip(state: TripState, q: Question, ids: tuple[str, ...], turn: int) -> TripState:

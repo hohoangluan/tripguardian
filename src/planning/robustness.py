@@ -1,4 +1,4 @@
-"""Robustness (docs/PLANNING.md ⓕ, docs/ARCHITECTURE.md §12): solid / feasible / fragile.
+"""Robustness (docs/P4_PLANNING.md ⓕ, docs/ARCHITECTURE.md §12): solid / feasible / fragile.
 
 Fixed perturbations from config, never random. Each scenario re-runs the chosen order of every day and counts the
 places that no longer fit: a visit outside its hours, or one after which the day's end point cannot be reached in
@@ -13,7 +13,7 @@ from .schedule import DayCtx, simulate
 from .traits import exposure
 from .travel import Travel
 
-LEVEL_LABEL = {"solid": "Vững", "feasible": "Khả thi", "fragile": "Mong manh"}
+LEVEL_LABEL = {"solid": "Dư giờ", "feasible": "Vừa đủ giờ", "fragile": "Sát giờ"}
 VISIT_KEYS = ("short", "typical", "long")
 
 
@@ -83,15 +83,15 @@ def robustness(ctxs: list[DayCtx], results: list, travel_source: str) -> dict:
     else:
         level = "fragile"
     names = {i: p.name for cx in ctxs for i, p in cx.places.items()}
-    reasons = [f'{s["text"]}: mất {len(s["lost"])} nơi ({", ".join(names[i] for i in s["lost"])})'
+    reasons = [f'Nếu {s["text"]}: lỡ {len(s["lost"])} nơi ({", ".join(names[i] for i in s["lost"])}).'
                for s in scenarios if s["lost"]]
     travels = any(i.kind == "travel" for r in results for i in r.items)
     if level == "solid" and travel_source == "rough" and travels:
         level = "feasible"
-        reasons.append("Thời gian di chuyển là ước lượng thô nên không kết luận Vững.")
+        reasons.append("Giờ di chuyển mới ước tính theo khoảng cách nên mình chưa dám nói là dư giờ.")
     if not reasons:
-        reasons.append("Chịu được mọi kịch bản nhiễu đã thử.")
+        reasons.append("Xuất phát trễ, ở lâu hơn hay đi chậm hơn một chút vẫn kịp mọi nơi.")
     if skipped:
-        reasons.append("Chưa biết thời tiết: chưa thử kịch bản mưa.")
+        reasons.append("Chưa có dự báo thời tiết nên mình chưa tính trường hợp mưa.")
     return {"level": level, "label": LEVEL_LABEL[level], "reasons": reasons, "scenarios": scenarios,
             "breaking": [s["id"] for s in scenarios if s["lost"]], "skipped": skipped}

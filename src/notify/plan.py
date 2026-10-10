@@ -1,4 +1,4 @@
-"""Pure parts of the notifications (docs/COMPANION.md §Thông báo): which notes a trip gets and when, the send rules
+"""Pure parts of the notifications (docs/P5_COMPANION.md §Thông báo): which notes a trip gets and when, the send rules
 (quiet hours, daily caps, per-kind switches, pause), and filling a reviewed template. No I/O here."""
 
 import hashlib

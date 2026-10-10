@@ -1,4 +1,4 @@
-"""Lodging by taste (docs/PLANNING.md ⓐ): served stays once there are enough, taste before location, unknown never
+"""Lodging by taste (docs/P4_PLANNING.md ⓐ): served stays once there are enough, taste before location, unknown never
 penalised, evidence against a hard filter drops, a late live price never reorders what is shown."""
 
 import pytest
@@ -111,7 +111,7 @@ def engine(recs, lodging_fn):
 
 
 def test_the_engine_ranks_served_stays_and_drops_one_whose_live_price_breaks_the_cap():
-    d, recs = sample_trip(budget=4_000_000)  # 2 days -> 1 night: cap 1.2M
+    d, recs = sample_trip(budget=1_000_000)  # per person per day: 2 people x 2 days, 1 night -> cap 1.2M
     d["trip_context"]["soft_weights"] = [QUIET]
     stays = [stay("s_quiet", 3, features={"noise": "quiet"}, price=500000), stay("s_plain", 0, price=500000)]
 

@@ -17,8 +17,6 @@ try {
   if (await tryIt.count()) await tryIt.first().click()
   await page.evaluate((id) => localStorage.setItem('tg.trip.v1', JSON.stringify({ journeyId: id, decisionId: id })), JID)
   await page.goto(BASE + '/app/explore', { waitUntil: 'networkidle' })
-  await page.waitForSelector('.tg-pc', { timeout: 60000 })
-  await page.getByRole('button', { name: /Đĩa xoay/ }).click()
   await page.waitForSelector('.tg-disc__wedge.is-on', { timeout: 20000 })
   for (const [w, h] of [[1440, 900], [1280, 720], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h })

@@ -1,6 +1,6 @@
 /* "Xem chi tiết" sheet (ui/PlaceSheet.tsx): a modal over the screen, or the body of /explore/place/:id.
    The photo block reuses the disc's classes (.tg-disc__media, __big, __thumbs). Colors come from tokens only. */
-.tg-psov { position: fixed; inset: 0; z-index: 70; background: rgba(20, 38, 43, 0.42); backdrop-filter: blur(3px); animation: tg-fade 220ms; }
+.tg-psov { position: fixed; inset: 0; z-index: 70; background: color-mix(in srgb, var(--tg-night) 42%, transparent); backdrop-filter: blur(3px); animation: tg-fade 220ms; }
 .tg-ps { --mh: clamp(260px, 44vh, 420px); --ps-ease: cubic-bezier(0.2, 0.8, 0.2, 1); }
 .tg-ps.is-modal { position: fixed; z-index: 71; left: 50%; top: 50%; translate: -50% -50%; width: min(1120px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain; padding: 22px 36px 36px; border-radius: 26px; background: var(--tg-bg); box-shadow: var(--tg-sh-2); outline: none; animation: tg-fade 220ms; }
 .tg-ps__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -23,7 +23,7 @@
 .tg-ps__facts dt { font-size: 0.74rem; color: var(--tg-ink-3); margin-bottom: 3px; }
 .tg-ps__facts dd { margin: 0; font-size: 0.9rem; font-weight: 600; }
 .tg-ps__act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
-.tg-ps__cta { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 999px; background: var(--tg-pine); color: #fff; font: 700 1rem var(--tg-sans); box-shadow: 0 8px 20px rgba(15, 95, 90, 0.26); transition: background 150ms, transform 150ms var(--tg-ease); }
+.tg-ps__cta { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 999px; background: var(--tg-pine); color: #fff; font: 700 1rem var(--tg-sans); box-shadow: 0 8px 20px color-mix(in srgb, var(--tg-pine) 26%, transparent); transition: background 150ms, transform 150ms var(--tg-ease); }
 .tg-ps__cta:hover:not(:disabled) { background: var(--tg-pine-d); transform: translateY(-1px); }
 .tg-ps__cta.is-on { background: var(--tg-pine-soft); color: var(--tg-pine); box-shadow: none; }
 .tg-ps__out { max-width: 34ch; font-size: 0.88rem; }
@@ -35,6 +35,7 @@
 .tg-ps__tabs button { position: relative; min-height: 50px; font: 600 0.95rem var(--tg-sans); color: var(--tg-ink-3); transition: color 150ms; }
 .tg-ps__tabs button:hover, .tg-ps__tabs button[aria-selected='true'] { color: var(--tg-ink); }
 .tg-ps__tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--tg-pine); }
+.tg-ps__tabs button small { font-size: 0.8rem; font-weight: 500; color: var(--tg-ink-3); }
 .tg-ps__pane { display: grid; gap: 18px; padding-top: 24px; min-height: 280px; animation: tg-fade 160ms; }
 .tg-ps__pane h3 { font-family: var(--tg-display); font-size: 1.7rem; }
 .tg-ps__pane h4 { font-size: 1rem; margin-bottom: 8px; }
@@ -47,13 +48,13 @@
 .tg-ps__day { display: inline-block; min-width: 84px; color: var(--tg-ink-2); }
 .tg-ps__side { display: grid; gap: 14px; }
 .tg-ps__mini { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.tg-ps__mini button { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 10px; border: 2px solid transparent; background: #e9e2d4; }
+.tg-ps__mini button { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 10px; border: 2px solid transparent; background: var(--tg-photo); }
 .tg-ps__mini button[aria-pressed='true'] { border-color: var(--tg-pine); }
 .tg-ps__why { padding: 18px 20px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); }
 /* Hình ảnh: every photo of the place in one scrolling list, each with its source. No lightbox, no effects. */
 .tg-ps__gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 .tg-ps__gal li { display: grid; gap: 6px; }
-.tg-ps__gp { position: relative; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 14px; background: #e9e2d4; }
+.tg-ps__gp { position: relative; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 14px; background: var(--tg-photo); }
 .tg-ps__gp img { width: 100%; height: 100%; object-fit: cover; }
 .tg-ps__gal small { font-size: 0.78rem; color: var(--tg-ink-3); }
 .tg-ps__note { display: flex; gap: 6px; align-items: flex-start; font-size: 0.84rem; }
@@ -90,13 +91,13 @@
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; }
 
 /* TikTok-style clip viewer over the sheet */
-.tg-cv__ov { position: fixed; inset: 0; z-index: 90; background: rgba(20, 38, 43, 0.86); backdrop-filter: blur(6px); animation: tg-fade 200ms; }
+.tg-cv__ov { position: fixed; inset: 0; z-index: 90; background: color-mix(in srgb, var(--tg-night) 86%, transparent); backdrop-filter: blur(6px); animation: tg-fade 200ms; }
 .tg-cv { position: fixed; inset: 0; z-index: 91; display: grid; place-items: center; outline: none; animation: tg-fade 200ms; }
 .tg-cv__stage { display: flex; align-items: flex-end; gap: 22px; }
 .tg-cv__player { display: block; height: min(86vh, 780px); aspect-ratio: 9 / 16; border: 0; border-radius: 18px; background: #000; box-shadow: var(--tg-sh-2); }
-.tg-cv__info { display: grid; gap: 12px; width: 280px; padding-bottom: 12px; color: #f4f1ea; }
+.tg-cv__info { display: grid; gap: 12px; width: 280px; padding-bottom: 12px; color: var(--tg-on-night); }
 .tg-cv__who { display: flex; align-items: center; gap: 10px; font-size: 1rem; }
-.tg-cv__who i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--tg-sun); color: #fff; font: 700 1rem var(--tg-sans); font-style: normal; }
+.tg-cv__who i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--tg-sun); color: var(--tg-on-sun); font: 700 1rem var(--tg-sans); font-style: normal; }
 .tg-cv__place { display: flex; align-items: center; gap: 6px; font-size: 0.86rem; opacity: 0.85; }
 .tg-cv__desc { font-size: 0.9rem; line-height: 1.5; opacity: 0.92; max-height: 40vh; overflow: auto; overflow-wrap: anywhere; }
 .tg-cv__out { display: inline-flex; align-items: center; gap: 6px; justify-self: start; min-height: 40px; padding: 0 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); color: #fff; font-weight: 600; font-size: 0.86rem; }

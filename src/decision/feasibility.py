@@ -1,4 +1,4 @@
-"""⑨ Combination feasibility (docs/PLACE_DECISION.md §13): the chosen places as one group, rough and
+"""⑨ Combination feasibility (docs/P3_PLACE_DECISION.md §13): the chosen places as one group, rough and
 deterministic. Every conflict carries fixes whose `action` is a POST /act payload (None: shown, not clickable)."""
 
 from collections import defaultdict
@@ -8,11 +8,11 @@ from corpus.serving import feature
 
 from .cards import feature_label, value_label
 from .geo import fmt, km, minutes, point, to_min
-from .model import Cand
+from .model import Cand, day_visit
 
 
-def _visit(c: Cand) -> int:
-    vm = c.rec["operation"].get("visit_minutes")
+def _visit(c: Cand, cfg) -> int:
+    vm = day_visit(c.rec, cfg)
     return vm["typical"] if vm else 60
 
 
@@ -134,6 +134,24 @@ def _window_warnings(chosen, wanted_timed, anchors, days, cfg) -> list[str]:
     return out
 
 
+def room(chosen: list[Cand], days, needed: int, pace: str, cfg) -> dict:
+    """How much of the trip's usable time the picks fill, as an optional hint (never a requirement).
+    usable = each day's window (the arrival day from checkin_at, the last day until checkout_at) minus the meals that
+    fall inside it; one more place costs its visit + buffer + a short leg, but never less than a full day at this
+    pace spreads over per_day places, so free time is left free. free = usable minus that paced use; filled: the picks
+    use fill_share of the usable time."""
+    meals = [to_min(t) for t in cfg.meal_at]
+    usable = sum(max(0, d.end - d.start - cfg.meal_min * sum(1 for m in meals if d.start <= m < d.end)) for d in days)
+    exp = [c for c in chosen if c.role == "experience"]
+    visit = sum(_visit(c, cfg) for c in exp) / len(exp) if exp else cfg.day_visit["typical_max"] / 2
+    full_day = to_min(cfg.day_end) - to_min(cfg.day_start) - cfg.meal_min * len(meals)
+    per_place = round(max(visit + cfg.buffer_min[pace] + cfg.intra_leg_min, full_day / cfg.per_day[pace]))
+    used = max(needed, len(exp) * per_place)  # a picked place takes its paced share even when its visit is short
+    free = max(0, usable - used)
+    more = free // per_place
+    return {"usable": usable, "free": free, "more": more, "filled": used >= usable * cfg.fill_share or more == 0}
+
+
 def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], locked: set[str], ctrs,
              wanted_timed: set[str], cfg) -> dict:
     pace = si.pace.level or "normal"
@@ -144,7 +162,7 @@ def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], 
 
     areas = _areas(chosen)
     area_min = {a: minutes(km(center, cen), mob, cfg) for a, (cen, _) in areas.items()}
-    visit = sum(_visit(c) for c in chosen)
+    visit = sum(_visit(c, cfg) for c in chosen)
     buffer = cfg.buffer_min[pace] * len(chosen)
     travel = cfg.intra_leg_min * len(chosen) + sum(2 * m for m in area_min.values())
     needed = visit + buffer + travel
@@ -153,7 +171,7 @@ def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], 
         conflicts.append({"id": "time", "check": "time", "physical": True,
                           "title": f"Cần khoảng {needed} phút, chuyến có {available} phút",
                           "rule": "Tổng thời gian tham quan, đi lại (ước tính) và nghỉ vượt thời gian của chuyến.",
-                          "places": [], "fixes": [_drop_fix(c, f"Bớt khoảng {_visit(c) + cfg.buffer_min[pace] + cfg.intra_leg_min} phút")
+                          "places": [], "fixes": [_drop_fix(c, f"Bớt khoảng {_visit(c, cfg) + cfg.buffer_min[pace] + cfg.intra_leg_min} phút")
                                                   for c in removable[:2]]})
 
     for c in chosen:
@@ -175,7 +193,7 @@ def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], 
 
     if known_days:
         needs = {c.id: n for c in chosen if (n := need_buckets(c, wanted_timed, c.id in anchors, days, cfg))}
-        arrive = to_min(si.context.arrive_at) if si.context.arrive_at else None
+        arrive = to_min(si.context.checkin_at) if si.context.checkin_at else None
         conflicts += _window_conflict(chosen, needs, days, arrive, removable, cfg)
     warnings += _window_warnings(chosen, wanted_timed, anchors, days, cfg)
 
@@ -241,4 +259,5 @@ def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], 
     return {"status": status, "known_days": known_days,
             "totals": {"places": len(chosen), "visit": visit, "buffer": buffer, "travel": travel, "needed": needed,
                        "available": available},
+            "room": room(chosen, days, needed, pace, cfg) if known_days else None,
             "slack": available - needed if known_days else None, "conflicts": conflicts, "warnings": warnings}

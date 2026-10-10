@@ -148,3 +148,16 @@ def test_first_token_timeout_does_not_wait_for_generator_cancellation_cleanup():
         run(gen, Settings(first_token_s=0.005, total_s=0.01))
     assert time.monotonic() - started < 0.10
     assert _limiter.counts == (0, 0)
+
+
+@pytest.mark.parametrize('text', ['```json\n{"say":"ok","value":3}\n```', 'Here:\n{"say":"ok","value":3}\n'])
+def test_fenced_or_wrapped_json_is_accepted(text):
+    said = []
+    plan = run(chunks(text[:5], text[5:]), said=said)
+    assert plan.value == 3 and ''.join(said) == 'ok'
+
+
+def test_no_json_object_is_a_bad_plan():
+    from agents import AgentError
+    with pytest.raises(AgentError, match='bad plan'):
+        run(chunks('```json\n```'))

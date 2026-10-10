@@ -73,6 +73,12 @@ def listed(city: str) -> list[dict] | None:
     return [r for f in files if f.exists() for r in json.loads(f.read_text(encoding="utf-8"))["items"]]
 
 
+def listed_stays(city: str) -> list[dict]:
+    """The city's crawled lodging list alone (list/<city>_stay.json items); [] before the stay crawl has run."""
+    f = data_dir() / "gmaps" / "list" / f"{city.removesuffix(STAY)}{STAY}.json"
+    return json.loads(f.read_text(encoding="utf-8"))["items"] if f.exists() else []
+
+
 def load_config(city: str) -> tuple[str, dict]:
     """(city name, config/queries.yaml + the city's area). For "<city>_stay" the stay.gmaps keys override gmaps."""
     cities = yaml.safe_load((ROOT / "config" / "cities.yaml").read_text(encoding="utf-8"))

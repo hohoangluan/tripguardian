@@ -1,12 +1,12 @@
 """Phase pages: the website of every listed place -> data/official/pages/<fid_dir>.json.
 
-The website comes from the place's Maps record, so it is the operator's own (docs/CORPUS.md §4, trang official:
+The website comes from the place's Maps record, so it is the operator's own (docs/P1_CORPUS.md §4, trang official:
 `verified`). Social pages, booking / ticket resellers and link shorteners are not official pages and are skipped.
 The home page and up to MAX_PAGES - 1 pages it links to on the same site whose link text or address names
 tickets, prices, hours, contact or about are opened without a login; each page's visible text is saved as is.
 A page is read after its load event (the site's own end signal); a page that never loads fails the place, which
 gets no file and one line in data/official/errors.jsonl (retried next run). A saved place is fetched again after
-REFRESH_DAYS (hours change; docs/CORPUS.md §5 freshness).
+REFRESH_DAYS (hours change; docs/P1_CORPUS.md §5 freshness).
 """
 
 import asyncio

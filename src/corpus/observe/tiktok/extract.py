@@ -21,7 +21,7 @@ import re
 import unicodedata
 
 import openai
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
@@ -155,7 +155,7 @@ def passage(o: dict, segs: list[dict], caption: str) -> str:
 
 def upload_date(v: dict) -> str | None:
     try:
-        return datetime.fromtimestamp(int(v["created_at"]), timezone.utc).date().isoformat()
+        return datetime.fromtimestamp(int(v["created_at"]), UTC).date().isoformat()
     except (KeyError, TypeError, ValueError):
         return None
 

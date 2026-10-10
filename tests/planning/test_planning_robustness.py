@@ -17,13 +17,13 @@ def level(end, source="osrm", **kw):
 
 def test_a_day_with_room_to_spare_is_solid():
     rob = level(1260)
-    assert (rob["level"], rob["label"], rob["breaking"]) == ("solid", "Vững", [])
+    assert (rob["level"], rob["label"], rob["breaking"]) == ("solid", "Dư giờ", [])
 
 
 def test_a_day_that_survives_the_small_delays_but_not_half_an_hour_late_is_feasible():
     rob = level(570)                                 # 09:30: +15, +20% visit, +25% travel fit; +30 does not
     assert rob["level"] == "feasible" and rob["breaking"] == ["late_30"]
-    assert any("xuất phát trễ 30 phút: mất 1 nơi" in t for t in rob["reasons"])
+    assert any("Nếu xuất phát trễ 30 phút: lỡ 1 nơi" in t for t in rob["reasons"])
 
 
 def test_a_day_with_no_slack_is_fragile():
@@ -39,7 +39,7 @@ def test_the_buffer_absorbs_a_delay_before_the_way_back():
 
 def test_a_rough_matrix_never_makes_a_plan_solid():
     rob = level(1260, source="rough")
-    assert rob["level"] == "feasible" and any("ước lượng thô" in t for t in rob["reasons"])
+    assert rob["level"] == "feasible" and any("ước tính theo khoảng cách" in t for t in rob["reasons"])
 
 
 def test_exposed_places_on_a_rainy_day_are_lost_in_the_rain_scenario():
@@ -53,7 +53,7 @@ def test_without_a_forecast_the_rain_scenario_is_skipped_and_said_so():
     cx = day_ctx([rec("a", 1, 1, features={"weather_exposed": "present"})])
     rob = robustness([cx], [order_day(["a"], cx)], "osrm")
     assert rob["skipped"] == ["rain"] and "rain" not in [s["id"] for s in rob["scenarios"]]
-    assert any("Chưa biết thời tiết" in t for t in rob["reasons"])
+    assert any("Chưa có dự báo thời tiết" in t for t in rob["reasons"])
 
 
 def test_an_empty_day_loses_nothing_and_the_answer_does_not_change_between_runs():

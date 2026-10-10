@@ -1,4 +1,4 @@
-"""Notifications in Postgres + web push (docs/COMPANION.md §Thông báo). The worker (`python -m notify run`) plans
+"""Notifications in Postgres + web push (docs/P5_COMPANION.md §Thông báo). The worker (`python -m notify run`) plans
 the notes of every confirmed trip, checks the forecast during trips and sends what is due; the harness uses the
 same class for the inbox, preferences and push subscriptions. Every note sent also stays in the inbox."""
 
@@ -7,13 +7,13 @@ import os
 import random
 import sys
 import time as clock
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 from psycopg.types.json import Jsonb
 
 from . import plan as P
 
-FOREVER = datetime(9999, 1, 1, tzinfo=timezone.utc)
+FOREVER = datetime(9999, 1, 1, tzinfo=UTC)
 
 
 class Gone(Exception):
@@ -39,7 +39,7 @@ class Notify:
         self.pool, self.cfg, self.push = pool, cfg or P.load_settings(), push
         self.records = records if isinstance(records, dict) else {r["id"]: r for r in records}
         self.weather = weather
-        self._now = now or (lambda: datetime.now(timezone.utc))
+        self._now = now or (lambda: datetime.now(UTC))
         self._last_weather: datetime | None = None
         self.rng = random.Random()
 

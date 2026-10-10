@@ -1,4 +1,4 @@
-"""Fallback when the agent fails (docs/PLANNING.md §Guardrail: "Agent lỗi, timeout hoặc JSON hỏng ->
+"""Fallback when the agent fails (docs/P4_PLANNING.md §Guardrail: "Agent lỗi, timeout hoặc JSON hỏng ->
 policy.py từ khóa làm lượt đó"). Mirrors src/decision/policy.py in shape, not in import."""
 
 from trip import contains

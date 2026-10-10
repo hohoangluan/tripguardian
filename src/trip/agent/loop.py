@@ -1,17 +1,11 @@
-"""The Trip agent loop: the model calls tools until it asks the user, finishes, or runs out of steps."""
+"""The Trip agent loop, as a LangGraph StateGraph: the model calls tools until it asks the user, finishes, or runs out of steps."""
 
-import asyncio
 import json
-import uuid
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, TypedDict
 
-import openai
-from agents import AgentError
+from langgraph.graph import END, START, StateGraph
 
-from corpus.llm import AGENT
-
-from ..infrastructure.settings import Settings
 from .tools import TurnTools
 
 
@@ -29,106 +23,95 @@ class Assistant:
 
 
 Chat = Callable[[list[dict], list[dict], Callable[[str], None]], Awaitable[Assistant]]
-THOUGHT_OPEN, THOUGHT_CLOSE = "<|channel>", "<channel|>"
 
 
-class Visible:
-    """Streamed text minus the reasoning blocks some models (Gemma) write into the content:
-    "<|channel>thought ...<channel|>", in front of the reply or after it. A block is held back until it closes, then
-    dropped; text that only might be the start of a marker waits for the next delta."""
+class LoopState(TypedDict):
+    """One turn's loop. `messages` stays the caller's own list: the engine reads the tool-call transcript from it."""
 
-    def __init__(self):
-        self.buf, self.thought = "", False
-
-    def feed(self, delta: str) -> str:
-        self.buf += delta
-        out = ""
-        while True:
-            if self.thought:
-                i = self.buf.find(THOUGHT_CLOSE)
-                if i < 0:
-                    return out
-                self.buf, self.thought = self.buf[i + len(THOUGHT_CLOSE):].lstrip(), False
-                continue
-            i = self.buf.find(THOUGHT_OPEN)
-            if i >= 0:
-                out += self.buf[:i]
-                self.buf, self.thought = self.buf[i + len(THOUGHT_OPEN):], True
-                continue
-            keep = next((k for k in range(min(len(self.buf), len(THOUGHT_OPEN) - 1), 0, -1)
-                         if THOUGHT_OPEN.startswith(self.buf[-k:])), 0)  # a marker may be cut between deltas
-            out += self.buf[:len(self.buf) - keep]
-            self.buf = self.buf[len(self.buf) - keep:]
-            return out.replace(THOUGHT_CLOSE, "")
-
-    def end(self) -> str:
-        """Held text when the stream ends: a partial marker is text after all; an unclosed thought is dropped."""
-        out, self.buf = ("" if self.thought else self.buf), ""
-        return out
-
-
-def openai_chat(cfg: Settings) -> Chat:
-    """One streamed chat-completions call with native function calling, on the Agent role's endpoint."""
-    async def chat(messages: list[dict], tools: list[dict], on_say: Callable[[str], None]) -> Assistant:
-        client, model = AGENT.client()
-        out, parts, visible = Assistant(), {}, Visible()
-
-        def show(text: str) -> None:
-            if text:
-                out.content += text
-                on_say(text)
-        try:
-            async with asyncio.timeout(cfg.total_s):
-                stream = await client.chat.completions.create(
-                    model=model, messages=messages, tools=tools, tool_choice="auto", temperature=0.2,
-                    max_tokens=cfg.max_tokens, stream=True)
-                async for chunk in stream:
-                    if not chunk.choices:
-                        continue
-                    delta = chunk.choices[0].delta
-                    if delta.content:
-                        show(visible.feed(delta.content))
-                    for t in delta.tool_calls or ():
-                        p = parts.setdefault(t.index, Call(t.id or f"call_{uuid.uuid4().hex[:8]}", "", ""))
-                        if t.function and t.function.name:
-                            p.name += t.function.name
-                        if t.function and t.function.arguments:
-                            p.arguments += t.function.arguments
-                show(visible.end())
-        except (openai.OpenAIError, TimeoutError) as e:
-            raise AgentError(f"agent call failed: {type(e).__name__}: {str(e)[:200]}") from e
-        finally:
-            await client.close()
-        out.calls = [parts[i] for i in sorted(parts)]
-        return out
-    return chat
+    chat: Chat
+    messages: list[dict]
+    tools: TurnTools
+    on_say: Callable[[str], None]
+    max_steps: int
+    steps: int
+    reply: Assistant | None
 
 
 def _wire(call: Call) -> dict:
     return {"id": call.id, "type": "function", "function": {"name": call.name, "arguments": call.arguments or "{}"}}
 
 
+async def model_step(state: LoopState) -> dict:
+    """One model call and Clef's checks on what it just said, sent together. A plain answer ends the loop: the engine
+    then opens a free-text card, or the question the text ends on becomes one."""
+    reply = await state["chat"](state["messages"], state["tools"].specs(), state["on_say"])
+    state["tools"].prefetch(reply.calls, reply.content)  # Clef's checks on this reply, all sent at once
+    if not reply.calls:  # a plain answer: nothing to wait on, the engine opens a free-text card
+        return {"steps": state["steps"] + 1, "reply": reply}
+    state["messages"].append({"role": "assistant", "content": reply.content or None,
+                              "tool_calls": [_wire(c) for c in reply.calls]})
+    return {"steps": state["steps"] + 1, "reply": reply}
+
+
+def tool_step(state: LoopState) -> dict:
+    """Each tool call of this reply, in order, its result written back for the next model call. Sequential on purpose:
+    a stopping tool ends the turn, so the calls after it in the same reply must never run."""
+    tools = state["tools"]
+    for call in state["reply"].calls:
+        try:
+            args = json.loads(call.arguments or "{}")
+            if not isinstance(args, dict):
+                raise ValueError
+            result = tools.run(call.name, args)
+        except ValueError:
+            result = {"error": "arguments are not a JSON object"}
+        state["messages"].append({"role": "tool", "tool_call_id": call.id,
+                                  "content": json.dumps(result, ensure_ascii=False)})
+        if tools.stopped:
+            break
+    return {}
+
+
+def budget_step(state: LoopState) -> dict:
+    """The iteration guard: the steps this turn has spent are counted here, not by the model."""
+    if state["steps"] >= state["max_steps"]:
+        state["tools"].log.append("step_cap")
+    return {}
+
+
+def _route_budget(state: LoopState) -> str:
+    return END if state["steps"] >= state["max_steps"] else "model_step"
+
+
+def _route_model(state: LoopState) -> str:
+    return "tool_step" if state["reply"] and state["reply"].calls else END
+
+
+def _route_tools(state: LoopState) -> str:
+    # a stopping tool opens a question the user must answer; an unmapped wish gets the engine's fixed reply
+    return "budget_step" if not (state["tools"].stopped or state["tools"].unmapped) else END
+
+
+def _build() -> StateGraph:
+    graph = StateGraph(LoopState)
+    graph.add_node("budget_step", budget_step)
+    graph.add_node("model_step", model_step)
+    graph.add_node("tool_step", tool_step)
+    graph.add_edge(START, "budget_step")
+    graph.add_conditional_edges("budget_step", _route_budget)
+    graph.add_conditional_edges("model_step", _route_model)
+    graph.add_conditional_edges("tool_step", _route_tools)
+    return graph.compile(name="trip-agent-loop")
+
+
+# Built once: the graph is stateless, every turn passes its own LoopState to ainvoke.
+_LOOP = _build()
+
+
 async def run_loop(chat: Chat, messages: list[dict], tools: TurnTools, on_say: Callable[[str], None],
                    max_steps: int) -> None:
     """Runs until a stopping tool succeeds, a wish ends up unmapped, the model answers in plain text, or max_steps calls are spent.
     The result is in `tools` (state, card, outcome, log). An AgentError keeps whatever facts were already written."""
-    for _ in range(max_steps):
-        reply = await chat(messages, tools.specs(), on_say)
-        tools.prefetch(reply.calls, reply.content)  # Clef's checks on this reply, all sent at once
-        if not reply.calls:  # a plain answer: nothing to wait on, the engine opens a free-text card
-            return
-        messages.append({"role": "assistant", "content": reply.content or None, "tool_calls": [_wire(c) for c in reply.calls]})
-        for call in reply.calls:
-            try:
-                args = json.loads(call.arguments or "{}")
-                if not isinstance(args, dict):
-                    raise ValueError
-                result = tools.run(call.name, args)
-            except ValueError:
-                result = {"error": "arguments are not a JSON object"}
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(result, ensure_ascii=False)})
-            if tools.stopped:
-                return
-        if tools.unmapped:  # a wish no search feature expresses: the engine answers with a fixed reply, no more model calls
-            return
-    tools.log.append("step_cap")
+    await _LOOP.ainvoke({"chat": chat, "messages": messages, "tools": tools, "on_say": on_say,
+                         "max_steps": max_steps, "steps": 0, "reply": None},
+                        {"recursion_limit": 3 * max_steps + 10})

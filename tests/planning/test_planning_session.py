@@ -2,7 +2,7 @@ import pytest
 from plan_fixtures import CFG, decision, rec
 
 from planning.places import build_places
-from planning.session import ActCtx, ActionError, Session, State, Store, apply_act
+from planning.session import ActCtx, ActionError, State, Store, apply_act
 
 
 def place_map(*recs):

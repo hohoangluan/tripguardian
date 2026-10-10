@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 @dataclass(frozen=True)
 class PatternSettings:
-    """Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17). Off until a user id and consent are given."""
+    """Long-term pattern learning (docs/P2_TRIP_UNDERSTANDING.md §17). Off until a user id and consent are given."""
     enabled: bool = False
     min_sessions: int = 3     # sessions that must make the same choice before it counts as a pattern
     window: int = 8           # only the latest votes on a key are read

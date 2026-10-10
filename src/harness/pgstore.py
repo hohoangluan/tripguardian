@@ -1,12 +1,12 @@
 """Journeys in Postgres (table journeys): same interface as the file Store, with a revision guard on every write."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from psycopg.types.json import Jsonb
 
-from .contracts import Conflict, Journey
+from .contracts import Conflict, Journey, Missing
 from .session import Store
 
 
@@ -26,7 +26,7 @@ class PgStore(Store):
                 with self.pool.connection() as conn:
                     row = conn.execute("SELECT envelope, revision FROM journeys WHERE id = %s", (jid,)).fetchone()
                 if not row:
-                    raise KeyError(jid)
+                    raise Missing(jid)
                 session = Journey.model_validate(row["envelope"])
                 if session.id != jid:
                     raise ValueError("journey row ID mismatch")
@@ -96,7 +96,7 @@ def import_files(pool, sessions: Path, feedback: Path | None) -> tuple[int, int]
     with pool.connection() as conn:
         for path in sorted(sessions.glob("*.json")):
             session = Journey.model_validate_json(path.read_text(encoding="utf-8"))
-            when = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+            when = datetime.fromtimestamp(path.stat().st_mtime, UTC)
             journeys += conn.execute(
                 "INSERT INTO journeys (id, user_id, stage, revision, envelope, updated_at, created_at) "
                 "VALUES (%s, NULL, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",

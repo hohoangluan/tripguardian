@@ -46,12 +46,19 @@ def walk_minutes(distance_km: float, cfg: Settings) -> int:
     return max(1, math.ceil(distance_km * cfg.road_factor / cfg.walk_kmh * 60))
 
 
-def build_travel(nodes: dict, mobility: str | None, cfg: Settings, live_cfg, matrix_fn) -> Travel:
-    """nodes: id -> (lat, lng). matrix_fn(points, mode, live_cfg) is live.travel_matrix."""
+def build_travel(nodes: dict, mobility: str | None, cfg: Settings, live_cfg, matrix_fn,
+                 arrive_extra: dict | None = None) -> Travel:
+    """nodes: id -> (lat, lng). matrix_fn(points, mode, live_cfg) is live.travel_matrix. arrive_extra: node id -> minutes
+    it costs to arrive there by vehicle (parking); a walked leg never pays it. A trip with no vehicle ("walk") walks
+    every leg: source "walk", the matrix is not asked."""
     ids = list(nodes)
     points = [nodes[i] for i in ids]
+    arrive_extra = arrive_extra or {}
     source, fetched_at, minutes = "rough", None, None
-    if len(points) >= 2:
+    walk_km = cfg.car_walk_km if mobility == "car" else cfg.walk_km
+    if mobility == "walk":
+        source = "walk"
+    elif len(points) >= 2:
         try:
             m = matrix_fn(points, mobility, live_cfg)
             source, fetched_at, minutes = m["source"], m["fetched_at"], m["minutes"]
@@ -65,12 +72,12 @@ def build_travel(nodes: dict, mobility: str | None, cfg: Settings, live_cfg, mat
             d = km(a, b)
             if i == j:
                 row.append((0, "none"))
-            elif d < cfg.walk_km:
+            elif mobility == "walk" or d < walk_km:
                 row.append((walk_minutes(d, cfg), "walk"))
             elif minutes is not None and minutes[i][j] is not None:
-                row.append((minutes[i][j], mobility or "motorbike"))
+                row.append((minutes[i][j] + arrive_extra.get(ids[j], 0), mobility or "motorbike"))
             else:
-                row.append((rough_minutes(d, mobility, cfg), mobility or "motorbike"))
+                row.append((rough_minutes(d, mobility, cfg) + arrive_extra.get(ids[j], 0), mobility or "motorbike"))
                 rough_pairs += 1 if minutes is not None else 0
         legs.append(row)
     return Travel(ids, legs, source, fetched_at, rough_pairs)

@@ -133,13 +133,40 @@ def notifications(pool, params: dict) -> dict:
             "off_or_pause_per_1000": round(offs * 1000 / sent, 1) if sent else None}
 
 
+def _decision_fallback(conn, params: dict) -> dict:
+    """Typed chat turns of the Decision sessions of journeys in range, read from their own log: how many the agent
+    answered and why the others fell back to keywords ("agent_fallback: first token too slow" -> "first token too
+    slow"; an API error keeps only its type)."""
+    ids = list(_journeys(conn, params))
+    logs = _rows(conn, "SELECT l->'action'->'log' AS log FROM journeys j, "
+                       "jsonb_array_elements(coalesce(j.envelope->'snapshots'->'decision'->'log', '[]')) l "
+                       "WHERE j.id = ANY(%s) AND l->'action'->>'type' = 'turn'", (ids,))
+    reasons: dict[str, int] = {}
+    heuristic = 0
+    for r in logs:
+        lines = [x for x in (r["log"] or []) if isinstance(x, str)]
+        if any(x.startswith("heuristic:") for x in lines):
+            heuristic += 1
+        fell = next((x for x in lines if x.startswith("agent_fallback")), None)
+        if fell:
+            why = fell.split(":", 1)[1].strip().split(":", 1)[0] or "?"
+            reasons[why] = reasons.get(why, 0) + 1
+    asked = len(logs) - heuristic  # an exact command never asks the agent
+    fallback = sum(reasons.values())
+    return {"turns": len(logs), "asked_agent": asked, "fallback": fallback,
+            "rate": round(fallback / asked, 3) if asked else None,
+            "reasons": dict(sorted(reasons.items(), key=lambda x: -x[1]))}
+
+
 def agent(pool, params: dict) -> dict:
     """Per kind of model-backed request: count, latency, time to the first streamed event, fallback and errors.
-    Per-call numbers of each model role are not recorded yet; these are the journey requests that use them."""
+    Per-call numbers of each model role are not recorded yet; these are the journey requests that use them.
+    `decision_fallback`: the Decision chat's agent fallback rate and reasons from the session logs."""
     start, end = _range(params)
     with pool.connection() as conn:
         rows = _rows(conn, "SELECT name, props FROM events WHERE name IN ('trip.turn', 'decision.turn', 'planning.recommend') "
                            "AND at >= %s AND at < %s AND NOT props ? 'imported'", (start, end))
+        decision_fallback = _decision_fallback(conn, params)
     out = []
     for name in ("trip.turn", "decision.turn", "planning.recommend"):
         mine = [r["props"] for r in rows if r["name"] == name]
@@ -153,7 +180,7 @@ def agent(pool, params: dict) -> dict:
                     "first_event_p50_ms": _pct(first, 0.5),
                     "fallback_rate": round(sum(1 for p in mine if p.get("path") == "fallback") / len(mine), 3) if mine else None,
                     "heuristic": sum(1 for p in mine if str(p.get("path", "")).startswith("heuristic")), "errors": errors})
-    return {"requests": out}
+    return {"requests": out, "decision_fallback": decision_fallback}
 
 
 def quality(pool, params: dict) -> dict:

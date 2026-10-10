@@ -114,3 +114,16 @@ def test_lodging_seen_lists_every_cached_card_once_with_its_provenance(cfg, sear
     assert sorted(c["id"] for c in seen) == ["h0", "h1"]
     assert all(c["source"] == "gmaps" and c["fetched_at"] for c in seen)
     assert len(search) == 2  # reading what was seen never searches
+
+
+def test_a_dead_maps_falls_back_to_cards_an_earlier_search_saw_near_the_centre(cfg, search, monkeypatch):
+    maps.lodging_near((11.94, 108.45), 3.0, None, None, None, cfg)      # earlier trip: caches h0, h1 (and gmaps source)
+
+    async def down(ctx, query, limit, at):
+        raise LoginRequired("gmaps")
+
+    monkeypatch.setattr(maps, "maps_search", down)
+    out = maps.lodging_near((11.95, 108.45), 3.0, None, None, None, cfg)      # another centre: a cache miss, Maps down
+    assert {c["id"] for c in out} == {"h0", "h1"} and out[0]["source"] == "gmaps" and out[0]["fetched_at"]
+    with pytest.raises(Unavailable):      # nothing seen inside this radius: still unavailable, never invented
+        maps.lodging_near((12.5, 108.45), 3.0, None, None, None, cfg)

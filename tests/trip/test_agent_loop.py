@@ -44,6 +44,20 @@ def test_the_loop_is_bounded(catalog):
     assert chat.calls == 3 and "step_cap" in tools.log and tools.card is None
 
 
+def test_no_steps_means_no_model_call(catalog):
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày")))
+    tools, _, _ = run(chat, catalog, max_steps=0)
+    assert chat.calls == 0 and "step_cap" in tools.log and tools.card is None
+
+
+def test_the_loop_writes_the_tool_calls_into_the_callers_own_message_list(catalog):
+    # the engine reads the messages the loop built to show the turn's tool calls; a state copy would break it
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Đi bằng gì?", "Xe máy", "Ô tô")))
+    tools, messages, _ = run(chat, catalog)
+    assert messages is not None and [m["role"] for m in messages] == ["user", "assistant", "tool", "tool"]
+    assert messages[1]["tool_calls"][0]["function"]["name"] in ("record_fact", "ask_choice")
+
+
 def test_malformed_arguments_are_an_error_result_not_a_crash(catalog):
     from trip.agent import Assistant, Call
     bad = Assistant(calls=[Call("c1", "record_fact", "{not json")])
@@ -65,14 +79,32 @@ def test_an_unmapped_wish_ends_the_loop_without_another_model_call(catalog):
     assert chat.calls == 1 and tools.unmapped == ["chó"] and tools.card is None
 
 
-def test_a_reasoning_block_in_front_of_the_reply_is_never_shown():
-    from trip.agent.loop import Visible
-    v = Visible()
-    shown = "".join(v.feed(d) for d in ["<|chan", "nel>thought\n", "kế hoạch<chan", "nel|>Mình ", "hiểu rồi."]) + v.end()
-    assert shown == "Mình hiểu rồi."
-    v = Visible()
-    assert "".join(v.feed(d) for d in ["<", "b>Chào"]) + v.end() == "<b>Chào"  # text that only starts like the marker
-    v = Visible()
-    assert v.feed("<|channel>thought only") + v.end() == ""
-    v = Visible()  # Gemma also writes an empty block after its text
-    assert "".join(v.feed(d) for d in ["Bạn đi mấy ngày?\n\n<|cha", "nnel>thought\n<channel|>"]) + v.end() == "Bạn đi mấy ngày?\n\n"
+def test_a_reasoning_block_in_the_reply_is_never_shown():
+    from trip.agent import strip_thought
+    assert strip_thought("<|channel>thought\nkế hoạch<channel|>Mình hiểu rồi.") == "Mình hiểu rồi."
+    assert strip_thought("<b>Chào") == "<b>Chào"  # text that only starts like the marker
+    assert strip_thought("<|channel>thought only") == ""
+    # Gemma also writes an empty block after its text
+    assert strip_thought("Bạn đi mấy ngày?\n\n<|channel>thought\n<channel|>") == "Bạn đi mấy ngày?\n\n"
+
+
+def test_each_model_call_gets_its_own_http_client(catalog, cfg):
+    # langchain lru_caches one httpx client per (base_url, timeout): sharing it across turns dies with
+    # "Event loop is closed" (each turn runs on a fresh asyncio loop). The client owns its httpx client and
+    # closes it after the call. No network: construction only.
+    import httpx
+
+    from trip.agent.client import _build_llm
+    params = {"model": "m", "api_key": "k", "base_url": "http://127.0.0.1:1"}
+    h1, h2 = httpx.AsyncClient(), httpx.AsyncClient()
+    try:
+        a, b = _build_llm(cfg, params, h1), _build_llm(cfg, params, h2)
+        assert a.root_async_client._client is h1
+        assert b.root_async_client._client is h2
+    finally:
+        import asyncio
+
+        async def close():
+            await h1.aclose()
+            await h2.aclose()
+        asyncio.run(close())

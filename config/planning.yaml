@@ -1,13 +1,27 @@
-# Planning & Validation thresholds (docs/PLANNING.md §Cấu hình). Starting values; tune after the pilot.
+# Planning & Validation thresholds (docs/P4_PLANNING.md §Cấu hình). Starting values; tune after the pilot.
 # Live endpoints and TTLs live in config/live.yaml: src/live may not read this file.
 version: 1
 
 # Rough travel, used only when OSRM is down or has no road for a pair. Every number built on it is an estimate.
 road_factor: 1.4            # straight line -> road distance
-rough_speed_kmh: {motorbike: 25, car: 25, ride: 22}
+rough_speed_kmh: {motorbike: 25, car: 25, walk: 4.5}
 walk_km: 0.4                # a leg shorter than this is walked
+car_walk_km: 0.8            # a car parks once and walks an area: legs up to this are walked (docs/P4_PLANNING.md §Phương tiện)
 walk_kmh: 4.5
 
+# Per vehicle (docs/P4_PLANNING.md §Phương tiện). OSRM has one road profile; what differs by vehicle is what it costs to stop.
+park_min: {motorbike: 0, car: 8, walk: 0}   # extra minutes to arrive at each stop reached by that vehicle (find a space, walk to the door)
+park_hard_extra_min: 7             # more for a car at a place whose parking is "hard" (unknown adds nothing)
+
+# Trips that arrive by coach or plane and ride a rented motorbike (docs/P4_PLANNING.md §Thuê xe máy).
+rental:
+  hubs:                            # where the suggestions are measured from, by how the trip arrives
+    bus: {text: "Bến xe Liên tỉnh Đà Lạt", lat: 11.9276, lng: 108.4446}
+    plane: {text: "Sân bay Liên Khương", lat: 11.7502, lng: 108.3672}
+  near_km: 3.0                     # a rental point within this of the hub counts as "near the hub"
+  limit: 5
+  pickup_min: 20                   # day one opens this long after checkin_at: collect the bike
+  return_min: 20                   # the last day closes this long before checkout_at: return it
 # The trip frame when the user did not say.
 default_days: 2
 day_start: "08:00"
@@ -25,12 +39,31 @@ rest_min: {slow: 20, normal: 15, packed: 10}
 max_consecutive_min: {slow: 90, normal: 120, packed: 180}   # active minutes (visit + travel) before a rest is forced
 
 # Meals. A confirmed meal place takes a window; a window nobody takes gets a free block, never an invented place.
+# The free block lists up to meal_options served restaurants open then, within meal_radius_km of the stop before it
+# (or after it): a suggestion to pick from, never added to the plan.
 meals_per_day: 2
 meal_min: 60
 meal_windows: {lunch: ["11:30", "13:30"], dinner: ["18:00", "20:30"]}   # earliest and latest start
+meal_options: 3
+meal_radius_km: 2.0
+
+# Nights. A night that really exists (nights in the Search Input; days - 1 when only days are known) gets a free block
+# after the day ends (day_end) until night_end, offering up to night_options places of night_groups that the corpus
+# knows to be open at least night_min minutes of it, within night_radius_km of the day's last stop: a suggestion to
+# pick from, never added to the plan. No such place -> the night stays empty and says so.
+night_end: "23:30"
+night_min: 60
+night_options: 3
+night_radius_km: 2.0
+night_groups: [cafe, restaurant, dessert, bar, market, amusement]
+
+# A shop-like place whose opening hours are unknown is not planned before this time (no 05:00 coffee on a guess).
+unknown_hours_from: "07:00"
+unknown_hours_groups: [cafe, restaurant, dessert, bar, spa, shop, market, museum, amusement, golf, religious]
 
 # Timed features: where in the day a place that is known for it has to start.
-# anchor sunrise / sunset: minutes from it; anchor clock: absolute times.
+# anchor sunrise / sunset: minutes from it; anchor clock: absolute times. A wished sunrise feature (it gets the user up
+# before the day starts) is met once a trip, at the place with the most evidence for it (docs/P4_PLANNING.md ⓒ).
 pins:
   sunset_view: {anchor: sunset, from_min: -75, to_min: -20}
   cloud_hunting: {anchor: sunrise, from_min: -30, to_min: 60}
@@ -52,7 +85,7 @@ weights: {travel: 1.0, overflow: 3.0, count: 15.0, closed: 1000.0, crowd: 8.0}
 rain_high: 0.6
 buffer_extra_rain: 10
 
-# Day conditions (docs/PLANNING.md §Điều kiện từng ngày): what the date itself changes. Every figure is an estimate to tune
+# Day conditions (docs/P4_PLANNING.md §Điều kiện từng ngày): what the date itself changes. Every figure is an estimate to tune
 # after the pilot. A day with no signal behaves exactly as without this block.
 crowd_busy_pct: 70          # a place's own Google popular-times figure at or above this = busy at that time
 conditions:
@@ -65,7 +98,7 @@ conditions:
   crowd_avoid_factor: 3.0   # the user said they avoid crowds: the day-split crowd cost is multiplied by this
   closure_buffer_min: 10    # extra buffer after a meal place on a day many shops close (Tết)
 
-# Robustness (docs/PLANNING.md ⓕ): fixed perturbations, never random. Each scenario re-runs the order of
+# Robustness (docs/P4_PLANNING.md ⓕ): fixed perturbations, never random. Each scenario re-runs the order of
 # every day and counts the places that no longer fit. tier small = the few small delays a solid plan must absorb.
 robustness:
   scenarios:
@@ -77,7 +110,7 @@ robustness:
   solid_max_lost: 0         # every scenario loses at most this many places -> solid
   feasible_max_lost: 0      # every small scenario loses at most this many -> feasible; otherwise fragile
 
-# Objectives (docs/ARCHITECTURE.md §10): tried in this order when the trip calls for them, at most max_variants.
+# Objectives (docs/P4_PLANNING.md §ⓖ): tried in this order when the trip calls for them, at most max_variants.
 max_variants: 3
 objective_order: [least_travel, weather_robust, preference_fit, low_cost, diverse]
 objective_weights:          # merged over `weights` when the days are split for that objective
@@ -94,23 +127,54 @@ backup_radius_min: 25       # rough minutes from the sensitive place to a replac
 backups_per_place: 2
 
 # Lodging (ⓐ, P5): a candidate competes as the anchor of each day; it never becomes Place Intelligence.
-radius_km: {motorbike: 3.0, car: 5.0, ride: 4.0}
+radius_km: {motorbike: 3.0, car: 5.0, walk: 1.0}
 lodging_k: 6
 lodging_share: 0.3  # share of budget_vnd spent on lodging, over the whole stay
 min_reviews: 5
 split_min: 20       # minutes of real travel diameter beyond which the search area splits into two centres
 stay_min: 50        # served `stay` records in the search area needed to rank from the corpus; fewer -> Maps live
 lodging_pool: 18    # served stays (best taste fit first) the travel matrix is built for, before the final rank
-lodging_weights: {pref: 2.0, loc: 0.8, price: 0.5, rating: 0.3}  # taste outweighs location (docs/PLANNING.md ⓐ)
+lodging_weights: {pref: 2.0, loc: 0.8, price: 0.5, rating: 0.3}  # taste outweighs location (docs/P4_PLANNING.md ⓐ)
 loc_ref_min: 30     # mean minutes to the chosen places at which a lodging's location adds nothing
 
-# Sessions (P6, docs/PLANNING.md §Vòng người dùng sửa và góp ý).
+# Sessions (P6, docs/P4_PLANNING.md §Vòng người dùng sửa và góp ý).
 history_max: 20              # versions kept for undo / redo
 repair_diff_weight: 5.0      # repair_day's penalty per stop whose relative order changes from the version before it
 decision_url: http://127.0.0.1:8767   # Place Decision's HTTP API, to resolve a decision_session_id at session create
 
-# Agent turn (P7, docs/PLANNING.md §Vòng người dùng sửa và góp ý). Same shape as config/decision.yaml.
+# Agent turn (P7, docs/P4_PLANNING.md §Vòng người dùng sửa và góp ý). Same shape as config/decision.yaml.
 first_token_s: 6.0            # the first streamed token must arrive by this long, or the turn falls back to policy
 total_s: 20.0                 # the whole answer must arrive by this long
 rethink_drops: 4              # dropping this many places in one planning session: a turn's next drop is refused,
                               # the user is told to go back to Place Decision instead (not a chip-level limit)
+
+# Soft visit personalization; unknown activities retain visit_key for legacy records.
+personalization:
+  interest_full: 1.0
+  interest_features: [scenic_view, cloud_hunting, sunset_view, photo_spot, nature, flower_garden, heritage_architecture, cozy_decor, laptop_friendly, long_stay_chill, live_music, adventure_activity, hiking, animals, hands_on_workshop, pick_your_own, cultural_show, tasting_available, costume_rental]
+  activities:
+    cafe: {baseline: typical}
+    restaurant: {baseline: typical}
+    dessert: {baseline: typical}
+    bar: {baseline: typical}
+    market: {baseline: typical}
+    shop: {baseline: typical}
+    museum: {baseline: typical}
+    religious: {baseline: typical}
+    nature: {baseline: typical}
+    garden_farm: {baseline: typical}
+    camping: {baseline: typical}
+    tour: {baseline: typical}
+    other: {baseline: typical}
+    park: {baseline: typical}
+    amusement: {baseline: typical}
+    golf: {baseline: typical}
+    spa: {baseline: typical}
+    viewpoint: {baseline: typical}
+    attraction: {baseline: typical}
+  time_bands: {early_morning: [0, 480], morning: [480, 660], noon: [660, 840], afternoon: [840, 1080], evening: [1080, 1260], night: [1260, 1440]}
+  daily_rhythm:
+    cafe: {morning: 0.1, afternoon: 0.1}
+    bar: {evening: 0.1}
+  time_weight_min: 60
+  wait_cost_per_min: 0.02

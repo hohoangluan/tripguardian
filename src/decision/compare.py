@@ -1,4 +1,4 @@
-"""⑦ Compare two candidates (docs/PLACE_DECISION.md §10): only aspects with evidence on both sides; a side without
+"""⑦ Compare two candidates (docs/P3_PLACE_DECISION.md §10): only aspects with evidence on both sides; a side without
 evidence is "chưa biết", never a loss; the trip-level sacrifice is a rough estimate."""
 
 from corpus.serving import feature

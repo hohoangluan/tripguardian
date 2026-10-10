@@ -51,8 +51,8 @@ def test_lodging_turns_ready_once_the_background_crawl_finishes():
 
 
 def test_a_lower_budget_drops_candidates_but_never_silently_changes_the_chosen_one():
-    # cap = budget * lodging_share / nights (planning.lodging.price_cap); nights = days - 1 = 1 here, so a 5M
-    # budget caps at 1.5M/night -- comfortably over h2's 900k -- before the later set_lodging_budget tightens it.
+    # cap = budget x people x days x lodging_share / nights (planning.lodging.price_cap): 5M a person a day, 2 people,
+    # 2 days, 1 night caps at 6M/night -- comfortably over h2's 900k -- before the later set_lodging_budget tightens it.
     d, recs = sample_trip(budget=5_000_000)
     e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
@@ -145,7 +145,7 @@ def test_confirm_refuses_an_unvalidated_plan():
     out = e.confirm(sid)
     assert out["chosen"]
     # confirm() re-derives violations from the cached results' items via validate() -- it never trusts a DayResult's
-    # own .violations field (docs/PLANNING.md ⓔ: "validate.py là nơi duy nhất kết luận pass / fail").
+    # own .violations field (docs/P4_PLANNING.md ⓔ: "validate.py là nơi duy nhất kết luận pass / fail").
     # Corrupt a day's first item to start before the day opens, which validate() catches independently of anything
     # simulate() itself noticed.
     pos = e.store.get(sid).position
@@ -309,3 +309,137 @@ def test_preview_builds_variants_without_a_session_and_create_reuses_it():
     assert [v["id"] for v in out["view"]["variants"]] == [v["id"] for v in preview["variants"]]
     e.create(d, None)
     assert built == [1]                                   # a base belongs to one session only
+
+
+def _with_backup():
+    """small_trip plus one backup place next to it, in the Decision Output's backup_pool (not confirmed)."""
+    from plan_fixtures import CENTRE, spot
+    d, recs = small_trip()
+    recs = recs + [spot("k", CENTRE, 3)]
+    d["backup_pool"] = [{"id": "k", "for": "a", "reason": "same_kind"}]
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False, route_fn=fake_route)
+    sid = e.create(d, None)["id"]
+    e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
+    return e, sid
+
+
+def visit_ids(view):
+    return [i["place_id"] for d in view["itinerary"] for i in d["items"] if i["kind"] == "visit"]
+
+
+def test_a_backup_place_added_during_the_trip_is_scheduled_and_the_plan_confirms():
+    e, sid = _with_backup()
+    out = e.act(sid, {"type": "add_from_backup", "place": "k", "day": 0})   # was a KeyError deep in the scheduler
+    assert "k" in visit_ids(out["view"])
+    assert any(i.get("place_id") == "k" for d in e.confirm(sid)["itinerary"] for i in d["items"])
+    assert "k" not in visit_ids(e.act(sid, {"type": "undo"})["view"])        # an earlier version does not have it
+
+
+def test_swapping_in_a_backup_place_replaces_the_old_one():
+    e, sid = _with_backup()
+    ids = visit_ids(e.act(sid, {"type": "swap", "place": "a", "with": "k"})["view"])
+    assert "k" in ids and "a" not in ids
+
+
+def test_set_lodging_takes_the_picked_point_then_our_lists_and_geocodes_last():
+    geocoded = []
+
+    def geocode(text):
+        geocoded.append(text)
+        return None
+
+    d, recs = small_trip()
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False,
+               lodging_lookup=lambda text: {"lat": 11.937, "lng": 108.438, "source": "lodging_list"} if "Palace" in text else None)
+    sid = e.create(d, None)["id"]
+    e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
+    picked = e.act(sid, {"type": "set_lodging", "text": "Nhà bạn", "lat": 11.95, "lng": 108.44})["view"]["state"]
+    assert (picked["lodging_point"]["lat"], picked["lodging_point"]["source"]) == (11.95, "user")
+    named = e.act(sid, {"type": "set_lodging", "text": "Dalat Palace Heritage Hotel"})["view"]["state"]
+    assert named["lodging_point"]["source"] == "lodging_list" and geocoded == []
+    with pytest.raises(ActionError):
+        e.act(sid, {"type": "set_lodging", "text": "chỗ không ai biết"})
+    assert geocoded == ["chỗ không ai biết"]
+    with pytest.raises(ActionError):
+        e.act(sid, {"type": "set_lodging", "text": "x", "lat": "11", "lng": 108.4})
+
+
+def test_errors_the_user_can_see_are_vietnamese():
+    from planning import Tools
+    e, sid = started()
+    tools = Tools(e)
+    tools.engine.lodging_lookup = lambda text: None
+    with pytest.raises(ActionError) as err:
+        tools.apply(sid, "act", {"type": "set_lodging", "text": "Dalat Palace Heritage Hotel"}, lambda *a: None)
+    assert "set_lodging" not in str(err.value) and "chỗ ở" in str(err.value)
+    with pytest.raises(ActionError) as err:
+        tools.apply(sid, "act", {"type": "move_place", "place": "nowhere", "day": 0}, lambda *a: None)
+    assert str(err.value) == "Nơi này không có trong lịch hiện tại."
+
+
+def test_a_free_meal_block_offers_open_restaurants_nearby_without_adding_them():
+    from plan_fixtures import CENTRE, all_days, spot
+    d, recs = small_trip()
+    eat = lambda pid, i, **kw: spot(pid, CENTRE, i, group="restaurant", usable=("meal", "backup"), **kw)
+    recs = recs + [eat("r_near", 4), eat("r_far", 300), eat("r_shut", 5, hours=all_days("17:00", "22:00")),
+                   eat("r_unknown", 6, hours=None)]
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    sid = e.create(d, None)["id"]
+    view = e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})["view"]
+    lunch = next(i for day in view["itinerary"] for i in day["items"] if i["kind"] == "meal_free" and i["name"] == "lunch")
+    assert [o["place_id"] for o in lunch["options"]] == ["r_near"]       # open, near; not shut, far or unknown hours
+    assert "r_near" not in visit_ids(view)
+
+
+def _report_session():
+    from test_planning_build import report_trip
+    d, recs = report_trip()
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False, route_fn=fake_route)
+    sid = e.create(d, None)["id"]
+    e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
+    return e, sid
+
+
+def starts(view):
+    return {i["place_id"]: (d["day"], int(i["start"][:2]) * 60 + int(i["start"][3:]))
+            for d in view["itinerary"] for i in d["items"] if i["kind"] == "visit"}
+
+
+def test_the_user_can_hold_a_stop_to_dawn_over_the_evidence_default_and_undo_it():
+    e, sid = _report_session()
+    view = e.load(sid)["view"]
+    assert view["slots"]["hoang_hon"] == {"options": ["dawn", "sunset", "any"], "current": "sunset"}
+    view = e.act(sid, {"type": "set_slot", "place_id": "hoang_hon", "slot": "dawn"})["view"]
+    at = starts(view)
+    assert 5 * 60 + 30 <= at["hoang_hon"][1] <= 7 * 60 and at["hoang_hon"][0] != at["da_phu"][0]   # one dawn a morning
+    assert view["slots"]["hoang_hon"]["current"] == "dawn" and e.confirm(sid)
+    assert e.act(sid, {"type": "undo"})["view"]["slots"]["hoang_hon"]["current"] == "sunset"
+
+
+def test_a_third_dawn_with_every_morning_taken_is_refused_naming_who_holds_them():
+    from planning import Tools
+    e, sid = _report_session()
+    e.act(sid, {"type": "set_slot", "place_id": "hoang_hon", "slot": "dawn"})
+    tools = Tools(e)
+    before = e.load(sid)["view"]["state"]
+    with pytest.raises(ActionError) as err:
+        tools.apply(sid, "act", {"type": "set_slot", "place_id": "em_trinh", "slot": "dawn"}, lambda *a: None)
+    assert str(err.value).startswith("Không còn buổi sáng sớm nào trống: sáng ngày 2 đã có")
+    with pytest.raises(ActionError) as err:            # a time of day the place is not known for
+        tools.apply(sid, "act", {"type": "set_slot", "place_id": "em_trinh", "slot": "sunset"}, lambda *a: None)
+    assert str(err.value).startswith("Nơi này không xếp được vào buổi đó")
+    assert e.load(sid)["view"]["state"] == before
+
+
+def test_a_session_with_no_valid_variant_says_why_for_each_place():
+    d, recs = sample_trip(days=1, checkout_at="12:00")        # one short day, too little room for eight places
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    view = e.create(d, None)["view"]
+    back = view["back_to_decision"]
+    assert not view["ok"] and back["places"]                  # day_window carries no place_id: the day's places
+    assert back["reasons"] and {r["kind"] for r in back["reasons"]} == {"day_window"}

@@ -1,4 +1,4 @@
--- Accounts, journeys, events, trips, calendar, notifications (docs/ACCOUNTS.md, docs/ANALYTICS.md, docs/COMPANION.md).
+-- Accounts, journeys, events, trips, calendar, notifications (docs/ACCOUNTS.md, docs/ANALYTICS.md, docs/P5_COMPANION.md).
 -- Unqualified names: the runner applies this in the connection's current schema (tests use a throwaway schema).
 
 CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA public;

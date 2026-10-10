@@ -22,6 +22,49 @@ function remember(view: JourneyView) {
 export function acceptsRevision(id: string, revision: number) {
   return Number.isInteger(revision) && revision >= (revisions.get(id) ?? 0)
 }
+// ---- Shared cache of what a stage showed (one mechanism for Tìm hiểu, Chọn nơi and Lịch trình) -------------------
+// Why: a screen mounted again after another tab (Hồ sơ, Đã lưu, ...) paints the last view at once instead of asking again.
+// Key:   `${journeyId}:${stage}`, stage = trip | decision | planning | fits (a new trip is a new journey id, so it never meets an old entry).
+// Value: whatever the stage loader returned (the view plus the revision it was read at), stored by the loader / mutation wrapper.
+// Fresh for CACHE_FRESH_MS; older = shown, then re-read in the background and swapped in only when the revision moved.
+// Invalidated (cacheDrop) when ANY request changes the journey: `execute` drops at its start and again at its end, which
+// covers turn / act (pick_variant, pick / unpick place, ...) / advance / back / confirm / recommend, also a saved request
+// being recovered. The bump of the journey epoch makes a read that began before the edit unable to store its old answer
+// (cachePut with an earlier epoch is ignored). While a request is queued or running the journey has no readable entry.
+// Sign-out or another account: bindCacheAccount clears everything.
+export const CACHE_FRESH_MS = 120_000
+interface Entry { value: unknown; at: number }
+const entries = new Map<string, Entry>()
+const epochs = new Map<string, number>()
+const inflight = new Map<string, number>()
+let boundAccount: string | null | undefined
+// `fits`: Card.fit of places outside the shown window (a read of Chọn nơi that a selection change makes out of date).
+export type CacheKind = Stage | 'fits'
+const cacheKey = (id: string, kind: CacheKind) => `${id}:${kind}`
+export const cacheEpoch = (id: string) => epochs.get(id) ?? 0
+export function cacheGet<T>(id: string, stage: CacheKind): { value: T; fresh: boolean } | undefined {
+  const hit = entries.get(cacheKey(id, stage))
+  if (!hit || (inflight.get(id) ?? 0) > 0) return undefined
+  return { value: hit.value as T, fresh: Date.now() - hit.at < CACHE_FRESH_MS }
+}
+// epoch: the journey epoch when the read began (default: now, for a value the caller just received from a mutation).
+export function cachePut(id: string, stage: CacheKind, value: unknown, epoch = cacheEpoch(id)) {
+  if (epoch !== cacheEpoch(id) || (inflight.get(id) ?? 0) > 0) return
+  entries.set(cacheKey(id, stage), { value, at: Date.now() })
+}
+export function cacheDrop(id: string) {
+  epochs.set(id, cacheEpoch(id) + 1)
+  for (const k of [...entries.keys()]) if (k.startsWith(`${id}:`)) entries.delete(k)
+}
+export function cacheClear() {
+  entries.clear()
+  for (const id of epochs.keys()) epochs.set(id, cacheEpoch(id) + 1)
+}
+// null = signed out. The first call only records who is signed in; a different account (or none) empties the cache.
+export function bindCacheAccount(account: string | null) {
+  if (boundAccount !== undefined && boundAccount !== account) cacheClear()
+  boundAccount = account
+}
 const pending = new Map<string, Request>()
 const key = (id: string) => `tg.journey.pending.${id}`
 function saved(id: string): Request | undefined {
@@ -39,7 +82,8 @@ export const createJourney = (experience: string | null, start_with: string | nu
 export const loadJourney = (id: string, stage?: Stage) => fetch(`${BASE}/${id}${stage ? `?stage=${stage}` : ''}`).then(json<JourneyView>).then(remember)
 export const readJourney = <T>(id: string, path: string) => fetch(`${BASE}/${id}/read/${path}`).then(json<T>)
 function serial<T>(id: string, run: () => Promise<T>): Promise<T> {
-  const next = (queues.get(id) ?? Promise.resolve()).catch(() => {}).then(run)
+  inflight.set(id, (inflight.get(id) ?? 0) + 1)
+  const next = (queues.get(id) ?? Promise.resolve()).catch(() => {}).then(run).finally(() => inflight.set(id, (inflight.get(id) ?? 1) - 1))
   queues.set(id, next)
   return next
 }
@@ -77,9 +121,11 @@ async function post(id: string, req: Request, handlers?: Record<string, ((data: 
   throw new Error('Missing receipt')
 }
 async function execute(id: string, req: Request, h?: Record<string, ((data: any) => void) | undefined>) {
+  cacheDrop(id)
   persist(id, req)
   try { const view = remember(await post(id, req, h)); persist(id); return view }
   catch (e) { if (e instanceof JourneyError && e.status < 500) persist(id); throw e }
+  finally { cacheDrop(id) }
 }
 async function recover(id: string) { const old = saved(id); if (old) await execute(id, old) }
 export const resumeJourney = (id: string) => serial(id, async () => {

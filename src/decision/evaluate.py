@@ -1,4 +1,4 @@
-"""Offline check of Place Decision on the serving records (docs/PLACE_DECISION.md §17).
+"""Offline check of Place Decision on the serving records (docs/P3_PLACE_DECISION.md §17).
 
 python -m decision evaluate  ->  data/decision/eval.json
 
@@ -50,7 +50,7 @@ def search_input(trip: dict, version: int) -> SearchInput:
     return SearchInput.model_validate({
         "ontology_version": version,
         "context": {"start_date": START.isoformat(), "month": None, "days": 2, "base": None, "mobility": "motorbike",
-                    "companions": [], "people": 2, "arrive_at": None, "leave_at": None, "day_end": None,
+                    "companions": [], "people": 2, "checkin_at": None, "checkout_at": None, "day_end": None,
                     "budget_vnd": None, "experience": None},
         "hard_filters": [{"feature": f, "op": "ne", "value": v, "unknown_policy": "exclude"}
                          for f, v in trip["hard"].items()],

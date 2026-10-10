@@ -5,6 +5,7 @@ clicks): every card is read as Maps shows it by default, and a price over price_
 """
 
 import asyncio
+import math
 
 from corpus.crawl import maps_search, open_sessions
 
@@ -41,16 +42,28 @@ def lodging_near(center: tuple[float, float], radius_km: float, check_in: str | 
     if hit is None:
         try:
             rows, is_lodging = asyncio.run(_fetch(center, cfg.lodging_query_limit))
+            if not is_lodging:
+                raise Unavailable("maps did not switch to its hotel list")
         except Exception as e:  # a dead browser, a login wall, a throttled page: none of these invent a value
-            raise Unavailable(str(e)) from e
-        if not is_lodging:
-            raise Unavailable("maps did not switch to its hotel list")
+            nearby = _seen_near(center, radius_km, price_max, cfg)
+            if nearby:
+                return nearby  # cards an earlier search saw, with their own fetched_at: older, never made up
+            raise e if isinstance(e, Unavailable) else Unavailable(str(e)) from e
         hit = cache_put("lodging", payload, [{"id": r["fid"], "name": r["name"], "lat": r["lat"], "lng": r["lng"],
                                               "rating": r["rating"], "reviews": r["reviews"],
                                               "price_vnd": r["price_vnd"], "amenities": r["amenities"]}
                                              for r in rows if r["lat"] is not None], "gmaps")
     return [{**r, "source": hit["source"], "fetched_at": hit["fetched_at"]} for r in hit["value"]
             if price_max is None or r["price_vnd"] is None or r["price_vnd"] <= price_max]
+
+
+def _seen_near(center: tuple[float, float], radius_km: float, price_max: int | None, cfg: Settings) -> list[dict]:
+    """lodging_seen cards inside the radius (and under price_max when their price is known)."""
+    def km(r: dict) -> float:
+        dy, dx = (r["lat"] - center[0]) * 111.2, (r["lng"] - center[1]) * 111.2 * math.cos(math.radians(center[0]))
+        return math.hypot(dy, dx)
+    return [r for r in lodging_seen(cfg) if r.get("lat") is not None and r.get("lng") is not None
+            and km(r) <= radius_km and (price_max is None or r.get("price_vnd") is None or r["price_vnd"] <= price_max)]
 
 
 def lodging_seen(cfg: Settings) -> list[dict]:

@@ -1,4 +1,4 @@
-"""Field verdicts of one run against its hidden trip, and the per-style summary (docs/plans/BENCH.md §Chấm điểm)."""
+"""Field verdicts of one run against its hidden trip, and the per-style summary (docs/P2_TRIP_UNDERSTANDING.md §16 điểm)."""
 
 from statistics import mean
 

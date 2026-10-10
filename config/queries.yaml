@@ -32,14 +32,14 @@ tiktok:
                         # at 1 until it's confirmed to hold clean again; raise once a session runs block-free.
   place_search_tabs_start: 6  # first run only
   place_search_pause_s: [5, 10]  # wait per search tab
-  queries:  # groups from docs/CORPUS.md §1
+  queries:  # groups from docs/P1_CORPUS.md §1
     general: ["{city} có gì chơi", "review du lịch {city}"]
     category: ["quán cà phê {city}", "quán ăn ngon {city}", "chợ đêm {city}"]
     experience: ["săn mây {city}", "view rừng thông {city}", "vườn hoa {city}"]
     audience: ["{city} đi cùng gia đình", "{city} cho người lớn tuổi", "{city} cặp đôi"]
     constraint: ["{city} ngày mưa", "{city} ít đi bộ"]
     trend: ["{city} mới mở"]
-stay:  # lodging for Planning only (gmaps stay_search -> list/<city>_stay.json, docs/CORPUS.md §Phạm vi): each word in each
+stay:  # lodging for Planning only (gmaps stay_search -> list/<city>_stay.json, docs/P1_CORPUS.md §Phạm vi): each word in each
   # area, "<word> <area> <city>". Maps' hotel list ignores the map view, so the city is split by area names, not tiles.
   queries: [khách sạn, homestay, villa, resort, nhà nghỉ]
   areas: [Phường 1, Phường 2, Phường 3, Phường 4, Phường 5, Phường 6, Phường 7, Phường 8, Phường 9, Phường 10, Phường 11,

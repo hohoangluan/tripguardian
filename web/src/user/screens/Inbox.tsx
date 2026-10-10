@@ -4,7 +4,7 @@ import { loadInbox, openNote, type Note } from '../notify'
 import { ArtCup, Busy, Empty, go } from '../ui/common'
 import { Page, useTitle } from '../ui/Shell'
 
-// Hộp thông báo: every note sent also lands here, push or no push (docs/COMPANION.md §Thông báo).
+// Hộp thông báo: every note sent also lands here, push or no push (docs/P5_COMPANION.md §Thông báo).
 export function Inbox() {
   useTitle('Thông báo')
   const [list, setList] = useState<Note[] | null>(null)

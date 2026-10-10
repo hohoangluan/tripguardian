@@ -1,8 +1,7 @@
-"""entry_point / exit_point: where the user enters and leaves the city (docs/PLANNING.md §Đầu vào)."""
+"""entry_point / exit_point: where the user enters and leaves the city (docs/P4_PLANNING.md §Đầu vào)."""
 
 from datetime import date
 
-import pytest
 
 from trip.domain.compile import compile_search_input
 from trip.domain.state import Base, Evidence, TripState, Update, apply, settle, unknown_fields
@@ -67,8 +66,8 @@ def test_the_understanding_view_shows_what_a_chip_recorded():
 
 
 def test_the_agent_may_write_both_fields_and_is_told_how():
-    from trip.agent.prompt import system_prompt
-    from trip.agent.tools import SPECS
+    from trip.agent import system_prompt
+    from trip.agent import SPECS
 
     allowed = SPECS["record_fact"]["function"]["parameters"]["properties"]["field"]["enum"]
     assert {"entry_point", "exit_point"} <= set(allowed)

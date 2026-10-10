@@ -45,7 +45,7 @@ def si(**over) -> SearchInput:
     """A valid Search Input; keyword args replace top-level keys, context / pace / novelty are merged."""
     base = {"ontology_version": ONT.version,
             "context": {"start_date": MONDAY.isoformat(), "month": None, "days": 2, "base": None,
-                        "mobility": "motorbike", "companions": [], "people": 2, "arrive_at": None, "leave_at": None,
+                        "mobility": "motorbike", "companions": [], "people": 2, "checkin_at": None, "checkout_at": None,
                         "day_end": None, "budget_vnd": None, "experience": None},
             "hard_filters": [], "anchors": [], "soft_weights": [],
             "pace": {"level": "normal", "max_leg_min": None, "crowd_tolerance": None},

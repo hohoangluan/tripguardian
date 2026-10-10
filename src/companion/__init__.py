@@ -1,5 +1,5 @@
 """Public companion API: Đang đi (trip rows, check-in, suggestions) and the confirmed Google Calendar export
-(docs/COMPANION.md)."""
+(docs/P5_COMPANION.md)."""
 
 from .calendar import Calendar, CalendarError, GoogleCalendarApi, NotConnected
 from .service import Companion, load_settings

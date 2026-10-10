@@ -1,4 +1,4 @@
-"""One conversation turn (docs/TRIP_UNDERSTANDING.md §4).
+"""One conversation turn (docs/P2_TRIP_UNDERSTANDING.md §4).
 
 edit / show / theme, a skipped or unsure card and a day picked on a calendar are deterministic. Typing, and choosing an
 option the agent wrote, run the agent loop (agent/loop.py): the agent records facts, then asks a card or just replies.
@@ -6,8 +6,10 @@ option the agent wrote, run the agent loop (agent/loop.py): the agent records fa
 
 import asyncio
 import re
+import sys
 from datetime import date
-from typing import Callable, Literal
+from typing import Literal
+from collections.abc import Callable
 
 from pydantic import ValidationError, model_validator
 
@@ -19,7 +21,7 @@ from ..domain.guard import bad_say, drop_questions
 from ..domain.logistics import pick_transit
 from ..domain.patterns import Summary, seed, seed_profile, votes_from_state
 from ..domain.prepass import Prepass, prepass
-from ..domain.questions import (FIELD_LABEL, OFFER_QID, OTHER_CHIP, QUIZ_FIELD, REVIEW_QID, STAY_CHAT, TO_QUIZ,
+from ..domain.questions import (FIELD_LABEL, OFFER_QID, OTHER_CHIP, QUIZ_FIELD, REVIEW_QID, TO_QUIZ,
                                 apply_chip, find_quiz, is_quiz, pending_fields, strictest,
                                 quiz_queue, review_card)
 from ..domain.readiness import missing
@@ -56,6 +58,7 @@ REVIEW_SAY = "Xong trắc nghiệm rồi, mình tóm tắt hiểu biết ở b�
 BAD_VALUE = "Giá trị này mình chưa đọc được, bạn thử lại nhé."
 EXIT_LABEL = {"skip": "Bỏ qua", "unsure": "Chưa chắc"}  # what the user pressed, as it shows in the chat
 DECLINE_SAY = "Không sao, mình để trống ý này."
+PAUSE_SAY = "Ok, mình để trắc nghiệm ở đây. Bạn cứ kể tiếp, muốn quay lại thì bấm Quay lại trắc nghiệm nhé."
 DATE_SAY = "Mình ghi ngày đi {day}."
 THEME_SAY = "Mình bắt đầu từ chủ đề “{title}”: {what}."
 # after an answer the agent did not see: what the user can do next (no question is forced)
@@ -66,7 +69,7 @@ PAST_DATE = "Ngày này đã qua, bạn chọn ngày khác giúp mình nhé."
 
 
 class TurnInput(Frozen):
-    kind: Literal["text", "answer", "edit", "show", "more", "theme"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"
+    kind: Literal["text", "answer", "edit", "show", "more", "theme", "requiz", "pause"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"; requiz: "Làm lại trắc nghiệm"; pause: "Thoát" giữa quiz về chat
     text: str = ""
     qid: str = ""
     chips: tuple[str, ...] = ()
@@ -225,9 +228,9 @@ class Engine:
         if s.state.meta.phase == "quiz":
             qq = None
             if s.state.meta.other_qid:
-                qq = find_quiz(s.state.meta.other_qid, s.state, self.catalog, self.cfg)
+                qq = find_quiz(s.state.meta.other_qid, s.state, self.catalog, self.cfg, s.state.meta.requiz)
             if qq is None and s.card is not None and is_quiz(s.card.qid):
-                qq = find_quiz(s.card.qid, s.state, self.catalog, self.cfg) or s.card
+                qq = find_quiz(s.card.qid, s.state, self.catalog, self.cfg, s.state.meta.requiz) or s.card
             if qq is not None:
                 return self._quiz_typed(s, qq, text, emit)
         self._run(s, text, emit)
@@ -250,7 +253,7 @@ class Engine:
             self._open_turn(s, "Làm trắc nghiệm", "answer")
             s.state = with_meta(s.state, phase="quiz")
             return self._quiz_next(s, emit)
-        turn = self._open_turn(s, "Kể thêm bằng chat", "answer")
+        self._open_turn(s, "Kể thêm bằng chat", "answer")
         s.state = with_meta(s.state, phase="chat")
         s.card = conversation_card()
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
@@ -364,12 +367,26 @@ class Engine:
                 pass
         return None
 
+    def _start_requiz(self, s: Session, emit: Emit) -> None:
+        """Làm lại trắc nghiệm" core, shared by the requiz turn and the agent's open_quiz tool: answered cards come
+        back so answers can change. Known values stay until picked otherwise (scalars overwrite, lists add); declined
+        cards return too."""
+        s.state = with_meta(s.state, asked=(), declined=(), other_qid=None, other_text=None,
+                            phase="quiz", requiz=True)
+        emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+        return self._quiz_next(s, emit)
+
+    def _requiz(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        turn = self._open_turn(s, "Làm lại trắc nghiệm", "answer")
+        s.state = with_meta(s.state, turn=turn)
+        return self._start_requiz(s, emit)
+
     def _quiz_next(self, s: Session, emit: Emit) -> None:
         """The next quiz card, or the review card when the queue is empty."""
-        queue = quiz_queue(s.state, self.catalog, self.cfg)
+        queue = quiz_queue(s.state, self.catalog, self.cfg, s.state.meta.requiz)
         if not queue:
             turn = s.state.meta.turn
-            s.state = with_meta(s.state, phase="review", other_qid=None, other_text=None)
+            s.state = with_meta(s.state, phase="review", requiz=False, other_qid=None, other_text=None)
             s.card = review_card()
             s.transcript.append({"role": "agent", "text": REVIEW_SAY, "turn": turn, "kind": "say"})
             emit("say", {"replace": REVIEW_SAY})
@@ -388,8 +405,9 @@ class Engine:
         before = st = s.state
         prev = s.card
         # Only the turn that reads the user's own telling of the trip may ask in words; after it every question is a
-        # chip card of the quiz.
-        clarify = may_ask and not s.state.meta.told
+        # chip card of the quiz. Paused (quiz on hold) is the exception: the user chats freely there and the agent
+        # may ask, pointed at what the state still misses (the auto-resume below stays chat-only, so it never yanks back).
+        clarify = may_ask and (not s.state.meta.told or s.state.meta.phase == "paused")
         turn = st.meta.turn + 1
         closed_at = len(s.transcript)
         self._close_card(s)
@@ -403,7 +421,8 @@ class Engine:
             emit("state", {"understanding": understanding(st, self.catalog, self.cfg)})
         compared = compared_places(text, self.catalog)
         heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
-        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, clarify, self.judge)
+        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, clarify, self.judge,
+                          interactive=may_ask)
         tools.transcript = s.transcript  # so tools can check if questions were recently asked
         hints = [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote} for p in pre.proposals]
         hints += [{"ambiguous": q, "may_mean": list(k)} for q, k in pre.ambiguous]
@@ -446,6 +465,8 @@ class Engine:
             asyncio.run(go())
         except AgentError as exc:
             log.append(f"agent_error: {exc}")
+            print(f"[trip] agent_error sid={s.id} turn={turn} phase={s.state.meta.phase}: {exc}",
+                  file=sys.stderr, flush=True)
             failed = True
             if not said:
                 said.append((NOTED_SAY if tools.recorded else BUSY_SAY) if answer else FALLBACK_SAY)
@@ -517,8 +538,14 @@ class Engine:
                 s.state = with_meta(tools.state, other_qid=None, other_text=None,
                                     asked=tools.state.meta.asked + (other,))
                 resumed = True
-            elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg)) is not None:
+            elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg, tools.state.meta.requiz)) is not None:
                 card = qq  # not resolved yet: the chat clarifies, the chips stay available
+        if may_ask and getattr(tools, "opened", False):
+            # The agent explicitly opened the quiz: start, resume, or redo based on the current phase.
+            s.state = tools.state
+            if before.meta.phase in ("quiz", "review"):
+                return self._start_requiz(s, emit)
+            return self._quiz_next(s, emit)
         if not resumed and may_ask and fixed is None and card is None and s.state.meta.phase == "chat" \
                 and s.state.meta.told:
             # the opening telling is read and nothing is left to clarify in words: the rest is chip cards
@@ -654,13 +681,29 @@ class Engine:
 
     def _more(self, s: Session, inp: TurnInput, emit: Emit) -> None:
         """"Hỏi tiếp": the user leaves the agent's own question unanswered and goes on with the chip cards. Nothing is
-        declined: what the question was after is still unknown, so the quiz asks it again in its own card."""
-        if s.state.meta.phase != "chat":  # the quiz or the review is already under way: its card stays
+        declined: what the question was after is still unknown, so the quiz asks it again in its own card. From a
+        paused chat it resumes the quiz where it left off."""
+        if s.state.meta.phase not in ("chat", "paused"):  # the quiz or the review is already under way: its card stays
             emit("card", self._card(s.state, s.card))
             return
         self._close_card(s)
         s.state = with_meta(s.state, told=True)
         self._quiz_next(s, emit)
+
+    def _pause(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        """"Thoát" mid-quiz: back to chatting with the quiz progress kept in asked + values. The open quiz card
+        leaves the screen but `_quiz_next` rebuilds it (asked is untouched); a half-clarified typed answer
+        (`other_qid`) is dropped with it."""
+        if s.state.meta.phase != "quiz":
+            emit("card", self._card(s.state, s.card))
+            return
+        turn = self._open_turn(s, "Tạm nghỉ trắc nghiệm", "answer")
+        s.state = with_meta(s.state, turn=turn, phase="paused", other_qid=None, other_text=None)
+        s.card = conversation_card()
+        s.transcript.append({"role": "agent", "text": PAUSE_SAY, "turn": turn, "kind": "say"})
+        emit("say", {"replace": PAUSE_SAY})
+        emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+        emit("card", self._card(s.state, s.card))
 
     def _show(self, s: Session, inp: TurnInput | None, emit: Emit) -> None:
         # Next is always open: unknown fields ride along as unknowns. An open health / body / diet hint gets the

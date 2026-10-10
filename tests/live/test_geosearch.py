@@ -7,11 +7,15 @@ from live.http import Unavailable
 FEATURES = {"type": "FeatureCollection", "features": [
     {"geometry": {"coordinates": [106.7107, 10.8149]},
      "properties": {"name": "Bến xe Miền Đông", "housenumber": "292", "street": "Đường Đinh Bộ Lĩnh",
-                    "district": "Bình Thạnh", "city": "Thành phố Hồ Chí Minh", "state": "Thành phố Hồ Chí Minh"}},
+                    "district": "Bình Thạnh", "city": "Thành phố Hồ Chí Minh", "state": "Thành phố Hồ Chí Minh",
+                    "countrycode": "VN"}},
     {"geometry": {"coordinates": [106.7107, 10.8149]},  # the same row twice: kept once
      "properties": {"name": "Bến xe Miền Đông", "housenumber": "292", "street": "Đường Đinh Bộ Lĩnh",
-                    "district": "Bình Thạnh", "city": "Thành phố Hồ Chí Minh", "state": "Thành phố Hồ Chí Minh"}},
-    {"geometry": {}, "properties": {"name": "no point"}}]}
+                    "district": "Bình Thạnh", "city": "Thành phố Hồ Chí Minh", "state": "Thành phố Hồ Chí Minh",
+                    "countrycode": "VN"}},
+    {"geometry": {"coordinates": [109.58, 19.52]},  # inside the search box but in China: dropped
+     "properties": {"name": "儋州市", "state": "海南省", "countrycode": "CN"}},
+    {"geometry": {}, "properties": {"name": "no point", "countrycode": "VN"}}]}
 
 
 @pytest.fixture(autouse=True)
@@ -56,3 +60,26 @@ def test_both_down_is_unavailable_never_a_guess(cfg, monkeypatch):
     monkeypatch.setattr(nominatim, "_last_call", 0.0)
     with pytest.raises(Unavailable):
         photon.geosearch("quận 1", cfg)
+
+
+def _feature(name, key, value, district="Ba Đình", city="Hà Nội", lng=105.8, lat=21.0):
+    return {"geometry": {"coordinates": [lng, lat]},
+            "properties": {"name": name, "osm_key": key, "osm_value": value, "district": district, "city": city,
+                           "countrycode": "VN"}}
+
+
+def test_roads_under_construction_plots_and_rail_lines_are_not_places_and_rows_carry_a_kind(cfg, monkeypatch):
+    body = {"features": [
+        _feature("Hà Nội", "place", "city"),
+        _feature("Đường cao tốc Vành đai 3", "highway", "motorway", "Lĩnh Nam"),
+        _feature("Dự án khách sạn", "landuse", "plot"),
+        _feature("Khách sạn và nhà ở kết hợp", "building", "construction"),
+        _feature("Đường sắt đô thị số 1", "railway", "subway"),
+        _feature("Sân bay quốc tế Nội Bài", "aeroway", "aerodrome"),
+        _feature("Hẻm 55/13 Đường 18B", "highway", "service"),
+        _feature("Ana Mandara Villas", "tourism", "resort")]}
+    monkeypatch.setattr(photon, "get_json", lambda url, ua, t: body)
+    rows = photon.geosearch("noi", cfg)
+    assert [(r["text"], r["kind"]) for r in rows] == [
+        ("Hà Nội", "area"), ("Sân bay quốc tế Nội Bài", "transport"), ("Hẻm 55/13 Đường 18B", "street"),
+        ("Ana Mandara Villas", "stay")]

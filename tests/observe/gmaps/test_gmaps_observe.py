@@ -177,7 +177,7 @@ def test_error_without_message_is_logged_and_run_finishes(tmp_path, monkeypatch)
 
     async def timeout_for_a(client, model, city, place, ontology_text, reviews_text, note=""):
         if place["name"] == "Quán A":
-            raise asyncio.TimeoutError()
+            raise TimeoutError()
         return await ok(client, model, city, place, ontology_text, reviews_text, note)
 
     monkeypatch.setattr(extract, "ask_batch", timeout_for_a)

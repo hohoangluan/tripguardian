@@ -15,11 +15,11 @@ import { toggleCmp, toggleSaved, useUi } from '../store'
 import { go, Photo, Trust, Unconfirmed } from './common'
 import { HeartFill, Icon } from './icons'
 
-// docs/Role_Web_Functional_Design.md §6: "Xem chi tiết" of a place. One sheet for the disc, the grid and the shared
+// docs/WEB.md §6: "Xem chi tiết" of a place. One sheet for the disc, the grid and the shared
 // link page (/explore/place/:id). As a modal it lives in the URL (?place=<id>), so the browser's Back closes it.
 
 const SLOTS: [string, string][] = [['early_morning', 'Sớm'], ['morning', 'Sáng'], ['noon', 'Trưa'], ['afternoon', 'Chiều'], ['evening', 'Tối']]
-const TABS = [['overview', 'Tổng quan'], ['photos', 'Hình ảnh'], ['plan', 'Gợi ý lịch trình'], ['reviews', 'Đánh giá']] as const
+const TABS = [['overview', 'Tổng quan'], ['photos', 'Hình ảnh'], ['clips', 'Video'], ['plan', 'Gợi ý lịch trình'], ['reviews', 'Đánh giá']] as const
 type Tab = (typeof TABS)[number][0]
 const HERO = 'tg-hero' // view-transition-name shared by the photo that opened the sheet and the sheet's big photo
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
@@ -204,7 +204,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
   const wd = p.crowd?.weekday
   const wk = p.crowd?.weekend
   const facts: [string, ReactNode][] = [
-    ['Đánh giá', rating ?? <span className="tg-faint">Chưa có</span>],
+    ['Điểm Google', rating ?? <span className="tg-faint">Chưa có</span>],
     ['Giờ mở cửa hôm nay', today ?? <span className="tg-faint">Chưa rõ</span>],
     ['Thời gian tham quan', visit ?? <span className="tg-faint">Chưa có</span>],
   ]
@@ -265,7 +265,8 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
       </header>
 
       <div className="tg-ps__tabs" role="tablist" aria-label="Thông tin về nơi này" ref={tabsRef}>
-        {TABS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => pick(k)}>{l}</button>)}
+        {/* Video only when travellers' clips exist: one tap from anywhere in the sheet */}
+        {TABS.filter(([k]) => k !== 'clips' || p.videos.length > 0).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => pick(k)}>{l}{k === 'clips' && <small className="tg-mono"> {Math.min(6, p.videos.length)}</small>}</button>)}
       </div>
 
       <section className="tg-ps__pane" role="tabpanel">
@@ -274,7 +275,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
             <h3>Tổng quan</h3>
             <div className="tg-ps__ov">
               <dl className="tg-ps__rows">
-                <div><dt>Đánh giá</dt><dd>{rating ?? <span className="tg-faint">Chưa có</span>}</dd></div>
+                <div><dt>Điểm Google</dt><dd>{rating ?? <span className="tg-faint">Chưa có</span>}</dd></div>
                 <div><dt>Giờ mở cửa hôm nay</dt><dd>{today ?? <span className="tg-faint">Chưa rõ</span>}{today && <> <Unconfirmed why="Mới có nguồn Google Maps, chưa có nguồn chính thức. Kiểm tra trước khi đi.">chưa xác nhận</Unconfirmed></>}</dd></div>
                 <div><dt>Thời gian tham quan</dt><dd>{visit ? `≈ ${visit}` : <span className="tg-faint">Chưa có</span>}</dd></div>
                 <div><dt>Giá</dt><dd>{price ? <>{price}{p.price && <span className="tg-faint"> · {p.price.reports} báo cáo</span>}</> : <span className="tg-faint">Chưa có thông tin</span>}</dd></div>
@@ -331,18 +332,19 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
           </>
         )}
 
+        {tab === 'clips' && (
+          <>
+            <h3>Clip của người đã đến</h3>
+            <ul className="tg-ps__clips">{p.videos.slice(0, 6).map((v, k) => <Clip key={v.id} v={v} onOpen={() => setViewing(k)} />)}</ul>
+          </>
+        )}
+
         {tab === 'reviews' && (
           <>
             <h3>Đánh giá</h3>
             {p.rating ? <p className="tg-ps__score"><b>{p.rating.toFixed(1).replace('.', ',')}</b>{p.reviews ? `${p.reviews.toLocaleString('vi-VN')} lượt đánh giá trên Google` : 'trên Google'}</p> : <p className="tg-faint">Chưa có điểm trên Google.</p>}
             {p.quotes.length > 0 && <ul className="tg-ps__rev">{p.quotes.map((q) => <li key={q.text}><q>{q.text}</q><small>{[sourceText(q.source), q.date?.split('-').reverse().join('/')].filter(Boolean).join(' · ')}</small></li>)}</ul>}
-            {p.videos.length > 0 && (
-              <>
-                <h4>Clip của người đã đến</h4>
-                <ul className="tg-ps__clips">{p.videos.slice(0, 6).map((v, k) => <Clip key={v.id} v={v} onOpen={() => setViewing(k)} />)}</ul>
-              </>
-            )}
-            {!p.quotes.length && !p.videos.length && <p className="tg-faint">Chưa có bằng chứng trải nghiệm cho nơi này; chỉ có thông tin cơ bản từ Google.</p>}
+            {!p.quotes.length && <p className="tg-faint">Chưa có trích dẫn đánh giá cho nơi này; chỉ có thông tin cơ bản từ Google.</p>}
             <p className="tg-ps__foot"><button type="button" className="tg-link tg-link--quiet" onClick={() => setReport('form')}><Icon name="flag" size={14} /> Báo thông tin sai</button></p>
           </>
         )}

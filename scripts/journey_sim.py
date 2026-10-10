@@ -472,7 +472,7 @@ def persona_typed_decision(sim, run):
 def persona_vague_family(sim, run):
     """Half-sentences, mixed language, a baby in the group: the safety question has to come from the words alone."""
     c = Client(sim, run)
-    c.turn(kind="answer", qid="frame", chips=["mobility:ride"])
+    c.turn(kind="answer", qid="frame", chips=["mobility:car"])
     typed(c, "chắc đi 2-3 ngày gì đó, không biết nữa, bạn gợi ý đi")
     typed(c, "đi với gia đình, có em bé 1 tuổi nên hơi lo")
     run.final["card_after_baby"] = (c.card or {}).get("qid")
@@ -569,7 +569,6 @@ def judge(sim, run: Run, c: Client, expect: dict):
     crashes = [s for s in run.steps if (s["error"] or "").startswith("CRASH")]
     run.check("no crash", not crashes, "; ".join(f'{s["stage"]}.{s["op"]}: {s["error"]}' for s in crashes[:3]))
     outs = c.view["outputs"]
-    sel = c.result["view"].get("selected") if c.view["stage"] == "decision" else None
     # revisions: every accepted request moves the journey on by exactly one
     run.check("revision moves forward once per accepted request", c.rev == c.accepted + 0, f"revision {c.rev}, accepted {c.accepted}")
     # trip: questions

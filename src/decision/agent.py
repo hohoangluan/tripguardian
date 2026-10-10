@@ -1,10 +1,10 @@
-"""One agent call per typed message on the curation screen (docs/PLACE_DECISION.md §18): prompt from the current view, streamed `say`,
+"""One agent call per typed message on the curation screen (docs/P3_PLACE_DECISION.md §18): prompt from the current view, streamed `say`,
 typed plan. Streaming deadlines and retry are handled by the shared agents runtime."""
 
 import functools
-from typing import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 
-from agents import AgentError, SayStream, run_structured
+from agents import AgentError, SayStream, run_structured  # AgentError, SayStream: re-exported for engine and tests
 
 from corpus.llm import AGENT, DECISION_TURN
 from corpus.ontology import load

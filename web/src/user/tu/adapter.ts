@@ -30,8 +30,8 @@ export function fromSearchInput(si: SearchInput, today = new Date()): Partial<Tr
   if (c.mobility) patch.vehicle = c.mobility
   if (c.companions.length) patch.who = c.companions as Who[]
   if (c.base?.place_id) patch.lodging = c.base.place_id
-  if (c.arrive_at) patch.arriveAt = c.arrive_at
-  if (c.leave_at) patch.leaveAt = c.leave_at
+  if (c.checkin_at) patch.checkinAt = c.checkin_at
+  if (c.checkout_at) patch.checkoutAt = c.checkout_at
   if (si.pace.level) patch.pace = si.pace.level
   return patch
 }

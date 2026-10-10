@@ -4,7 +4,7 @@ free text typed by the user; a failed write is logged and never fails the reques
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from psycopg.types.json import Jsonb
 
@@ -54,14 +54,14 @@ class EventLog:
             print(f"events not written: {type(exc).__name__}: {exc}", file=sys.stderr)
 
     def server(self, name: str, user_id: str | None = None, journey_id: str | None = None, **props) -> None:
-        self._write([(datetime.now(timezone.utc), user_id, journey_id, "server", name,
+        self._write([(datetime.now(UTC), user_id, journey_id, "server", name,
                       Jsonb({k: v for k, v in props.items() if v is not None}), self.app_version)])
 
     def client(self, batch, user_id: str | None) -> int:
         """Keep allowlisted events of a web batch; returns how many were stored. Unknown names and props are dropped."""
         if not isinstance(batch, list) or len(batch) > MAX_BATCH or len(json.dumps(batch)) > MAX_BATCH_BYTES:
             raise ValueError(f"send at most {MAX_BATCH} events / 32 KiB")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rows = []
         for e in batch:
             if not isinstance(e, dict) or e.get("name") not in CLIENT:

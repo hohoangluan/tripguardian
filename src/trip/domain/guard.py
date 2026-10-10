@@ -1,4 +1,4 @@
-"""Evidence checks between the agent and the Trip State (docs/TRIP_UNDERSTANDING.md §4).
+"""Evidence checks between the agent and the Trip State (docs/P2_TRIP_UNDERSTANDING.md §4).
 
 The agent proposes; nothing is written unless the quote is the user's own words and the value parses. A refusal is
 returned as text so the agent can correct itself in the same turn.

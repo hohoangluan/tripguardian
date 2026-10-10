@@ -137,18 +137,51 @@ def render_card(base_url: str, view: dict) -> None:
     chips = card.get("chips", [])
     labels = {chip["label"]: chip["id"] for chip in chips}
     with st.form("trip-answer", clear_on_submit=True):
-        selected = st.multiselect("Choices", list(labels), key=f"chips-{card['qid']}") if chips else []
-        text = st.text_input("Other answer" if chips else "Your answer", key=f"answer-{card['qid']}")
-        submitted = st.form_submit_button("Send")
-    if submitted:
-        if not selected and not text.strip():
+        selected: list[str] = []
+        if chips:
+            if card.get("multi"):
+                selected = st.multiselect("Choices (pick several, then Send)", list(labels),
+                                          key=f"chips-{card['qid']}")
+            else:
+                picked = st.radio("Choices", list(labels), index=None, key=f"chips-{card['qid']}")
+                selected = [picked] if picked else []
+        text = st.text_input("Other answer (typed text wins over picked chips)" if chips else "Your answer",
+                             key=f"answer-{card['qid']}")
+        if card.get("input") == "date":
+            day = st.date_input("Ngày khởi hành", value=None, key=f"day-{card['qid']}")
+        else:
+            day = None
+        cols = st.columns(3)
+        with cols[0]:
+            sent = st.form_submit_button("Send")
+        with cols[1]:
+            skipped = st.form_submit_button("Bỏ qua", disabled=not card.get("exits", True))
+        with cols[2]:
+            unsure = st.form_submit_button("Chưa chắc", disabled=not card.get("exits", True))
+    if sent:
+        if day is not None:
+            try:
+                submit_turn(base_url, {"kind": "answer", "qid": card["qid"], "value": day.isoformat()})
+                st.rerun()
+            except RuntimeError as exc:
+                st.error(str(exc))
+            return
+        if text.strip():
+            turn: dict = {"kind": "answer", "qid": card["qid"], "text": text.strip()}
+        elif selected:
+            turn = {"kind": "answer", "qid": card["qid"], "chips": [labels[label] for label in selected]}
+        else:
             st.warning("Choose an option or enter text.")
             return
-        turn = {"kind": "answer", "qid": card["qid"], "chips": [labels[label] for label in selected]}
-        if text.strip():
-            turn["text"] = text.strip()
         try:
             submit_turn(base_url, turn)
+            st.rerun()
+        except RuntimeError as exc:
+            st.error(str(exc))
+    elif skipped or unsure:
+        try:
+            submit_turn(base_url, {"kind": "answer", "qid": card["qid"],
+                                   "chips": ["skip" if skipped else "unsure"]})
             st.rerun()
         except RuntimeError as exc:
             st.error(str(exc))
@@ -181,7 +214,8 @@ def main() -> None:
         return
 
     view = trip_view(journey)
-    st.caption(f"Journey `{journey['id']}` | revision `{journey['revision']}` | stage `{journey['stage']}`")
+    st.caption(f"Journey `{journey['id']}` | revision `{journey['revision']}` | stage `{journey['stage']}`"
+               f" | phase `{view.get('phase', '?')}` | card `{view.get('card', {}).get('qid', '-')}`")
     left, right = st.columns((3, 2))
     with left:
         transcript = view.get("transcript", [])

@@ -1,4 +1,4 @@
-"""Lodging candidates for the trip (docs/PLANNING.md ⓐ): search area, sieve, rank by taste first, location after.
+"""Lodging candidates for the trip (docs/P4_PLANNING.md ⓐ): search area, sieve, rank by taste first, location after.
 
 Where they come from depends on the data at hand: the served `stay` records (observed reviews, so taste can be
 compared) once at least stay_min of them sit in the search area; otherwise Maps' hotel list crawled live (no
@@ -11,6 +11,7 @@ from datetime import date, timedelta
 
 from corpus.serving import check, feature
 from live import Unavailable
+from trip import nights as nights_of
 
 from .places import Place
 from .settings import Settings
@@ -64,12 +65,25 @@ def search_area(by_place: dict[str, Place], mobility: str | None, cfg: Settings)
     return [centroid(g) for g in (near_a, near_b) if g]
 
 
+PARTY = {"solo": 1, "partner": 2}     # who travels along -> how many people, when `people` is not known
+
+
+def party_size(ctx: dict) -> int | None:
+    """How many people travel: `people`, else what the companions alone say (solo, a partner); None otherwise."""
+    if ctx.get("people"):
+        return int(ctx["people"])
+    who = set(ctx.get("companions") or ())
+    return PARTY[next(iter(who))] if len(who) == 1 and next(iter(who)) in PARTY else None
+
+
 def price_cap(ctx: dict, nights: int, cfg: Settings) -> int | None:
-    """lodging_share of the whole trip's budget, spread over the nights; unknown when the budget is unknown."""
-    budget = ctx.get("budget_vnd")
-    if budget is None or nights <= 0:
+    """The most a night may cost: lodging_share of the whole trip's budget, spread over the nights. budget_vnd is per
+    person per day (Search Input), so the trip's budget is budget_vnd x party size x days; an unknown budget or party
+    size means no cap, never a guessed one."""
+    budget, people = ctx.get("budget_vnd"), party_size(ctx)
+    if budget is None or people is None or nights <= 0:
         return None
-    return round(budget * cfg.lodging_share / nights)
+    return round(budget * people * (ctx.get("days") or nights + 1) * cfg.lodging_share / nights)
 
 
 def _evidence(cand: dict, fid: str, value: str) -> str:
@@ -127,7 +141,7 @@ def stays_in(records: list[dict], centres: list[dict]) -> list[dict]:
 
 def _dates(tc: dict) -> tuple[str | None, str | None]:
     start = tc.get("start_date")
-    check_out = ((date.fromisoformat(start) + timedelta(days=(tc.get("days") or 1) - 1)).isoformat()
+    check_out = ((date.fromisoformat(start) + timedelta(days=nights_of(tc))).isoformat()
                 if start and tc.get("days") else None)
     return start, check_out
 
@@ -152,7 +166,7 @@ def live_cards(centres: list[dict], tc: dict, cap: int | None, lodging_fn, live_
 def pref_fit(c: dict, trip_context: dict, labels: dict | None = None) -> tuple[float, list[dict]]:
     """(fit, why): the trip's soft wishes (love +1, avoid -1) and who travels along (`<who>=suitable`, +1) that the
     lodging's observed reviews confirm (VERIFIED), over the number of wishes. A feature with no evidence adds 0, never
-    a penalty (docs/PLACE_DECISION.md §8). `why` lists the loved ones it has, each with how many reviews said so."""
+    a penalty (docs/P3_PLACE_DECISION.md §8). `why` lists the loved ones it has, each with how many reviews said so."""
     wishes = [(w["feature"], w["value"], 1 if w["weight"] > 0 else -1)
               for w in trip_context.get("soft_weights") or [] if w.get("weight")]
     wishes += [(f, "suitable", 1) for who, f in COMPANION_FEATURE.items()
@@ -185,7 +199,7 @@ def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, lodgin
     centres = search_area(by_place, tc.get("mobility"), cfg)
     if not centres:
         return []
-    nights = max((tc.get("days") or 1) - 1, 0)
+    nights = nights_of(tc)
     cap = price_cap(tc, nights, cfg)
     hard_filters = decision["trip_context"].get("hard_filters") or []
     stays = stays_in(list(records), centres)
@@ -235,7 +249,7 @@ def refresh_prices(shown: list[dict], cards: list[dict], cap: int | None, top: i
 
 def progress_event(cands: list[dict], baseline_travel_min: int | None) -> dict:
     """The one event P6's SSE server relays while lodging crawls in the background
-    (docs/PLANNING.md §Chỗ ở không làm người dùng chờ). baseline_travel_min comes from the caller (the
+    (docs/P4_PLANNING.md §Chỗ ở không làm người dùng chờ). baseline_travel_min comes from the caller (the
     trip already scheduled once without lodging): this module never recomputes it.
     """
     return {"event": "progress", "stage": "lodging_scored",

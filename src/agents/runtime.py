@@ -3,7 +3,8 @@
 import asyncio
 import json
 import re
-from typing import AsyncIterator, Callable, Protocol, TypeVar
+from typing import Protocol, TypeVar
+from collections.abc import AsyncIterator, Callable
 
 from pydantic import BaseModel, ValidationError
 
@@ -68,6 +69,13 @@ def _trim_partial_escape(raw: str) -> str:
     return raw[:-1] if tail % 2 else raw
 
 
+def json_body(text: str) -> str:
+    """The JSON object in a model answer: some providers wrap it in ```json fences or add a line around it even
+    with guided decoding on. Returns the text unchanged when it holds no object."""
+    start, end = text.find("{"), text.rfind("}")
+    return text[start:end + 1] if 0 <= start < end else text
+
+
 LOOP_WS = 32  # guided decoding now and then emits whitespace until max_tokens; this many in a row means it started
 
 
@@ -121,7 +129,7 @@ async def _attempt(fields: dict, on_say: Callable[[str], None], cfg: RuntimeSett
             tail = "".join(buf[-LOOP_WS:])[-LOOP_WS:]
             if len(tail) == LOOP_WS and not tail.strip():
                 raise _Looping("whitespace loop")
-    except asyncio.TimeoutError as e:
+    except TimeoutError as e:
         raise AgentError("first token too slow" if first else "answer too slow") from e
     except AgentError:
         raise
@@ -136,6 +144,6 @@ async def _attempt(fields: dict, on_say: Callable[[str], None], cfg: RuntimeSett
             except Exception:
                 pass
     try:
-        return schema.model_validate_json("".join(buf))
+        return schema.model_validate_json(json_body("".join(buf)))
     except ValidationError as e:
         raise AgentError(f"bad plan: {str(e).splitlines()[0]}") from e

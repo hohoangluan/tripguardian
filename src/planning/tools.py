@@ -9,14 +9,19 @@ from pydantic import BaseModel, ConfigDict
 import live
 from agents import ToolError, load_skill, permit_tool
 from corpus.serving import load as load_records
-from decision import DecisionOutput
+from decision import DecisionOutput, day_visit
 from decision import load_settings as decision_settings
 
 from .conditions import fetch_live
 from .engine import Engine, NoSession, NotConfirmable
 from .logistics import Logistics
-from .session import Session, Store
+from .session import ActionError, Session, Store, user_text
 from .settings import ROOT, load
+
+
+NO_SESSION = "Không tìm thấy lịch trình này. Bạn tải lại trang nhé."
+NOT_CONFIRMABLE = {"no variant chosen": "Bạn chọn một hành trình trước rồi chốt nhé.",
+                   "": "Lịch còn chỗ chưa ổn (giờ mở cửa hoặc thời gian trong ngày). Bạn sửa lại rồi chốt nhé."}
 
 
 class StartInput(BaseModel):
@@ -31,22 +36,34 @@ class Tools:
         self.engine = engine
         self.skill = load_skill(Path(__file__).with_name("skills.yaml"))
         self.logistics = Logistics(engine.records, engine.live_cfg)
+        engine.lodging_lookup = engine.lodging_lookup or self.logistics.resolve   # a typed lodging: our lists first
+        # an added backup place gets the same day visit Place Decision gives a confirmed one (one rule, Decision's)
+        engine.visit_fn = engine.visit_fn or (lambda rec: day_visit(rec, decision_settings()))
 
-    def create(self, payload: dict) -> dict:
+    def create(self, payload: dict, *, namespace: str | None = None) -> dict:
         inp = StartInput.model_validate(payload)
-        return self.engine.create(decision=inp.decision_output.model_dump(mode="json", by_alias=True))
+        return self.engine.create(decision=inp.decision_output.model_dump(mode="json", by_alias=True), namespace=namespace)
 
-    def preview(self, payload: dict) -> dict:
+    def preview(self, payload: dict, *, namespace: str | None = None) -> dict:
         inp = StartInput.model_validate(payload)
-        return self.engine.preview(inp.decision_output.model_dump(mode="json", by_alias=True))
+        return self.engine.preview(inp.decision_output.model_dump(mode="json", by_alias=True), namespace=namespace)
 
     def load(self, sid: str) -> dict:
         try:
             return self.engine.load(sid)
         except NoSession:
-            raise ToolError(404, "no such Planning session") from None
+            raise ToolError(404, NO_SESSION) from None
 
     def apply(self, sid: str, operation: str, payload: dict, emit) -> dict:
+        """Errors the user can see leave here in Vietnamese (session.user_text); the engine keeps its own words."""
+        try:
+            return self._apply(sid, operation, payload)
+        except ActionError as exc:
+            raise ActionError(user_text(str(exc), exc.say)) from None
+        except NoSession:
+            raise ToolError(404, NO_SESSION) from None
+
+    def _apply(self, sid: str, operation: str, payload: dict) -> dict:
         if operation == "act":
             if payload.get("type") == "confirm":
                 raise ValueError("use the journey confirm operation")
@@ -55,7 +72,7 @@ class Tools:
             try:
                 return self.engine.confirm(sid)
             except NotConfirmable as exc:
-                raise ToolError(409, str(exc)) from None
+                raise ToolError(409, NOT_CONFIRMABLE.get(str(exc), NOT_CONFIRMABLE[""])) from None
         if operation == "recommend":
             permit_tool(self.skill, "planning.propose")
             if payload:
@@ -78,6 +95,9 @@ class Tools:
 
     def transit(self, params: dict) -> dict:
         return self.logistics.transit(params)
+
+    def rentals(self, params: dict) -> dict:
+        return self.logistics.rentals(params)
 
     def snapshot(self, sid: str) -> dict:
         with self.engine.store.lock(sid):

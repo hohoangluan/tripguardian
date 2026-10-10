@@ -1,4 +1,4 @@
-"""Serving record of one place (docs/PLACE_DECISION.md §2.2, docs/CORPUS.md §5-6) from its intel file.
+"""Serving record of one place (docs/P3_PLACE_DECISION.md §2.2, docs/P1_CORPUS.md §5-6) from its intel file.
 
 Status per aspect: VERIFIED | UNCERTAIN | OUTDATED are served, NEEDS_REVIEW | DISABLED never appear. A feature is
 VERIFIED only when its value may be served by itself (intel `servable`: authority, label gate, every author checked
@@ -133,7 +133,7 @@ def feature(record: dict, fid: str) -> dict | None:
 
 
 def check(record: dict, fid: str, forbidden: str) -> str:
-    """pass | fail | unknown for the hard filter "fid != forbidden" (docs/PLACE_DECISION.md §6.2), fail-closed:
+    """pass | fail | unknown for the hard filter "fid != forbidden" (docs/P3_PLACE_DECISION.md §6.2), fail-closed:
     pass needs a VERIFIED / OUTDATED value other than `forbidden` that nobody contradicts; fail needs `forbidden`
     VERIFIED / OUTDATED; an UNCERTAIN value, no evidence or any author saying `forbidden` is unknown."""
     f = feature(record, fid)

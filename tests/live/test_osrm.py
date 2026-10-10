@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from live import cache, http, settings
+from live import http, settings
 from live.osrm import client
 
 FIXTURES = Path(__file__).parent / "fixtures"

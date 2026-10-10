@@ -21,3 +21,15 @@ def test_one_real_turn_drops_the_named_place():
     print(f"turn {time.perf_counter() - t0:.1f}s", ascii(events[0]), ascii(s.log[-1]))
     assert not any("agent_fallback" in x for x in s.log[-1]["action"]["log"])
     assert [(d.place_id, d.reason) for d in s.state.dropped] == [("C1", "far")]
+
+
+@pytest.mark.live
+def test_the_chats_own_crowd_example_is_a_crowd_wish():
+    """Bug D-1: "bỏ mấy chỗ đông đi" came back as op travel, value "less crowded"."""
+    cfg = default()
+    e = Engine(data(), cfg, Store(None), lambda f, on_say: run_agent(f, on_say, cfg))
+    sid = e.create(trip())["id"]
+    e.turn(sid, "bỏ mấy chỗ đông đi", lambda ev, d: None)
+    s = e.store.get(sid)
+    assert not any("agent_fallback" in x for x in s.log[-1]["action"]["log"])
+    assert s.state.profile.crowd_tolerance == "avoid" and s.state.profile.hide_crowded

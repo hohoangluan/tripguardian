@@ -1,4 +1,4 @@
-# Hidden Trip States for the offline Place Decision check (src/corpus/serving/evaluate.py, docs/PLACE_DECISION.md §17).
+# Hidden Trip States for the offline Place Decision check (src/corpus/serving/evaluate.py, docs/P3_PLACE_DECISION.md §17).
 # Each trip: hard filters "feature != value" (fail-closed), soft weights by feature id (value present / good / …),
 # the role the shortlist fills, its size. `filters` and `prefs` lists below are crossed to make more trips.
 shortlist: 8
@@ -25,3 +25,21 @@ cross:
     - {cozy_decor: 1.0, drink_quality: 0.5}
     - {local_specialty_food: 1.0}
     - {nature: 1.0, flower_garden: 0.5}
+
+# Test conversations for Trip Understanding (tests/trip/test_eval_conversations.py), from the new-user test of
+# 09/10/2026 (docs/plans/OPEN_TASKS.md Each turn is a typed message. `expect` must hold after the last turn even
+# with the agent down (the keyword rules alone); `expect_live` must also hold with the real Agent (pytest -m live).
+# Fields: Trip State values; budget_ppd = the compiled VND per person per day.
+conversations:
+  - id: couple_budget_correction
+    turns:
+      - "Cuối tháng 10 mình đi Đà Lạt 3 ngày 2 đêm với bạn gái, thuê xe máy. Thích cà phê view đẹp, săn mây, không thích chỗ đông. Ngân sách khoảng 5 triệu cho 2 người."
+      - "5 triệu là tổng cả chuyến cho 2 người nha… Mình cũng rất thích cà phê."
+    expect: {month: 10, month_part: late, days: 3, companions: [partner], mobility: motorbike, budget_vnd: 5000000,
+             budget_scope: trip_total, budget_ppd: 833333, liked_groups: [chill], soft: [cloud_hunting=present:love]}
+    expect_live: {crowd_tolerance: avoid}
+  - id: budget_said_late_without_scope
+    turns:
+      - "Đi Đà Lạt 2 ngày với người yêu, đi ô tô, tháng 12"
+      - "ngân sách tầm 3 triệu"
+    expect: {days: 2, companions: [partner], mobility: car, month: 12, budget_vnd: 3000000, budget_ppd: 750000}

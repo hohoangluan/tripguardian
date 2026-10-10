@@ -57,8 +57,9 @@ def test_policy_keywords_and_names():
     assert policy("Cầu Đất xa quá", ALIASES)[0] == [{"type": "drop", "place_id": "A", "reason": "far"}]
     assert policy("Lan Viên mình đi rồi", ALIASES)[0] == [{"type": "drop", "place_id": "B", "reason": "visited"}]
     assert policy("muốn chỗ ít người hơn", ALIASES)[0] == [{"type": "feedback", "reason": "crowded"}]
-    actions, say = policy("ừm", ALIASES)
-    assert actions == [] and "chưa hiểu" in say
+    assert policy("bỏ mấy chỗ đông đi", ALIASES)[0] == [{"type": "feedback", "reason": "crowded"}]
+    actions, say = policy("ừm", ALIASES)  # the agent failed: say it is busy, never that the user was not understood
+    assert actions == [] and "đang bận" in say and "chưa hiểu" not in say
 
 
 def test_select_needs_the_name_in_the_quote_not_just_the_message():

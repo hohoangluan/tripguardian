@@ -101,6 +101,19 @@ def test_turn_falls_back_to_policy():
     assert e.store.get(sid).state.dropped[0].place_id == "C2"
 
 
+def test_failed_agent_says_busy_not_misunderstood_and_still_reads_crowd_wishes():
+    e = engine(FakeAgent(error=AgentError("first token too slow")))
+    sid = e.create(trip())["id"]
+    events = []
+    e.turn(sid, "ừm để mình xem", lambda ev, d: events.append((ev, d)))
+    assert events[0] == ("say", {"replace": "Trợ lý đang bận, bạn thử lại hoặc bấm trên thẻ nhé."})
+    events = []
+    e.turn(sid, "bỏ mấy chỗ đông đi", lambda ev, d: events.append((ev, d)))  # the chat's own example
+    assert events[0] == ("say", {"replace": "Mình đã ghi nhận, danh sách đã cập nhật."})
+    s = e.store.get(sid)
+    assert s.state.profile.crowd_tolerance == "avoid" and s.log[-1]["action"]["log"][0].startswith("agent_fallback")
+
+
 def test_compare_why_not_confirm():
     e = engine()
     sid = e.create(trip(context={"days": 1}))["id"]
@@ -233,3 +246,16 @@ def test_agent_sees_every_shown_place_but_reasons_only_for_the_first_page():
     lines = agent.calls[0]["places"].splitlines()
     assert len(lines) == 2 * CFG.page_size
     assert sum(1 for x in lines if x.endswith("| ")) == CFG.page_size
+
+
+def test_fits_reads_the_card_fit_of_any_candidate_shown_or_not():
+    recs = [srec(f"C{i:02d}", features={"scenic_view": "present", "steep_or_stairs": "absent"}, lng=108.44 + i / 1000)
+            for i in range(60)]
+    e = Engine(Data(recs), CFG, Store(None), None)
+    out = e.create(trip())
+    shown = {c["id"]: c["fit"] for g in out["view"]["groups"] for c in g["cards"]}
+    below = next(i for i in e._result(e._get(out["id"])).ranked["chill"] if i not in shown)
+    got = e.fits(out["id"], [*list(shown)[:2], below, "NOPE", below])["fits"]
+    assert got[list(shown)[0]] == shown[list(shown)[0]] and got[list(shown)[1]] == shown[list(shown)[1]]
+    assert got[below] is not None and 0 <= got[below]["stars"] <= 5 and got[below]["level"]
+    assert got["NOPE"] is None and list(got) == [*list(shown)[:2], below, "NOPE"]

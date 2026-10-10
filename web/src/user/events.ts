@@ -1,4 +1,4 @@
-// Usage events for Admin analytics (docs/ANALYTICS.md §Client). Batched to POST /api/harness/events; the server keeps
+// Usage events for Admin analytics (docs/ANALYTICS.md §1). Batched to POST /api/harness/events; the server keeps
 // only allowlisted names and props. Never put typed text, names or emails here.
 
 type Name = 'page_view' | 'landing_cta' | 'card_impression' | 'detail_open' | 'evidence_play' | 'compare_open' | 'outbound_click' | 'tab_hidden' | 'today_open' | 'suggestion_open' | 'install_prompt_seen' | 'push_permission'

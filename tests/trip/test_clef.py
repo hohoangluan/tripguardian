@@ -88,7 +88,7 @@ def test_it_reads_the_real_reply_where_answers_are_a_dict_keyed_by_question(clou
 
 
 def test_data_question_lists_every_lookup_tool():
-    from trip.agent.tools import SPECS, STOPPING
+    from trip.agent import SPECS, STOPPING
     from trip.infrastructure.clef import LOOKUPS
     assert set(LOOKUPS) == set(SPECS) - set(STOPPING) - {"record_fact"}
 
@@ -107,6 +107,18 @@ def test_judge_vetoes_only_when_sure_and_never_when_clef_is_down(cloudflare, mon
     assert j.repeats("Bạn đi mấy ngày?", "{}")
     monkeypatch.delenv("CLOUDFLARE_API_TOKEN")
     assert not j.unsupported("x", "y") and j.bad_reply("x") is None and not j.repeats("x", "{}")
+
+
+def test_judge_says_whether_a_typed_answer_is_clear_for_its_field(cloudflare, monkeypatch):
+    j = clef.Judge(Settings())
+    fake(monkeypatch, [answer(clef.CLARITY, "A", 0.9)])
+    assert j.clear_for_field("4 ngày", "số ngày") is True
+    fake(monkeypatch, [answer(clef.CLARITY, "A", 0.5)])
+    assert j.clear_for_field("4 ngày", "số ngày") is False
+    fake(monkeypatch, [answer(clef.CLARITY, "B", 0.9)])
+    assert j.clear_for_field("kiểu gì cũng được", "sở thích") is False
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN")
+    assert j.clear_for_field("4 ngày", "số ngày") is False  # down: the chat resolves it
 
 
 def test_judge_ranks_features_by_probability(cloudflare, monkeypatch):

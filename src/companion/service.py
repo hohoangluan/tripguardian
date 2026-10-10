@@ -1,4 +1,4 @@
-"""Đang đi (docs/COMPANION.md): the Today view of a confirmed trip, voluntary check-ins, skips and 👍 / 👎, what to do
+"""Đang đi (docs/P5_COMPANION.md): the Today view of a confirmed trip, voluntary check-ins, skips and 👍 / 👎, what to do
 here and nearby, and the neutral "rest of the day is tight" options. Never a "missed" state: a stop nobody checked in
 at stays planned, which means unknown."""
 
@@ -70,6 +70,8 @@ class Companion:
             last = conn.execute("SELECT place_id, stop_id, at FROM checkins WHERE trip_id = %s ORDER BY at DESC LIMIT 1",
                                 (trip["id"],)).fetchone()
             cal = conn.execute("SELECT state FROM calendar_sync WHERE trip_id = %s", (trip["id"],)).fetchone()
+            off_plan = conn.execute("SELECT id, place_id, at FROM checkins WHERE trip_id = %s AND stop_id IS NULL "
+                                    "ORDER BY at", (trip["id"],)).fetchall()
         days = plan.get("itinerary") or []
         today = now.date().isoformat()
         current = next((d["day"] for d in days if d.get("date") == today), None)
@@ -79,11 +81,14 @@ class Companion:
             by_day.append({"day": d["day"], "date": d.get("date"), "window": d.get("window"),
                            "stops": [self._stop_view(s) for s in stops if s["day"] == d["day"]]})
         extra = [self._stop_view(s) for s in stops if s["day"] not in {d["day"] for d in days}]
+        extra += [self._off_plan_view(c, days) for c in off_plan]
         status = trip["status"]
         if trip["end_date"] and now.date() > trip["end_date"]:
             status = "done"
+        starts_in = (trip["start_date"] - now.date()).days if trip["start_date"] else None
         return {"trip": {"id": str(trip["id"]), "start_date": trip["start_date"] and trip["start_date"].isoformat(),
-                         "end_date": trip["end_date"] and trip["end_date"].isoformat(), "status": status},
+                         "end_date": trip["end_date"] and trip["end_date"].isoformat(), "status": status,
+                         "starts_in": starts_in if starts_in and starts_in > 0 else 0},
                 "day": shown, "today": current, "days": by_day, "extra": extra,
                 "here": {"place_id": last["place_id"], "stop_id": last["stop_id"] and str(last["stop_id"]),
                          "at": _hm(last["at"])} if last else None,
@@ -98,6 +103,15 @@ class Companion:
                 "arrive": _hm(s["planned_arrive"]), "leave": _hm(s["planned_leave"]), "status": s["status"],
                 "arrived_at": _hm(s["arrived_at"]), "rating": s["rating"], "skip_reason": s["skip_reason"],
                 "added_on_trip": s["added_on_trip"]}
+
+    def _off_plan_view(self, c: dict, days: list[dict]) -> dict:
+        """A check-in at a place outside the plan ("Tôi đang ở nơi khác"), shaped like a stop of the day it happened."""
+        on = c["at"].astimezone(TZ).date().isoformat()
+        rec = self.records.get(c["place_id"]) or {}
+        return {"id": f"checkin:{c['id']}", "day": next((d["day"] for d in days if d.get("date") == on), None),
+                "seq": None, "place_id": c["place_id"], "name": (rec.get("identity") or {}).get("name") or "",
+                "arrive": None, "leave": None, "status": "arrived", "arrived_at": _hm(c["at"]), "rating": None,
+                "skip_reason": None, "added_on_trip": True, "off_plan": True}
 
     def _tight(self, stops: list[dict], plan: dict, now: datetime) -> dict | None:
         """After a late check-in today, with planned stops left that day: how late, and the plan's own ways out."""
@@ -145,9 +159,9 @@ class Companion:
         hard = search_input.get("hard_filters") or []
         mobility = (search_input.get("context") or {}).get("mobility")
         skip = {s["place_id"] for s in stops} | disliked | {s["place_id"] for s in stops if s["skip_reason"] == "dislike"}
-        nxt = next((s for s in stops if s["status"] == "planned" and s["planned_arrive"] and s["planned_arrive"] > now),
-                   None)
-        if nxt and nxt["planned_arrive"].date() == now.date():
+        nxt = next((s for s in stops if s["status"] == "planned" and s["planned_arrive"] and s["planned_arrive"] > now
+                    and s["planned_arrive"].astimezone(TZ).date() == now.date()), None)  # today's next stop only
+        if nxt:
             budget = round((nxt["planned_arrive"] - now).total_seconds() / 60)
         else:
             end = datetime.combine(now.date(), datetime.strptime(self.cfg["day_end"], "%H:%M").time(), TZ)
@@ -181,12 +195,16 @@ class Companion:
             trip = self._trip(conn, journey_id)
             if stop_id:
                 stop = self._stop(conn, trip["id"], stop_id)
+                if stop["planned_arrive"] and stop["planned_arrive"].astimezone(TZ).date() != now.date():
+                    raise ValueError("a stop is checked in on its own day only")
                 place_id = stop["place_id"]
             else:
                 if place_id not in self.records:
                     raise ValueError("unknown place")
-                stop = conn.execute("SELECT * FROM trip_stops WHERE trip_id = %s AND place_id = %s AND status = 'planned' "
-                                    "ORDER BY day, seq LIMIT 1", (trip["id"], place_id)).fetchone()
+                if not self._on_trip(trip, now):
+                    raise ValueError("a check-in is only taken during the trip")
+                stop = next((s for s in self._stops(conn, trip["id"]) if s["place_id"] == place_id and s["status"] == "planned"
+                             and (not s["planned_arrive"] or s["planned_arrive"].astimezone(TZ).date() == now.date())), None)
             if stop:
                 conn.execute("UPDATE trip_stops SET status = 'arrived', arrived_at = %s, skip_reason = NULL WHERE id = %s",
                              (now, stop["id"]))
@@ -196,7 +214,14 @@ class Companion:
                          (trip["id"],))
         return {"place_id": place_id, "stop_id": stop and str(stop["id"]), "on_plan": bool(stop), "at": _hm(now)}
 
+    @staticmethod
+    def _on_trip(trip: dict, now: datetime) -> bool:
+        """False only when the trip has dates and today is outside them; an undated trip cannot be told apart."""
+        start, end = trip["start_date"], trip["end_date"]
+        return not ((start and now.date() < start) or (end and now.date() > end))
+
     def skip(self, journey_id: str, stop_id: str, reason: str | None = None) -> dict:
+        """A skip is something that happened: refused for a stop whose day has not come yet."""
         if reason is not None and reason not in self.cfg["skip_reasons"]:
             raise ValueError("unknown reason")
         with self.pool.connection() as conn:
@@ -204,6 +229,8 @@ class Companion:
             stop = self._stop(conn, trip["id"], stop_id)
             if stop["status"] == "arrived":
                 raise ValueError("this stop is already checked in")
+            if stop["planned_arrive"] and stop["planned_arrive"].astimezone(TZ).date() > self.now().date():
+                raise ValueError("a stop is skipped on or after its own day only")
             conn.execute("UPDATE trip_stops SET status = 'skipped', skip_reason = %s WHERE id = %s", (reason, stop["id"]))
         return {"stop_id": stop_id, "status": "skipped"}
 

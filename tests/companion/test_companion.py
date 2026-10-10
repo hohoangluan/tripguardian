@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 
@@ -147,3 +147,47 @@ def test_quality_counts_hard_filter_fails_and_unknowns_on_planned_places(comp):
     plan = {"itinerary": [{"day": 1, "items": [{"kind": "visit", "place_id": "near_steep"},
                                                {"kind": "visit", "place_id": "near_unknown_effort"}]}]}
     assert comp.quality(plan, si) == {"places": 2, "hard_checks": 2, "hard_fail": 1, "hard_unknown": 1}
+
+
+def test_checkin_and_skip_only_on_the_stops_own_day_and_trip_stays_planned_before_it(comp):
+    day2 = stop(comp, "near_ok")  # 13/11; the clock is 12/11
+    with pytest.raises(ValueError):
+        comp.checkin("j00000000001", stop_id=day2["id"])
+    with pytest.raises(ValueError):
+        comp.skip("j00000000001", day2["id"], "crowded")
+    comp.clock["now"] = datetime(2026, 10, 9, 12, 42, tzinfo=TZ)  # weeks before the trip
+    view = comp.today("j00000000001", PLAN)
+    assert view["trip"]["starts_in"] == 34 and view["today"] is None and view["trip"]["status"] == "planned"
+    with pytest.raises(ValueError):
+        comp.checkin("j00000000001", stop_id=stop(comp, "here")["id"])
+    with pytest.raises(ValueError):
+        comp.checkin("j00000000001", place_id="near_no_hours")
+    view = comp.today("j00000000001", PLAN)
+    assert view["trip"]["status"] == "planned" and view["here"] is None
+    assert all(s["status"] == "planned" for d in view["days"] for s in d["stops"])
+    comp.clock["now"] = NOW
+    assert comp.today("j00000000001", PLAN)["trip"]["starts_in"] == 0
+
+
+def test_off_plan_checkin_is_listed_in_extra_on_its_day_and_survives_reload(comp):
+    out = comp.checkin("j00000000001", place_id="near_no_hours")
+    assert out["on_plan"] is False
+    for _ in range(2):  # a reload reads it back from the rows
+        extra = comp.today("j00000000001", PLAN)["extra"]
+        assert [(e["place_id"], e["day"], e["status"], e["arrived_at"], e["off_plan"]) for e in extra] == \
+            [("near_no_hours", 1, "arrived", "15:00", True)]
+        assert extra[0]["name"] == "NEAR_NO_HOURS"
+
+
+def test_off_plan_checkin_never_marks_another_days_stop(comp):
+    out = comp.checkin("j00000000001", place_id="near_ok")  # planned on day 2, checked in on day 1
+    assert out["on_plan"] is False
+    assert stop(comp, "near_ok")["status"] == "planned"
+
+
+def test_next_stop_is_todays_only(comp):
+    comp.clock["now"] = NOW.replace(hour=18)  # after B (17:30); near_ok is tomorrow
+    comp.checkin("j00000000001", place_id="here")
+    out = comp.suggestions("j00000000001", SEARCH, PLAN, "here", disliked=set())
+    assert out["next"] is None and out["budget_min"] == 180  # until day_end 21:00, not until tomorrow's stop
+    assert out["timely"]["date"] == "2026-11-12"

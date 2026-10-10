@@ -1,6 +1,7 @@
 // Public server for the built web (web/dist): what a Cloudflare tunnel may expose, and nothing else.
 //   public : landing, /app (SPA), /assets, /img, /data (snapshot, covers), /media photos (jpg only),
-//            /media/thumb WebP thumbnails (web/scripts/make_thumbs.py), /media/tiktok/<id>/video.mp4 clips (Range),
+//            /media/thumb WebP thumbnails (web/scripts/make_thumbs.py), /media/tiktok/<id>/video.mp4 clips (Range; the
+//            light copy of web/scripts/make_clips.py when there is one),
 //            /api/harness/* and /api/auth/* (Google sign-in) proxied to the harness on 127.0.0.1:8769 (JSON and SSE).
 //   private: /admin, every other /api/* (review server, module dev APIs), any other video file -> 404.
 // Speed: .br/.gz made by web/scripts/prod_assets.mjs are sent to clients that accept them (the tunnel carries
@@ -26,7 +27,9 @@ const TYPES = {
 }
 const MEDIA_TYPES = new Set(['.jpg', '.jpeg', '.webp', '.png'])
 // Clips a place card plays (corpus tiktok clips): only the mp4 of a video directory, sent in ranges so it can seek.
+// The light copy web/scripts/make_clips.py made (540x960, ~1 Mbit/s) goes out when it exists, else the original.
 const CLIP = /^\/media\/tiktok\/\d+\/video\.mp4$/
+const LIGHT_CLIPS = resolve(import.meta.dirname, '../data/thumbs/tiktok')
 // Data files change only on a deploy: browsers and Cloudflare may reuse them briefly, then revalidate (ETag).
 const DATA_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
 
@@ -111,7 +114,8 @@ createServer((req, res) => {
   if (path.startsWith('/api') || path === '/admin' || path.startsWith('/admin/')) return notFound(res)
   if (req.method !== 'GET' && req.method !== 'HEAD') return notFound(res)
   if (CLIP.test(path)) {
-    const file = inside(MEDIA['/media/tiktok/'], path.slice('/media/tiktok'.length))
+    const rel = path.slice('/media/tiktok'.length)
+    const file = inside(LIGHT_CLIPS, rel) ?? inside(MEDIA['/media/tiktok/'], rel)
     return file ? sendRange(req, res, file) : notFound(res)
   }
   for (const [mount, root] of Object.entries(MEDIA)) {
@@ -120,7 +124,7 @@ createServer((req, res) => {
     return file ? sendFile(req, res, file, 'public, max-age=604800, stale-while-revalidate=86400') : notFound(res)
   }
   const file = inside(DIST, path)
-  if (file) return sendFile(req, res, file, path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : path.startsWith('/data/') ? DATA_CACHE : path.startsWith('/img/') || path.startsWith('/world/') ? 'public, max-age=86400' : 'no-cache')
+  if (file) return sendFile(req, res, file, path.startsWith('/assets/') || path.endsWith('.woff2') ? 'public, max-age=31536000, immutable' : path.startsWith('/data/') ? DATA_CACHE : path.startsWith('/img/') || path.startsWith('/world/') ? 'public, max-age=86400' : 'no-cache')
   if (extname(path)) return notFound(res)
   // SPA routes (/, /app/...): the shell page
   sendFile(req, res, resolve(DIST, 'index.html'), 'no-cache')

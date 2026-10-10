@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Overnight benchmark on the UIT Gemma (docs/plans/BENCH.md): briefs, the live styles, then the offline styles on the
+# Overnight benchmark on the UIT Gemma (docs/P2_TRIP_UNDERSTANDING.md §16): briefs, the live styles, then the offline styles on the
 # same serving data for comparison. Resumable: run it again and it continues where it stopped.
 #
 #   setsid nohup scripts/bench_live.sh [DAY] > /dev/null 2>&1 &

@@ -1,4 +1,4 @@
-# Serving record (src/corpus/serving, docs/PLACE_DECISION.md §2.2). Thresholds here, logic in code.
+# Serving record (src/corpus/serving, docs/P3_PLACE_DECISION.md §2.2). Thresholds here, logic in code.
 freshness_days:          # older evidence -> OUTDATED (still served, with a warning)
   hours: 90
   price: 180

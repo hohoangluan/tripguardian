@@ -54,9 +54,30 @@ export async function readAttachment(file: File): Promise<Attachment> {
   return { name: file.name, lines }
 }
 
-// The message the agent reads: what the user typed, then each file's lines under its name.
-export function withAttachments(text: string, files: Attachment[]) {
+// Files picked, dropped or pasted into a composer: each text file read into lines (the Assistant takes no photos:
+// the agent does not read them). `have` = what is already attached, so the same name replaces rather than repeats.
+export async function takeFiles(list: FileList | File[] | null, have: Attachment[] = []): Promise<{ files: Attachment[]; note: string | null }> {
+  let files = have
+  let note: string | null = null
+  for (const f of Array.from(list ?? []).slice(0, 6)) {
+    if (f.type.startsWith('image/')) { note = 'Mình chưa đọc được ảnh, bạn gửi file danh sách nơi (.txt, .csv, .json, .kml) nhé.'; continue }
+    try {
+      const a = await readAttachment(f)
+      if (!a.lines.length) { note = `Không đọc được ${f.name}.`; continue }
+      files = [...files.filter((y) => y.name !== a.name), a]
+    } catch {
+      note = `Không mở được ${f.name}.`
+    }
+  }
+  return { files, note }
+}
+
+// The message the agent reads: what the user typed, then each file's lines under its name. `max` = the receiving
+// turn's own limit (Decision takes 1000 characters); the cut falls on a line end.
+export function withAttachments(text: string, files: Attachment[], max = MAX_CHARS) {
   let out = text.trim()
   for (const f of files) out += `${out ? '\n\n' : ''}Danh sách từ file ${f.name}:\n${f.lines.join('\n')}`
-  return out.length > MAX_CHARS ? out.slice(0, out.lastIndexOf('\n', MAX_CHARS)) : out
+  if (out.length <= max) return out
+  const cut = out.lastIndexOf('\n', max)
+  return out.slice(0, cut > 0 ? cut : max)
 }

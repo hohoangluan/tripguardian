@@ -7,6 +7,7 @@ from trip.agent import AgentError
 from trip.api.engine import (BUSY_SAY, DECLINE_SAY, FALLBACK_SAY, NODATA_SAY, NOTED_TEXT_SAY, PAST_DATE, REJECT_SAY, UNSURE_SAY, Engine,
                              TurnInput)
 from trip.infrastructure.clef import ClefRoute
+from trip.domain.state import pending_signals
 from trip.infrastructure.sessions import SessionStore
 
 
@@ -55,7 +56,8 @@ def test_the_agent_sees_the_state_and_the_tools_it_may_call(make):
     run(e, sid, kind="text", text="đi 3 ngày")
     run(e, sid, kind="text", text="bạn bè")
     messages, tool_names = chat.seen[1]
-    assert tool_names == ["record_fact", "resolve_relative_date", "search_places", "search_features", "ask_choice", "ask_text"]
+    assert chat.seen[0][1][-3:] == ["ask_choice", "ask_text", "open_quiz"]  # opening turn may ask or open the quiz
+    assert tool_names == ["record_fact", "resolve_relative_date", "search_places", "search_features"]
     context = next(m["content"] for m in messages if m["content"].startswith("CURRENT CONTEXT"))
     assert '"days"' in context and "Đi cùng ai?" in context
     assert [m["role"] for m in messages[1:-2]] == ["assistant", "assistant", "user", "assistant"]
@@ -70,7 +72,7 @@ def test_a_wish_no_feature_expresses_ends_the_turn_with_a_fixed_reply_and_no_mor
     ev = run(e, sid, kind="text", text="mình muốn có chó")
     fixed = next(d["replace"] for n, d in ev if n == "say" and "replace" in d)
     assert "“muốn có chó”" in fixed and "chưa dùng được" in fixed and "nông trại" not in fixed
-    assert chat.calls == 1 and ev[-1][1]["qid"] == "conversation"
+    assert chat.calls == 1 and ev[-1][1]["qid"] == "days"  # the trip was told: the chip cards ask the rest
     assert [u.phrase for u in e.store.get(sid).state.unmapped] == ["chó"]
 
 
@@ -82,18 +84,14 @@ def test_a_card_text_is_only_the_question_the_rest_goes_to_the_chat(make):
     assert ("say", {"replace": "Mình hiểu rồi. Tháng 12 Đà Lạt khá lạnh."}) in ev
 
 
-def test_when_nothing_new_is_asked_the_open_question_stays_instead_of_an_empty_box(make):
+def test_after_the_opening_question_a_message_that_asks_nothing_leads_to_the_chip_cards(make):
     chat = ScriptedChat(reply(ask("Bạn đi mấy ngày?", "1-2", "3-4")),
-                        reply(fact("unmapped", "bồn tắm", "bồn tắm", op="add")),  # an unmapped wish: fixed reply, no ask
-                        say("Đà Lạt tháng 12 khá lạnh."))                              # a plain reply: no ask either
+                        reply(fact("unmapped", "bồn tắm", "bồn tắm", op="add")))  # an unmapped wish: fixed reply, no ask
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
-    first = run(e, sid, kind="text", text="đi Đà Lạt")[-1][1]
-    for text in ("tôi muốn có bồn tắm", "tháng 12 lạnh không?"):
-        card = run(e, sid, kind="text", text=text)[-1][1]
-        assert card["qid"] == first["qid"] and card["text"] == "Bạn đi mấy ngày?", text
-    texts = [t["text"] for t in e.store.get(sid).transcript if t.get("kind") == "card"]
-    assert texts.count("Bạn đi mấy ngày?") == 0  # the card never closed, so it is not in the chat history yet
+    assert run(e, sid, kind="text", text="đi Đà Lạt")[-1][1]["text"] == "Bạn đi mấy ngày?"
+    card = run(e, sid, kind="text", text="tôi muốn có bồn tắm")[-1][1]
+    assert card["qid"] == "days" and e.load(sid)["phase"] == "quiz"  # a chip card, never an empty box
 
 
 def test_a_reply_the_guard_refuses_becomes_an_honest_line_not_silence(make):
@@ -162,38 +160,34 @@ def test_skipping_a_card_leaves_the_field_unknown_without_the_agent_and_it_is_ne
     card = run(e, sid, kind="text", text="đi Đà Lạt")[-1][1]
     ev = run(e, sid, kind="answer", qid=card["qid"], chips=("skip",))
     say = next(d["replace"] for n, d in ev if n == "say")
-    assert chat.calls == 1 and say.startswith(DECLINE_SAY) and "đi cùng ai" in say  # instant, and it says what is missing
-    assert ev[-1][1]["qid"] == "conversation" and FALLBACK_SAY not in say
+    assert chat.calls == 1 and say == DECLINE_SAY  # instant
+    assert ev[-1][1]["qid"] == "days" and e.load(sid)["phase"] == "quiz"  # the chip cards ask the rest
     st = e.store.get(sid).state
     assert not st.companions.known and st.meta.declined == ("Đi cùng ai?",)
     assert [t["text"] for t in e.store.get(sid).transcript if t["role"] == "user"][-1] == "Bỏ qua"
-    ev = run(e, sid, kind="text", text="đi 3 ngày")
-    assert ev[-1][1]["text"] == "Đi bằng gì?"
-    assert '"declined_questions": ["Đi cùng ai?"]' in next(
-        m["content"] for m in chat.seen[1][0] if m["content"].startswith("CURRENT CONTEXT"))
 
 
 def test_an_answered_card_closes_and_is_not_asked_again_when_the_agent_asks_nothing(make):
     # T-3: the agent recorded the answer but asked nothing new; the old question must not come back
     chat = ScriptedChat(reply(ask("Ngày cuối bạn rời Đà Lạt lúc mấy giờ?", "Buổi sáng", "Buổi chiều (12h - 17h)")),
-                        reply(fact("leave_at", "14:30", "Buổi chiều (12h - 17h)", how="inferred")), say("Mình ghi rồi."))
+                        reply(fact("checkout_at", "14:30", "Buổi chiều (12h - 17h)", how="inferred")), say("Mình ghi rồi."))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
-    card = run(e, sid, kind="text", text="đi 3 ngày")[-1][1]
+    card = run(e, sid, kind="text", text="đi 3 ngày 2 đêm")[-1][1]
     ev = run(e, sid, kind="answer", qid=card["qid"], chips=("c1",))
-    assert ev[-1][1]["qid"] == "conversation" and e.store.get(sid).state.leave_at.value == "14:30"
+    assert ev[-1][1]["qid"] == "companions" and e.store.get(sid).state.checkout_at.value == "14:30"
     cards = [t["text"] for t in e.store.get(sid).transcript if t.get("kind") == "card"]
     assert cards.count("Ngày cuối bạn rời Đà Lạt lúc mấy giờ?") == 1
 
 
 def test_a_typed_answer_the_agent_records_closes_the_open_card(make):
     chat = ScriptedChat(reply(ask("Ngày cuối bạn rời Đà Lạt lúc mấy giờ?", "Sáng", "Chiều")),
-                        reply(fact("leave_at", "16:00", "4 giờ chiều")))
+                        reply(fact("checkout_at", "16:00", "4 giờ chiều")))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
-    run(e, sid, kind="text", text="đi 3 ngày")
+    run(e, sid, kind="text", text="đi 3 ngày 2 đêm")
     ev = run(e, sid, kind="text", text="khoảng 4 giờ chiều")
-    assert ev[-1][1]["qid"] == "conversation"
+    assert ev[-1][1]["qid"] == "companions"
 
 
 def test_a_pressed_option_the_agent_could_not_read_keeps_the_card_and_never_blames_the_typing(make):
@@ -225,23 +219,17 @@ def test_the_agent_is_told_what_is_still_needed_and_the_view_says_when_next_is_a
     # the keyword rules already read "3 ngày": it is not asked again
     assert '"still_needed": {"companions": "đi cùng ai", "mobility": "đi lại bằng gì", "when": "ngày hoặc tháng đi"}' in context
     view = next(d for n, d in ev if n == "state")["understanding"]
-    assert view["ready"] is False and [m["target"] for m in view["missing"]] == ["companions", "mobility", "when"]
+    assert view["ready"] is True  # Next is always open; only a health hint blocks
+    assert [m["target"] for m in view["missing"]] == ["companions", "mobility", "when"]
 
 
-def test_next_is_refused_until_the_minimum_is_known_then_it_compiles(make):
+def test_next_is_always_open_and_compiles_with_unknowns(make):
     e = make(ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Đi cùng ai?", "Một mình", "Bạn bè"))))
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
     ev = run(e, sid, kind="show")
-    assert names(ev) == ["say", "card"] and "đi cùng ai" in ev[0][1]["replace"]
-    assert e.load(sid)["card"]["text"] == "Đi cùng ai?"  # the open question is left as it was
-    for field, value in (("companions", "partner"), ("mobility", "car")):
-        run(e, sid, kind="edit", target=field, value=value)
-    run(e, sid, kind="edit", target="month", value="12")
-    view = e.load(sid)["understanding"]
-    assert view["ready"] is True and view["missing"] == []
-    ev = run(e, sid, kind="show")
     assert names(ev) == ["done"] and ev[0][1]["search_input"]["context"]["days"] == 3
+    assert ev[0][1]["search_input"]["unknowns"] != ()
     assert e.load(sid)["card"] is None
 
 
@@ -256,18 +244,18 @@ def test_a_refused_tool_call_is_corrected_inside_the_same_turn(make):
     assert "error" in tool_result["content"]
 
 
-def test_a_plain_reply_leaves_a_free_text_card(make):
-    e = make(ScriptedChat(say("Đà Lạt tháng 12 khá lạnh, khoảng 14 độ.")))
+def test_a_plain_reply_to_a_message_that_tells_nothing_leaves_a_free_text_card(make):
+    e = make(ScriptedChat(say("Chào bạn, bạn kể về chuyến đi nhé.")))
     sid = e.create("first", "nothing")["id"]
-    ev = run(e, sid, kind="text", text="tháng 12 lạnh không?")
-    assert ev[-1][1]["qid"] == "conversation"
+    ev = run(e, sid, kind="text", text="chào")
+    assert ev[-1][1]["qid"] == "conversation" and not e.store.get(sid).state.meta.told
 
 
 def test_agent_failure_keeps_what_was_written_and_says_so(make):
     e = make(ScriptedChat(reply(fact("days", "3", "3 ngày"))))  # the second call finds the script empty
     sid = e.create("first", "nothing")["id"]
-    ev = run(e, sid, kind="text", text="đi 3 ngày")
-    assert ("say", {"replace": FALLBACK_SAY}) in ev and ev[-1][1]["qid"] == "conversation"
+    ev = run(e, sid, kind="text", text="đi 3 ngày 2 đêm")
+    assert ("say", {"replace": FALLBACK_SAY}) in ev and ev[-1][1]["qid"] == "companions"
     assert e.store.get(sid).state.days.value == 3
 
 
@@ -278,16 +266,16 @@ def test_agent_down_still_applies_the_keyword_rules(make):
     assert all(r["mark"] for r in ev[-2][1]["understanding"]["trip"])  # shown with the pencil until confirmed
 
 
-def test_next_stays_locked_while_a_health_hint_is_open(make):
+def test_next_with_an_open_health_hint_applies_its_strictest_choice(make):
     chat = ScriptedChat(reply(fact("signal", "knee", "đau gối", op="add"), ask("Đi bộ được bao lâu?", "Ít", "Nhiều")))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="mẹ đau gối")
-    for field, value in (("days", "3"), ("companions", "parents"), ("mobility", "car"), ("month", "12")):
-        run(e, sid, kind="edit", target=field, value=value)
     assert "điều cần lưu ý về sức khỏe" in [m["label"] for m in e.load(sid)["understanding"]["missing"]]
     ev = run(e, sid, kind="show")
-    assert names(ev) == ["say", "card"] and "sức khỏe" in ev[0][1]["replace"]
+    assert names(ev) == ["done"]
+    st = e.store.get(sid).state
+    assert {h.feature for h in st.hard} >= {"steep_or_stairs", "long_walk"} and not pending_signals(st)
 
 
 def test_edit_soft_and_bad_value(make):
@@ -298,6 +286,16 @@ def test_edit_soft_and_bad_value(make):
     run(e, sid, kind="edit", target="soft:noise=quiet", value=None)
     assert e.load(sid)["understanding"]["soft"] == []
     assert names(run(e, sid, kind="edit", target="days", value="mười"))[0] == "error"
+
+
+def test_a_typed_time_for_a_coach_or_flight_sets_the_day_window(make):
+    e = make()
+    sid = e.create("first", "nothing")["id"]
+    assert "error" not in names(run(e, sid, kind="edit", target="inbound", value='{"time": "9h30"}'))
+    assert "error" not in names(run(e, sid, kind="edit", target="outbound", value='{"time": "17:00"}'))
+    st = e.store.get(sid).state
+    assert st.checkin_at.value == "09:30" and st.checkout_at.value == "17:00" and not st.inbound.known
+    assert names(run(e, sid, kind="edit", target="inbound", value='{"time": "25:00"}'))[0] == "error"
 
 
 def test_stale_answer_is_rejected(make):
@@ -456,18 +454,19 @@ def test_questions_are_sent_back_at_most_twice_while_a_refused_fact_stays_unfixe
     assert chat.calls == 3 and ev[-1][1]["text"] == "Bạn đi tháng mấy?"  # two sent back, the third goes through
 
 
-def test_the_start_date_question_is_a_calendar_and_a_picked_day_is_written_without_the_agent(make):
+def test_the_agent_may_not_ask_the_start_date_the_quiz_asks_it_on_a_calendar(make):
     chat = ScriptedChat(reply(call("ask_text", text="Bạn khởi hành ngày nào?", placeholder="25/10", kind="date")))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
-    card = run(e, sid, kind="text", text="đi 3 ngày")[-1][1]
-    assert card["input"] == "date" and card["exits"] is True  # "Chưa chắc" is offered next to the calendar
-    assert names(run(e, sid, kind="answer", qid=card["qid"], value="2026-10-01")) == ["error"]  # before today
-    assert ("error", {"message": PAST_DATE}) in run(e, sid, kind="answer", qid=card["qid"], value="2026-10-01")
-    ev = run(e, sid, kind="answer", qid=card["qid"], value="2026-10-25")
+    card = run(e, sid, kind="text", text="đi 3 ngày 2 đêm")[-1][1]
+    assert not card["qid"].startswith("ask:")  # refused: the agent only clarifies what the user wrote
+    while card["qid"] != "dates":
+        card = run(e, sid, kind="answer", qid=card["qid"], chips=("skip",))[-1][1]
+    assert card["input"] == "date" and card["exits"] is False  # no "Chưa chắc" next to the calendar: "Chưa chốt ngày" is the way past
+    assert ("error", {"message": PAST_DATE}) in run(e, sid, kind="answer", qid="dates", value="2026-10-01")
+    run(e, sid, kind="answer", qid="dates", value="2026-10-25")
     st = e.store.get(sid).state
-    assert st.start_date.value == date(2026, 10, 25) and st.start_date.locked and chat.calls == 1
-    assert ev[-1][1]["qid"] == "conversation" and "25/10/2026" in next(d["replace"] for n, d in ev if n == "say")
+    assert st.start_date.value == date(2026, 10, 25) and st.start_date.locked
 
 
 def test_a_theme_card_writes_its_fixed_tastes_without_reading_a_sentence(make, cfg):
@@ -481,7 +480,7 @@ def test_a_theme_card_writes_its_fixed_tastes_without_reading_a_sentence(make, c
     st = e.store.get(sid).state
     assert {k: f.value for k, f in st.soft.items()} == {"setting=indoor": "love", "weather_exposed=sheltered": "love"}
     assert st.liked_groups.value == ("chill", "sights") and chat.calls == 0
-    assert "Chỗ trong nhà khi mưa" in next(d["replace"] for n, d in ev if n == "say") and ev[-1][1]["qid"] == "conversation"
+    assert "Chỗ trong nhà khi mưa" in next(d["replace"] for n, d in ev if n == "say") and ev[-1][1]["qid"] == "days"
     assert e.load(sid)["transcript"][-2] == {"role": "user", "text": "Chỗ trong nhà khi mưa", "turn": 1, "kind": "theme"}
     assert names(run(e, sid, kind="theme", value="nope")) == ["error"]
 

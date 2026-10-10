@@ -1,4 +1,4 @@
-"""Run hidden trips through the real harness (Trip -> Decision -> Planning) and write the CSVs (docs/plans/BENCH.md).
+"""Run hidden trips through the real harness (Trip -> Decision -> Planning) and write the CSVs (docs/P2_TRIP_UNDERSTANDING.md §16).
 
 Offline: the real serving data, no model, no network (travel is the rough estimate; holidays, events and advisories
 come from the hand-entered files, weather is unknown).

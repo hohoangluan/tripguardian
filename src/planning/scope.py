@@ -1,7 +1,7 @@
-"""act_scope (docs/PLANNING.md §Vòng người dùng sửa và góp ý, act table): which part of a session's laid
+"""act_scope (docs/P4_PLANNING.md §Vòng người dùng sửa và góp ý, act table): which part of a session's laid
 out trip one act must rerun. Mirrors src/decision/scope.py's replan_scope for the same reason: the UI's diff
 promises an exact scope, so the dispatcher must pick one, not "rerun everything and hope it looks the same" -- that
-is exactly the "không xáo lịch âm thầm" guardrail (docs/PLANNING.md §Guardrail).
+is exactly the "không xáo lịch âm thầm" guardrail (docs/P4_PLANNING.md §Guardrail).
 """
 
 NONE = "none"                      # state only: nothing about the laid-out days changes
@@ -13,7 +13,7 @@ LODGING_FETCH = "lodging_fetch"     # the candidate list itself must be re-fetch
 _SCOPE = {
     "pick_variant": NONE, "lock_slot": NONE, "unlock": NONE, "undo": NONE, "redo": NONE,
     "move_place": RELAYOUT, "reorder": RELAYOUT, "drop_place": RELAYOUT, "add_from_backup": RELAYOUT,
-    "swap": RELAYOUT, "relax": RELAYOUT,
+    "set_visit": RELAYOUT, "clear_visit": RELAYOUT, "swap": RELAYOUT, "relax": RELAYOUT, "set_slot": RELAYOUT,
     "set_pace": VARIANT, "set_objective": VARIANT, "set_day_window": VARIANT,
     "pick_lodging": LODGING_HOME, "clear_lodging": LODGING_HOME,
     "set_lodging": LODGING_FETCH, "set_lodging_budget": LODGING_FETCH,
@@ -29,6 +29,6 @@ _ORDER = [NONE, RELAYOUT, VARIANT, LODGING_HOME, LODGING_FETCH]
 
 def widest(scopes: list[str]) -> str:
     """The scope among `scopes` that implies the most rebuilding -- what a turn's diff reports when it applied more
-    than one act (docs/PLANNING.md §Guardrail: "không xáo lịch âm thầm" -- the diff must say honestly
+    than one act (docs/P4_PLANNING.md §Guardrail: "không xáo lịch âm thầm" -- the diff must say honestly
     how much a turn actually touched, not just the last action's own scope)."""
     return max(scopes, key=_ORDER.index, default=NONE)

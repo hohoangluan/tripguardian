@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { GRID, inBounds, LANDMARKS, toXZ, WORLD } from './geo'
 import { decodeLandscape, groundAt, heightAt, landscape, setLandscape } from './terrain'
 
-// The landing's 3D scene (docs/UI_SPEC_LANDING.md §2): the real Đà Lạt valley at sunrise in soft rose. Plain three.js,
+// The landing's 3D scene (docs/UI_DESIGN.md §7): the real Đà Lạt valley at sunrise in soft rose. Plain three.js,
 // driven from outside: the page scrubs `SceneState` with GSAP; the scene only eases toward it and draws. On top of the
 // scrubbed camera the visitor can turn the whole view 360° around the valley (drag, or the page's buttons).
 

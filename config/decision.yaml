@@ -1,20 +1,25 @@
-# Place Decision thresholds (docs/PLACE_DECISION.md). Starting values; tune after the pilot.
+# Place Decision thresholds (docs/P3_PLACE_DECISION.md). Starting values; tune after the pilot.
 version: 1
 center: {name: "trung tâm Đà Lạt", lat: 11.9404, lng: 108.4583}
-speed_kmh: {motorbike: 25, car: 25, ride: 22}
+speed_kmh: {motorbike: 25, car: 25, walk: 4.5}
 road_factor: 1.4            # straight line -> road distance
-radius_km: {motorbike: 12, car: 15, ride: 10}
+radius_km: {motorbike: 12, car: 15, walk: 2.0}
 area_bonus: 0.2             # same area as an anchor
 crowd_busy_pct: 70          # Google popular times at or above this = busy
 crowd_penalty: 0.2
 rainy_months: [5, 6, 7, 8, 9, 10]
 min_context_fit: 0.1        # below: stays in the pool, never in the shortlist
-weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.5}
+weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.5, crowd: 1.0, like: 0.5}
+stars: {levels: [[4.5, "Rất hợp"], [3.5, "Hợp"], [2.0, "Khá hợp"], [0.0, "Tạm được"]]}  # fit to the trip, 0..5
+top_min_pref: 0.25          # "Hợp nhất" needs at least this preference fit when the trip has wishes
 price_ref_vnd: 300000       # price per person that counts as "expensive" (1.0) for price sensitivity
 near_min: 12                # minutes: "Gần <tâm>" on a card
 per_day: {slow: 3, normal: 4, packed: 6}
 per_day_max: {slow: 4, normal: 5, packed: 7}
 meals_per_day: 2
+meal_at: ["12:00", "18:30"]  # meals inside a day's window take meal_min from its usable time (feasibility.room)
+meal_min: 60
+fill_share: 0.8             # picks using this share of the usable time: "Đủ cho chuyến đi"
 spare_factor: 1.6
 pool_factor: 5
 default_days: 2
@@ -43,6 +48,10 @@ unverified_show: 12
 page_size: 24               # places per display group shown at once; scrolling loads the next page
 keep_factor: 2              # a shown place survives a new ranking while it ranks within keep_factor x the window
 replace_below: 0.3          # fewer survivors than this share of the window -> replace the window whole
+day_visit:                  # a day trip's visit, not a stay: served estimates can hold a night (camping) or a whole day
+  by_group: {camping: [60, 90, 150]}   # short, typical, long minutes replacing the served range
+  typical_max: 180
+  long_max: 240
 first_token_s: 8
 total_s: 30
 display_groups:

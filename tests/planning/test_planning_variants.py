@@ -19,7 +19,7 @@ def day_of(variant, pid):
 def wet_south():
     """The sample trip with the three southern places open to the weather, and a last day long enough to hold
     either cluster (the default 15:00 departure leaves no room to swap them)."""
-    d, recs = sample_trip(leave_at="20:00")
+    d, recs = sample_trip(checkout_at="20:00")
     recs[4:7] = [spot(f"s{i + 1}", SOUTH, i, features=WET) for i in range(3)]
     return d, recs
 
@@ -90,15 +90,17 @@ def test_no_valid_variant_goes_back_to_place_decision_with_the_places_that_broke
     d["confirmed"].append({"id": "gone", "name": "Gone", "role": "anchor", "flags": [], "relaxed": []})
     out = run(d, recs)
     assert not out["ok"] and out["variants"] == [] and out["comparison"] == []
-    assert out["back_to_decision"] == {"reason": "no_valid_variant", "places": ["gone"]}
+    assert out["back_to_decision"] == {"reason": "no_valid_variant", "places": ["gone"],
+                                       "reasons": [{"kind": "anchor", "place_id": "gone", "day": None, "minutes": 0}]}
     assert [v["kind"] for v in out["violations"]] == ["anchor"]
 
 
 def test_a_day_window_violation_names_the_places_crowded_onto_that_day():
-    d, recs = sample_trip(days=1, leave_at="12:00")        # one short day, too little room for eight places
+    d, recs = sample_trip(days=1, checkout_at="12:00")        # one short day, too little room for eight places
     out = run(d, recs)
     assert not out["ok"] and [v["kind"] for v in out["violations"]] == ["day_window"]
     assert out["back_to_decision"]["places"]                     # not empty: day_window carries no place_id itself
+    assert [r["kind"] for r in out["back_to_decision"]["reasons"]] == ["day_window"]
 
 
 def test_a_trip_with_no_places_is_one_empty_solid_variant():
@@ -110,9 +112,9 @@ def test_a_trip_with_no_places_is_one_empty_solid_variant():
 
 
 def test_a_variant_that_does_not_fit_the_days_is_dropped_and_named():
-    d, recs = sample_trip(leave_at="20:00", arrive_at="11:00", max_leg=10)
+    d, recs = sample_trip(checkout_at="20:00", checkin_at="11:00", max_leg=10)
     recs[4:7] = [spot(f"s{i + 1}", SOUTH, i, features=WET) for i in range(3)]
-    d["trip_context"]["context"]["leave_at"] = None          # the last day ends at 15:00 again: too short for the
+    d["trip_context"]["context"]["checkout_at"] = None          # the last day ends at 15:00 again: too short for the
                                                                # 5-place centre cluster, and a max_leg_min of 10
                                                                # forbids combining it with the south cluster either
     out = run(d, recs, weather={"2026-12-13": {"rain_prob": 0.9}})    # rain where the open-air places go

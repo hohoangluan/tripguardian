@@ -3,9 +3,9 @@ the same split. Past max_days / max_clusters it falls back to a greedy split and
 """
 
 from .conditions import crowd_sensitive, hazard
-from .places import windows_on
-from .schedule import DayCtx, pin_window
+from .schedule import DayCtx, intervals_for, pin_window, visit_minutes
 from .traits import exposure, kind_group
+from .personalization import duration
 
 
 def _tour(ids: list[str], ctx: DayCtx) -> int:
@@ -21,27 +21,26 @@ def _tour(ids: list[str], ctx: DayCtx) -> int:
     return total
 
 
-def load_of(ids: list[str], places: dict, cfg, pace: str) -> int:
+def load_of(ids: list[str], places: dict, cfg, pace: str, soft_weights=()) -> int:
     """Minutes a set of places asks of a day before travel between clusters: visits plus moving inside the cluster."""
-    return sum(places[i].visit[cfg.visit_key[pace]] + cfg.intra_leg_min for i in ids)
+    return sum(duration(places[i], cfg, pace, soft_weights) + cfg.intra_leg_min for i in ids)
 
 
-def day_load(ids: list[str], places: dict, cfg, pace: str) -> int:
+def day_load(ids: list[str], places: dict, cfg, pace: str, soft_weights=()) -> int:
     """load_of plus what a real day also spends: the buffer after each stop and the meals."""
-    return load_of(ids, places, cfg, pace) + len(ids) * cfg.buffer_min[pace] + cfg.meals_per_day * cfg.meal_min
+    return load_of(ids, places, cfg, pace, soft_weights) + len(ids) * cfg.buffer_min[pace] + cfg.meals_per_day * cfg.meal_min
 
 
-def _can_start(p, ctx: DayCtx) -> bool:
+def can_start(p, ctx: DayCtx) -> bool:
     """Whether the place can be visited at all inside this day: open that weekday, long enough within the day's window,
     and at the time of day its feature needs (a restaurant that opens at 18:00 on a day that ends at 15:00, a
     live-music bar on a day that ends before dark). A sunrise place can pull a later day's start forward."""
     if hazard(p, ctx.cond):
         return False                        # a severe storm or a hazard notice: not a day this place can be visited
-    need = min(p.visit[ctx.cfg.visit_key[ctx.pace]], p.visit["short"])   # a visit may shrink to its short estimate
+    need = visit_minutes(p, ctx, minimum=ctx.allow_shrink)   # a visit may shrink to its short estimate
     lo, hi = pin_window(p, ctx)
-    floor = lo if 0 < lo < ctx.day.start and ctx.day.index > 0 else ctx.day.start
-    w = windows_on(p.hours, ctx.day.weekday)
-    for o, c in [(0, 1440)] if w is None else w:
+    floor = lo if p.requested_start is None and 0 < lo < ctx.day.start and ctx.day.index > 0 else ctx.day.start
+    for o, c in intervals_for(p, ctx):
         if max(floor, lo, o) <= min(hi, c - need, ctx.day.end - need):
             return True
     return False
@@ -49,7 +48,7 @@ def _can_start(p, ctx: DayCtx) -> bool:
 
 def blocked(ids: list[str], ctx: DayCtx) -> int:
     """How many of the places cannot be visited at all inside this day."""
-    return sum(not _can_start(ctx.places[i], ctx) for i in ids)
+    return sum(not can_start(ctx.places[i], ctx) for i in ids)
 
 
 def isolate_constrained(clusters: list[list[str]], ctxs: list[DayCtx]) -> list[list[str]]:
@@ -57,7 +56,7 @@ def isolate_constrained(clusters: list[list[str]], ctxs: list[DayCtx]) -> list[l
     day it fits instead of dragging its neighbours there (or giving up on all of them)."""
     out = []
     for c in clusters:
-        loose = [i for i in c if 0 < sum(not _can_start(ctxs[0].places[i], cx) for cx in ctxs) < len(ctxs)]
+        loose = [i for i in c if 0 < sum(not can_start(ctxs[0].places[i], cx) for cx in ctxs) < len(ctxs)]
         rest = [i for i in c if i not in loose]
         out += ([rest] if rest else []) + [[i] for i in loose]
     return sorted(out, key=lambda c: c[0])
@@ -70,7 +69,7 @@ def day_cost(ids: list[str], ctx: DayCtx) -> float:
         return w["count"] * target
     closed = blocked(ids, ctx)
     tour = _tour(ids, ctx)
-    over = max(0, day_load(ids, ctx.places, cfg, ctx.pace) + tour - (ctx.day.end - ctx.day.start))
+    over = max(0, day_load(ids, ctx.places, cfg, ctx.pace, ctx.soft_weights) + tour - (ctx.day.end - ctx.day.start))
     shorter = 0.001 * len(ids) * (1440 - (ctx.day.end - ctx.day.start))     # equal costs: the longer day takes more
     return (w["travel"] * tour + w["overflow"] * over + w["count"] * abs(len(ids) - target) + w["closed"] * closed
             + shorter + w.get("exposed", 0) * exposed_risk(ids, ctx) + w.get("repeat", 0) * repeats(ids, ctx)
@@ -156,9 +155,9 @@ def _greedy(clusters: list[list[str]], ctxs: list[DayCtx]) -> list[list[str]]:
     """Biggest cluster first, onto the day where the fewest of its places are blocked, then the least load so far
     (ties: the earlier day)."""
     cx = ctxs[0]
-    size = lambda c: load_of(c, cx.places, cx.cfg, cx.pace)
+    size = lambda c: load_of(c, cx.places, cx.cfg, cx.pace, cx.soft_weights)
     out = [[] for _ in ctxs]
     for c in sorted(clusters, key=lambda c: (-size(c), c[0])):
-        d = min(range(len(ctxs)), key=lambda k: (blocked(c, ctxs[k]), load_of(out[k], cx.places, cx.cfg, cx.pace), k))
+        d = min(range(len(ctxs)), key=lambda k: (blocked(c, ctxs[k]), load_of(out[k], cx.places, cx.cfg, cx.pace, cx.soft_weights), k))
         out[d] += c
     return out

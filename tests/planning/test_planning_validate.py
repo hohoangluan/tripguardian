@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from plan_fixtures import all_days, day_ctx, rec
 
 from planning.model import DayResult, Item
@@ -86,14 +88,57 @@ def test_a_hard_filter_the_place_clearly_breaks_fails_and_a_physical_one_says_so
     assert [(x.kind, x.physical) for x in v] == [("hard", True)]
 
 
-def test_a_relaxed_filter_and_a_place_with_no_evidence_do_not_fail():
+def test_a_physical_filter_with_no_evidence_fails_closed():
     hard = [{"feature": "steep_or_stairs", "op": "ne", "value": "present", "unknown_policy": "flag"}]
     unknown = day_ctx([rec("u", 1, 1)])
-    assert run(unknown, result(visit("u", 600, 660)), hard=hard) == []
+    assert [(v.kind, v.physical) for v in run(unknown, result(visit("u", 600, 660)), hard=hard)] == [("hard", True)]
+
+
+def test_a_physical_filter_cannot_be_bypassed_by_forged_relaxed_state():
+    hard = [{"feature": "steep_or_stairs", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
     steep = rec("a", 1, 1, features={"steep_or_stairs": "present"})
     relaxed = day_ctx([steep])
     relaxed.places["a"] = replace(relaxed.places["a"], relaxed=("steep_or_stairs",))
-    assert run(relaxed, result(visit("a", 600, 660)), hard=hard) == []
+    assert [(v.kind, v.physical) for v in run(relaxed, result(visit("a", 600, 660)), hard=hard)] == [("hard", True)]
+
+
+def test_a_non_physical_hard_filter_with_no_evidence_fails_closed():
+    hard = [{"feature": "live_music", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
+    unknown = day_ctx([rec("u", 1, 1)])
+    assert [(v.kind, v.physical) for v in run(unknown, result(visit("u", 600, 660)), hard=hard)] == [("hard", False)]
+
+
+def test_a_relaxed_non_physical_filter_does_not_fail():
+    hard = [{"feature": "live_music", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
+    relaxed = day_ctx([rec("a", 1, 1, features={"live_music": "present"})])
+    relaxed.places["a"] = replace(relaxed.places["a"], relaxed=("live_music",))
+    assert run(relaxed, result(visit("a", 1100, 1160)), hard=hard) == []
+
+
+@pytest.mark.parametrize('value,status,contradicted,expected', [
+    ('absent', 'VERIFIED', False, []), ('absent', 'OUTDATED', False, []),
+    ('present', 'VERIFIED', False, [('hard', True)]),
+    (None, None, False, [('hard', True)]),
+    ('absent', 'UNCERTAIN', False, [('hard', True)]),
+    ('absent', 'VERIFIED', True, [('hard', True)]),
+])
+def test_equality_hard_filter_requires_firm_uncontradicted_evidence(value, status, contradicted, expected):
+    record = rec('a', 1, 1, features={'steep_or_stairs': value} if value is not None else None)
+    if value is not None:
+        evidence = record['effort']['steep_or_stairs']
+        evidence['status'] = status
+        if contradicted:
+            evidence['distribution']['present'] = 1
+    cx = day_ctx([record])
+    hard = [{'feature': 'steep_or_stairs', 'op': 'eq', 'value': 'absent', 'unknown_policy': 'exclude'}]
+    assert [(v.kind, v.physical) for v in run(cx, result(visit('a', 600, 660)), hard=hard)] == expected
+
+
+def test_equality_physical_filter_cannot_be_bypassed_by_relaxed_state():
+    cx = day_ctx([rec('a', 1, 1, features={'steep_or_stairs': 'present'})])
+    cx.places['a'] = replace(cx.places['a'], relaxed=('steep_or_stairs',))
+    hard = [{'feature': 'steep_or_stairs', 'op': 'eq', 'value': 'absent', 'unknown_policy': 'exclude'}]
+    assert [(v.kind, v.physical) for v in run(cx, result(visit('a', 600, 660)), hard=hard)] == [('hard', True)]
 
 
 def test_the_same_place_twice_fails_but_two_near_duplicates_the_user_kept_pass():

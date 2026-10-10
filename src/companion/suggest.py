@@ -1,10 +1,11 @@
-"""What to show after "Đã đến", from serving records only (docs/COMPANION.md §Gợi ý). Pure functions: no I/O.
+"""What to show after "Đã đến", from serving records only (docs/P5_COMPANION.md §Gợi ý). Pure functions: no I/O.
 
 Every place is a serving record id; every feature is a record value with its status. Nothing missing is filled in:
 a place with no hours is "chưa xác nhận", a crowd level without Google's table is not shown.
 """
 
 import math
+import unicodedata
 from datetime import datetime
 
 from corpus.serving import feature
@@ -76,6 +77,7 @@ def timely(rec: dict, when: datetime, sun_features: list[str]) -> dict:
         times = sun_times(when.date(), *p)
         if times:
             out["sunrise"], out["sunset"] = (f"{m // 60:02d}:{m % 60:02d}" for m in times)
+            out["date"] = when.date().isoformat()
     table = (rec.get("operation") or {}).get("crowd_by_time")
     if table:  # Google's popular times: a measured table, shown as it is
         day_type = "weekend" if when.weekday() >= 5 else "weekday"
@@ -86,18 +88,42 @@ def timely(rec: dict, when: datetime, sun_features: list[str]) -> dict:
     return out
 
 
+def _core(name: str | None) -> str:
+    """A name without case, accents or punctuation, to tell two records of one site apart from neighbours."""
+    s = unicodedata.normalize("NFD", (name or "").lower().replace("đ", "d"))
+    s = "".join(c if c.isalnum() else " " for c in s if not unicodedata.combining(c))
+    return " ".join(s.split())
+
+
+def same_site(a: dict, b: dict) -> bool:
+    """One name holds the other (e.g. "Viewpoint Săn mây Đồi Đa Phú" on "Đồi Đa Phú"): another spot of the place the
+    user is standing on, not somewhere else to go. Single-word names are too common to judge."""
+    x, y = sorted((_core((a.get("identity") or {}).get("name")), _core((b.get("identity") or {}).get("name"))), key=len)
+    return len(x.split()) >= 2 and f" {x} " in f" {y} "
+
+
+def _in(window: list[str] | None, when: datetime) -> bool:
+    t = when.hour * 60 + when.minute
+    return bool(window) and _clock(window[0]) <= t < _clock(window[1])
+
+
 def nearby(here: dict, records: dict[str, dict], *, when: datetime, budget_min: int | None, mobility: str | None,
            soft: list[dict], hard: list[dict], skip: set[str], cfg: dict, same_group: bool = False) -> list[dict]:
     """Places a short ride away that are open (or not known to be closed), pass the trip's hard filters (fail-closed:
-    unknown is left out unless the filter only flags), fit before the next stop, and are not in the plan or disliked.
-    Ranked by Decision's soft-preference fit, then distance."""
+    unknown is left out unless the filter only flags), fit before the next stop, and are not in the plan, disliked,
+    or another spot of the place itself. Ranked by Decision's soft-preference fit counting only the wishes that suit
+    this hour (feature_hours: no cloud hunting at noon), then distance. Outside the similar list: during a meal
+    window places to eat come first, and at most max_per_group of one kind are shown while other kinds remain."""
     origin = point(here)
     if origin is None:
         return []
     group = (here.get("identity") or {}).get("category_group")
+    hours = cfg.get("feature_hours") or {}
+    soft = [w for w in soft if w["feature"] not in hours or _in(hours[w["feature"]], when)]
+    meal = not same_group and any(_in(w, when) for w in (cfg.get("meal_windows") or {}).values())
     out = []
     for pid, rec in records.items():
-        if pid in skip or pid == here["id"]:
+        if pid in skip or pid == here["id"] or same_site(here, rec):
             continue
         if same_group and (rec.get("identity") or {}).get("category_group") != group:
             continue
@@ -119,6 +145,17 @@ def nearby(here: dict, records: dict[str, dict], *, when: datetime, budget_min: 
         fit, matches = preference_fit(rec, soft)
         out.append({"place_id": pid, "name": (rec.get("identity") or {}).get("name"), "travel_min": minutes,
                     "estimate": True, "open": is_open, "fit": round(fit, 3), "matches": [m[0] for m in matches],
-                    "flags": [h["feature"] for h, r in checks if r == "unknown"]})
-    out.sort(key=lambda x: (-x["fit"], x["travel_min"]))
-    return out[:cfg["nearby_count"]]
+                    "flags": [h["feature"] for h, r in checks if r == "unknown"],
+                    "meal": "meal" in (rec.get("usable_as") or []),
+                    "group": (rec.get("identity") or {}).get("category_group")})
+    out.sort(key=lambda x: (meal and not x["meal"], -x["fit"], x["travel_min"]))
+    if same_group:
+        return out[:cfg["nearby_count"]]
+    picked, rest, per = [], [], {}
+    for x in out:  # diverse kinds first, the rest only to fill the list
+        if per.get(x["group"], 0) < cfg.get("max_per_group", 2):
+            per[x["group"]] = per.get(x["group"], 0) + 1
+            picked.append(x)
+        else:
+            rest.append(x)
+    return (picked + rest)[:cfg["nearby_count"]]

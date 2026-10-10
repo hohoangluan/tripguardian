@@ -1,4 +1,4 @@
-"""Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17)."""
+"""Long-term pattern learning (docs/P2_TRIP_UNDERSTANDING.md §17)."""
 
 from datetime import date, timedelta
 
@@ -10,8 +10,8 @@ from trip.api.engine import Engine, TurnInput
 from trip.domain.patterns import Summary, detect, seed, votes_from_state
 from trip.infrastructure.profile import ProfileStore
 from trip.infrastructure.sessions import SessionStore
-from trip.infrastructure.settings import PatternSettings
-from trip.domain.state import Evidence, TripState, Update, apply, settle, with_meta
+from trip.infrastructure.settings import PatternSettings, Settings
+from trip.domain.state import Evidence, TripState, Update, apply, settle
 
 TODAY = date(2026, 10, 2)
 PCFG = PatternSettings(enabled=True, min_sessions=3, window=8, agreement=0.75, stale_days=365, max_places=2)
@@ -199,7 +199,7 @@ def test_session_is_remembered_only_with_consent_and_once(make, store):
         run(e, sid, kind="show")
         run(e, sid, kind="show")
         assert len(store.history(UID)) == expect
-    assert store.history(UID)[0].votes == {"pace": "packed"}
+    assert store.history(UID)[0].votes == {"pace": "packed", "mobility": "car"}  # what the user chose by hand is voted
 
 
 def test_forget_deletes_the_history(make, store):
@@ -227,3 +227,61 @@ def test_profile_values_trip_does_not_know_are_ignored():
     from trip.domain.patterns import seed_profile
     s = seed_profile(TripState(), {"usual_mobility": "rocket", "usual_companions": None})
     assert s.mobility.value is None and s.companions.value is None
+
+
+# ---------- the logistics answers are learned too, so later trips ask less ----------
+
+import json
+
+from trip.domain.questions import quiz_queue
+from trip.domain.state import Base
+
+HCM = Base(text="TP Hồ Chí Minh", lat=10.7769, lng=106.7009, province="TP Hồ Chí Minh")
+
+
+def said(state, field, value):
+    return settle(apply(state, Update(field=field, value=value, source="user", confidence="high",
+                                      evidence=Evidence(turn=1, tool="chip:test"))))
+
+
+def test_how_they_arrive_where_from_budget_and_hours_are_voted_when_chosen():
+    st = TripState()
+    for field, value in (("arrival_mode", "bus"), ("mobility", "motorbike"), ("origin", HCM), ("budget_vnd", 700_000),
+                         ("checkin_at", "14:00"), ("checkout_at", "11:00")):
+        st = said(st, field, value)
+    votes = votes_from_state(st)
+    assert {k: votes[k] for k in ("arrival_mode", "mobility", "budget_vnd", "checkin_at", "checkout_at")} == \
+        {"arrival_mode": "bus", "mobility": "motorbike", "budget_vnd": "700000", "checkin_at": "14:00", "checkout_at": "11:00"}
+    assert json.loads(votes["origin"])["province"] == "TP Hồ Chí Minh"
+
+
+def test_a_value_seeded_from_a_pattern_is_not_voted_again():
+    st = said(TripState(), "checkin_at", "14:00")
+    st = settle(apply(st, Update(field="arrival_mode", value="bus", source="profile", confidence="medium",
+                                 evidence=Evidence(turn=0, tool="profile:arrival_mode"))))
+    assert "arrival_mode" not in votes_from_state(st) and "checkin_at" in votes_from_state(st)
+
+
+def test_learned_logistics_are_seeded_as_priors_and_the_quiz_stops_asking_them(catalog):
+    from trip.domain.patterns import Pattern
+    cfg = PatternSettings(enabled=True, min_sessions=2)
+    found = [Pattern(key="arrival_mode", value="bus", sessions=3, confidence="medium", last=TODAY),
+             Pattern(key="origin", value=json.dumps({"text": HCM.text, "lat": HCM.lat, "lng": HCM.lng,
+                                                     "province": HCM.province}), sessions=3, confidence="medium", last=TODAY),
+             Pattern(key="budget_vnd", value="700000", sessions=3, confidence="medium", last=TODAY),
+             Pattern(key="checkin_at", value="14:00", sessions=3, confidence="medium", last=TODAY),
+             Pattern(key="checkout_at", value="11:00", sessions=3, confidence="medium", last=TODAY)]
+    st = seed(TripState(), found, catalog, cfg)
+    assert (st.arrival_mode.value, st.origin.value.province, st.budget_vnd.value, st.checkin_at.value) == \
+        ("bus", "TP Hồ Chí Minh", 700_000, "14:00")
+    assert st.arrival_mode.source == "profile" and st.origin.source == "profile"
+    qids = [q.qid for q in quiz_queue(st, catalog, Settings(n_min=1, top_k=4, enough_factor=1.0))]
+    assert not {"arrival", "origin", "budget", "stay_times"} & set(qids)
+
+
+def test_this_trips_own_answer_replaces_a_learned_prior(catalog):
+    from trip.domain.patterns import Pattern
+    st = seed(TripState(), [Pattern(key="arrival_mode", value="bus", sessions=3, confidence="medium", last=TODAY)],
+              catalog, PatternSettings(enabled=True, min_sessions=2))
+    st = said(st, "arrival_mode", "plane")
+    assert st.arrival_mode.value == "plane" and st.arrival_mode.source == "user"

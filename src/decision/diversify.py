@@ -1,4 +1,4 @@
-"""⑥ Diversity and shortlist size (docs/PLACE_DECISION.md §9): one representative per near-duplicate group, picked by
+"""⑥ Diversity and shortlist size (docs/P3_PLACE_DECISION.md §9): one representative per near-duplicate group, picked by
 MMR; the group's other places become its alternatives."""
 
 import math

@@ -1,4 +1,4 @@
-# Trip Understanding thresholds (docs/TRIP_UNDERSTANDING.md §5.4, §8-9).
+# Trip Understanding thresholds (docs/P2_TRIP_UNDERSTANDING.md §5.4, §8-9).
 n_min: 1            # reviews behind a place's feature value before it counts as evidence
 top_k: 20           # shortlist size used to measure whether a question changes the result
 enough_factor: 1.5  # a hard filter's coverage is "enough" when verified passes >= top_k * enough_factor
@@ -8,14 +8,15 @@ clef_timeout_s: 1    # Clef (Cloudflare classifier) limit; slower or failing = i
 clef_reject_min: 0.88 # Clef must be this sure a message is off topic / abuse to answer it with the fixed reply (a wrong reject costs more than a miss)
 clef_data_min: 0.8   # ... and this sure the user asks for a real-world figure (weather, price, hours) to answer with the fixed reply
 clef_feature_min: 0.5  # search_features, when the keywords find nothing: Clef ranks features, those from this probability are returned
-clef_verify_min: 0.75 # record_fact (an inferred soft / hard fact): Clef must be this sure the quote does not say the fact to refuse it
+clef_verify_min: 0.75 # D-gate (chat): Clef must be this sure the quote does not say the fact to refuse a low-confidence fact
+clef_clarity_min: 0.75 # quiz other-gate: Clef must be this sure a free-typed answer clearly states a value for the field to fill it directly; otherwise the turn goes to the chatbot phase
 clef_reply_min: 0.9   # Clef must be this sure a reply promises results or states an unsaid fact to replace it
 clef_repeat_min: 0.9  # Clef must be this sure a question is already answered by the state to send the Agent back
 tool_steps: 6       # maximum model calls in one turn (each may call several tools)
 required: [days, companions, mobility, when]  # known before the user may press Next (when = a start date or a month)
 max_tokens: 1500    # agent: completion limit of one model call
 
-# Logistics after the conversation (docs/TRIP_UNDERSTANDING.md §Hậu cần).
+# Logistics after the conversation (docs/P2_TRIP_UNDERSTANDING.md §Hậu cần).
 arrival_buffer_min: 45  # a chosen coach / flight: first stop this long after it arrives, last stop this long before it leaves
 # Driving in ("Tự đi"): the road into Đà Lạt by the bearing from Đà Lạt toward where the trip starts (0 = north,
 # clockwise; a range may wrap past 360). Static: the main passes, not a route search.
@@ -25,10 +26,10 @@ entry_roads:
   - {from_deg: 20, to_deg: 90, text: "Đèo Khánh Lê"}      # Nha Trang, Khánh Hòa (QL27C)
   - {from_deg: 300, to_deg: 20, text: "Đèo Tà Nung"}      # Lâm Hà, Đắk Nông, Đắk Lắk (ĐT725)
 
-# Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17). Needs a user id on the session; writes only with consent.
+# Long-term pattern learning (docs/P2_TRIP_UNDERSTANDING.md §17). Needs a user id on the session; writes only with consent.
 patterns:
-  enabled: false        # off until the update rule is validated with a user survey
-  min_sessions: 3       # sessions with the same explicit choice before it is a pattern
+  enabled: true         # on: a user who agreed (profiles.consents.patterns) is asked less on later trips
+  min_sessions: 2       # sessions with the same explicit choice before it is a pattern
   window: 8             # latest votes on one key that are read
   agreement: 0.75       # share of those votes the winning choice needs
   stale_days: 365       # a pattern whose last vote is older than this is dropped

@@ -48,20 +48,22 @@
       html.tg-boot { background: #fff9f8; }
       html.tg-boot #root:empty { min-height: 100vh; background: url(/img/landing-poster.webp) 62% center / cover, #fff9f8; }
     </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Phudu:wght@500..900&family=Geologica:wght,SHRP@300..800,0..100&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-      media="print"
-      onload="this.media='all'"
-    />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Phudu:wght@500..900&family=Geologica:wght,SHRP@300..800,0..100&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <!-- fonts:preload -->
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/BeVietnamPro-400-normal-latin.312fd8b5.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/BeVietnamPro-400-normal-vietnamese.f1ab404e.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Lora-500-700-normal-latin.fcfdbcb8.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Lora-500-700-normal-vietnamese.6d3e5ac6.woff2" crossorigin />
+    <!-- /fonts:preload -->
+    <script>
+      // The admin page still uses its own faces from Google Fonts; the user web never asks Google (fonts are self-hosted, web/scripts/self_host_fonts.py).
+      if (location.pathname.indexOf('/admin') === 0) {
+        var g = document.createElement('link')
+        g.rel = 'stylesheet'
+        g.href = 'https://fonts.googleapis.com/css2?family=Phudu:wght@500..900&family=Geologica:wght,SHRP@300..800,0..100&family=Space+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap'
+        document.head.appendChild(g)
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

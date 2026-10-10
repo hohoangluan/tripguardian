@@ -1,4 +1,4 @@
-"""The window of places shown per display group, and how it survives a new ranking (docs/PLACE_DECISION.md §9.4):
+"""The window of places shown per display group, and how it survives a new ranking (docs/P3_PLACE_DECISION.md §9.4):
 places that still match stay where they are, freed slots take the best new places, a mostly stale window is
 replaced whole."""
 

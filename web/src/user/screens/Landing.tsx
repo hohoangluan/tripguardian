@@ -16,7 +16,7 @@ import { Photo, thumbOf } from '../ui/common'
 import { Icon, Logo } from '../ui/icons'
 import { useTitle } from '../ui/Shell'
 
-// Desktop landing (docs/UI_SPEC_LANDING.md): one sticky stage with a 3D model of Đà Lạt; scrolling moves the
+// Desktop landing (docs/UI_DESIGN.md §7): one sticky stage with a 3D model of Đà Lạt; scrolling moves the
 // camera through five chapters. Real places copied from the snapshot by web/scripts/pick_landing_places.py.
 interface LPlace extends ScenePlace { id: string; photos: Cover[]; voices?: number; crowd?: { weekend?: Record<string, number> }; quotes?: { text: string }[]; videos?: { url: string; handle: string }[] }
 const PLACES = raw as unknown as LPlace[]
@@ -39,11 +39,11 @@ const RAIL: [string, number][] = [['Mở đầu', 0], ['Tìm hiểu', 1], ['Lự
 const BEATS = 6
 const STORY_LEN = 5.5 // the last beat holds to the end
 const stepOf = (beat: number) => (beat === 3 ? 2 : beat)
-const FEEDBACK: [string, number][] = [['Gợi ý có đúng gu của bạn?', 5], ['Lý do có dễ hiểu?', 4], ['Lịch có thực tế?', 5], ['Bạn tự tin hơn về chuyến đi?', 4]]
+const FEEDBACK: [string, number][] = [['Gợi ý hợp gu', 5], ['Lý do dễ hiểu', 4], ['Lịch chạy được thực tế', 5], ['Yên tâm hơn khi đi', 4]]
 // the five as postcards on the 3D scene: their own real photo, the light thumbnail when there is one
 const SCENE_FIVE: ScenePlace[] = ROUTE.map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, photo: p.photos[0] && (thumbOf(p.photos[0].src) ?? p.photos[0].src) }))
 const FAQ = [
-  ['Có cần tạo tài khoản không?', 'Không. Bạn dùng được ngay. Chuyến đi được lưu theo mã chuyến, danh sách chuyến nằm trên trình duyệt này.'],
+  ['Có cần tạo tài khoản không?', 'Có, bạn đăng nhập bằng tài khoản Google, miễn phí và không cần mật khẩu mới. Chuyến đi được lưu theo tài khoản nên mở được trên mọi máy; bạn xóa tài khoản lúc nào cũng được.'],
   ['Nếu một nơi thiếu thông tin thì sao?', 'TripGuardian ghi rõ “Chưa có thông tin” thay vì đoán. Điều gì chưa chắc chắn đều được đánh dấu ngay tại chỗ.'],
   ['TripGuardian có quyết định thay tôi không?', 'Không. Mỗi gợi ý đi kèm lý do và điều phải đánh đổi; giữ hay bỏ là do bạn chọn.'],
   ['TripGuardian có đặt chỗ ở giúp tôi không?', 'Không. Bạn nhập nơi đang ở hoặc chọn từ danh sách tra trên Google Maps; TripGuardian chỉ dùng nó để tính đường đi.'],
@@ -61,6 +61,10 @@ const HINTS = ['Cuộn để xem cách hoạt động', 'Cuộn tiếp: Lựa ch
 // The light version (no GPU): one picture per chapter, taken from the 3D model itself (web/scripts/shots_plates.mjs)
 const PLATES = ['/img/landing-poster.webp', '/img/landing-p1.webp', '/img/landing-p2.webp', '/img/landing-p3.webp', '/img/landing-p4.webp', '/img/landing-p5.webp']
 const num = (n: number) => n.toLocaleString('vi-VN')
+// Counts rounded down to the hundred ("hơn 1.700"): the app reads a newer snapshot, so an exact landing number would
+// soon disagree with it.
+const PLACE_COUNT = Math.floor(stats.places / 100) * 100
+const PHOTOS = Math.floor(stats.withPhotos / 100) * 100
 const km = (a: ScenePlace, b: ScenePlace) => {
   const R = 6371, r = Math.PI / 180
   const x = (b.lng - a.lng) * r * Math.cos(((a.lat + b.lat) / 2) * r), y = (b.lat - a.lat) * r
@@ -217,7 +221,7 @@ export function Landing() {
         gsap.ticker.add(tick)
         gsap.ticker.lagSmoothing(0)
         const ch = gsap.utils.toArray<HTMLElement>('.tg-l3__ch', sec)
-        const n = { v: stats.places }
+        const n = { v: PLACE_COUNT }
         const write = () => { if (counter.current) counter.current.textContent = num(Math.round(n.v)) }
         const inn = { autoAlpha: 1, y: 0, duration: 0.3, ease: 'power2.out' }
         const out = { autoAlpha: 0, y: -36, duration: 0.25, ease: 'power1.in' }
@@ -371,7 +375,7 @@ export function Landing() {
         <div className={`tg-l3__stage ${flat ? 'is-flat' : ''} ${live ? 'is-live' : ''} ${exploring ? 'is-exploring' : ''}`} ref={stage}>
           <div className="tg-l3__poster" aria-hidden="true" />
           {flat && <div className="tg-l3__plates" aria-hidden="true">{PLATES.map((src, i) => <img key={src} src={src} alt="" decoding="async" loading={i ? 'lazy' : 'eager'} className={i === Math.min(active, PLATES.length - 1) ? 'is-on' : ''} />)}</div>}
-          <canvas ref={canvas} className="tg-l3__cv" role="img" aria-label={`Mô hình 3D Đà Lạt theo địa hình thật, kéo để xoay 360 độ: ${num(stats.places)} địa điểm trong dữ liệu; năm nơi được chọn nối thành một tuyến đi`} />
+          <canvas ref={canvas} className="tg-l3__cv" role="img" aria-label={`Mô hình 3D Đà Lạt theo địa hình thật, kéo để xoay 360 độ: hơn ${num(PLACE_COUNT)} địa điểm trong dữ liệu; năm nơi được chọn nối thành một tuyến đi`} />
           <div className="tg-l3__veil" aria-hidden="true" />
           <div className="tg-l3__labels" aria-hidden="true">
             {AREAS.map((a, i) => <span key={a.name} className="tg-l3__area" ref={(el) => { if (el) areaEls.current[i] = el }}><span>{a.name}</span></span>)}
@@ -388,7 +392,7 @@ export function Landing() {
                 {!flat && <button type="button" className="tg-btn tg-btn--ghost tg-l3__roam" disabled={!live} onClick={explore}><Icon name="compass" size={18} />Khám phá Đà Lạt 3D</button>}
                 {flat && window.__tgGL !== 'none' && <button type="button" className="tg-btn tg-btn--ghost tg-l3__roam" onClick={() => { location.search = '?3d=on' }} title="Máy của bạn không có card đồ họa, bản 3D có thể chậm"><Icon name="compass" size={18} />Thử bản 3D</button>}
               </div>
-              <p className="tg-l3__proof"><b>{num(stats.places)}</b> địa điểm có thật<i aria-hidden="true" /><b>{num(stats.withPhotos)}</b> nơi có ảnh thực tế<i aria-hidden="true" />Không cần tài khoản</p>
+              <p className="tg-l3__proof">Hơn <b>{num(PLACE_COUNT)}</b> địa điểm có thật<i aria-hidden="true" />hơn <b>{num(PHOTOS)}</b> nơi có ảnh thực tế<i aria-hidden="true" />Đăng nhập bằng Google, miễn phí</p>
             </div>
 
             <article className="tg-l3__ch" aria-labelledby="tg-ch1">
@@ -405,7 +409,7 @@ export function Landing() {
 
             <article className="tg-l3__ch" aria-labelledby="tg-ch2">
               <p className="tg-kicker">Lựa chọn</p>
-              <h2 id="tg-ch2" aria-label={`Còn lại 5 nơi hợp với bạn, lọc từ ${num(stats.places)} địa điểm`}><span aria-hidden="true">Còn lại <span ref={counter} className="tg-l3__count">{still ? 5 : num(stats.places)}</span> nơi hợp với bạn.</span></h2>
+              <h2 id="tg-ch2" aria-label={`Còn lại 5 nơi hợp với bạn, lọc từ hơn ${num(PLACE_COUNT)} địa điểm`}><span aria-hidden="true">Còn lại <span ref={counter} className="tg-l3__count">{still ? 5 : num(PLACE_COUNT)}</span> nơi hợp với bạn.</span></h2>
               <p className="tg-muted">Giữa hàng nghìn ánh đèn, chỉ năm nơi sáng lên cho bạn.</p>
               <ul className="tg-l3__legend">
                 <li><i className="is-all" />Mỗi chấm là một địa điểm trong dữ liệu</li>
@@ -503,7 +507,7 @@ export function Landing() {
 
       <section className="tg-l5" id="tg-faq" aria-label="Hỏi nhanh và sắp có">
         <div className="tg-faq"><h2>Hỏi nhanh</h2>{FAQ.map(([q, a], i) => <div key={q} className="tg-faq__i"><button type="button" aria-expanded={faq === i} onClick={() => setFaq(faq === i ? -1 : i)}>{q}<Icon name={faq === i ? 'minus' : 'plus'} size={18} /></button>{faq === i && <p className="tg-muted">{a}</p>}</div>)}</div>
-        <aside className="tg-soon" aria-labelledby="tg-soon-h"><h2 id="tg-soon-h">Sắp có</h2>{[['compass', 'Khám phá Đà Lạt', 'Danh sách dựng sẵn theo khu và theo thời tiết'], ['bookmark', 'Nhật ký chuyến đi', 'Nhìn lại chuyến đã đi, dùng lại gu'], ['phone', 'Ứng dụng điện thoại', 'Mang lịch trình theo suốt chuyến'], ['map', 'Thêm thành phố', 'Khi trải nghiệm Đà Lạt đã hoàn thiện']].map(([ic, a, b]) => <div key={a} className="tg-soon__c"><Icon name={ic as 'map'} size={20} /><span><b>{a}</b><small className="tg-muted">{b}</small></span><span className="tg-tag tg-tag--warn">chưa mở</span></div>)}</aside>
+        <aside className="tg-soon" aria-labelledby="tg-soon-h"><h2 id="tg-soon-h">Sắp có</h2>{[['bookmark', 'Nhật ký chuyến đi', 'Nhìn lại chuyến đã đi, dùng lại gu'], ['phone', 'Ứng dụng điện thoại', 'Mang lịch trình theo suốt chuyến'], ['map', 'Thêm thành phố', 'Khi trải nghiệm Đà Lạt đã hoàn thiện']].map(([ic, a, b]) => <div key={a} className="tg-soon__c"><Icon name={ic as 'map'} size={20} /><span><b>{a}</b><small className="tg-muted">{b}</small></span><span className="tg-tag tg-tag--warn">chưa mở</span></div>)}</aside>
         <button type="button" className="tg-l__more" onClick={() => toId('tg-cta')}><Icon name="chevronDown" size={18} />Còn nữa: bắt đầu chuyến của bạn</button>
       </section>
 
@@ -512,7 +516,7 @@ export function Landing() {
         <div className="tg-cta__in"><h2 id="tg-cta-h">Bắt đầu chuyến Đà Lạt của bạn.</h2><button type="button" className="tg-btn tg-btn--sun tg-cta__btn" onClick={begin}>Trải nghiệm đi <Icon name="arrow" size={20} /></button><p>Miễn phí, đăng nhập bằng Google.</p></div>
       </section>
 
-      <footer className="tg-lf"><Logo size={26} dark /><span>TripGuardian Đà Lạt</span><span className="tg-lf__sp" /><span>Giờ giấc và quãng đường là ước tính; địa hình theo dữ liệu thật, cây và mái nhà chỉ là biểu tượng. Số liệu theo bản dữ liệu {stats.asOf?.split('-').reverse().join('/')}: {num(stats.places)} nơi, {num(stats.withPhotos)} nơi có ảnh thật.</span></footer>
+      <footer className="tg-lf"><Logo size={26} dark /><span>TripGuardian Đà Lạt</span><span className="tg-lf__sp" /><span>Giờ giấc và quãng đường là ước tính; địa hình theo dữ liệu thật, cây và mái nhà chỉ là biểu tượng. Số liệu theo bản dữ liệu {stats.asOf?.split('-').reverse().join('/')}: hơn {num(PLACE_COUNT)} nơi, hơn {num(PHOTOS)} nơi có ảnh thật.</span></footer>
     </div>
   )
 }

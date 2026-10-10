@@ -51,7 +51,7 @@
  "trip_context": {
   "anchors": [],
   "context": {
-   "arrive_at": null,
+   "checkin_at": null,
    "base": null,
    "budget_vnd": 2000000,
    "companions": [],
@@ -59,7 +59,7 @@
    "days": 3,
    "entry_point": null,
    "exit_point": null,
-   "leave_at": null,
+   "checkout_at": null,
    "mobility": "motorbike",
    "month": null,
    "people": 2,
@@ -168,6 +168,20 @@
        "name": "c2",
        "place_id": "c2",
        "start": "11:00"
+      },
+      {
+       "end": "13:00",
+       "kind": "meal_free",
+       "name": "lunch",
+       "note": "free",
+       "start": "12:00"
+      },
+      {
+       "end": "19:00",
+       "kind": "meal_free",
+       "name": "dinner",
+       "note": "free",
+       "start": "18:00"
       }
      ],
      "method": "exact",
@@ -232,6 +246,20 @@
        "name": "s2",
        "place_id": "s2",
        "start": "11:03"
+      },
+      {
+       "end": "13:03",
+       "kind": "meal_free",
+       "name": "lunch",
+       "note": "free",
+       "start": "12:03"
+      },
+      {
+       "end": "19:00",
+       "kind": "meal_free",
+       "name": "dinner",
+       "note": "free",
+       "start": "18:00"
       }
      ],
      "method": "exact",
@@ -306,11 +334,11 @@
    "objective": "least_travel",
    "robustness": {
     "breaking": [],
-    "label": "Vững",
+    "label": "Dư giờ",
     "level": "solid",
     "reasons": [
-     "Chịu được mọi kịch bản nhiễu đã thử.",
-     "Chưa biết thời tiết: chưa thử kịch bản mưa."
+     "Xuất phát trễ, ở lâu hơn hay đi chậm hơn một chút vẫn kịp mọi nơi.",
+     "Chưa có dự báo thời tiết nên mình chưa tính trường hợp mưa."
     ],
     "scenarios": [
      {
@@ -373,11 +401,11 @@
  "warnings": [
   {
    "code": "base_unknown",
-   "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+   "text": "Chưa có chỗ ở: mỗi ngày tính từ nơi đầu tiên đến nơi cuối cùng. Chọn chỗ ở để giờ đi lại sát hơn."
   },
   {
    "code": "entry_exit_unknown",
-   "text": "Chưa biết điểm vào / ra thành phố: ngày đầu và ngày cuối chỉ cắt theo giờ đến / giờ rời, kém chắc hơn."
+   "text": "Chưa biết bạn đến và rời Đà Lạt ở đâu, nên ngày đầu và ngày cuối chỉ tính theo giờ đến và giờ về."
   },
   {
    "code": "weather_unknown",

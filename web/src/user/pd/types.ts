@@ -1,3 +1,5 @@
+import type { Blocker } from '../lib'
+
 // Shapes of the Place Decision API (src/decision/engine.py, pipeline.py, cards.py, feasibility.py).
 
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
@@ -17,9 +19,13 @@ export interface Card {
   status: 'main' | 'unverified' | 'excluded'
   score: number
   parts: Record<string, number>
+  // fit to this trip, 0..5, fractional (src/decision/rank.py stars); null when the trip names no taste
+  fit: { stars: number; level: string } | null
   why: Claim[]
   tradeoffs: Claim[]
-  visit: { short: number; typical: number; long: number; source: string } | null
+  outdoor: boolean
+  // a day-trip visit; `stay` is the served range when that was a stay (a night at a camping ground)
+  visit: { short: number; typical: number; long: number; source: string; stay?: { short: number; long: number } } | null
   location: { center: string; km: number | null; minutes: number | null }
   price: string | null
   confidence: { level: 'high' | 'medium' | 'low'; reason: string }
@@ -74,6 +80,8 @@ export interface Feasibility {
   status: 'feasible' | 'partial' | 'infeasible' | 'unknown'
   known_days: boolean
   totals: { places: number; visit: number; buffer: number; travel: number; needed: number; available: number }
+  // free time the picks leave in the trip's real usable hours (null without a number of days): a hint, not a rule
+  room: { usable: number; free: number; more: number; filled: boolean } | null
   slack: number | null
   conflicts: Conflict[]
   warnings: string[]
@@ -90,6 +98,9 @@ export interface Pending {
 export interface View {
   version: number
   groups: Group[]
+  focus: string | null // the tab to open first: the trip's main interest
+  notes: { code: string; text: string }[] // trip-wide warnings, shown once above the list
+  budget_vnd: number | null // per person per day
   change: Record<string, Change>
   shortlist: string[]
   selected: string[]
@@ -172,7 +183,7 @@ export interface PreviewVariant {
 export interface PlanPreview {
   revision: number
   status: 'ready' | 'failed' | 'blocked' | 'empty'
-  plan: { ok: boolean; days: number; warnings: { code: string; text: string }[]; back_to_decision: { reason: string; places: string[] } | null; variants: PreviewVariant[] } | null
+  plan: { ok: boolean; days: number; warnings: { code: string; text: string }[]; back_to_decision: { reason: string; places: string[]; reasons?: Blocker[] } | null; variants: PreviewVariant[] } | null
 }
 
 // GET /api/harness/trips: one line per journey of the signed-in account, newest first.
@@ -182,6 +193,7 @@ export interface TripSummary {
   revision: number
   start_date: string | null
   days: number | null
+  nights: number | null
   people: number | null
   places: string[]
   confirmed: boolean

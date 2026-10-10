@@ -45,7 +45,7 @@ def test_value_parsing(catalog):
     assert values.parse("soft", "crowd=low@time_of_day.morning:avoid", catalog) == ("crowd=low@time_of_day.morning", "avoid")
     assert values.parse("base", "0x11:0x1", catalog) == Base(place_id="0x11:0x1", text="Vườn Phẳng Lặng Xanh")
     assert values.parse("base", "gần chợ", catalog) == Base(place_id=None, text="gần chợ")
-    for field, raw in (("hard", "steep_or_stairs!=maybe"), ("soft", "nope=present"), ("arrive_at", "sáng"), ("days", "")):
+    for field, raw in (("hard", "steep_or_stairs!=maybe"), ("soft", "nope=present"), ("checkin_at", "sáng"), ("days", "")):
         with pytest.raises(ValueError):
             values.parse(field, raw, catalog)
     assert values.parse_remove("soft", "noise=quiet:love") == "noise=quiet"

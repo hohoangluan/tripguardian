@@ -1,39 +1,56 @@
-/* TripGuardian /preview — design tokens. Light, warm paper; pine (primary) + sun (highlight). */
+/* TripGuardian user web — design tokens, shared by the landing and the app (one product).
+   Rose system: blush paper, plum ink, plum primary, rose highlight. The names "pine" (primary) and "sun" (highlight)
+   are historic; the values are the landing's plum and rose. Semantic colours (ok / warn / danger) stay green, amber
+   and red so they never read as the brand. Contrast pairs are checked to WCAG AA (docs/WEB.md */
 .tg {
-  --tg-bg: #faf7f2;
+  --tg-bg: #fff9f8;
   --tg-surface: #ffffff;
-  --tg-ink: #1b2a2f;
-  --tg-ink-2: #4a5a60;
-  --tg-ink-3: #6b787d;
-  --tg-line: #e7e1d6;
-  --tg-line-2: #d6cdbb;
-  --tg-pine: #0f5f5a;
-  --tg-pine-d: #0b4743;
-  --tg-pine-soft: #e3f1ee;
-  --tg-pine-line: #bcdcd6;
-  --tg-sun: #e8590c;
-  --tg-sun-ink: #b8420a;
-  --tg-sun-soft: #fdebdd;
+  --tg-ink: #3a2b32;
+  --tg-ink-2: #5e4a54;
+  --tg-ink-3: #7d6873;
+  --tg-line: #f3e1e4;
+  --tg-line-2: #e8cdd3;
+  --tg-well: #f6e9ec; /* quiet fills: segmented controls, skeletons */
+  --tg-well-2: #fcf4f5;
+  --tg-photo: #efdde2; /* photo placeholders */
+  --tg-pine: #6b3550; /* primary (plum) */
+  --tg-pine-d: #4f2539;
+  --tg-pine-soft: #fceef1;
+  --tg-pine-line: #f0cfd8;
+  --tg-sun: #c97890; /* highlight (rose): badges, dots, saved; text on it uses --tg-on-sun */
+  --tg-sun-ink: #8a3d58;
+  --tg-sun-soft: #fbe6ec;
+  --tg-sun-line: #efc3cf;
+  --tg-on-sun: #2a1820;
+  --tg-ok: #2f6b4f;
+  --tg-ok-bg: #e6f2ea;
   --tg-warn: #8a5a00;
   --tg-warn-bg: #fff4dc;
   --tg-warn-line: #f0d9a0;
   --tg-danger: #b42318;
   --tg-danger-bg: #fdeceb;
   --tg-danger-line: #f3c2bd;
-  --tg-night: #14262b;
+  --tg-night: #3a2330; /* dark surfaces: tooltips, toasts */
+  --tg-night-2: #4a2e3d;
+  --tg-on-night: #fbf1f3;
+  --tg-on-night-2: #ecdde3;
+  --tg-on-night-link: #f4b8c8;
+  --tg-shade: #1e1016; /* scrims over photos */
 
-  --tg-display: 'Playfair Display', 'Times New Roman', Georgia, serif;
+  --tg-display: 'Lora', Georgia, serif; /* same display face as the landing (full Vietnamese set) */
   --tg-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --tg-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   --tg-r-s: 10px;
   --tg-r-m: 16px;
   --tg-r-l: 22px;
-  --tg-sh-1: 0 1px 2px rgba(27, 42, 47, 0.06), 0 6px 20px rgba(27, 42, 47, 0.06);
-  --tg-sh-2: 0 2px 4px rgba(27, 42, 47, 0.06), 0 18px 48px rgba(27, 42, 47, 0.14);
+  --tg-sh-1: 0 1px 2px rgba(58, 43, 50, 0.06), 0 6px 20px rgba(107, 53, 80, 0.07);
+  --tg-sh-2: 0 2px 4px rgba(58, 43, 50, 0.06), 0 18px 48px rgba(107, 53, 80, 0.15);
   --tg-ease: cubic-bezier(0.22, 0.8, 0.3, 1);
   --tg-rail: 76px;
-  --tg-top: 68px;
+  --tg-bar-h: 68px;
+  /* --tg-guest (36px for a guest, set on :root by UserApp) is the strip above the top bar; layers portalled out of .tg-root still see it */
+  --tg-top: calc(var(--tg-bar-h) + var(--tg-guest, 0px)); /* where content starts: below the strip and the top bar */
   --tg-bar: 76px;
   --tg-max: 1280px;
   --tg-gutter: 48px;

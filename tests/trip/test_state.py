@@ -43,10 +43,10 @@ def test_ranges_clock_and_literals_are_checked():
     with pytest.raises(ValueError):
         apply(TripState(), up("days", 12))
     with pytest.raises(ValueError):
-        apply(TripState(), up("arrive_at", "9h"))
+        apply(TripState(), up("checkin_at", "9h"))
     with pytest.raises(ValueError):
         apply(TripState(), up("mobility", "bus"))
-    assert apply(TripState(), up("arrive_at", "09:30")).arrive_at.value == "09:30"
+    assert apply(TripState(), up("checkin_at", "09:30")).checkin_at.value == "09:30"
 
 
 def test_companions_add_and_remove():

@@ -1,4 +1,4 @@
-"""Stored voting history per user (docs/TRIP_UNDERSTANDING.md §17): data/trip/profiles/<user_id>.json.
+"""Stored voting history per user (docs/P2_TRIP_UNDERSTANDING.md §17): data/trip/profiles/<user_id>.json.
 
 The user id is opaque. Until login exists it is whatever the client keeps; a login later binds it to an account. Health
 and body signals never reach this file (patterns.votes_from_state does not vote on them).

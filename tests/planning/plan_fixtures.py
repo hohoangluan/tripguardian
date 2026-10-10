@@ -43,23 +43,26 @@ def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours=
 
 
 def decision(ids, *, roles=None, days=2, start_date="2026-12-12", pace="normal", mobility="motorbike", base=None,
-             entry=None, exit=None, hard=(), budget=None, max_leg=None, relaxed=None, arrive_at=None, leave_at=None,
-             flags=None, log=()):
-    """A Decision Output (docs/PLACE_DECISION.md §15) as the JSON a session would write."""
+             entry=None, exit=None, hard=(), budget=None, max_leg=None, relaxed=None, checkin_at=None, checkout_at=None,
+             flags=None, log=(), nights=None):
+    """A Decision Output (docs/P3_PLACE_DECISION.md §15) as the JSON a session would write."""
     roles = roles or {}
-    return {
+    out = {
         "confirmed": [{"id": i, "name": i, "role": roles.get(i, "selected"), "visit": None,
                        "flags": (flags or {}).get(i, []), "relaxed": (relaxed or {}).get(i, [])} for i in ids],
         "backup_pool": [], "wishlist": [], "decision_log": list(log), "feasibility": {},
         "trip_context": {
             "context": {"start_date": start_date, "month": None, "days": days, "base": base, "entry_point": entry,
                         "exit_point": exit, "mobility": mobility, "companions": [], "people": 2,
-                        "arrive_at": arrive_at, "leave_at": leave_at, "day_end": None, "budget_vnd": budget},
+                        "checkin_at": checkin_at, "checkout_at": checkout_at, "day_end": None, "budget_vnd": budget},
             "hard_filters": list(hard),
             "anchors": [{"place_id": i, "priority": "must"} for i in roles if roles[i] == "anchor"],
             "soft_weights": [], "pace": {"level": pace, "max_leg_min": max_leg, "crowd_tolerance": None},
             "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []},
     }
+    if nights is not None:
+        out["trip_context"]["context"]["nights"] = nights
+    return out
 
 
 def fake_matrix(points, mode, cfg):

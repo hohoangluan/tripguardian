@@ -1,7 +1,7 @@
 """Gold labels for review observations: data/review/labels.jsonl, append-only; the latest label per observation wins.
 
 A person reads the review text next to what the Extractor claimed and says correct / wrong / unsure. The labels give
-the precision per (feature, value) that docs/CORPUS.md §Đo chất lượng asks for; a value whose measured
+the precision per (feature, value) that docs/P1_CORPUS.md §Đo chất lượng asks for; a value whose measured
 precision is below the gate is not served by itself. They never edit observations.
 
 A label judges what a person can read: this review, this feature and value, these quoted words. It is keyed by that
@@ -334,7 +334,7 @@ def stats() -> dict:
 
     The precision is measured on the accurate labels (a person's, the Codex Judge's) once they reach GATE_MIN_N, and on
     every label only below that. The Gemma Judge's labels are a filter, not a measure: it calls ~30% of correct claims
-    wrong (docs/CORPUS.md §6), so mixing them in pulled values whose accurate labels pass well below the gate --
+    wrong (docs/P1_CORPUS.md §6), so mixing them in pulled values whose accurate labels pass well below the gate --
     food_quality=good measured 0.95 on 73 accurate labels and 0.83 once Gemma's were added (2026-10-06, 12 values and
     84.6k claims held back this way). Which labels decide is reported as `measured_by`."""
     rows = _rows()

@@ -11,23 +11,27 @@ import time
 import traceback
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic import ValidationError
 from accounts import AVATAR_MAX_BYTES, AuthError, safe_next
 from agents import ToolError
 from companion import CalendarError, NotConnected
+from speech import MAX_BYTES as AUDIO_MAX_BYTES, SpeechUnavailable, synthesize, transcribe
 
-from .contracts import Request
+from .contracts import Missing, Request
 from .dispatch import Conflict
 from .router import RouteError, route
 
 BASE = "/api/harness/sessions"
 PROFILE = re.compile(r"/api/harness/profile/([A-Za-z0-9_-]{8,64})")
 AVATAR = re.compile(r"/api/harness/avatars/([0-9a-f]{32})")
+SAVED = re.compile(r"/api/harness/me/saved/([^/]{1,384})")
+# Account features: a guest (a trial visitor, docs/ACCOUNTS.md §Khách) is told to sign in instead.
+GUEST_BLOCKED = re.compile(r"/api/harness/(me/(saved|avatar|consent|notification-prefs)|notifications|push/|calendar/|profile/)")
 SESSION = re.compile(BASE + r"/([0-9a-f]{12})")
 REQUEST = re.compile(BASE + r"/([0-9a-f]{12})/request")
-READ = re.compile(BASE + r"/([0-9a-f]{12})/read/(decision|planning)/(compare|why-not|lodging|variants|page)")
+READ = re.compile(BASE + r"/([0-9a-f]{12})/read/(decision|planning)/(compare|why-not|lodging|variants|page|fit)")
 LODGING = re.compile(BASE + r"/([0-9a-f]{12})/planning/lodging/events")
 PREVIEW = re.compile(BASE + r"/([0-9a-f]{12})/preview")
 FEEDBACK = re.compile(BASE + r"/([0-9a-f]{12})/feedback")
@@ -41,6 +45,7 @@ TRANSIT_POLL_S = 0.5
 COOKIE = "tg_session"
 STATE_COOKIE = "tg_oauth"
 SESSION_MAX_AGE = 30 * 86400
+GUEST_MAX_AGE = 86400
 
 
 class StalePreview(Exception):
@@ -49,9 +54,10 @@ class StalePreview(Exception):
         self.preview = preview
 
 
-def handler(harness, accounts, base_url: str = "", test_login: bool = False):
+def handler(harness, accounts, base_url: str = "", test_login: bool = False, speak=synthesize, listen=transcribe):
     """base_url: the public origin (APP_BASE_URL); https makes cookies Secure. test_login enables
-    GET /api/auth/test/login for browser walk-throughs and is refused on an https base URL."""
+    GET /api/auth/test/login for browser walk-throughs and is refused on an https base URL.
+    speak(text) -> (audio, mime) is the assistant's voice and listen(audio bytes) -> text its ear (src/speech); tests pass fakes."""
     secure = "; Secure" if base_url.startswith("https://") else ""
     base = urlparse(base_url)
     base_origin = f"{base.scheme}://{base.netloc}" if base.netloc else None
@@ -120,11 +126,18 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 raise ValueError(f"body must be 1 byte to {limit // (1024 * 1024)} MB")
             return self.rfile.read(size)
 
-        def _call(self, fn):
+        def _call(self, fn, lookup=False):
+            """lookup: fn is a single-row lookup (an account, a notification) whose KeyError means not found. Only
+            a missing journey is 404 otherwise; a KeyError from inside a stage is a bug (500, logged)."""
             try:
                 return self._json(200, fn())
-            except KeyError:
+            except Missing:
                 return self._json(404, {"error": "no such session"})
+            except KeyError:
+                if lookup:
+                    return self._json(404, {"error": "not found"})
+                traceback.print_exc(file=sys.stderr)
+                return self._json(500, {"error": "server error"})
             except (Conflict, RouteError) as exc:
                 return self._json(409, {"error": str(exc)})
             except ToolError as exc:
@@ -178,6 +191,10 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return None
             if mutation and not self._same_origin():
                 self._json(403, {"error": "cross-origin request refused"})
+                return None
+            if user["role"] == "guest" and (GUEST_BLOCKED.match(url.path) or (
+                    url.path == "/api/harness/me" and self.command in ("PATCH", "DELETE"))):
+                self._json(403, {"error": "sign_in_required"})
                 return None
             return url.path, query, user
 
@@ -240,7 +257,9 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
             if path == "/api/harness/me":
                 if harness.notify is not None:
                     harness.notify.resume(owner)  # the user opened the app: a notification pause ends
-                return self._call(lambda: accounts.me(owner))
+                return self._call(lambda: accounts.me(owner), lookup=True)
+            if path == "/api/harness/me/saved":
+                return self._call(lambda: {"saved": accounts.saved(owner)})
             if path == "/api/harness/me/notification-prefs" and harness.notify is not None:
                 return self._call(lambda: harness.notify.prefs(owner))
             if path == "/api/harness/notifications" and harness.notify is not None:
@@ -261,6 +280,8 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return self._call(lambda: harness.lodging_suggest(query.get("q", "")))
             if path == "/api/harness/transit":
                 return self._call(lambda: harness.transit(query))
+            if path == "/api/harness/rentals":
+                return self._call(lambda: harness.rentals(query))
             if path == "/api/harness/transit/events":
                 try:
                     current = harness.transit(query)
@@ -275,7 +296,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                     current = {**current, "status": "unavailable"}
                 return self._event(current)
             if path == "/api/harness/trips":
-                return self._call(lambda: harness.trips(owner))
+                return self._call(lambda: harness.trips(owner, user["role"] == "guest"))
             if m := PREVIEW.fullmatch(path):
                 return self._call(lambda: harness.preview(m[1], owner))
             if path == "/api/harness/calendar/preview":
@@ -297,7 +318,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
             if m := LODGING.fullmatch(path):
                 try:
                     harness.load(m[1], "planning", owner)
-                except KeyError:
+                except Missing:
                     return self._json(404, {"error": "no such session"})
                 except Conflict as exc:
                     return self._json(409, {"error": str(exc)})
@@ -320,6 +341,17 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return
             path, query, user = begun
             if user is None:
+                if path == "/api/auth/guest":
+                    if not self._same_origin():
+                        return self._json(403, {"error": "cross-origin request refused"})
+                    current = self._user()
+                    if current:  # already in (a guest or an account): no second visitor is made
+                        return self._call(lambda: accounts.me(current["id"]), lookup=True)
+                    token = accounts.guest(self.headers.get("User-Agent", ""))
+                    guest = accounts.user_for(token)[0]
+                    self._set.append(("Set-Cookie", cookie(COOKIE, token, GUEST_MAX_AGE)))
+                    harness._event("auth.guest", guest["id"], None)
+                    return self._call(lambda: accounts.me(guest["id"]), lookup=True)
                 if path == "/api/auth/logout":
                     if not self._same_origin():
                         return self._json(403, {"error": "cross-origin request refused"})
@@ -342,9 +374,30 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                     data = self._raw(AVATAR_MAX_BYTES)
                 except ValueError as exc:
                     return self._json(413, {"error": str(exc)})
-                return self._call(lambda: accounts.set_avatar(owner, data))
+                return self._call(lambda: accounts.set_avatar(owner, data), lookup=True)
+            if path == "/api/harness/transcribe":
+                try:
+                    recording = self._raw(AUDIO_MAX_BYTES)
+                except ValueError as exc:
+                    return self._json(413, {"error": str(exc)})
+                try:
+                    return self._json(200, {"text": listen(recording)})
+                except SpeechUnavailable as exc:
+                    print(f"speech in unavailable: {exc}", file=sys.stderr)
+                    return self._json(503, {"error": "speech_unavailable"})
+                except ValueError as exc:
+                    return self._json(400, {"error": str(exc)})
             try:
                 body = self._body()
+                if path == "/api/harness/speech":
+                    if not isinstance(body.get("text"), str):
+                        raise ValueError("send {text: string}")
+                    try:
+                        audio, mime = speak(body["text"])
+                    except SpeechUnavailable as exc:
+                        print(f"speech unavailable: {exc}", file=sys.stderr)
+                        return self._json(503, {"error": "speech_unavailable"})
+                    return self._send(200, audio, mime)
                 if path == BASE:
                     if set(body) - {"experience", "start_with"}:
                         raise ValueError("unknown start field")
@@ -352,14 +405,30 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                         raise ValueError("bad experience")
                     if body.get("start_with") not in (None, "nothing", "saved", "must", "itinerary"):
                         raise ValueError("bad start_with")
+                    if user["role"] == "guest" and harness.store.list_for(owner):
+                        return self._json(409, {"error": "guest_limit"})
                     me = accounts.me(owner)
                     prior = {k: me.get(k) for k in ("usual_mobility", "usual_companions") if me.get(k)}
-                    return self._call(lambda: harness.create(body.get("experience"), body.get("start_with"), owner,
-                                                             me["consents"].get("patterns") is True, owner, prior))
+                    learn = me["consents"].get("patterns") is True  # remember and use past choices only if they agreed
+                    return self._call(lambda: harness.create(body.get("experience"), body.get("start_with"),
+                                                             owner if learn else None, learn, owner, prior))
+                if path == "/api/harness/me/saved":
+                    if set(body) != {"place_ids"}:
+                        raise ValueError("send {place_ids: [...]}")
+                    return self._call(lambda: {"saved": accounts.save_places(owner, body["place_ids"])})
                 if path == "/api/harness/me/consent":
                     def consent():
-                        out = accounts.consent(owner, body.get("version"))
-                        harness._event("auth.consent", owner, None, version=body.get("version"))
+                        if "version" not in body and "patterns" not in body:
+                            raise ValueError("send {version} and / or {patterns: true | false}")
+                        out = None
+                        if "version" in body:
+                            out = accounts.consent(owner, body["version"])
+                            harness._event("auth.consent", owner, None, version=body["version"])
+                        if "patterns" in body:
+                            out = accounts.set_patterns(owner, body["patterns"])
+                            if body["patterns"] is False:
+                                harness.forget_profile(owner)  # not remembering any more: what was learned goes
+                            harness._event("auth.patterns", owner, None, on=body["patterns"])
                         return out
                     return self._call(consent)
                 if path == "/api/harness/reports":
@@ -379,7 +448,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 if harness.notify is not None and path == "/api/harness/push/unsubscribe":
                     return self._call(lambda: harness.notify.unsubscribe(owner, str(body.get("endpoint", ""))))
                 if harness.notify is not None and (no := NOTE_OPEN.fullmatch(path)):
-                    return self._call(lambda: harness.notify.open(owner, no[1], body.get("action")))
+                    return self._call(lambda: harness.notify.open(owner, no[1], body.get("action")), lookup=True)
                 if path == "/api/harness/calendar/disconnect":
                     return self._call(lambda: harness.calendar_disconnect(owner, body.get("delete_calendar", False)))
                 if cm := COMPANION.fullmatch(path):
@@ -400,7 +469,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                         if req.expected_revision != session.revision:
                             raise Conflict("stale revision")
                         route(session.stage, req)
-            except KeyError:
+            except Missing:
                 return self._json(404, {"error": "no such session"})
             except (RouteError, Conflict) as exc:
                 return self._json(409, {"error": str(exc)})
@@ -416,7 +485,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                     "event": "journey", "data": response})
             except Exception as exc:
                 status = (409 if isinstance(exc, (Conflict, RouteError)) else exc.status if isinstance(exc, ToolError)
-                          else 404 if isinstance(exc, KeyError) else 400 if isinstance(exc, ValueError) else 500)
+                          else 404 if isinstance(exc, Missing) else 400 if isinstance(exc, ValueError) else 500)
                 if status == 500:
                     traceback.print_exc(file=sys.stderr)
                 message = str(exc).splitlines()[0] if status < 500 else "Không xử lý được yêu cầu, bạn thử lại nhé."
@@ -434,7 +503,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 except ValueError as exc:
                     return self._json(400, {"error": str(exc)})
                 if path == "/api/harness/me":
-                    return self._call(lambda: accounts.update(user["id"], body))
+                    return self._call(lambda: accounts.update(user["id"], body), lookup=True)
                 if harness.notify is not None:
                     def prefs():
                         out = harness.notify.set_prefs(user["id"], body)
@@ -459,6 +528,8 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 accounts.delete(user["id"])
                 self._set.append(("Set-Cookie", cookie(COOKIE, "", 0)))
                 return self._json(200, {"deleted": True})
+            if user and user["id"] and (m := SAVED.fullmatch(path)):
+                return self._call(lambda: {"saved": accounts.unsave_place(user["id"], unquote(m[1]))})
             if user and (m := PROFILE.fullmatch(path)):
                 if m[1] != user["id"]:
                     return self._json(404, {"error": "not found"})

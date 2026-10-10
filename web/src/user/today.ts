@@ -1,16 +1,16 @@
-// Đang đi (docs/COMPANION.md): the Today view of a confirmed journey, check-ins, suggestions, and the Google Calendar
+// Đang đi (docs/P5_COMPANION.md): the Today view of a confirmed journey, check-ins, suggestions, and the Google Calendar
 // export that always goes preview -> confirm -> apply.
 import { json } from './journey'
 
 export type StopStatus = 'planned' | 'arrived' | 'skipped'
-export type Stop = { id: string; day: number; seq: number; place_id: string; name: string; arrive: string | null; leave: string | null; status: StopStatus; arrived_at: string | null; rating: 1 | -1 | null; skip_reason: string | null; added_on_trip: boolean }
+export type Stop = { id: string; day: number; seq: number | null; place_id: string; name: string; arrive: string | null; leave: string | null; status: StopStatus; arrived_at: string | null; rating: 1 | -1 | null; skip_reason: string | null; added_on_trip: boolean; off_plan?: boolean }
 export type Option = { id: string; text: string }
 export type TodayView = {
-  trip: { id: string; start_date: string | null; end_date: string | null; status: 'planned' | 'active' | 'done' }
+  trip: { id: string; start_date: string | null; end_date: string | null; status: 'planned' | 'active' | 'done'; starts_in: number }
   day: number
   today: number | null
   days: { day: number; date: string | null; window: [string, string] | null; stops: Stop[] }[]
-  extra: Stop[]
+  extra: (Omit<Stop, 'day'> & { day: number | null })[] // stops outside the plan's days, and off-plan check-ins (off_plan)
   here: { place_id: string; stop_id: string | null; at: string } | null
   tight: { late_min: number; day: number; options: Option[] } | null
   warnings: { code: string; text: string }[]
@@ -18,12 +18,12 @@ export type TodayView = {
   calendar: 'none' | 'synced' | 'drifted'
 }
 export type Feature = { feature: string; value: string; status: string; wanted?: boolean }
-export type Nearby = { place_id: string; name: string; travel_min: number; estimate: boolean; open: boolean | null; fit: number; matches: string[]; flags: string[]; addable: boolean }
+export type Nearby = { place_id: string; name: string; travel_min: number; estimate: boolean; open: boolean | null; fit: number; matches: string[]; flags: string[]; addable: boolean; meal?: boolean }
 export type Suggestions = {
   place_id: string
   play: Feature[]
   practical: Feature[]
-  timely: { sunrise?: string; sunset?: string; crowd?: { pct: number; bucket: string; day_type: string } }
+  timely: { sunrise?: string; sunset?: string; date?: string; crowd?: { pct: number; bucket: string; day_type: string } }
   nearby: Nearby[]
   similar: Nearby[]
   budget_min: number

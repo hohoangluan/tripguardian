@@ -6,7 +6,7 @@ import threading
 import uuid
 from pathlib import Path
 
-from .contracts import Journey
+from .contracts import Journey, Missing
 
 SID = re.compile(r"[0-9a-f]{12}")
 
@@ -24,7 +24,7 @@ class Store:
 
     def lock(self, jid: str):
         if not SID.fullmatch(jid):
-            raise KeyError(jid)
+            raise Missing(jid)
         with self._guard:
             return self._locks.setdefault(jid, threading.RLock())
 
@@ -33,7 +33,7 @@ class Store:
             if jid not in self._mem:
                 path = self.root / f"{jid}.json" if self.root else None
                 if not path or not path.exists():
-                    raise KeyError(jid)
+                    raise Missing(jid)
                 session = Journey.model_validate_json(path.read_text(encoding="utf-8"))
                 if session.id != jid:
                     raise ValueError("journey file ID mismatch")

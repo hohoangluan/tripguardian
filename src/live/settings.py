@@ -30,6 +30,7 @@ class Settings:
     vexere_dalat: int = 0  # Vexere area id of the city (buses)
     vexere_regions: tuple = ()  # ({id, name, lat, lng}, …) provinces with coaches to the city
     transit_prewarm: dict | None = None  # {flight_days, bus_days, pause_s}: scripts/prewarm_transit.py
+    suggest_timeout_s: float = 4  # a search-as-you-type answer later than this is not worth waiting for
 
 
 @cache

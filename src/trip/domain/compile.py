@@ -1,4 +1,4 @@
-"""Trip State -> Search Input (docs/TRIP_UNDERSTANDING.md §9). Deterministic; refuses while a physical signal is open."""
+"""Trip State -> Search Input (docs/P2_TRIP_UNDERSTANDING.md §9). Deterministic; refuses while a physical signal is open."""
 
 from ..infrastructure.settings import ARRIVAL_BUFFER_MIN
 from .budget import per_person_day

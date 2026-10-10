@@ -1,8 +1,9 @@
-"""How many candidates the corpus can actually check for a hard filter (docs/TRIP_UNDERSTANDING.md §5.4)."""
+"""How many candidates the corpus can actually check for a hard filter (docs/P2_TRIP_UNDERSTANDING.md §5.4)."""
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Iterable, Literal
+from typing import Literal
+from collections.abc import Iterable
 
 from ..infrastructure.catalog import Candidate
 from .state import Hard

@@ -17,11 +17,18 @@ export interface Card {
   multi: boolean
   single_rows: string[]
   tier: number
-  input: 'none' | 'text' | 'date' | 'place' | 'geo' | 'transit' | 'lodging'
+  input: 'none' | 'text' | 'date' | 'place' | 'geo' | 'transit' | 'lodging' | 'rental'
   input_field: string | null
-  params?: TransitParams // transit only
+  params?: TransitParams | RentalParams // transit: the route; rental: where the trip arrives (mobility card of a trip that comes by coach / plane)
   exits: boolean
   custom: boolean
+}
+
+export interface RentalParams {
+  mode: 'bus' | 'plane'
+  lat?: number
+  lng?: number
+  text?: string
 }
 
 export interface TransitParams {
@@ -59,6 +66,8 @@ export interface GeoHit {
   province: string | null
   lat: number
   lng: number
+  kind?: 'area' | 'transport' | 'stay' | 'street' | 'place'
+  approx?: boolean // a house number the map does not hold: lat / lng are those of the street or alley it names, address says which
   source: string
   fetched_at: string
 }
@@ -71,6 +80,8 @@ export interface LodgingHit {
   rating?: number | null
   lat: number
   lng: number
+  geo_kind?: GeoHit['kind']
+  approx?: boolean
 }
 
 export interface Base {
@@ -128,13 +139,15 @@ export interface Understanding {
   max_leg_min: Row | null
   crowd_tolerance: Row | null
   novelty: Row | null
-  budget_vnd: Row | null
+  budget_vnd: Row | null // value: { amount, scope, guessed, per_person_day } (labels.ts Budget)
+  liked_groups: Row | null // value: kinds of place the user wants, e.g. ['chill', 'meal']
+  rental: { status: 'suggest'; params: RentalParams } | { status: 'declined'; note: string } | null // arrives by coach / plane without a car (src/trip/domain/rental.py)
   unknowns: string[]
   unmapped: { target: string; phrase: string }[]
   safety_pending: boolean
   ready: boolean // the minimum is known: Next is allowed (decided by the server, not by the agent)
   missing: { target: string; label: string }[]
-  matching: number // places passing the hard limits now (a fact, not a forecast)
+  matching: number // places past the hard limits with evidence for at least one liked value (a fact, not a forecast)
   total: number
 }
 
@@ -142,6 +155,7 @@ export interface Turn {
   role: 'user' | 'agent'
   text: string
   turn: number
+  kind?: string | null // agent: say | card (a question asked, closed when the next turn starts) | done; user: text | exit | answer | theme
 }
 
 export interface View {
@@ -156,15 +170,17 @@ export interface SearchInput {
   context: {
     start_date: string | null
     month: number | null
+    month_part?: 'early' | 'mid' | 'late' | null
     days: number | null
+    nights?: number | null // nights slept in the city (0–7); null when not said, then days - 1 applies server-side
     base: Base | null
-    mobility: 'motorbike' | 'car' | 'ride' | null
+    mobility: 'motorbike' | 'car' | 'walk' | null
     companions: string[]
     people: number | null
-    arrive_at: string | null
-    leave_at: string | null
+    checkin_at: string | null
+    checkout_at: string | null
     day_end: string | null
-    budget_vnd: number | null
+    budget_vnd: number | null // VND per person per day; null when unknown or not splittable
     experience: 'first' | 'returning' | null
     origin?: Base | null
     arrival_mode?: 'self' | 'bus' | 'plane' | null
@@ -180,6 +196,7 @@ export interface SearchInput {
   novelty: { level: string | null; visited: string[] }
   unknowns: string[]
   unmapped: string[]
+  liked_groups?: ('nature' | 'sights' | 'chill' | 'meal')[]
 }
 
 export type TurnInput =
@@ -187,6 +204,10 @@ export type TurnInput =
   | { kind: 'answer'; qid: string; chips: string[]; value?: string | null }
   | { kind: 'edit'; target: string; value: string | null }
   | { kind: 'show' }
+  | { kind: 'more' } // leave the open question, go on with the quiz
+  | { kind: 'requiz' } // "Làm lại trắc nghiệm": the answered cards come back so answers can change
+  | { kind: 'pause' } // "Thoát" mid-quiz: back to chatting, quiz progress kept; "more" resumes it
+  | { kind: 'theme'; value: string }
 
 export interface Handlers {
   preview?: (d: { fields: { target: string; value: unknown; quote: string }[] }) => void

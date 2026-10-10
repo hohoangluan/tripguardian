@@ -31,7 +31,7 @@ function List() {
             <tbody>{data.map((s) => (
               <tr key={s.id} className="a-link" tabIndex={0} onClick={() => navigate(`/admin/sessions/${s.id}`)} onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/admin/sessions/${s.id}`) }}>
                 <td className="nowrap"><code>{s.id}</code></td>
-                <td>{s.email ?? <span className="a-muted">không gắn tài khoản</span>}</td>
+                <td>{s.role === 'guest' ? 'Khách dùng thử' : s.email ?? <span className="a-muted">không gắn tài khoản</span>}</td>
                 <td>{s.confirmed ? 'Đã chốt' : STAGE[s.stage] ?? s.stage}</td>
                 <td className="num">{s.revision}</td>
                 <td>{s.start_with ?? '—'}</td>
@@ -63,7 +63,7 @@ function Detail({ id }: { id: string }) {
   const { data, error } = useAnalytics<SessionDetail>(`sessions/${id}`)
   return (
     <div className="a-page">
-      <header className="a-head"><div><h1>Hành trình <code>{id}</code></h1>{data && <p>{data.email ?? 'không gắn tài khoản'} · {STAGE[data.stage] ?? data.stage} · revision {data.revision} · tạo {fmtTime(data.created_at)} · {data.app_version ?? 'chưa có phiên bản'}</p>}</div><button className="a-btn a-btn--ghost" onClick={() => navigate('/admin/sessions')}>Về danh sách</button></header>
+      <header className="a-head"><div><h1>Hành trình <code>{id}</code></h1>{data && <p>{data.role === 'guest' ? 'Khách dùng thử' : data.email ?? 'không gắn tài khoản'} · {STAGE[data.stage] ?? data.stage} · revision {data.revision} · tạo {fmtTime(data.created_at)} · {data.app_version ?? 'chưa có phiên bản'}</p>}</div><button className="a-btn a-btn--ghost" onClick={() => navigate('/admin/sessions')}>Về danh sách</button></header>
       {!data ? <section className="a-card"><p className="a-muted">{error ?? 'Đang tải…'}</p></section> : (
         <div className="a-grid2">
           <section className="a-card">

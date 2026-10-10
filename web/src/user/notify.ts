@@ -1,4 +1,4 @@
-// Notifications on the web (docs/COMPANION.md §Thông báo): the push opt-in after a plan is confirmed, the inbox and
+// Notifications on the web (docs/P5_COMPANION.md §Thông báo): the push opt-in after a plan is confirmed, the inbox and
 // the per-kind switches. Asking for permission only ever follows a click on "Bật thông báo".
 import { json } from './journey'
 import { track } from './events'

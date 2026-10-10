@@ -1,4 +1,4 @@
-"""Planning objectives (docs/ARCHITECTURE.md §10): which ones a trip calls for, and how a laid-out trip scores on each.
+"""Planning objectives (docs/P4_PLANNING.md §ⓖ): which ones a trip calls for, and how a laid-out trip scores on each.
 
 Every objective is a rule: its day-split weights (config objective_weights) and a score where lower is better, ties
 broken by total travel. No objective changes what validate checks.

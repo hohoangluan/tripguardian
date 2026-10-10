@@ -152,7 +152,7 @@ def build(search_dir, area, top: int | None = 100, kept: set[str] | None = None,
 
 def build_stay(search_dirs, area, city: str | None = None, min_reviews: int = 0, same_name_m: float = 0,
                counts: dict[str, dict] | None = None) -> dict:
-    """The lodging list (docs/CORPUS.md §Phạm vi, group `stay`): every lodging-category place in the area seen by any
+    """The lodging list (docs/P1_CORPUS.md §Phạm vi, group `stay`): every lodging-category place in the area seen by any
     search (the stay queries of search.run_stay and the lodging the place searches met), min_reviews or more reviews,
     one row per place. Only Planning reads it; places of other categories never enter it, whatever list they were in."""
     best: dict[str, dict] = {}

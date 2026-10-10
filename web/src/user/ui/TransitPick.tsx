@@ -4,7 +4,7 @@ import { findTransit, watchTransit } from '../tu/api'
 import type { Transit, TransitParams, TransitResult } from '../tu/types'
 import { Icon } from './icons'
 
-// The coach / flight question (docs/TRIP_UNDERSTANDING.md §Hậu cần): trips come from a crawl, read from the cache or
+// The coach / flight question (docs/P2_TRIP_UNDERSTANDING.md §Hậu cần): trips come from a crawl, read from the cache or
 // fetched live while a skeleton shows. Nothing found → the booking site with the route filled in, and a typed time.
 
 type Filter = 'all' | 'morning' | 'afternoon' | 'night' | 'cheap'
@@ -47,11 +47,13 @@ export function TransitPick({ params, way, busy, onPick, onTime, onSkip }: {
   const [filter, setFilter] = useState<Filter>('all')
   const [more, setMore] = useState(false)
   const [time, setTime] = useState('')
+  const [chosen, setChosen] = useState<Transit | null>(null) // picked, not yet confirmed: the question moves on only at Xong
   const key = `${params.mode}|${params.from}|${params.to}|${params.date}|${params.lat}|${params.lng}`
   useEffect(() => {
     let live = true
     let stop = () => {}
     setRes(null)
+    setChosen(null)
     findTransit(params).then(
       (r) => {
         if (!live) return
@@ -94,6 +96,26 @@ export function TransitPick({ params, way, busy, onPick, onTime, onSkip }: {
   trips = filter === 'cheap'
     ? [...res.trips].filter((t) => t.price_vnd !== null).sort((a, b) => a.price_vnd! - b.price_vnd!)
     : [...trips].sort((a, b) => a.depart_at.localeCompare(b.depart_at))
+  if (chosen)
+    return (
+      <div className="tg-trn">
+        <ul className="tg-trn__list">
+          <li className="tg-trn__row">
+            <div className="tg-trn__main">
+              <span className="tg-trn__who"><Icon name={plane ? 'plane' : 'bus'} size={16} /> <b>{chosen.carrier}</b></span>
+              <span className="tg-trn__when tg-mono"><b>{clock(chosen.depart_at)}</b><i aria-hidden="true" /><small>{span(minutes(chosen.depart_at, chosen.arrive_at))}</small><i aria-hidden="true" /><b>{clock(chosen.arrive_at)}</b></span>
+              <span className="tg-trn__where">{chosen.from_point} → {chosen.to_point}</span>
+            </div>
+          </li>
+        </ul>
+        <p className="tg-faint">TripGuardian không đặt vé. Bạn có thể mở trang chính chủ để đặt, rồi quay lại bấm Xong.</p>
+        <div className="tg-trn__end">
+          {res.book_url && <a className="tg-btn tg-btn--soft tg-btn--sm" href={res.book_url} target="_blank" rel="noopener noreferrer" onClick={() => track('outbound_click', { kind: 'booking', place_id: null })}>Mở {site} để đặt vé <Icon name="external" size={15} /></a>}
+          <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" disabled={busy} onClick={() => onPick(chosen)}>Xong, dùng chuyến này</button>
+          <button type="button" className="tg-link" disabled={busy} onClick={() => setChosen(null)}>Chọn chuyến khác</button>
+        </div>
+      </div>
+    )
   const shown = more ? trips : trips.slice(0, FIRST)
   const cheapest = Math.min(...res.trips.map((t) => t.price_vnd ?? Infinity))
   return (
@@ -114,7 +136,7 @@ export function TransitPick({ params, way, busy, onPick, onTime, onSkip }: {
               <div className="tg-trn__buy">
                 <b className="tg-mono">{t.price_vnd !== null ? vnd(t.price_vnd) : 'Chưa có giá'}</b>
                 <small className="tg-faint">giá tham khảo lúc {readAt(t.fetched_at)}, kiểm lại khi đặt</small>
-                <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" disabled={busy} onClick={() => onPick(t)}>Chọn chuyến này</button>
+                <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" disabled={busy} onClick={() => setChosen(t)}>Chọn chuyến này</button>
               </div>
             </li>
           ))}

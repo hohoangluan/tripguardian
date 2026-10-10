@@ -1,4 +1,4 @@
-# Notifications (docs/COMPANION.md §Thông báo). Copy is reviewed by a person before it lands here; no model writes it at
+# Notifications (docs/P5_COMPANION.md §Thông báo). Copy is reviewed by a person before it lands here; no model writes it at
 # send time. A variant is only used when every {slot} in it has a real value; a kind with no usable variant is skipped
 # (skip_reason no_data). Never: "bạn đã lỡ", "bạn chưa check-in", fake countdowns, comparisons with other people.
 version: 1

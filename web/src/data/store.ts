@@ -204,10 +204,10 @@ export function km(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
   return 2 * R * Math.asin(Math.sqrt(s))
 }
 
-export type Vehicle = 'motorbike' | 'car' | 'ride'
-export const VEHICLE_LABEL: Record<Vehicle, string> = { motorbike: 'Xe máy', car: 'Ô tô', ride: 'Xe công nghệ' }
-const SPEED: Record<Vehicle, number> = { motorbike: 26, car: 24, ride: 24 } // km/h on Da Lat roads
-const BUFFER: Record<Vehicle, number> = { motorbike: 5, car: 10, ride: 8 } // parking / pickup
+export type Vehicle = 'motorbike' | 'car' | 'walk' // walk: arrived by coach / plane and rents nothing
+export const VEHICLE_LABEL: Record<Vehicle, string> = { motorbike: 'Xe máy', car: 'Ô tô', walk: 'Đi bộ' }
+const SPEED: Record<Vehicle, number> = { motorbike: 26, car: 24, walk: 4.5 } // km/h on Da Lat roads
+const BUFFER: Record<Vehicle, number> = { motorbike: 5, car: 10, walk: 0 } // parking
 
 // Estimated travel minutes: straight line x 1.5 for winding highland roads. Always shown as an estimate.
 export function travelMin(a: { lat: number; lng: number }, b: { lat: number; lng: number }, v: Vehicle) {

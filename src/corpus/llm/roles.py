@@ -1,4 +1,4 @@
-"""Model roles (docs/CORPUS.md, Vai trò model): which .env keys point each role at its model.
+"""Model roles (docs/P1_CORPUS.md, Vai trò model): which .env keys point each role at its model.
 
 Which model fills a role is config (docs/LLM_PROVIDER.md); code asks for a role, never for a model.
 """
@@ -49,6 +49,15 @@ class Role:
         load_dotenv(ROOT / ".env")
         return AsyncOpenAI(api_key=os.environ[self.key_env], base_url=os.environ[self.base_url_env]), os.environ[self.model_env]
 
+    def llm_params(self) -> dict:
+        """api_key / base_url / model for a LangChain ChatOpenAI, honouring the UIT override like client()."""
+        load_dotenv(ROOT / ".env")
+        if self._on_uit():
+            return {"api_key": os.environ["UIT_API_KEY"], "base_url": os.environ["UIT_API_BASE_URL"],
+                    "model": os.environ["UIT_API_MODEL"]}
+        return {"api_key": os.environ[self.key_env], "base_url": os.environ[self.base_url_env],
+                "model": os.environ[self.model_env]}
+
     def parallel(self) -> int:
         """Concurrent calls a task of this role runs when it sets none itself."""
         if self._on_uit():
@@ -93,6 +102,13 @@ AGENT = Role(
     name="agent",
     purpose="live conversation turns: one streamed structured call per user message (src/trip)",
     key_env="AGENT_API_KEY", base_url_env="AGENT_BASE_URL", model_env="AGENT_MODEL",
+)
+
+TTS = Role(
+    name="tts",
+    purpose="the bot's spoken voice: text in, audio out (src/speech); OpenAI-compatible POST /v1/audio/speech",
+    key_env="TTS_API_KEY", base_url_env="TTS_BASE_URL", model_env="TTS_MODEL",
+    default_parallel=2,
 )
 
 USER_SIM = Role(

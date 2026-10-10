@@ -9,9 +9,11 @@ class Tools:
         self.stage, self.states = stage, {}
         self.calls = 0
 
-    def create(self, payload):
+    def create(self, payload, *, namespace=None):
         sid = f"{len(self.states) + 1:012x}"
         self.states[sid] = {"id": sid, "value": 0, "input": copy.deepcopy(payload)}
+        if namespace is not None:
+            self.states[sid]["namespace"] = namespace
         return self.load(sid)
 
     def load(self, sid):
@@ -21,8 +23,8 @@ class Tools:
         from trip import SearchInput
         from corpus.ontology import load
         search = SearchInput.model_validate({"ontology_version": load().version,
-            "context": {"days": 2, "mobility": "motorbike", "start_date": None, "month": None,
-                "base": None, "companions": [], "people": None, "arrive_at": None, "leave_at": None,
+            "context": {"days": 2, "nights": 1, "mobility": "motorbike", "start_date": None, "month": None,
+                "base": None, "companions": [], "people": None, "checkin_at": None, "checkout_at": None,
                 "day_end": None}, "hard_filters": [], "anchors": [],
             "soft_weights": [], "pace": {"level": "normal", "max_leg_min": None, "crowd_tolerance": None},
             "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []})
@@ -93,6 +95,11 @@ class Tools:
         return {"status": "ready" if ready else "pending", "book_url": "https://book",
                 "trips": [{"mode": "plane", "carrier": "Vietjet"}] if ready else []}
 
+    def rentals(self, params):
+        if params.get("mode") not in ("plane", "bus"):
+            raise ValueError("mode must be plane or bus")
+        return {"status": "none", "hub": {"text": "Bến xe Liên tỉnh Đà Lạt", "lat": 11.93, "lng": 108.44}, "points": []}
+
 
 def file_store(root):
     from harness import Store
@@ -127,6 +134,7 @@ def test_handoffs_preserve_the_same_journey_and_decision_state():
     v = run(h, v, "act", "select")
     v = run(h, v, "advance", "to-planning")
     assert v["stage"] == "planning" and v["id"] == jid
+    assert v["result"]["view"]["namespace"] == jid
     assert v["outputs"]["decision"]["value"] == 1
     v = run(h, v, "back", "more-places")
     assert v["stage"] == "decision" and v["sessions"]["decision"] == did
@@ -199,8 +207,8 @@ def test_planning_edits_keep_the_confirmed_decision_input():
 
 def preview_tools(tools, draft):
     tools["decision"].read = lambda sid, op, payload: {"output": draft}
-    tools["planning"].preview = lambda payload: {"ok": True, "days": 2, "variants": [],
-                                                 "input": payload["decision_output"]}
+    tools["planning"].preview = lambda payload, *, namespace=None: {
+        "ok": True, "days": 2, "variants": [], "input": payload["decision_output"], "namespace": namespace}
 
 
 def test_preview_builds_a_plan_for_the_current_selection_without_changing_the_journey():
@@ -210,6 +218,7 @@ def test_preview_builds_a_plan_for_the_current_selection_without_changing_the_jo
     out = h.preview(v["id"])
     assert out["status"] == "ready" and out["revision"] == v["revision"]
     assert out["plan"]["input"] == {"confirmed": [{"id": "place-1"}]}
+    assert out["plan"]["namespace"] == v["id"]
     after = h.load(v["id"])
     assert (after["revision"], after["outputs"], after["sessions"]) == (v["revision"], v["outputs"], v["sessions"])
     assert tools["decision"].calls == 0
@@ -233,8 +242,8 @@ def test_summaries_list_only_the_asked_journeys_with_their_places():
     other = h.create()
     out = h.summaries([v["id"], "000000000000", "../bad", other["id"]])
     assert [s["id"] for s in out] == [v["id"], other["id"]]
-    assert out[0]["stage"] == "planning" and out[0]["days"] == 2 and out[0]["places"] == ["place-1"]
-    assert out[1]["places"] == [] and out[1]["days"] is None and not out[1]["confirmed"]
+    assert out[0]["stage"] == "planning" and out[0]["days"] == 2 and out[0]["nights"] == 1 and out[0]["places"] == ["place-1"]
+    assert out[1]["places"] == [] and out[1]["days"] is None and out[1]["nights"] is None and not out[1]["confirmed"]
 
 
 def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path, store_kind):

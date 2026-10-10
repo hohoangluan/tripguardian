@@ -28,3 +28,40 @@
 .tg-xlayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
 .tg-xlayout.is-pinned { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
 .tg-xlayout.is-pinned .tg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1180px) { .tg-xlayout.is-pinned { grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; } }
+@media (max-width: 1040px) { .tg-xlayout.is-pinned .tg-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* the bot is visibly a bot: its face, a "Trợ lý AI" tag, a status line, and a voice it can be told to stop */
+.tg-asst .tg-icon-btn { width: 36px; height: 36px; }
+.tg-asst__head > div.tg-asst__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tg-asst__who > div { display: grid; gap: 1px; min-width: 0; }
+.tg-asst__who h2 { display: flex; align-items: center; gap: 8px; }
+.tg-asst__who small { color: var(--tg-ink-3); font-size: 0.78rem; }
+.tg-asst__tag { font-style: normal; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--tg-sun-soft); color: var(--tg-sun-ink); border: 1px solid var(--tg-sun-line); }
+.tg-asst__snd { color: var(--tg-ink-3); }
+.tg-asst__snd.is-on { background: var(--tg-pine-soft); color: var(--tg-pine); }
+.tg-asst__say { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 20px; background: var(--tg-pine-soft); color: var(--tg-pine-d); font-size: 0.82rem; font-weight: 600; }
+.tg-asst__say > span:nth-child(2) { flex: 1; }
+.tg-wave { display: inline-flex; align-items: center; gap: 3px; height: 16px; }
+.tg-wave i { width: 3px; height: 100%; border-radius: 2px; background: var(--tg-pine); transform-origin: center; animation: tg-wave 0.9s ease-in-out infinite; }
+.tg-wave i:nth-child(2) { animation-delay: 0.15s; } .tg-wave i:nth-child(3) { animation-delay: 0.3s; } .tg-wave i:nth-child(4) { animation-delay: 0.45s; }
+@keyframes tg-wave { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+.tg-msg.is-bot { grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 8px; }
+.tg-msg.is-bot .tg-msg__chips { grid-column: 2; }
+.tg-msg__gap { width: 28px; }
+.tg-msg.is-bot p { justify-self: start; padding: 9px 14px; border-radius: 4px 16px 16px 16px; background: var(--tg-well-2); border: 1px solid var(--tg-line); }
+.tg-msg__read { display: inline-grid; place-items: center; vertical-align: middle; width: 22px; height: 22px; margin-left: 6px; border-radius: 50%; color: var(--tg-ink-3); opacity: 0.55; transition: opacity 150ms, background 150ms; }
+.tg-msg__read:hover, .tg-msg__read:focus-visible { opacity: 1; color: var(--tg-pine); background: var(--tg-pine-soft); }
+.tg-msg__files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; font-size: 0.78rem; font-weight: 500; }
+.tg-msg__files span { display: inline-flex; align-items: center; gap: 4px; }
+.tg-asst__in { flex-wrap: wrap; }
+.tg-asst__in .tg-line-input { flex: 1; min-width: 0; }
+.tg-asst__in.is-drop { background: var(--tg-pine-soft); border-radius: 16px; }
+.tg-asst__mic.is-live { background: var(--tg-danger-bg); color: var(--tg-danger); animation: tg-mic 1.3s ease-in-out infinite; }
+@keyframes tg-mic { 50% { box-shadow: 0 0 0 6px var(--tg-danger-line); } }
+.tg-fab { display: flex; align-items: center; gap: 0; width: auto; min-width: 52px; padding: 0 8px 0 7px; }
+.tg-fab:hover { width: auto; }
+.tg-fab__label { max-width: 0; overflow: hidden; white-space: nowrap; font: 700 0.82rem var(--tg-sans); color: var(--tg-pine); transition: max-width 220ms var(--tg-ease), margin 220ms var(--tg-ease); }
+.tg-fab:hover .tg-fab__label, .tg-fab:focus-visible .tg-fab__label { max-width: 90px; margin-left: 8px; }
+.tg-fab__dot { top: 8px; right: 6px; }
+@media (prefers-reduced-motion: reduce) { .tg-wave i, .tg-asst__mic.is-live { animation: none; } }

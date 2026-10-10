@@ -1,4 +1,4 @@
-"""Aggregate (docs/CORPUS.md §5), code only: every source's observations of a place -> one intel file.
+"""Aggregate (docs/P1_CORPUS.md §5), code only: every source's observations of a place -> one intel file.
 
 Reads data/*/observations/*.json and data/*/photo_observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
 every other file there (a place that has no observation file now): the folder is one build. Observation files of an
@@ -13,7 +13,7 @@ Targeted samples (observation `sample`: Maps' lowest / highest rated reviews, ke
 count only for effort and facts of the place (corpus.observe.targeted_ok), with their authors (`voices_targeted`)
 added to those features' mention-rate denominator; never for opinions, and their stars never for rating_trend.
 Labels (a person's, else the Judge model's, corpus.review) are applied first: an observation labelled wrong is
-left out. Measured quality (docs/CORPUS.md §6): `quality` = the label precision of the top value
+left out. Measured quality (docs/P1_CORPUS.md §6): `quality` = the label precision of the top value
 (review.label_stats); `checked` counts the top value's authors whose claims were labelled correct; `servable` = the
 value may be served by itself: declared by an authoritative source, its precision passed the label gate, every
 author of it was checked correct, or a person accepted it. Only a value that widens a choice (`verify: always`, not a

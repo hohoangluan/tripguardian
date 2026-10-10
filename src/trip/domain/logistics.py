@@ -1,4 +1,4 @@
-"""Logistics helpers (docs/TRIP_UNDERSTANDING.md §Hậu cần): the road or airport a trip enters the city by, the route of a
+"""Logistics helpers (docs/P2_TRIP_UNDERSTANDING.md §Hậu cần): the road or airport a trip enters the city by, the route of a
 coach or flight, and how a chosen coach / flight sets the day's window and the city's entry / exit.
 """
 

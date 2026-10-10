@@ -1,5 +1,5 @@
 """Planning reads other packages only through their public API and writes nothing of the corpus
-(docs/PLANNING.md §Ranh giới module; RULE.md §2)."""
+(docs/P4_PLANNING.md §Ranh giới module; RULE.md §2)."""
 
 import ast
 from pathlib import Path
@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "planning"
-ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm"}  # corpus.llm: the agent call sits at the module edge (RULE §2)
+# corpus.llm: the agent call sits at the module edge (RULE §2); corpus.crawl: its public read of the crawled lodging
+# list, for a lodging the user names (logistics.py)
+ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm", "corpus.crawl"}
 WRITTEN_BY_CORPUS = ("data/intel", "data/serving", "data/gmaps", "data/tiktok", "data/review")
 
 
@@ -31,7 +33,7 @@ def test_there_is_something_to_check():
 def test_no_deep_import_into_live_or_corpus_and_none_into_decision_or_trip(path):
     for name in imports(path):
         top = name.split(".")[0]
-        # decision: only evaluate.py, offline, in process, through decision's public __init__ (docs/PLANNING.md
+        # decision: only evaluate.py, offline, in process, through decision's public __init__ (docs/P4_PLANNING.md
         # §Ranh giới module lists decision as a one-way dependency; P9 ruling). Everywhere else it stays forbidden.
         assert top != "decision" or (path.name in {"evaluate.py", "tools.py"} and name == "decision"), f"{path.name} imports {name}"
         # trip: only its public text helpers (trip/__init__.py), the same import decision/guard.py makes (P7 ruling)

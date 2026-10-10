@@ -1,4 +1,4 @@
-"""Serving records for Place Decision (docs/PLACE_DECISION.md §2.2): intel -> data/serving/places.json.
+"""Serving records for Place Decision (docs/P3_PLACE_DECISION.md §2.2): intel -> data/serving/places.json.
 
 python -m corpus serving
 """

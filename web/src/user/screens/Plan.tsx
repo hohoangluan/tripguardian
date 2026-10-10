@@ -1,21 +1,29 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useMemo, useState } from 'react'
-import { mapsRouteEmbed, mapsRouteLink, VEHICLE_LABEL } from '../../data/store'
+import { useEffect, useMemo, useState } from 'react'
 import { enterStage } from '../journey'
-import { dayLabel, fmtMin, fmtVnd, info, toMin } from '../lib'
+import { blockerLines, fmtMin, info, toMin } from '../lib'
+import { useDecision } from '../pd/decision'
+import type { Card } from '../pd/types'
+import { loadFits, type Fit } from '../planning/api'
 import { usePlanning } from '../planning/planning'
-import type { Backups, CrowdTip, DayConditions, Diff, ItineraryDay, ItineraryItem, Variant } from '../planning/types'
+import type { Diff, ItineraryDay, Variant, Warning } from '../planning/types'
+import { alertsOf, RENTAL_NOTE, rentalStep, walkOnly, type Alert } from '../planning/view'
+import { automaticVisitAction, moveVisitAction, reorderVisitAction, visitAction } from '../planning/visitEdit'
 import { setOptimized, useUi } from '../store'
 import { useTrip } from '../trip'
-import { ArtRoute, Busy, Empty, go, Hint, Link, placeHref, PlacePhoto } from '../ui/common'
+import { ArtRoute, Busy, Empty, go, Hint } from '../ui/common'
 import { CountUp } from '../ui/CountUp'
 import { Icon } from '../ui/icons'
-import { RouteStory } from '../ui/RouteStory'
+import { PlanAlerts } from '../ui/PlanAlerts'
+import { dragged, RouteStory } from '../ui/RouteStory'
 import { FlowBar, Page, useTitle } from '../ui/Shell'
-import { lodgingAsked, LodgingPick } from './Lodging'
+import { Tour, useTour, type TourStep } from '../ui/Tour'
+import { costText, VariantCards } from '../ui/VariantCards'
+import { lodgingAsked, LodgingPick, LodgingStrip } from './Lodging'
+import { BackupCard, PlanDetail, SLOT } from './PlanDetail'
 
-// docs/UI_SPEC_USER_WEB.md Trang 8. Times and routes are estimates and say so; warnings sit on the stop they concern.
-// Lịch trình takes actions only (no chat): docs/PLANNING.md.
+// docs/WEB.md Trang 8. Times and routes are estimates and say so; warnings sit on the stop they concern.
+// Lịch trình takes actions only (no chat): docs/P4_PLANNING.md.
 
 const SCOPE_TEXT: Record<Diff['scope'], string> = {
   none: '',
@@ -25,27 +33,70 @@ const SCOPE_TEXT: Record<Diff['scope'], string> = {
   lodging_fetch: 'Đã tìm lại danh sách chỗ ở',
 }
 const ROBUST_CLS: Record<string, string> = { solid: 'hi', feasible: 'mid', fragile: 'lo' }
-const COVER: Record<string, string> = { least_travel: 'journey-travel', low_cost: 'journey-budget', diverse: 'journey-experience', preference_fit: 'journey-experience', weather_robust: 'dusk' }
-const BLOCK: Record<string, string> = { meal_free: 'Ăn (tự chọn)', rest: 'Nghỉ', wait: 'Chờ', buffer: 'Đệm' }
-const BLOCK_NOTE: Record<string, string> = { meal_free: 'Ăn ở khu gần đó, mình không chọn quán thay bạn.', rest: 'Nghỉ chân, về chỗ ở hoặc ngồi lại.', wait: 'Chờ nơi tiếp theo mở cửa.', buffer: 'Thời gian dự phòng, trễ một chút vẫn ổn.' }
-const ADVISORY: Record<string, string> = { storm: 'bão / dông', flood: 'ngập lụt', landslide: 'sạt lở', fire: 'cháy', road_closed: 'đường bị chặn', other: 'khác' }
-
-const costText = (v: Variant) => (v.metrics.cost_vnd ? `~${fmtVnd(v.metrics.cost_vnd)}` : 'Chưa có giá')
+// Why the optimizer kept the plan, from the server's diagnostics (src/planning/engine.py recommend): never a guess.
+const KEPT: [RegExp, string][] = [
+  [/^objective_worse$/, 'Cách xếp mà trợ lý đề xuất không gọn hơn lịch hiện tại.'],
+  [/^validation_failed$/, 'Cách xếp đề xuất vướng giờ mở cửa hoặc vượt khung giờ trong ngày.'],
+  [/^protected_slot_changed$/, 'Cách xếp đề xuất làm lệch giờ của nơi cần giữ nguyên (nơi bạn khóa hoặc nơi phải đến).'],
+  [/^membership_changed$/, 'Đề xuất thêm hoặc bớt nơi, việc đó để bạn tự quyết.'],
+  [/^stale_fingerprint$/, 'Lịch vừa thay đổi trong lúc mình tính. Bạn bấm Tối ưu lịch lại nhé.'],
+  [/^no_valid_baseline$/, 'Chưa có lịch hợp lệ để tối ưu.'],
+  [/^proposal_unavailable$/, 'Trợ lý tối ưu chưa sẵn sàng lúc này.'],
+]
+const keptWhy = (diagnostics: string[]) => KEPT.find(([re]) => diagnostics.some((d) => re.test(d)))?.[1] ?? 'Trợ lý tối ưu chưa trả lời kịp hoặc trả lời chưa đúng cách.'
 const visits = (d: ItineraryDay) => d.items.filter((it) => it.kind === 'visit' && it.place_id)
+
+// How the reader had the screen (view, day) per journey, kept for the page's lifetime so another tab and back lands on the
+// same view. Only a display choice: the plan itself comes from the cache in journey.ts.
+const looks = new Map<string, { rday: number | 'all'; page: 'journey' | 'detail' }>()
+
+// First visit: what the page lets the traveller do with the route, one thing at a time.
+const TOUR: TourStep[] = [
+  { anchor: '[data-tour="plan-route"]', side: 'top', title: 'Hành trình của bạn', body: 'Mỗi thẻ là một nơi, có giờ đến và giờ đi ước tính. Kéo một thẻ vào trước hoặc sau thẻ khác để đổi thứ tự (hoặc Alt + ← →); bấm hình đồng hồ để chỉnh giờ ở lại.' },
+  { anchor: '[data-tour="plan-days"]', side: 'bottom', title: 'Chuyển sang ngày khác', body: 'Kéo một thẻ lên tên ngày để chuyển nơi đó sang ngày ấy. Nếu xếp không được (nơi đóng cửa, hết giờ trong ngày) thì thẻ ở nguyên chỗ cũ và mình nói lý do. Đổi nhầm thì bấm Hoàn tác ở thanh dưới.' },
+  { anchor: '[data-tour="plan-alerts"]', side: 'bottom', title: 'Lưu ý nằm ở đây', body: 'Thời tiết, thông báo, nơi đóng cửa hay chưa rõ giờ mở cửa. Màu hổ phách là việc nên kiểm tra trước khi đi.' },
+]
 
 export function Plan() {
   useTitle('Lịch trình')
   const { trip, dispatch } = useTrip()
-  const { view, diff, error, busy, act, confirm, optimize } = usePlanning()
+  const { view, diff, error, busy, confirmedTrip, act, confirm, optimize } = usePlanning()
+  const { view: pick } = useDecision()
   const optimized = useUi((u) => (trip.planningId ? u.optimized[trip.planningId] : undefined))
-  const [picked, setDayIdx] = useState<number | null>(null) // null: the first day that has a stop
+  const ctx = trip.searchInput?.context
+  const seen = trip.planningId ? looks.get(trip.planningId) : undefined
   const [hot, setHot] = useState<string | null>(null)
+  const [editPlace, setEditPlace] = useState<string | null>(null)
   const [opt, setOpt] = useState(false)
   const [table, setTable] = useState(false)
-  const [mode, setMode] = useState<'list' | 'route'>('list')
-  const [rday, setRday] = useState<number | 'all'>('all')
+  const [rday, setRday] = useState<number | 'all'>(seen?.rday ?? 'all')
   const [lodDone, setLodDone] = useState(false)
+  const [dropDay, setDropDay] = useState<number | null>(null)
+  const ready = !!view?.state.chosen_variant
+  const [page, setPage] = useState<'journey' | 'detail'>(seen?.page ?? 'journey')
+  const tour = useTour('plan-tour', { auto: true })
+  useEffect(() => { if (trip.planningId) looks.set(trip.planningId, { rday, page }) }, [trip.planningId, rday, page])
   const variant = useMemo(() => view?.variants.find((v) => v.id === view.state.chosen_variant) ?? null, [view])
+  // "Hợp với bạn" of a place the plan only suggests (a meal, an evening): the Decision card's own fit, never recomputed here.
+  const fits = useMemo(() => {
+    const m = new Map<string, Card['fit']>()
+    for (const c of [...(pick?.groups.flatMap((g) => g.cards) ?? []), ...(pick?.unverified.cards ?? [])]) m.set(c.id, c.fit)
+    return m
+  }, [pick])
+  // Suggestions are mostly outside the window Chọn nơi showed, so their fit is read by id from Place Decision.
+  const [fitsMore, setFitsMore] = useState<Record<string, Fit>>({})
+  const suggested = useMemo(() => {
+    const itin = view?.itinerary ?? variant?.itinerary ?? []
+    return [...new Set(itin.flatMap((d) => [...d.items.flatMap((i) => i.options ?? []), ...(d.night?.options ?? [])]).map((o) => o.place_id))]
+  }, [view, variant])
+  const ids = suggested.join(',')
+  useEffect(() => {
+    if (!trip.planningId || !ids) return
+    let live = true
+    loadFits(trip.planningId, ids.split(',')).then((r) => { if (live) setFitsMore(r) }, () => { /* no fit: suggestions keep the route order */ })
+    return () => { live = false }
+  }, [trip.planningId, ids])
+  const fitOf = (id: string) => fitsMore[id] ?? fits.get(id)
   const back = async (to: string) => {
     if (trip.planningId) {
       try {
@@ -82,12 +133,13 @@ export function Plan() {
       </>
     )
 
+  const blocked = blockerLines(view.back_to_decision?.reasons, (id) => info(id)?.name ?? id)
   if (!view.variants.length)
     return (
       <>
         <FlowBar step="plan" />
         <Page narrow>
-          <Empty art={<ArtRoute />} title="Chưa xếp được lịch" body={view.back_to_decision?.places.length ? `Vướng ở: ${view.back_to_decision.places.map((id) => info(id)?.name ?? id).join(', ')}. Bỏ hoặc đổi nơi này rồi xem lại.` : 'Các nơi đã chọn chưa đủ để xếp thành lịch trình.'} action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => back('/explore')}>Chọn lại địa điểm</button>} />
+          <Empty art={<ArtRoute />} title="Chưa xếp được lịch" body={view.back_to_decision?.places.length ? 'Bỏ hoặc đổi nơi vướng rồi xem lại.' : 'Các nơi đã chọn chưa đủ để xếp thành lịch trình.'} detail={blocked.length > 0 && <ul className="tg-notes">{blocked.map((l) => <li key={l}><Icon name="warn" size={14} /><span>{l}</span></li>)}</ul>} action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => back('/explore')}>Chọn lại địa điểm</button>} />
           {view.warnings.length > 0 && <ul className="tg-notes">{view.warnings.map((w, i) => <li key={i}><Icon name="warn" size={14} /><span>{w.text}</span></li>)}</ul>}
         </Page>
       </>
@@ -99,98 +151,165 @@ export function Plan() {
   if (!view.state.chosen_variant) return <Choose variants={view.variants} busy={busy} onPick={(id) => act({ type: 'pick_variant', id })} />
 
   const days = view.itinerary ?? variant?.itinerary ?? []
-  const dayIdx = picked ?? Math.max(0, days.findIndex((x) => visits(x).length > 0))
-  const d = days[Math.min(dayIdx, days.length - 1)]
   const places = days.reduce((n, x) => n + visits(x).length, 0)
   const travel = view.travel_load ? view.travel_load.reduce((n, x) => n + x.travel_min, 0) : variant?.metrics.travel_min ?? 0
-  const vehicle = trip.vehicle ? VEHICLE_LABEL[trip.vehicle].toLowerCase() : ''
   const lodgingName = view.lodging.candidates.find((c) => c.id === view.state.lodging_id)?.name ?? ((view.state.lodging_point?.text as string | undefined) || null)
   const better = optimized?.status === 'accepted' && optimized.after < optimized.before
+  const allWarnings: Warning[] = [...view.warnings, ...(variant?.warnings ?? [])]
+  const rentals: Alert[] = days.flatMap((x, i) => { const r = rentalStep(ctx, i, days.length); return r ? [{ key: `rental-${i}`, level: 'info' as const, icon: 'info' as const, day: x.day, lead: null, text: RENTAL_NOTE[r] }] : [] })
+  const alerts = [...alertsOf({ warnings: allWarnings, days, conditions: view.day_conditions ?? [], tips: view.crowd_tips ?? [] }), ...rentals]
+  const pinned: Record<string, 'locked' | 'chosen'> = {}
+  for (const [id, v] of Object.entries(view.state.visit_overrides ?? {})) if (v.start !== null || v.duration_min !== null) pinned[id] = 'chosen'
+  for (const id of view.state.locked) pinned[id] = 'locked'
+  const walk = walkOnly(allWarnings)
   const onConfirm = async () => { if (await confirm()) go('/done') }
+  // The trip keeps running on the confirmed plan while this one is being edited; it switches only at the next confirm.
+  const editing = view.confirmed ? view.confirmed.edited : confirmedTrip
   return (
     <>
       <FlowBar step="plan" />
       <Page className="tg-plan">
         <header className="tg-plan__head">
           <div><p className="tg-kicker">Bước 3 · Lịch trình</p><h1>Đà Lạt {days.length} ngày</h1><p className="tg-muted">Giờ giấc và đường đi là ước tính.</p></div>
-          <div className="tg-plan__tabs" role="tablist" aria-label="Hành trình">
-            {view.variants.map((v) => <button key={v.id} type="button" role="tab" aria-selected={view.state.chosen_variant === v.id} className="tg-tab" disabled={busy} onClick={() => { act({ type: 'pick_variant', id: v.id }); setDayIdx(null) }}>{v.label}</button>)}
-          </div>
         </header>
 
+        {view.variants.length > 1 && (
+          <section className="tg-plan__variants" aria-label="Các hành trình">
+            <p className="tg-plan__vhint"><Icon name="route" size={16} /> Mình xếp {view.variants.length} cách đi cho cùng những nơi này. Bấm một thẻ để đổi.</p>
+            <VariantCards variants={view.variants} active={view.state.chosen_variant} busy={busy} size="sm" onPick={(id) => { void act({ type: 'pick_variant', id }) }} />
+          </section>
+        )}
+
+        {editing && (
+          <div className="tg-opt-banner" role="status"><Icon name="info" size={20} /><div><b>Bạn đang sửa lịch</b><span>Chuyến đi vẫn dùng lịch đã chốt trước đó. Bấm Chốt lại để dùng lịch mới trong chuyến.</span></div></div>
+        )}
+        {walk && (
+          <div className="tg-opt-banner is-warn" role="status"><Icon name="walk" size={20} /><div><b>Lịch này chỉ đi bộ quanh chỗ ở</b><span>{walk.text}</span></div></div>
+        )}
         {better && !optimized.seen && (
           <div className="tg-opt-banner" role="status"><Icon name="sparkle" size={20} /><div><b>Mình đã tìm được cách xếp tốt hơn</b><span>Giảm khoảng {fmtMin(optimized.before - optimized.after)} di chuyển mà không đổi chỗ ở, nhịp độ hay nơi đã khóa.</span></div><button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => setOpt(true)}>Xem đề xuất</button></div>
         )}
         <div className={`tg-sumstrip ${diff && diff.scope !== 'none' ? 'tg-flash' : ''}`}>
-          <div><span>Di chuyển</span><b className="tg-mono">≈ {fmtMin(travel)}</b></div>
+          <div><span>Di chuyển</span><b className="tg-mono">{travel > 0 ? `≈ ${fmtMin(travel)}` : 'Chưa tính'}</b></div>
           <div><span>Số nơi</span><b className="tg-mono">{places}</b></div>
           <div><span>Chi phí</span><b className="tg-mono">{variant ? costText(variant) : '—'}</b>{variant && variant.metrics.cost_unknown > 0 && <small>một phần chưa có giá</small>}</div>
-          {variant && <div><span>Độ vững</span><Hint label={variant.robustness.reasons.join(' ') || variant.robustness.label}><b className={`tg-robust is-${ROBUST_CLS[variant.robustness.level]}`}>{variant.robustness.label} <Icon name="info" size={14} /></b></Hint></div>}
+          {variant && <div><span>Thời gian</span><Hint label={variant.robustness.reasons.join(' ') || variant.robustness.label}><b className={`tg-robust is-${ROBUST_CLS[variant.robustness.level]}`}>{variant.robustness.label} <Icon name="info" size={14} /></b></Hint></div>}
           <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" disabled={busy} onClick={async () => { await optimize(); setOpt(true) }}><Icon name="sparkle" size={16} /> {busy ? 'Đang thử…' : 'Tối ưu lịch'}</button>
         </div>
         {view.variants.length > 1 && <button type="button" className="tg-link tg-plan__tbl" aria-expanded={table} onClick={() => setTable((v) => !v)}>{table ? 'Ẩn' : 'So sánh'} {view.variants.length} hành trình</button>}
         {table && <Tradeoff variants={view.variants} active={view.state.chosen_variant} onPick={(id) => act({ type: 'pick_variant', id })} />}
 
+        {page === 'detail' ? (
+          <>
+            <div className="tg-plan__viewbar"><button type="button" className="tg-link" onClick={() => setPage('journey')}><Icon name="route" size={15} /> Về hành trình</button><h2 className="tg-plan__dh">Chi tiết theo giờ</h2></div>
+            <PlanDetail days={days} view={view} variant={variant} warnings={allWarnings} hot={hot} setHot={setHot} onEdit={setEditPlace} busy={busy} act={act} fitOf={fitOf} ctx={ctx} vehicle={trip.vehicle ?? null} onAdd={() => back('/explore')} />
+          </>
+        ) : (
+          <>
+        <LodgingStrip chosenName={lodgingName} />
+        <PlanAlerts alerts={alerts} />
+
         <div className="tg-plan__viewbar">
-          <div className="tg-seg" role="group" aria-label="Cách xem lịch trình"><button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}><Icon name="clock" size={15} /> Theo giờ</button><button type="button" aria-pressed={mode === 'route'} onClick={() => setMode('route')}><Icon name="route" size={15} /> Hành trình</button></div>
-          {mode === 'route' && <div className="tg-seg" role="group" aria-label="Phạm vi">{[...days.map((_, i) => i as number | 'all'), 'all' as const].map((k) => <button key={String(k)} type="button" aria-pressed={rday === k} onClick={() => setRday(k)}>{k === 'all' ? 'Cả chuyến' : `Ngày ${k + 1}`}</button>)}</div>}
+          <div className="tg-seg" role="group" aria-label="Phạm vi" data-tour="plan-days">
+            {[...days.map((_, i) => i as number | 'all'), 'all' as const].map((k) => {
+              const target = k === 'all' ? null : days[k].day
+              return (
+                <button key={String(k)} type="button" aria-pressed={rday === k} className={target != null && dropDay === target ? 'is-drop' : undefined} onClick={() => setRday(k)}
+                  onDragOver={(e) => { if (target != null && e.dataTransfer.types.includes('application/x-tg-stop')) { e.preventDefault(); setDropDay(target) } }}
+                  onDragLeave={() => setDropDay(null)}
+                  onDrop={(e) => { setDropDay(null); const from = dragged(e); if (target != null && from && from.day !== target) { e.preventDefault(); void act({ type: 'move_place', place: from.id, day: target }) } }}>
+                  {k === 'all' ? 'Cả chuyến' : `Ngày ${days[k].day}`}
+                </button>
+              )
+            })}
+          </div>
+          <button type="button" className="tg-link" onClick={tour.start}><Icon name="info" size={15} /> Cách chỉnh lộ trình</button>
+          <button type="button" className="tg-btn tg-btn--soft tg-btn--sm tg-plan__detail" onClick={() => setPage('detail')}><Icon name="clock" size={15} /> Xem chi tiết theo giờ</button>
         </div>
-        {mode === 'route' && <div className="tg-rswrap"><RouteStory days={days} day={rday} home={lodgingName ?? 'Điểm xuất phát'} hot={hot} setHot={setHot} /></div>}
-        <div className="tg-plan__cols" hidden={mode === 'route'}>
-          <section aria-label="Ngày" className="tg-days">
-            <div className="tg-daytabs" role="tablist" aria-label="Ngày" onKeyDown={(e) => { if (e.key === 'ArrowRight') setDayIdx((dayIdx + 1) % days.length); if (e.key === 'ArrowLeft') setDayIdx((dayIdx + days.length - 1) % days.length) }}>
-              {days.map((x, i) => {
-                const l = dayLabel(x.date)
-                const load = view.travel_load?.[i]
-                return <button key={x.day} type="button" role="tab" aria-selected={d?.day === x.day} tabIndex={d?.day === x.day ? 0 : -1} className="tg-daytab" onClick={() => setDayIdx(i)}><b>Ngày {x.day}</b><span>{l ? `${l.wd} · ${l.dm}` : x.weekday || 'Chưa có ngày'}</span>{load && <em className="tg-mono">≈{fmtMin(load.travel_min)} đi</em>}</button>
-              })}
-            </div>
-            {d && <DayBlock d={d} cond={view.day_conditions?.find((c) => c.day === d.day)} tips={view.crowd_tips ?? []} vehicle={vehicle} hot={hot} setHot={setHot} />}
-            <div className="tg-plan__links"><button type="button" className="tg-link" disabled={busy} onClick={() => back('/explore')}><Icon name="plus" size={14} /> Thêm nơi</button><button type="button" className="tg-link tg-link--quiet" onClick={() => back('/explore')}>Quay lại chọn nơi</button></div>
-          </section>
-          <section aria-label="Bản đồ" className="tg-plan__map"><DayMap d={d} /></section>
-          <aside aria-label="Chỗ nghỉ và dự phòng" className="tg-side">
-            <Lodging />
-            <BackupCard b={variant?.backups} day={d?.day ?? 1} busy={busy} onSwap={(place, w) => act({ type: 'swap', place, with: w })} />
-            <section className="tg-sidecard" aria-labelledby="tg-nt-h">
-              <h2 id="tg-nt-h"><Icon name="info" size={18} /> Lưu ý cả chuyến</h2>
-              {view.warnings.length === 0 && !(variant?.warnings.length) ? <p className="tg-faint">Chưa có lưu ý nào.</p> : <ul className="tg-notes">{[...view.warnings, ...(variant?.warnings ?? [])].slice(0, 6).map((w, i) => <li key={i}><Icon name="warn" size={14} /><span>{w.text}</span></li>)}</ul>}
-            </section>
-          </aside>
-        </div>
+        <p className="tg-plan__jhint"><Icon name="route" size={15} /> Kéo một thẻ vào trước hoặc sau thẻ khác để đổi thứ tự đi, hoặc kéo lên tên ngày để chuyển sang ngày đó. Mình tính lại giờ và đường đi sau mỗi lần đổi.</p>
+        <div className="tg-rswrap" data-tour="plan-route"><RouteStory days={days} day={rday} home={lodgingName ?? 'Điểm xuất phát'} homeSet={!!lodgingName} hot={hot} setHot={setHot} fitOf={fitOf} busy={busy} pinned={pinned} onEdit={setEditPlace}
+          onReorder={(day, order) => { void act({ type: 'reorder', day, order }) }} onMove={(place, day) => { void act({ type: 'move_place', place, day }) }} /></div>
+        <BackupCard b={variant?.backups} day={rday === 'all' ? 'all' : days[rday]?.day ?? 'all'} busy={busy} onSwap={(place, w) => act({ type: 'swap', place, with: w })} />
+        <div className="tg-plan__links"><button type="button" className="tg-link" disabled={busy} onClick={() => back('/explore')}><Icon name="plus" size={14} /> Thêm nơi</button><button type="button" className="tg-link tg-link--quiet" disabled={busy} onClick={() => back('/explore')}>Quay lại chọn nơi</button></div>
+          </>
+        )}
       </Page>
       <div className="tg-confirm">
         <div className="tg-confirm__in">
-          {error ? <p className="tg-diff is-bad" role="alert"><Icon name="warn" size={15} />{error}</p> : diff && SCOPE_TEXT[diff.scope] ? <p className="tg-diff" role="status"><Icon name="bolt" size={15} />{SCOPE_TEXT[diff.scope]}<button type="button" className="tg-diff__undo" disabled={busy} onClick={() => act({ type: 'undo' })}>Hoàn tác</button></p> : <span className="tg-faint">Chưa chốt thì mình chưa lưu gì thành "đã chốt".</span>}
-          <button type="button" className="tg-btn tg-btn--primary" disabled={busy} onClick={onConfirm}>Chốt kế hoạch này <Icon name="arrow" size={18} /></button>
+          {error ? <p className="tg-diff is-bad" role="alert"><Icon name="warn" size={15} />{error}</p> : diff && SCOPE_TEXT[diff.scope] ? <p className="tg-diff" role="status"><Icon name="bolt" size={15} />{SCOPE_TEXT[diff.scope]}<button type="button" className="tg-diff__undo" disabled={busy} onClick={() => act({ type: 'undo' })}>Hoàn tác</button></p> : <span className="tg-faint">{editing ? 'Bạn đang sửa lịch, bấm Chốt lại để dùng trong chuyến.' : 'Chưa chốt thì mình chưa lưu gì thành "đã chốt".'}</span>}
+          <button type="button" className="tg-btn tg-btn--primary" disabled={busy} onClick={onConfirm}>{editing ? 'Chốt lại' : 'Chốt kế hoạch này'} <Icon name="arrow" size={18} /></button>
         </div>
       </div>
+      <Tour steps={TOUR} open={tour.open && ready && page === 'journey'} onClose={tour.close} />
+      <VisitEdit place={editPlace} onClose={() => setEditPlace(null)} days={days} />
       <Optimize open={opt} onClose={() => { setOpt(false); if (trip.planningId && optimized) setOptimized(trip.planningId, { ...optimized, seen: true }) }} onUndo={async () => { await act({ type: 'undo' }); if (trip.planningId) setOptimized(trip.planningId, null); setOpt(false) }} busy={busy} />
     </>
   )
 }
 
+function VisitEdit({ place, days, onClose }: { place: string | null; days: ItineraryDay[]; onClose: () => void }) {
+  const { view, busy, error, act } = usePlanning()
+  const day = days.find((d) => visits(d).some((it) => it.place_id === place))
+  const stop = day && visits(day).find((it) => it.place_id === place)
+  const [start, setStart] = useState('')
+  const [duration, setDuration] = useState('')
+  const fixed = place ? view?.state.visit_overrides?.[place] : undefined
+  const lock = place ? view?.state.locked_visits?.[place] : undefined
+  const locked = !!place && !!view?.state.locked.includes(place)
+  useEffect(() => {
+    if (!stop) return
+    const chosenStart = fixed?.start ?? lock?.start
+    setStart(chosenStart != null ? `${String(Math.floor(chosenStart / 60)).padStart(2, '0')}:${String(chosenStart % 60).padStart(2, '0')}` : stop.start)
+    setDuration(String(fixed?.duration_min ?? lock?.duration_min ?? (toMin(stop.end) - toMin(stop.start))))
+  }, [place, stop?.start, stop?.end, fixed?.start, fixed?.duration_min, lock?.start, lock?.duration_min])
+  const action = place ? visitAction(place, start, duration) : null
+  const order = day ? visits(day).map((it) => it.place_id!) : []
+  const index = place ? order.indexOf(place) : -1
+  const reorder = (offset: number) => {
+    if (!day || index < 0) return
+    const next = [...order]
+    ;[next[index], next[index + offset]] = [next[index + offset], next[index]]
+    void act(reorderVisitAction(day.day, next))
+  }
+  return <Dialog.Root open={!!stop} onOpenChange={(open) => !open && onClose()}><Dialog.Portal>
+    <Dialog.Overlay className="tg tg-overlay" />
+    <Dialog.Content className="tg tg-drawer" aria-describedby="tg-visit-help">
+      <header><span className="tg-tag">Điểm ghé · Ngày {day?.day}</span><Dialog.Close className="tg-icon-btn" aria-label="Đóng"><Icon name="x" size={20} /></Dialog.Close></header>
+      <Dialog.Title>{stop?.name ?? (place ? info(place)?.name : '')}</Dialog.Title>
+      <p id="tg-visit-help" className="tg-faint">Chọn giờ đến và thời gian ở lại. Lịch sẽ được kiểm tra giờ mở cửa và thời gian di chuyển.</p>
+      {(fixed || locked) && <p className="tg-visit-status">{locked ? 'Đã khóa giờ và thời lượng của điểm ghé này.' : 'Lịch đang giữ giờ hoặc thời lượng bạn chọn.'}</p>}
+      <form className="tg-visit-form" onSubmit={(e) => { e.preventDefault(); if (action && !busy && !locked) void act(action) }}>
+        <label>Giờ đến<input type="time" value={start} disabled={busy || locked} onChange={(e) => setStart(e.target.value)} /></label>
+        <label>Thời gian ở lại (phút)<input type="number" min={1} max={1440} step={1} value={duration} disabled={busy || locked} onChange={(e) => setDuration(e.target.value)} /></label>
+        <div className="tg-visit-actions"><button type="button" className="tg-link" disabled={busy || locked || fixed?.start == null} onClick={() => place && act(automaticVisitAction(place, 'start'))}>Giờ đến tự động</button><button type="button" className="tg-link" disabled={busy || locked || fixed?.duration_min == null} onClick={() => place && act(automaticVisitAction(place, 'duration_min'))}>Thời lượng tự động</button></div>
+        <p className="tg-faint">Để trống một ô để tự động xếp phần đó.</p>
+        {!action && <p className="tg-visit-error" role="alert">Nhập giờ từ 00:00 đến 23:59 và thời lượng nguyên từ 1 đến 1440 phút.</p>}
+        <div className="tg-visit-actions"><button type="submit" className="tg-btn tg-btn--primary tg-btn--sm" disabled={busy || locked || !action}>{busy ? 'Đang xếp…' : 'Lưu giờ ghé'}</button><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" disabled={busy || locked || !fixed} onClick={() => place && act({ type: 'clear_visit', place })}>Xếp giờ tự động</button></div>
+      </form>
+      <div className="tg-visit-form">
+        <label>Chuyển sang ngày<select value={day?.day ?? ''} disabled={busy || locked} onChange={(e) => place && act(moveVisitAction(place, Number(e.target.value)))}>{days.map((d) => <option key={d.day} value={d.day}>Ngày {d.day}</option>)}</select></label>
+        <div className="tg-visit-actions"><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" disabled={busy || locked || index <= 0} onClick={() => reorder(-1)}>Đi trước một điểm</button><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" disabled={busy || locked || index < 0 || index >= order.length - 1} onClick={() => reorder(1)}>Đi sau một điểm</button></div>
+        {place && view?.slots?.[place] && (
+          <div className="tg-seg tg-seg--slot" role="group" aria-label="Giữ vào buổi">
+            {view.slots[place].options.map((o) => <button key={o} type="button" aria-pressed={view.slots![place].current === o} disabled={busy} onClick={() => view.slots![place].current !== o && act({ type: 'set_slot', place_id: place, slot: o })}>{SLOT[o]}</button>)}
+          </div>
+        )}
+        <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" disabled={busy} onClick={() => place && act({ type: locked ? 'unlock' : 'lock_slot', place })}>{locked ? 'Mở khóa để chỉnh' : 'Khóa giờ và thời lượng'}</button>
+      </div>
+      {error && <p className="tg-visit-error" role="alert">{error} Bạn có thể đổi giờ, giảm thời lượng hoặc chuyển ngày rồi thử lại.</p>}
+      <footer><button type="button" className="tg-btn tg-btn--ghost" onClick={onClose}>Đóng</button></footer>
+    </Dialog.Content>
+  </Dialog.Portal></Dialog.Root>
+}
+
 function Choose({ variants, busy, onPick }: { variants: Variant[]; busy: boolean; onPick: (id: string) => void }) {
-  const [hover, setHover] = useState<string | null>(null)
   const places = variants[0]?.itinerary.reduce((n, d) => n + visits(d).length, 0) ?? 0
   return (
     <>
       <FlowBar step="plan" />
       <Page className="tg-plan">
         <header className="tg-xhead"><div><p className="tg-kicker">Bước 3 · Lịch trình</p><h1>Chọn một hành trình</h1><p>Cùng {places} nơi bạn đã chọn, {variants.length} cách đi, mỗi cách tối ưu một mục tiêu khác. Chọn xong vẫn đổi được.</p></div></header>
-        <div className="tg-journeys">
-          {variants.map((v) => (
-            <button key={v.id} type="button" disabled={busy} className={`tg-journey ${hover === v.id ? 'is-hover' : ''}`} style={{ backgroundImage: `linear-gradient(180deg, rgba(10,24,26,.05), rgba(10,24,26,.78)), url(/img/gen/${COVER[v.objective] ?? 'journey-travel'}.webp)` }} onClick={() => onPick(v.id)} onMouseEnter={() => setHover(v.id)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(v.id)} onBlur={() => setHover(null)}>
-              <span className="tg-journey__top"><span className="tg-tag tg-tag--dark">{v.robustness.label}</span></span>
-              <span className="tg-journey__txt">
-                <b>{v.label}</b><em>{v.robustness.reasons[0] ?? ''}</em>
-                <span className="tg-journey__stats"><span><Icon name="calendar" size={15} /> {v.itinerary.length} ngày</span><span><Icon name="pin" size={15} /> {v.itinerary.reduce((n, d) => n + visits(d).length, 0)} nơi</span><span><Icon name="route" size={15} /> ≈{fmtMin(v.metrics.travel_min)} đi</span></span>
-                <span className="tg-journey__prev" aria-hidden={hover !== v.id}>{v.itinerary.map((d) => <span key={d.day}><i>Ngày {d.day}</i>{visits(d).map((x) => x.name).join(' → ') || '—'}</span>)}</span>
-                <span className="tg-journey__go">{costText(v)} <Icon name="arrow" size={16} /></span>
-              </span>
-            </button>
-          ))}
-        </div>
+        <VariantCards variants={variants} active={null} busy={busy} size="lg" onPick={onPick} />
         <Tradeoff variants={variants} active={null} onPick={onPick} />
       </Page>
     </>
@@ -203,11 +322,11 @@ function Tradeoff({ variants, active, onPick }: { variants: Variant[]; active: s
   const priced = variants.filter((v) => v.metrics.cost_vnd > 0)
   const minC = priced.length ? Math.min(...priced.map((v) => v.metrics.cost_vnd)) : -1
   const rows: [string, (v: Variant) => string, (v: Variant) => boolean][] = [
-    ['Di chuyển', (v) => `≈ ${fmtMin(v.metrics.travel_min)}`, (v) => v.metrics.travel_min === minT],
+    ['Di chuyển', (v) => (v.metrics.travel_min > 0 ? `≈ ${fmtMin(v.metrics.travel_min)}` : 'Chưa tính'), (v) => v.metrics.travel_min === minT],
     ['Số nơi mỗi ngày', (v) => v.itinerary.map((d) => visits(d).length).join(' · '), () => false],
     ['Chi phí', (v) => `${costText(v)}${v.metrics.cost_unknown ? ' *' : ''}`, (v) => v.metrics.cost_vnd === minC],
     ['Dính mưa', (v) => (v.metrics.rain_exposed ? `${v.metrics.rain_exposed} nơi ngoài trời` : 'Không'), (v) => v.metrics.rain_exposed === 0],
-    ['Độ vững', (v) => v.robustness.label, (v) => v.robustness.level === 'solid'],
+    ['Thời gian', (v) => v.robustness.label, (v) => v.robustness.level === 'solid'],
   ]
   return (
     <div className="tg-trade" role="table" aria-label="Đánh đổi giữa các hành trình">
@@ -217,127 +336,6 @@ function Tradeoff({ variants, active, onPick }: { variants: Variant[]; active: s
       ))}
       <p className="tg-faint tg-trade__note">* Một phần chưa có giá. Giờ giấc và đường đi là ước tính.</p>
     </div>
-  )
-}
-
-// Facts about the date, from live sources and hand-entered notices; no notice is not the same as "all clear".
-function Conditions({ c, tips }: { c: DayConditions | undefined; tips: CrowdTip[] }) {
-  const items: { icon: 'rain' | 'cloud' | 'users' | 'calendar' | 'warn' | 'info' | 'clock'; text: string; warn: boolean }[] = []
-  if (c) {
-    if (c.weather !== 'none') {
-      const what = [c.storm ? 'dông' : '', c.rain_mm ? `mưa ~${Math.round(c.rain_mm)} mm` : '', c.gust_kmh ? `gió giật ~${Math.round(c.gust_kmh)} km/h` : ''].filter(Boolean).join(', ')
-      items.push({ icon: 'rain', text: `${c.weather === 'severe' ? 'Thời tiết rất xấu' : 'Mưa lớn hoặc dông'}${what ? ` (${what})` : ''}`, warn: true })
-    } else items.push({ icon: 'cloud', text: c.rain_mm === null ? 'Chưa có số liệu thời tiết cho ngày này' : 'Dự báo không có mưa lớn', warn: false })
-    for (const a of c.advisories) items.push({ icon: 'warn', text: `Thông báo ${ADVISORY[a.kind] ?? a.kind}: ${a.note || 'xem nguồn'} (${a.source})`, warn: true })
-    if (c.crowd !== 'normal') items.push({ icon: 'users', text: `${c.crowd === 'peak' ? 'Rất đông' : 'Đông hơn thường'}: ${c.crowd_reasons.join(', ')}`, warn: true })
-    if (c.day_type !== 'weekday') items.push({ icon: 'calendar', text: c.day_type === 'holiday' ? 'Ngày lễ' : 'Cuối tuần', warn: c.day_type === 'holiday' })
-    if (c.closure_risk) items.push({ icon: 'warn', text: `Dịp ${c.closure_risk}: nhiều quán đóng cửa hoặc đổi giờ, gọi xác nhận trước`, warn: true })
-    if (c.crowd !== 'normal') tips.slice(0, 2).forEach((t) => items.push({ icon: 'clock', text: t.text, warn: false }))
-  }
-  if (!c || (!c.advisories.length && c.crowd === 'normal' && !c.closure_risk)) items.push({ icon: 'info', text: 'Chưa có thông báo hay sự kiện ghi nhận cho ngày này (không có nghĩa là chắc chắn bình thường).', warn: false })
-  return <ul className="tg-cond" aria-label="Điều kiện ngày">{items.map((x) => <li key={x.text} className={x.warn ? 'is-warn' : ''}><Icon name={x.icon} size={16} />{x.text}</li>)}</ul>
-}
-
-function DayBlock({ d, cond, tips, vehicle, hot, setHot }: { d: ItineraryDay; cond: DayConditions | undefined; tips: CrowdTip[]; vehicle: string; hot: string | null; setHot: (v: string | null) => void }) {
-  let n = 0
-  let leg = 0
-  const rows: { it: ItineraryItem; leg: number; n: number }[] = []
-  for (const it of d.items) {
-    if (it.kind === 'travel') { leg += toMin(it.end) - toMin(it.start); continue }
-    rows.push({ it, leg, n: it.kind === 'visit' ? ++n : 0 })
-    leg = 0
-  }
-  return (
-    <div className="tg-day" key={d.day}>
-      <div className="tg-day__top"><span className="tg-muted">{d.window[0]}–{d.window[1]}{d.method ? '' : ''}</span></div>
-      <Conditions c={cond} tips={tips} />
-      <ol className="tg-tl">
-        {rows.map(({ it, leg: l, n: k }, i) => {
-          const dur = toMin(it.end) - toMin(it.start)
-          if (it.kind !== 'visit' || !it.place_id)
-            return <li key={i} className="tg-tl__blk" style={{ ['--i' as string]: i }}><time className="tg-mono">{it.start}</time><div><Icon name={it.kind === 'meal_free' ? 'utensils' : it.kind === 'wait' ? 'clock' : 'moon'} size={16} />{it.name ?? BLOCK[it.kind] ?? it.kind}<span className="tg-faint">{dur} phút · {BLOCK_NOTE[it.kind] ?? ''}</span></div></li>
-          const p = info(it.place_id)
-          return (
-            <li key={i} className="tg-tl__stop" style={{ ['--i' as string]: i }} onMouseEnter={() => setHot(it.place_id!)} onMouseLeave={() => setHot(null)}>
-              {l > 0 && <p className="tg-tl__leg"><Icon name="bike" size={15} />≈ {l} phút{vehicle ? ` ${vehicle}` : ''}</p>}
-              <time className="tg-mono">{it.start}</time>
-              <div className={`tg-stop ${hot === it.place_id ? 'is-hot' : ''}`}>
-                <i className="tg-stop__n" aria-hidden="true">{k}</i>
-                <PlacePhoto id={it.place_id} name={it.name} className="tg-stop__ph" />
-                <div className="tg-stop__txt"><Link to={placeHref(it.place_id)} className="tg-stop__name">{it.name ?? p?.name}</Link><span className="tg-faint">{p?.area ? `${p.area} · ` : ''}ở lại ≈ <span className="tg-mono">{fmtMin(dur)}</span></span></div>
-              </div>
-              {it.note && it.note.includes(' ') && <p className="tg-tl__warn"><Icon name="warn" size={14} />{it.note}</p>}
-            </li>
-          )
-        })}
-        {n === 0 && <li className="tg-faint">Ngày này chưa có nơi nào. Thêm nơi ở bước Lựa chọn.</li>}
-      </ol>
-    </div>
-  )
-}
-
-function DayMap({ d }: { d: ItineraryDay | undefined }) {
-  const stops = (d ? visits(d) : []).map((it) => info(it.place_id!)).filter((p): p is NonNullable<typeof p> => !!p)
-  return (
-    <div className="tg-map">
-      {stops.length ? <iframe className="tg-map__frame" title={`Lộ trình ngày ${d?.day}`} src={mapsRouteEmbed(stops)} loading="lazy" referrerPolicy="no-referrer-when-downgrade" /> : <div className="tg-map__none tg-faint">Chưa có điểm nào để vẽ đường.</div>}
-      <div className="tg-map__foot"><span><Icon name="route" size={16} /> {stops.length} điểm dừng</span>{stops.length > 1 && <a href={mapsRouteLink(stops)} target="_blank" rel="noreferrer" className="tg-link">Mở trên Google Maps <Icon name="external" size={14} /></a>}</div>
-      <p className="tg-map__note tg-faint">Bản đồ Google Maps. Đường đi và giờ giấc trong lịch là ước tính.</p>
-    </div>
-  )
-}
-
-function Lodging() {
-  const { view, lodgingProgress, act, busy } = usePlanning()
-  const [text, setText] = useState('')
-  if (!view) return null
-  const status = view.lodging.status
-  const candidates = status === 'pending' && lodgingProgress ? lodgingProgress.candidates : view.lodging.candidates
-  const chosen = view.state.lodging_id
-  return (
-    <section className="tg-sidecard" aria-labelledby="tg-lod-h">
-      <h2 id="tg-lod-h"><Icon name="bed" size={18} /> Chỗ nghỉ đêm</h2>
-      {status === 'pending' && <p className="tg-faint">Đang tra giá chỗ ở quanh lịch trình… có thể mất ~10 giây.</p>}
-      {status === 'unavailable' && <p className="tg-faint">Chưa tra được chỗ ở, lịch dùng điểm xuất phát làm neo.</p>}
-      {status === 'booked' && view.state.lodging_point && <p><b>{String(view.state.lodging_point.text ?? '')}</b><br /><small className="tg-faint">Chỗ bạn đã đặt, mọi ngày bắt đầu và kết thúc ở đây.</small></p>}
-      {candidates.length > 0 && (
-        <ul>
-          {candidates.slice(0, 5).map((c) => (
-            <li key={c.id}><label className={`tg-radio ${chosen === c.id ? 'is-on' : ''}`}>
-              <input type="radio" name="lodging" checked={chosen === c.id} disabled={busy} onChange={() => act({ type: 'pick_lodging', id: c.id })} />
-              <span><b>{c.name}</b><small className="tg-faint">{c.price_vnd ? `${fmtVnd(c.price_vnd)}/đêm` : 'Chưa có giá'}</small></span>
-            </label></li>
-          ))}
-        </ul>
-      )}
-      <form className="tg-sidecard__lookup" onSubmit={(e) => { e.preventDefault(); if (text.trim()) { act({ type: 'set_lodging', text: text.trim() }); setText('') } }}>
-        <label className="tg-sr" htmlFor="tg-lodging-in">Chỗ bạn ở</label>
-        <input id="tg-lodging-in" className="tg-line-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Nhập chỗ bạn ở (tên hoặc địa chỉ)" />
-        <button type="submit" className="tg-link" disabled={busy || !text.trim()}><Icon name="search" size={14} /> Dùng chỗ này</button>
-      </form>
-      <p className="tg-faint tg-sidecard__mini">Đổi chỗ nghỉ thì giờ di chuyển được tính lại. Giá là của Google Maps, chưa xác minh.</p>
-    </section>
-  )
-}
-
-// Backups of the day on screen: a stand-in for a place that may fail (rain, hours) and what to drop first when late.
-function BackupCard({ b, day, busy, onSwap }: { b: Backups | undefined; day: number; busy: boolean; onSwap: (place: string, w: string) => void }) {
-  const items = b?.places.filter((x) => x.day === day) ?? []
-  const late = b?.on_delay.find((x) => x.day === day)
-  return (
-    <section className="tg-sidecard" aria-labelledby="tg-bk-h">
-      <h2 id="tg-bk-h"><Icon name="shield" size={18} /> Phương án dự phòng · Ngày {day}</h2>
-      {items.length === 0 && !late && <p className="tg-faint">Ngày này chưa có nơi nào cần dự phòng.</p>}
-      {items.slice(0, 3).map((x) => (
-        <div key={x.place_id} className="tg-backup">
-          <b>{x.text ? `Nếu ${x.text.toLowerCase()}` : x.name}</b>
-          <span>{x.name}{x.alternatives.length ? ' → ' : ''}{x.alternatives.length ? '' : ` · ${x.none_text ?? 'Không có phương án thay.'}`}</span>
-          {x.alternatives.slice(0, 2).map((a) => <button key={a.id} type="button" className="tg-btn tg-btn--soft tg-btn--sm" disabled={busy} onClick={() => onSwap(x.place_id, a.id)}>Thay bằng {a.name}{a.minutes_rough ? ` (≈${a.minutes_rough}′)` : ''}</button>)}
-        </div>
-      ))}
-      {late && <div className="tg-backup"><b>Bị trễ</b><span>Bỏ {late.name} trước, giữ phần còn lại</span></div>}
-      <p className="tg-faint tg-sidecard__mini">Chỉ thay khi bạn bấm chọn.</p>
-    </section>
   )
 }
 
@@ -363,7 +361,7 @@ function Optimize({ open, onClose, onUndo, busy }: { open: boolean; onClose: () 
               <div className="tg-ba__why"><h3>Vì sao</h3><ul><li>Thứ tự trong ngày được xếp lại để bớt quay đầu giữa các khu.</li><li>Lịch mới đã qua kiểm tra giờ mở cửa, nơi đã khóa và giới hạn của bạn.</li><li>Điểm theo mục tiêu của hành trình này không kém lịch cũ.</li></ul><p className="tg-ba__keep"><Icon name="shield" size={15} /> Mình không đổi chỗ ở, nhịp độ, nơi đã khóa hay tập địa điểm.</p></div>
             </>
           )}
-          {o && !better && <p className="tg-muted">{o.status === 'accepted' ? `Không có cách xếp nào giảm di chuyển đáng kể mà vẫn đúng giờ mở cửa. Giữ lịch hiện tại (${fmtMin(o.after)} di chuyển).` : 'Đề xuất chưa qua được kiểm tra (vướng nơi đã khóa, giờ mở cửa hoặc không tốt hơn), nên mình giữ lịch hiện tại.'}</p>}
+          {o && !better && <p className="tg-muted">{o.status === 'accepted' ? `Không có cách xếp nào giảm di chuyển đáng kể mà vẫn đúng giờ mở cửa. Giữ lịch hiện tại (${fmtMin(o.after)} di chuyển).` : `${keptWhy(o.diagnostics)} Mình giữ lịch hiện tại, lịch này đã qua kiểm tra giờ mở cửa và giờ trong ngày.`}</p>}
           <footer>{better && <button type="button" className="tg-btn tg-btn--ghost" disabled={busy} onClick={onUndo}>Giữ lịch cũ</button>}<button type="button" className="tg-btn tg-btn--primary" onClick={onClose}>{better ? 'Giữ cách xếp mới' : 'Đóng'} <Icon name="check" size={18} /></button></footer>
         </Dialog.Content>
       </Dialog.Portal>

@@ -26,17 +26,9 @@
 .tg-ask__space { height: 1px; }
 .tg-ask > .tg-stage, .tg-ask__done { scroll-margin-top: 100px; }
 .tg-ask > .tg-deck { scroll-margin-top: 96px; }
-.tg-ask__prev { display: grid; gap: 8px; margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px dashed var(--tg-line-2); }
-.tg-ask__prev li { display: flex; align-items: center; gap: 12px; color: var(--tg-ink-2); font-size: 0.9rem; }
-.tg-ask__prev li > svg { color: var(--tg-pine); }
-.tg-ask__prev li span { flex: 1; }
-.tg-hist { display: grid; gap: 4px; margin-bottom: 28px; }
-.tg-hist li { display: flex; align-items: center; gap: 12px; min-height: 40px; font-size: 0.92rem; }
-.tg-hist li > svg { color: var(--tg-pine); }
-.tg-hist__n { margin-left: -4px; }
-.tg-hist .tg-link { margin-left: auto; }
 .tg-ask__done h1 { margin: 14px 0 12px; font-size: clamp(2rem, 3.4vw, 3rem); max-width: 18ch; }
-.tg-ask__ctas { display: flex; gap: 12px; margin-top: 26px; }
+.tg-ask__ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.tg-ask__sum { margin-top: 18px; padding: 16px 16px 14px; border: 1px solid var(--tg-pine-line); border-radius: var(--tg-r-m); background: var(--tg-surface); box-shadow: var(--tg-sh-1); }
 .tg-basics__row { margin-bottom: 4px; }
 .tg-basics__row h3 { font: 700 0.95rem var(--tg-sans); margin-bottom: 10px; letter-spacing: 0; }
 .tg-basics__chips { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -54,10 +46,10 @@
 @keyframes tg-deal { from { opacity: 0.4; transform: translate(14px, 14px) rotate(3deg) scale(0.95); } to { opacity: 1; transform: none; } }
 @keyframes tg-drop { to { opacity: 0; transform: translateY(90px) rotate(-5deg) scale(0.94); } }
 .tg-ask__card .tg-ask__top { margin-bottom: 14px; flex-wrap: nowrap; }
-.tg-ask__ico, .tg-ask__skip { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; }
+.tg-ask__ico { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; }
 .tg-ask__ico { background: var(--tg-surface); color: var(--tint); box-shadow: 0 0 0 1px var(--tint-line); }
-.tg-ask__skip { margin-left: auto; background: var(--tint); color: #fff; transition: transform 200ms var(--tg-ease), background 150ms; }
-.tg-ask__skip:hover { transform: rotate(-45deg); background: var(--tg-pine-d); }
+.tg-ask__skip { margin-left: auto; min-height: 44px; padding: 0 8px; background: none; border: 0; color: var(--tg-ink-2); font: 600 0.86rem var(--tg-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.tg-ask__skip:hover { color: var(--tg-pine); }
 .tg-ask__intent { display: grid; gap: 2px; }
 .tg-ask__intent b { font: 700 0.72rem var(--tg-sans); letter-spacing: 0.14em; color: var(--tint); }
 .tg-ask__intent span { font-size: 0.76rem; color: var(--tg-ink-3); }
@@ -76,9 +68,6 @@
 .tg-ask__note { display: grid; gap: 6px; margin: 26px 8px 4px; text-align: center; font-size: 0.8rem; }
 .tg-ask__card .tg-ask__why { justify-content: center; margin: 0; max-width: none; font-size: 0.84rem; }
 .tg-ask__card .tg-ask__say { margin: 0; }
-.tg-ask__card .tg-ask__prev { margin-bottom: 14px; padding-bottom: 12px; }
-.tg-ask__card .tg-ask__prev li { font-size: 0.82rem; }
-.tg-ask__card .tg-ask__prev b { padding: 3px 10px; border-radius: 999px; background: var(--tg-pine-soft); font-weight: 600; color: var(--tg-pine); }
 /* between cards: the answered card has fallen, the deck leans in while the next question is written */
 .tg-deck.is-waiting .tg-deck__ghost--1 { transform: translate(-5px, 4px) rotate(-1.2deg); }
 .tg-deck.is-waiting .tg-deck__ghost--2 { transform: translate(9px, 12px) rotate(1.8deg); opacity: 0.85; }
@@ -122,7 +111,7 @@
 .tg-chat__next { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--tg-line-2); font-size: 0.9rem; }
 .tg-chat__next p { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--tg-ink-2); }
 .tg-chat__next .tg-chip { min-height: 28px; padding: 0 10px; font-size: 0.8rem; }
-.tg-chat__go { display: flex; justify-content: center; margin-top: 16px; animation: tg-pop 360ms var(--tg-ease) 360ms backwards; }
+.tg-chat__go { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 20px; margin-top: 16px; animation: tg-pop 360ms var(--tg-ease) 360ms backwards; }
 .tg-chat__go .tg-btn { min-height: 48px; padding: 0 24px; }
 .tg-chat__say { display: flex; align-items: flex-end; gap: 4px; margin-top: 16px; padding: 4px; border-radius: 24px; background: var(--tg-bg); border: 1px solid var(--tg-line-2); transition: border-color 150ms, box-shadow 150ms; }
 .tg-chat__say:focus-within, .tg-chat__say.is-drop { border-color: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }
@@ -151,7 +140,6 @@
 .tg-chat__send:hover:not(:disabled) { background: var(--tg-pine-d); transform: translateY(-1px); }
 .tg-chat__send:disabled { opacity: 0.35; cursor: default; }
 .tg-chat__end { height: 1px; scroll-margin-bottom: 24px; }
-.tg-qrail__told { display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.92rem !important; font-weight: 500 !important; }
 @media (prefers-reduced-motion: reduce) {
   .tg-chat__msg, .tg-chat__sum > *, .tg-chat__rows li, .tg-chat__reads li, .tg-chat__go, .tg-deck__wait { animation: none; }
   .tg-dots i { animation: none; opacity: 0.6; }
@@ -179,7 +167,7 @@
 .tg-ticket__row.is-asking { background: var(--tg-pine-soft); }
 .tg-ticket__row.is-asking dd { color: var(--tg-pine); font-weight: 600; }
 .tg-ticket__sec h3 { font: 700 0.7rem var(--tg-sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--tg-ink-3); margin-bottom: 8px; }
-.tg-stamp { display: inline-flex; align-items: center; gap: 7px; margin: 0 6px 6px 0; padding: 7px 12px; border: 1.8px solid var(--tg-ink); border-radius: 4px; font: 700 0.8rem var(--tg-sans); letter-spacing: 0.02em; color: var(--tg-ink); background: rgba(27, 42, 47, 0.03); }
+.tg-stamp { display: inline-flex; align-items: center; gap: 7px; margin: 0 6px 6px 0; padding: 7px 12px; border: 1.8px solid var(--tg-ink); border-radius: 4px; font: 700 0.8rem var(--tg-sans); letter-spacing: 0.02em; color: var(--tg-ink); background: color-mix(in srgb, var(--tg-ink) 3%, transparent); }
 .tg-ticket__chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tg-ticket__chips .tg-chip { min-height: 32px; font-size: 0.82rem; padding: 0 11px; }
 .tg-ticket__unclear { display: flex; justify-content: space-between; font-size: 0.88rem; padding: 4px 0; }
@@ -210,16 +198,9 @@
 .tg-match__n { margin: -8px 0 16px; font-size: 1rem; color: var(--tg-ink-2); animation: tg-pop 300ms var(--tg-ease); }
 .tg-match__n b { font-size: 2rem; color: var(--tg-pine); margin-right: 6px; }
 .tg-match__delta { margin-left: 10px; padding: 3px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; vertical-align: 0.35em; animation: tg-pop 300ms var(--tg-ease); }
-.tg-match__delta.is-down, .tg-match__moves .is-down, .tg-opt__fx.is-down { background: var(--tg-sun-soft); color: var(--tg-sun-ink); }
-.tg-match__delta.is-up, .tg-match__moves .is-up, .tg-opt__fx.is-up { background: var(--tg-pine-soft); color: var(--tg-pine); }
-.tg-match__moves { display: grid; gap: 6px; margin: 4px 0 18px; padding: 0; list-style: none; }
-.tg-match .tg-match__moves li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-radius: 0; border-bottom: 1px dashed var(--tg-line); font-size: 0.85rem; color: var(--tg-ink-2); }
-.tg-match .tg-match__moves li:hover { background: none; }
-.tg-match__moves li span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tg-match__moves li b { flex: none; padding: 2px 7px; border-radius: 999px; font-size: 0.76rem; }
-.tg-match__moves li:not(.is-new) { opacity: 0.72; }
-.tg-match__moves li.is-new { animation: tg-fade-up 260ms var(--tg-ease); }
-.tg-opt__fx { align-self: flex-start; margin-top: 2px; padding: 2px 7px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+.tg-match__delta.is-down, .tg-opt__fx.is-down { background: var(--tg-sun-soft); color: var(--tg-sun-ink); }
+.tg-match__delta.is-up, .tg-opt__fx.is-up { background: var(--tg-ok-bg); color: var(--tg-ok); }
+.tg-opt__fx { align-self: flex-start; margin-top: 2px; padding: 2px 7px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: var(--tg-well); color: var(--tg-ink-2); }
 .tg-chip .tg-opt__fx { margin: 0 0 0 8px; align-self: auto; }
 .tg-match__wrap { position: relative; }
 .tg-match__list { display: grid; gap: 4px; max-height: calc(100vh - var(--tg-top) - 210px); min-height: 260px; overflow-y: auto; margin: 0 -8px; padding: 0 8px 24px; scrollbar-width: thin; scrollbar-color: var(--tg-line-2) transparent; transition: filter 220ms, opacity 220ms; -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent); mask-image: linear-gradient(#000 calc(100% - 28px), transparent); }
@@ -237,21 +218,20 @@
 .tg-match__zoom figcaption span { font-size: 0.82rem; color: var(--tg-ink-3); }
 @keyframes tg-zoom { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .tg-match__zoom { animation: none; } }
-@media (min-width: 1181px) { .has-sides .tg-hist { display: none; } }
 @media (max-width: 1180px) { .tg-und__grid.has-sides { display: block; max-width: 680px; } .tg-qrail, .tg-match { display: none; } }
 
 /* trip ticket: small icon next to the profile, opens on click */
-.tg-tbtn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; border-radius: 999px; color: var(--tg-sun-ink); background: var(--tg-sun-soft); border: 1.5px solid var(--tg-sun); font: 700 0.9rem var(--tg-sans); box-shadow: 0 6px 16px rgba(232, 89, 12, 0.18); transition: background 150ms, color 150ms, transform 150ms var(--tg-ease); animation: tg-tbtn-call 1.6s var(--tg-ease) 600ms 2; }
-.tg-tbtn:hover, .tg-tbtn[aria-expanded='true'] { background: var(--tg-sun); color: #fff; transform: translateY(-1px); }
-.tg-tbtn__n { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; background: var(--tg-sun); color: #fff; font-size: 0.74rem; animation: tg-pop 320ms var(--tg-ease); }
+.tg-tbtn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; border-radius: 999px; color: var(--tg-sun-ink); background: var(--tg-sun-soft); border: 1.5px solid var(--tg-sun); font: 700 0.9rem var(--tg-sans); box-shadow: 0 6px 16px color-mix(in srgb, var(--tg-sun) 18%, transparent); transition: background 150ms, color 150ms, transform 150ms var(--tg-ease); animation: tg-tbtn-call 1.6s var(--tg-ease) 600ms 2; }
+.tg-tbtn:hover, .tg-tbtn[aria-expanded='true'] { background: var(--tg-sun); color: var(--tg-on-sun); transform: translateY(-1px); }
+.tg-tbtn__n { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; background: var(--tg-sun); color: var(--tg-on-sun); font-size: 0.74rem; animation: tg-pop 320ms var(--tg-ease); }
 .tg-tbtn:hover .tg-tbtn__n, .tg-tbtn[aria-expanded='true'] .tg-tbtn__n { background: #fff; color: var(--tg-sun-ink); }
-@keyframes tg-tbtn-call { 0%, 100% { box-shadow: 0 6px 16px rgba(232, 89, 12, 0.18), 0 0 0 0 rgba(232, 89, 12, 0.35); } 50% { box-shadow: 0 6px 16px rgba(232, 89, 12, 0.18), 0 0 0 9px rgba(232, 89, 12, 0); } }
+@keyframes tg-tbtn-call { 0%, 100% { box-shadow: 0 6px 16px color-mix(in srgb, var(--tg-sun) 18%, transparent), 0 0 0 0 color-mix(in srgb, var(--tg-sun) 35%, transparent); } 50% { box-shadow: 0 6px 16px color-mix(in srgb, var(--tg-sun) 18%, transparent), 0 0 0 9px color-mix(in srgb, var(--tg-sun) 0%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .tg-tbtn, .tg-tbtn__n { animation: none; } }
 .tg-tpop { z-index: 60; width: min(360px, calc(100vw - 32px)); animation: tg-pop 200ms var(--tg-ease); }
 .tg-tpop .tg-ticket { position: static; max-height: min(78vh, 640px); box-shadow: var(--tg-sh-2); }
 
 /* full view */
-.tg-full { position: fixed; z-index: 55; top: var(--tg-top); right: 0; bottom: 0; width: 55vw; max-width: 760px; display: flex; flex-direction: column; background: var(--tg-surface); border-left: 1px solid var(--tg-line); box-shadow: -24px 0 60px rgba(27, 42, 47, 0.12); animation: tg-in-r 240ms var(--tg-ease); }
+.tg-full { position: fixed; z-index: 55; top: var(--tg-top); right: 0; bottom: 0; width: 55vw; max-width: 760px; display: flex; flex-direction: column; background: var(--tg-surface); border-left: 1px solid var(--tg-line); box-shadow: -24px 0 60px color-mix(in srgb, var(--tg-ink) 12%, transparent); animation: tg-in-r 240ms var(--tg-ease); }
 @keyframes tg-in-r { from { transform: translateX(40px); opacity: 0; } }
 .tg-full__head { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--tg-line); background: var(--tg-surface); }
 .tg-full__head h2 { font: 700 0.78rem var(--tg-sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--tg-pine); }
@@ -362,3 +342,11 @@
 .tg-chat__me { display: grid; justify-self: end; max-width: 86%; }
 .tg-chat__msg.is-sum.tg-chat__indent { margin-left: 42px; width: calc(100% - 42px); }
 @media (prefers-reduced-motion: reduce) { .tg-bot.is-live { animation: none; } }
+
+/* The open question in the chat, with its options under it (TripChat Replies). */
+.tg-chat__ask { border-color: var(--tg-pine-line); }
+.tg-chat__ask > p { font-weight: 600; }
+.tg-chat__replies { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.tg-chat__replies .tg-chip[aria-pressed='true'] { background: var(--tg-pine-soft); border-color: var(--tg-pine); color: var(--tg-pine); }
+.tg-chat__replies .tg-input { width: auto; min-height: 40px; }
+/* The conversation so far, above a question card: nothing said earlier disappears when the layout changes. */

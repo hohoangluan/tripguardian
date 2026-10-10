@@ -4,7 +4,7 @@ The Extractor (corpus.llm.OFFICIAL_OBSERVE) reads the page text in chunks and na
 hours with a quote; code keeps a fact only when its quote is in the page and its amount / times are in its quote
 (gate); prices count only for places of a category group that sells entry (TICKET_GROUPS). A site several listed places share (one operator's site) only gives facts whose quote stands near a
 distinctive word of the place's name. Output, in the shared observation format: `entry_fee` paid / free
-(source_type `official_page`, one authoritative author `official:<fid>`, docs/CORPUS.md §5) and `place_facts`:
+(source_type `official_page`, one authoritative author `official:<fid>`, docs/P1_CORPUS.md §5) and `place_facts`:
 `hours` ({day: [[open, close], ...]} for the days the site names; ranges that overlap one another are a conflict and
 give no hours) and `tickets_vnd` ({adult: [...], child: [...]}). A place is read again when its pages or the prompt
 change; a failed call leaves the place without a file (retried next run, data/official/observe_errors.jsonl).

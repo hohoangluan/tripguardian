@@ -205,7 +205,7 @@ def main() -> None:
         places.append(p)
         for ft in feats:
             sample = ft["status"] == "VERIFIED" and random.random() < SAMPLE_RATE
-            # Queue content per docs/CORPUS.md §7: UNCERTAIN values are auto-published, not queued.
+            # Queue content per docs/P1_CORPUS.md §7: UNCERTAIN values are auto-published, not queued.
             if ft["status"] == "NEEDS_REVIEW" or sample:
                 kind = ("conflict" if ft["rawStatus"] == "uncertain"
                         else "permissive_check" if ft["id"] in ("kids", "elderly") else "judge_flag")

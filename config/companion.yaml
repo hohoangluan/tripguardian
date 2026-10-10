@@ -1,12 +1,15 @@
-# Đang đi (docs/COMPANION.md): suggestions after "Đã đến" and the "rest of the day is tight" line. Starting values.
+# Đang đi (docs/P5_COMPANION.md): suggestions after "Đã đến" and the "rest of the day is tight" line. Starting values.
 version: 1
 
 nearby_max_min: 15        # a nearby place is at most this many minutes away (estimate: straight line x road_factor)
 nearby_count: 5
+max_per_group: 2          # nearby list: at most this many of one category_group while other kinds are left
+meal_windows: {breakfast: ["06:30", "09:00"], lunch: ["11:00", "13:30"], dinner: ["17:30", "20:30"]}  # places to eat first
+feature_hours: {cloud_hunting: ["04:30", "09:00"], sunset_view: ["15:30", "18:30"]}  # a wish counts for nearby only then
 suggest_count: 4          # "Chơi gì ở đây": features shown
 tight_threshold_min: 30   # arriving this late or more, with stops left today, shows "Phần còn lại hơi chật"
 road_factor: 1.4          # same rough travel as config/planning.yaml; every nearby time is labelled an estimate
-rough_speed_kmh: {motorbike: 25, car: 25, ride: 22}
+rough_speed_kmh: {motorbike: 25, car: 25, walk: 4.5}
 day_end: "21:00"          # when a day has no window, nearby picks must be done by then
 practical: [entry_fee, wait_time, booking_needed, parking, toilet, cash_only]
 timely_sun: [sunset_view, cloud_hunting]

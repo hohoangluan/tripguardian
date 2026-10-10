@@ -2,24 +2,28 @@ import { useCallback, useEffect, useState } from 'react'
 import { featureLabel, valueLabel } from '../../data/labels'
 import { placeById } from '../../data/store'
 import { navigate } from '../../router'
-import { useAccount } from '../account'
+import { isGuest, useAccount } from '../account'
 import { track } from '../events'
-import { info } from '../lib'
+import { displayName, info } from '../lib'
 import { enablePush, pushSupported } from '../notify'
 import { tripSummaries } from '../pd/api'
 import type { TripSummary } from '../pd/types'
 import { toast } from '../store'
+import { JourneyError } from '../journey'
 import { calendarApply, calendarConnectHref, calendarPreview, companion, loadSuggestions, loadToday, searchPlaces, type CalChange, type CalPreview, type CalResult, type Nearby, type Stop, type Suggestions, type TodayView } from '../today'
 import { useTrip } from '../trip'
 import { ArtRoute, Busy, Empty, go, PlacePhoto } from '../ui/common'
 import { Icon } from '../ui/icons'
 import { Page, useTitle } from '../ui/Shell'
 
-// Màn Hôm nay (docs/COMPANION.md, Role_Web §2.13). "Đã đến" is voluntary: a stop nobody checked in at just stays
+// Màn Hôm nay (docs/P5_COMPANION.md, Role_Web §2.13). "Đã đến" is voluntary: a stop nobody checked in at just stays
 // planned (unknown), never "missed". Before arriving the card shows the logistics and warnings; after, what to do here.
 const SKIP: [string, string][] = [['crowded', 'Đông quá'], ['tired', 'Mệt rồi'], ['weather', 'Thời tiết'], ['far', 'Xa quá'], ['dislike', 'Không hợp'], ['other', 'Lý do khác']]
 const DAY_TYPE: Record<string, string> = { weekday: 'ngày thường', weekend: 'cuối tuần' }
 const BUCKET: Record<string, string> = { morning: 'buổi sáng', noon: 'buổi trưa', afternoon: 'buổi chiều', evening: 'buổi tối' }
+const dm = (iso: string) => { const [, m, d] = iso.split('-'); return `${Number(d)}/${Number(m)}` }
+// sunset_view whose first quote is plainly about sunrise (a corpus slip): name both rather than contradict the quote
+const SUNRISE = /bình minh|mặt trời mọc|nắng đầu tiên|tia nắng đầu|rạng sáng|sunrise/i
 
 export function Today() {
   useTitle('Hôm nay')
@@ -34,11 +38,11 @@ function Pick() {
   const [list, setList] = useState<TripSummary[] | null>(null)
   useEffect(() => { tripSummaries().then((l) => setList(l.filter((t) => t.confirmed)), () => setList([])) }, [])
   if (!list) return <Page><Busy text="Đang tìm chuyến đã chốt…" /></Page>
-  if (!list.length) return <Page><Empty art={<ArtRoute />} title="Chưa có chuyến nào đã chốt lịch" body="Chốt lịch trình xong, màn này đi cùng bạn trong chuyến: bấm Đã đến ở mỗi điểm để có gợi ý tại chỗ." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/trips')}>Xem chuyến của tôi</button>} /></Page>
+  if (!list.length) return <Page><Empty art={<ArtRoute />} title="Chưa có chuyến nào đã chốt lịch" body="Chốt lịch trình xong, màn này đi cùng bạn trong chuyến: bấm “Đã đến” ở mỗi điểm để có gợi ý tại chỗ." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/trips')}>Xem chuyến của tôi</button>} /></Page>
   return (
     <Page>
       <header className="tg-head"><div><p className="tg-kicker">Hôm nay</p><h1>Chọn chuyến đang đi</h1></div></header>
-      <div className="tg-td__pick">{list.map((t) => <button key={t.id} type="button" className="tg-card tg-td__pickc" onClick={() => navigate(`/app/today?journey=${t.id}`)}><b>Đà Lạt{t.days ? ` ${t.days} ngày` : ''}</b><span className="tg-muted">{t.start_date ?? 'Chưa chốt ngày'} · {t.places.length} nơi</span></button>)}</div>
+      <div className="tg-td__pick">{list.map((t) => <button key={t.id} type="button" className="tg-card tg-td__pickc" onClick={() => navigate(`/app/today?journey=${t.id}`)}><b>Đà Lạt{t.days ? ` ${t.days} ngày${t.nights != null ? ` ${t.nights} đêm` : ''}` : ''}</b><span className="tg-muted">{t.start_date ?? 'Chưa chốt ngày'} · {t.places.length} nơi</span></button>)}</div>
     </Page>
   )
 }
@@ -53,22 +57,32 @@ function TodayTrip({ id, focus }: { id: string; focus: string | null }) {
   const reload = useCallback((d?: number) => loadToday(id, d).then((v) => { setView(v); setError(null) }, (e: Error) => setError(e.message)), [id])
   useEffect(() => { void reload(day) }, [reload, day])
   // On a wide screen the last check-in reopens "Ở đây" beside the list; on a narrow one it is a sheet, opened by hand.
-  useEffect(() => { if (view?.here && here === null && matchMedia('(min-width: 901px)').matches) setHere(view.here.place_id) }, [view?.here?.place_id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Only while the trip is on: before it, or after it, "Ở đây" is not where the user is.
+  useEffect(() => { if (view?.here && view.today !== null && here === null && matchMedia('(min-width: 901px)').matches) setHere(view.here.place_id) }, [view?.here?.place_id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (focus) document.getElementById(`stop-${focus}`)?.scrollIntoView({ block: 'center' }) }, [focus, view === null])
   if (error) return <Page><Empty art={<ArtRoute />} title="Chưa mở được chuyến này" body="Chuyến cần có lịch đã chốt. Mở lại từ Chuyến của tôi." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/trips')}>Chuyến của tôi</button>} /></Page>
   if (!view) return <Page><Busy text="Đang mở lịch hôm nay…" /></Page>
   const shown = view.days.find((d) => d.day === view.day) ?? view.days[0]
+  // "Đã đến" / "Bỏ qua" only on the trip's real day (an undated plan cannot tell); other days are a preview
+  const live = !shown?.date || shown.day === view.today
+  const onTrip = view.today !== null || !shown?.date
+  const offPlan = view.extra.filter((e) => e.off_plan && e.day === shown?.day)
   const act = async (op: 'checkin' | 'skip' | 'rate', payload: Record<string, unknown>) => {
     try {
       const out = await companion<{ place_id?: string }>(id, op, payload)
       if (op === 'checkin' && out.place_id) setHere(out.place_id)
       await reload(day)
-    } catch { toast('Chưa lưu được, thử lại nhé') }
+    } catch (e) { toast(e instanceof JourneyError && e.status === 400 && op !== 'rate' ? 'Chỉ ghi được trong đúng ngày của điểm này' : 'Chưa lưu được, thử lại nhé') }
   }
+  const lead = view.trip.starts_in > 0 && view.trip.start_date
+    ? `Còn ${view.trip.starts_in} ngày nữa là đến chuyến đi (${dm(view.trip.start_date)}). Đây là bản xem trước; nút “Đã đến” mở vào đúng ngày đi.`
+    : view.trip.status === 'done' ? 'Chuyến đã xong. Đây là lịch để bạn xem lại.'
+    : live ? 'Khi tới nơi, bấm nút “Đã đến” để xem nên chơi gì ở đây và gần đây. Không bấm cũng không sao.'
+    : 'Ngày này không phải hôm nay, nên chỉ để xem. Nút “Đã đến” có trong đúng ngày đó.'
   return (
     <Page>
-      <header className="tg-head"><div><p className="tg-kicker">Hôm nay{view.trip.status === 'done' ? ' · chuyến đã xong' : ''}</p><h1>{shown?.date ? `Ngày ${shown.day} · ${new Date(shown.date + 'T00:00').toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })}` : `Ngày ${shown?.day ?? 1}`}</h1><p>Bấm <b>Đã đến</b> khi tới nơi để xem nên chơi gì ở đây và gần đây. Không bấm cũng không sao.</p></div>
-        <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => setOther(true)}><Icon name="pin" size={16} /> Tôi đang ở nơi khác</button>
+      <header className="tg-head"><div><p className="tg-kicker">{view.trip.starts_in > 0 ? `Xem trước · còn ${view.trip.starts_in} ngày` : `Hôm nay${view.trip.status === 'done' ? ' · chuyến đã xong' : ''}`}</p><h1>{shown?.date ? `Ngày ${shown.day} · ${new Date(shown.date + 'T00:00').toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })}` : `Ngày ${shown?.day ?? 1}`}</h1><p>{lead}</p></div>
+        {onTrip && view.trip.status !== 'done' && <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => setOther(true)}><Icon name="pin" size={16} /> Tôi đang ở nơi khác</button>}
       </header>
       {view.days.length > 1 && <div className="tg-tabs" role="tablist" aria-label="Ngày">{view.days.map((d) => <button key={d.day} type="button" role="tab" aria-selected={d.day === view.day} className="tg-tab" onClick={() => setDay(d.day)}>Ngày {d.day}{d.day === view.today ? <b>hôm nay</b> : null}</button>)}</div>}
       <PushCard />
@@ -77,8 +91,16 @@ function TodayTrip({ id, focus }: { id: string; focus: string | null }) {
       )}
       <div className={`tg-td ${here ? 'has-here' : ''}`}>
         <ol className="tg-td__stops" aria-label={`Các điểm ngày ${shown?.day}`}>
-          {(shown?.stops ?? []).map((s) => <StopCard key={s.id} s={s} focus={s.id === focus} warnings={view.warnings} onAct={act} onOpen={() => setHere(s.place_id)} open={here === s.place_id} />)}
+          {(shown?.stops ?? []).map((s) => <StopCard key={s.id} s={s} live={live} focus={s.id === focus} warnings={view.warnings} onAct={act} onOpen={() => setHere(s.place_id)} open={here === s.place_id} />)}
           {(shown?.stops.length ?? 0) === 0 && <li className="tg-muted">Ngày này chưa có điểm nào trong lịch.</li>}
+          {offPlan.map((e) => (
+            <li key={e.id} className={`tg-card tg-stop is-arrived is-extra ${here === e.place_id ? 'is-open' : ''}`}>
+              <div className="tg-stop__time tg-mono">{e.arrived_at}</div>
+              <PlacePhoto id={e.place_id} className="tg-stop__ph" sizes="96px" />
+              <div className="tg-stop__b"><h3>{displayName(e.name || info(e.place_id)?.name || '')}</h3><p className="tg-stop__state"><Icon name="check" size={14} /> Đã đến {e.arrived_at} · ngoài lịch</p>
+                <div className="tg-stop__act"><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => setHere(e.place_id)}>Ở đây có gì</button></div></div>
+            </li>
+          ))}
         </ol>
         <aside className="tg-td__side">
           {here ? <HerePanel journey={id} place={here} onClose={() => setHere(null)} onChanged={() => reload(day)} day={view.day} /> : <TripSide view={view} journey={id} />}
@@ -90,7 +112,7 @@ function TodayTrip({ id, focus }: { id: string; focus: string | null }) {
   )
 }
 
-function StopCard({ s, focus, open, warnings, onAct, onOpen }: { s: Stop; focus: boolean; open: boolean; warnings: TodayView['warnings']; onAct: (op: 'checkin' | 'skip' | 'rate', p: Record<string, unknown>) => Promise<void>; onOpen: () => void }) {
+function StopCard({ s, live, focus, open, warnings, onAct, onOpen }: { s: Stop; live: boolean; focus: boolean; open: boolean; warnings: TodayView['warnings']; onAct: (op: 'checkin' | 'skip' | 'rate', p: Record<string, unknown>) => Promise<void>; onOpen: () => void }) {
   const [skipping, setSkipping] = useState(false)
   const p = info(s.place_id)
   const notes = warnings.filter((w) => s.name && w.text.includes(s.name))
@@ -99,13 +121,13 @@ function StopCard({ s, focus, open, warnings, onAct, onOpen }: { s: Stop; focus:
       <div className="tg-stop__time tg-mono">{s.arrive ?? '—'}<small>{s.leave ? `→ ${s.leave}` : ''}</small></div>
       <PlacePhoto id={s.place_id} className="tg-stop__ph" sizes="96px" />
       <div className="tg-stop__b">
-        <h3>{s.name || p?.name}</h3>
+        <h3>{s.name ? displayName(s.name) : p?.name}</h3>
         <p className="tg-faint">{[p?.category, p?.area, p?.hours ? `Mở ${p.hours}` : null].filter(Boolean).join(' · ')}</p>
-        {notes.map((w) => <p key={w.code + w.text} className="tg-stop__warn"><Icon name="warn" size={14} /> {w.text}</p>)}
+        {[...new Set(notes.map((w) => w.text))].map((t) => <p key={t} className="tg-stop__warn"><Icon name="warn" size={14} /> {t}</p>)}
         {s.status === 'arrived' && <p className="tg-stop__state"><Icon name="check" size={14} /> Đã đến {s.arrived_at}</p>}
         {s.status === 'skipped' && <p className="tg-stop__state tg-faint">Đã bỏ qua</p>}
         <div className="tg-stop__act">
-          {s.status === 'planned' && <>
+          {s.status === 'planned' && live && <>
             <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => onAct('checkin', { stop_id: s.id })}>Đã đến</button>
             <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" aria-expanded={skipping} onClick={() => setSkipping((x) => !x)}>Bỏ qua</button>
           </>}
@@ -144,14 +166,14 @@ function HerePanel({ journey, place, day, onClose, onChanged }: { journey: strin
     <section className="tg-card tg-here" aria-labelledby="tg-here-h">
       <header><div><p className="tg-kicker">Ở đây</p><h2 id="tg-here-h">{p?.name ?? 'Nơi bạn đang ở'}</h2></div><button type="button" className="tg-iconbtn" aria-label="Đóng" onClick={onClose}><Icon name="x" size={18} /></button></header>
       {err ? <p className="tg-muted">Chưa tải được gợi ý. Thử lại sau ít phút.</p> : !s ? <Busy text="Đang xem quanh đây…" /> : <>
-        {s.play.length > 0 && <div className="tg-here__sec"><h3>Chơi gì ở đây</h3><ul>{s.play.map((f) => { const q = quoteOf(place, f.feature); return <li key={f.feature}><b>{featureLabel(f.feature)}{f.value !== 'present' ? `: ${valueLabel(f.value)}` : ''}</b>{f.wanted && <span className="tg-tag">bạn muốn</span>}{q && <q>{q}</q>}</li> })}</ul><button type="button" className="tg-link" onClick={() => openPlace(place, 'evidence')}>Xem ảnh, clip và đánh giá</button></div>}
+        {s.play.length > 0 && <div className="tg-here__sec"><h3>Chơi gì ở đây</h3><ul>{s.play.map((f) => { const q = quoteOf(place, f.feature); return <li key={f.feature}><b>{f.feature === 'sunset_view' && q && SUNRISE.test(q) ? 'Ngắm bình minh / hoàng hôn' : featureLabel(f.feature)}{f.value !== 'present' ? `: ${valueLabel(f.value)}` : ''}</b>{f.wanted && <span className="tg-tag">bạn muốn</span>}{q && <q>{q}</q>}</li> })}</ul><button type="button" className="tg-link" onClick={() => openPlace(place, 'evidence')}>Xem ảnh, clip và đánh giá</button></div>}
         {s.practical.length > 0 && <div className="tg-here__sec"><h3>Lưu ý thực tế</h3><div className="tg-here__chips">{s.practical.map((f) => <span key={f.feature} className={`tg-chip ${f.status === 'UNCERTAIN' ? 'tg-chip--dash' : 'tg-chip--soft'}`}>{featureLabel(f.feature)}: {valueLabel(f.value)}{f.status === 'UNCERTAIN' ? ' (chưa chắc)' : ''}</span>)}</div></div>}
         {(s.timely.sunset || s.timely.crowd) && <div className="tg-here__sec"><h3>Theo giờ thực tế</h3>
-          {s.timely.sunset && <p><Icon name="sun" size={15} /> Bình minh {s.timely.sunrise}, hoàng hôn {s.timely.sunset} hôm nay</p>}
+          {s.timely.sunset && <p><Icon name="sun" size={15} /> Bình minh {s.timely.sunrise}, hoàng hôn {s.timely.sunset} hôm nay{s.timely.date ? ` (${dm(s.timely.date)})` : ''}</p>}
           {s.timely.crowd && <p><Icon name="users" size={15} /> Google: {BUCKET[s.timely.crowd.bucket]} {DAY_TYPE[s.timely.crowd.day_type]} thường ở mức {s.timely.crowd.pct}% lúc đông nhất</p>}
         </div>}
         <div className="tg-here__sec"><h3>Gần đây</h3>
-          <p className="tg-faint">{s.next ? `Còn khoảng ${s.budget_min} phút trước ${s.next.name} (${s.next.arrive}).` : 'Không còn điểm nào trong lịch hôm nay.'} Thời gian đi là ước tính.</p>
+          <p className="tg-faint">{s.next ? `Còn khoảng ${s.budget_min} phút trước điểm tiếp theo hôm nay, ${displayName(s.next.name)} (${s.next.arrive}).` : 'Hôm nay không còn điểm nào trong lịch.'} Thời gian đi là ước tính.</p>
           <NearbyList items={s.nearby} onOpen={(n) => openPlace(n.place_id, 'nearby')} onAdd={setAdding} />
         </div>
         <div className="tg-here__sec">
@@ -169,7 +191,7 @@ function NearbyList({ items, onOpen, onAdd }: { items: Nearby[]; onOpen: (n: Nea
     <ul className="tg-near">{items.map((n) => (
       <li key={n.place_id}>
         <PlacePhoto id={n.place_id} className="tg-near__ph" sizes="64px" />
-        <div><b>{n.name}</b><span className="tg-faint">~{n.travel_min} phút · {n.open === null ? 'giờ mở chưa xác nhận' : 'đang mở'}{n.flags.length ? ` · chưa rõ: ${n.flags.map(featureLabel).join(', ')}` : ''}</span>
+        <div><b>{displayName(n.name)}</b><span className="tg-faint">~{n.travel_min} phút · {n.open === null ? 'giờ mở chưa xác nhận' : 'đang mở'}{n.flags.length ? ` · chưa rõ: ${n.flags.map(featureLabel).join(', ')}` : ''}</span>
           {n.matches.length > 0 && <span className="tg-near__m">{n.matches.slice(0, 3).map((m) => featureLabel(m)).join(' · ')}</span>}</div>
         <div className="tg-near__act"><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => onOpen(n)}>Xem</button>{n.addable && <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => onAdd(n)}>Thêm vào lịch</button>}</div>
       </li>
@@ -198,11 +220,16 @@ function AddConfirm({ journey, item, day, onClose, onDone }: { journey: string; 
   const [err, setErr] = useState<string | null>(null)
   const add = () => {
     setBusy(true)
-    companion(journey, 'add', { place_id: item.place_id, day, confirmed: true }).then(() => { toast(`Đã thêm ${item.name}`); onDone() }, () => { setErr('Lịch chưa nhận được nơi này hôm nay (không vừa giờ hoặc điều kiện). Lịch cũ vẫn giữ nguyên.'); setBusy(false) })
+    companion(journey, 'add', { place_id: item.place_id, day, confirmed: true }).then(() => { toast(`Đã thêm ${displayName(item.name)}`); onDone() }, (e) => {
+      // 400 / 409 / 422: Planning said no (hours, time left, the plan changed); anything else is our side failing
+      const refused = e instanceof JourneyError && [400, 409, 422].includes(e.status)
+      setErr(refused ? 'Nơi này chưa vừa lịch hôm nay (giờ mở cửa hoặc thời gian còn lại). Lịch cũ vẫn giữ nguyên.' : 'TripGuardian chưa xếp lại được lịch lúc này. Lịch cũ vẫn giữ nguyên, bạn thử lại sau ít phút nhé.')
+      setBusy(false)
+    })
   }
   return (
     <Modal title="Thêm vào lịch?" onClose={onClose}>
-      <p>Thêm <b>{item.name}</b> vào ngày {day}. TripGuardian sẽ xếp lại phần còn lại của ngày; các điểm đã đến giữ nguyên.</p>
+      <p>Thêm <b>{displayName(item.name)}</b> vào ngày {day}. TripGuardian sẽ xếp lại phần còn lại của ngày; các điểm đã đến giữ nguyên.</p>
       {err && <p className="tg-auth__err" role="alert">{err}</p>}
       <div className="tg-td__btns"><button type="button" className="tg-btn tg-btn--primary tg-btn--sm" disabled={busy} onClick={add}>{busy ? 'Đang xếp lại…' : 'Xác nhận thêm'}</button><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={onClose}>Thôi</button></div>
     </Modal>
@@ -267,21 +294,20 @@ function TripSide({ view, journey }: { view: TodayView; journey: string }) {
   return (
     <>
       <CalendarCard journey={journey} state={view.calendar} />
-      {view.warnings.length > 0 && <section className="tg-card tg-td__warn"><h2>Cần để ý</h2><ul>{view.warnings.map((w) => <li key={w.code + w.text}>{w.text}</li>)}</ul></section>}
+      {view.warnings.length > 0 && <section className="tg-card tg-td__warn"><h2>Cần để ý</h2><ul>{[...new Set(view.warnings.map((w) => w.text))].map((t) => <li key={t}>{t}</li>)}</ul></section>}
     </>
   )
 }
 
 const hm = (s?: string) => (s ? s.slice(11, 16) : '')
 
-function CalendarCard({ journey, state }: { journey: string; state: TodayView['calendar'] }) {
+export function CalendarCard({ journey, state, next = `/app/today?journey=${journey}` }: { journey: string; state: TodayView['calendar']; next?: string }) {
   const account = useAccount()
   const [preview, setPreview] = useState<CalPreview | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CalResult | null>(null)
   const [note, setNote] = useState<string | null>(null)
-  const next = `/app/today?journey=${journey}`
   useEffect(() => {
     if (state === 'drifted') calendarPreview(journey).then(setPreview, () => {})
     if (new URLSearchParams(location.search).get('calendar') === 'connected') show()
@@ -290,7 +316,9 @@ function CalendarCard({ journey, state }: { journey: string; state: TodayView['c
     setResult(null); setNote(null)
     calendarPreview(journey).then((p) => { setPreview(p); setOpen(true) }, () => toast('Chưa xem trước được lịch Google'))
   }
-  const start = () => (account?.calendar ? show() : location.assign(calendarConnectHref(next)))
+  // Connecting leaves the app for Google (a guest signs in first), so it says so and asks before going.
+  const [leaving, setLeaving] = useState(false)
+  const start = () => (account?.calendar ? show() : setLeaving(true))
   const apply = async () => {
     if (!preview) return
     setBusy(true)
@@ -307,6 +335,7 @@ function CalendarCard({ journey, state }: { journey: string; state: TodayView['c
       <h2 id="tg-cal-h"><Icon name="calendar" size={18} /> Google Calendar</h2>
       {state === 'drifted' ? <p>Lịch Google khác kế hoạch hiện tại{preview ? ` · ${n} thay đổi` : ''} <button type="button" className="tg-link" onClick={show}>Xem</button></p>
         : state === 'synced' ? <p className="tg-muted">Lịch Google đã khớp kế hoạch. Mỗi điểm một sự kiện, không có nhắc nhở.</p>
+        : leaving ? <><p className="tg-muted">{isGuest(account) ? 'Cần đăng nhập Google trước, rồi mới thêm được vào Google Calendar. Bạn sẽ rời trang này và quay lại đây sau khi xong.' : 'Bạn sẽ sang Google để cho phép TripGuardian ghi vào một lịch riêng. Xong sẽ quay lại đây.'}</p><div className="tg-td__btns"><button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => location.assign(calendarConnectHref(next))}>Sang Google</button><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => setLeaving(false)}>Để sau</button></div></>
         : <><p className="tg-muted">Thêm lịch vào một lịch riêng tên TripGuardian. Mọi lần ghi đều hỏi bạn trước.</p><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={start}>Thêm vào Google Calendar</button></>}
       {open && preview && (
         <Modal title="Xem trước thay đổi trên Google Calendar" onClose={() => setOpen(false)}>

@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from trip import nights as nights_of
+
 from .geo import to_min
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -22,8 +24,10 @@ def trip_days(ctx, cfg) -> list[TripDay]:
     """ctx: trip.SearchInput.context. Missing days -> cfg.default_days (the caller flags it)."""
     n = ctx.days or cfg.default_days
     start, end = to_min(cfg.day_start), to_min(ctx.day_end or cfg.day_end)
-    first = max(start, to_min(ctx.arrive_at)) if ctx.arrive_at else start
-    last_end = min(end, to_min(ctx.leave_at or cfg.leave_at))
+    first = max(start, to_min(ctx.checkin_at)) if ctx.checkin_at else start
+    # a trip that sleeps the night after its last day does not leave that day: only a departure the user stated cuts it
+    sleeps_after = nights_of(ctx) >= n and not ctx.checkout_at
+    last_end = end if sleeps_after else min(end, to_min(ctx.checkout_at or cfg.leave_at))
     out = []
     for i in range(n):
         # without a stated number of days the days are assumed: no dates, so no weekday-based checks

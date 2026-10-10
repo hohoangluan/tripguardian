@@ -20,5 +20,6 @@ def store_kind(request, monkeypatch):
         request.addfinalizer(pool.close)
         with pool.connection() as conn:  # the owners the server tests sign in as (journeys.user_id is a foreign key)
             conn.execute("INSERT INTO users (id) VALUES (%s), (%s)", ("a" * 32, "b" * 32))
+            conn.execute("INSERT INTO users (id, role) VALUES (%s, 'guest')", ("9" * 32,))
         monkeypatch.setattr(test_dispatch, "STORE", lambda root: PgStore(pool, "test"))
     return request.param

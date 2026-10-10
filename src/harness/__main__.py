@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import os
 import subprocess
+import threading
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -15,6 +16,7 @@ from db import pool
 from notify import Notify
 from decision import Tools as DecisionTools, create_engine as decision_engine
 from planning import Tools as PlanningTools, create_engine as planning_engine
+from speech import warm as warm_speech_in
 from trip import Tools as TripTools, create_engine as trip_engine
 
 from . import Harness, PgStore, import_files
@@ -62,6 +64,8 @@ def main():
         Calendar(pool(), accounts, companion.records, os.environ.get("APP_BASE_URL", "")),
         Notify(pool(), companion.records))
     test_login = os.environ.get("TG_TEST_LOGIN") == "1"  # walk-throughs only; refused when APP_BASE_URL is https
+    if os.environ.get("ASR_MODEL"):  # speech in (ChunkFormer on the GPU): loaded now, so the first user does not wait for it
+        threading.Thread(target=warm_speech_in, daemon=True).start()
     print(f"Journey harness: http://127.0.0.1:{args.port} (app {version})")
     run(harness, accounts, args.port, os.environ.get("APP_BASE_URL", ""), test_login)
 

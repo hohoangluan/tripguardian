@@ -15,7 +15,7 @@ def up(s, field, value=None, op="set", source="user"):
 
 
 def doc_example():
-    """docs/TRIP_UNDERSTANDING.md §15."""
+    """docs/P2_TRIP_UNDERSTANDING.md §15."""
     s = up(TripState(), "start_date", date(2026, 12, 12))
     s = up(up(up(s, "days", 3), "companions", "parents", "add"), "mobility", "car")
     s = up(s, "signal", "elderly", "add", source="inferred")

@@ -1,4 +1,4 @@
-"""Gate (docs/CORPUS.md §6) for one Extractor answer: only observations whose feature and value the
+"""Gate (docs/P1_CORPUS.md §6) for one Extractor answer: only observations whose feature and value the
 ontology knows and whose quote is really in the review survive. Quotes match after NFC, whitespace and case folding.
 """
 

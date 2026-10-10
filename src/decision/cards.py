@@ -1,9 +1,10 @@
-"""Candidate cards (docs/PLACE_DECISION.md §11) from templates: every line comes from a serving record field or a
+"""Candidate cards (docs/P3_PLACE_DECISION.md §11) from templates: every line comes from a serving record field or a
 rule result, so a card cannot say what the data does not hold."""
 
 from corpus.serving import feature
 
-from .model import FIRM, Cand, value
+from .model import FIRM, Cand, day_visit, value
+from .rank import fit_level
 
 WARNING = {"hours_unknown": "Chưa có giờ mở cửa",
            "hours_outdated": "Giờ mở cửa có thể đã đổi, kiểm tra lại trước chuyến",
@@ -28,25 +29,52 @@ def warning_text(code: str, cfg) -> str:
     return WARNING.get(code, code)
 
 
+def vnd(n: int) -> str:
+    """80000 -> "80k", 1200000 -> "1,2 triệu"."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}".rstrip("0").rstrip(".").replace(".", ",") + " triệu"
+    return f"{round(n / 1000)}k"
+
+
 def price_text(rec: dict) -> str | None:
+    """Google's price band per person: "₫1–100K" is "dưới 100k", "Trên 500K" is "từ 500k"."""
     p = rec["operation"].get("price_per_person")
-    lo = p["value"].get("min_vnd") if p else None
-    if lo is None:
+    lo, hi = (p["value"].get("min_vnd"), p["value"].get("max_vnd")) if p else (None, None)
+    if not lo and not hi:
         return None
-    hi = p["value"].get("max_vnd") or lo
-    return f"{lo // 1000}k/người" if hi == lo else f"{lo // 1000}k–{hi // 1000}k/người"
+    if not lo or lo < 1000:
+        return f"dưới {vnd(hi)}/người"
+    if not hi:
+        return f"từ {vnd(lo)}/người"
+    return f"khoảng {vnd(lo)}/người" if hi == lo else f"{vnd(lo)}–{vnd(hi)}/người"
+
+
+def fee_text(rec: dict) -> str | None:
+    """Entry fee when the price band says nothing: an estimate in VND, or free by what authors say."""
+    fee = (rec["operation"].get("entry_fee") or {}).get("typical_vnd")
+    if fee:
+        return f"vé khoảng {vnd(fee)}"
+    f = feature(rec, "entry_fee")
+    return "vào cửa miễn phí" if f and f["status"] in FIRM and f["value"] == "free" and f["n"] >= 2 else None
+
+
+WHY_MIN = 0.1  # a match that adds less than this to the preference fit is incidental, not a reason to show
 
 
 def _why(c: Cand, anchor: bool, cfg) -> list[dict]:
     out = [{"text": "Nơi bạn muốn đến", "sid": None}] if anchor else []
-    out += [{"text": f"{phrase(f, v, cfg)}, {n} người nhắc", "sid": f} for f, v, contrib, n in c.matches if contrib > 0]
+    out += [{"text": f"{phrase(f, v, cfg)}, {n} người nhắc", "sid": f} for f, v, contrib, n in c.matches
+            if contrib >= WHY_MIN]
     if c.minutes is not None and c.minutes <= cfg.near_min:
         out.append({"text": f"Gần {c.center}, ≈{c.minutes} phút (ước tính)", "sid": None})
     return out[:3]
 
 
+TRIP_WIDE = {"rain"}  # flags true of every outdoor place this trip: said once above the list (pipeline `notes`)
+
+
 def _tradeoffs(c: Cand, cfg) -> list[dict]:
-    out = [{"text": f["text"], "sid": f["sid"]} for f in c.flags]
+    out = [{"text": f["text"], "sid": f["sid"]} for f in c.flags if f["code"] not in TRIP_WIDE]
     out += [{"text": f"{phrase(f, v, cfg)}, điều bạn muốn tránh", "sid": f} for f, v, contrib, _ in c.matches
             if contrib < 0]
     seen = {x["sid"] for x in out if x["sid"]}
@@ -89,20 +117,23 @@ def _fail_text(x: dict, cfg) -> str:
 def card(c: Cand, si, cfg, *, wanted=(), chosen=False, locked=False, anchor=False, alternatives=(), suggested=False,
          group="", top=False) -> dict:
     rec = c.rec
-    vm = rec["operation"].get("visit_minutes")
-    price = price_text(rec)
+    vm = day_visit(rec, cfg)
+    band = price_text(rec)
+    price = band or fee_text(rec)
     trend = (rec["provenance"].get("rating_trend") or {}).get("direction")
     return {
         "id": c.id, "name": c.name, "category": rec["identity"].get("category"), "area": rec["identity"].get("area"),
         "role": c.role, "group": group, "status": c.status, "score": c.score, "parts": c.parts,
+        "fit": {"stars": c.stars, "level": fit_level(c.stars, cfg)} if c.stars is not None else None,
         "why": _why(c, anchor, cfg), "tradeoffs": _tradeoffs(c, cfg),
-        "visit": {k: vm.get(k) for k in ("short", "typical", "long", "source")} if vm else None,
+        "outdoor": any(f["code"] == "rain" for f in c.flags),
+        "visit": {k: vm.get(k) for k in ("short", "typical", "long", "source", "stay")} if vm else None,
         "location": {"center": c.center, "km": c.km, "minutes": c.minutes},
         "price": price,
         "confidence": _confidence(c, wanted, cfg),
         "declined": value(rec, "condition_change") == "declined" or trend == "falling",
-        "depends_on_unknown": f"Chưa biết ngân sách của bạn; giá khoảng {price}"
-        if price and "budget_vnd" in si.unknowns else None,
+        "depends_on_unknown": f"Chưa biết ngân sách của bạn; giá {band}"
+        if band and "budget_vnd" in si.unknowns else None,
         "warnings": [warning_text(w, cfg) for w in c.warnings] + ([WARNING["missing_record"]] if c.missing else []),
         "unverified": [f"Chưa xác minh được: {feature_label(x['feature'], cfg).lower()}" for x in c.checks
                        if x["result"] == "unknown"],

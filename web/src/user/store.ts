@@ -1,5 +1,6 @@
-// Browser-side state of the user web that is not a module's business state: saved places, the journeys this
-// browser started, the assistant panel, toasts. The backend (harness) owns trips, selections and schedules.
+// Browser-side state of the user web that is not a module's business state: the journeys this browser started, the
+// assistant panel, toasts, and the in-memory copy of the account's saved places. The backend (harness) owns trips,
+// selections, schedules and the saved places themselves.
 import { useSyncExternalStore } from 'react'
 
 export interface Msg {
@@ -7,9 +8,10 @@ export interface Msg {
   role: 'user' | 'bot'
   text: string
   places?: string[]
+  files?: string[] // names of the files sent with it
 }
 
-// What the Planning Agent's one proposal did to a journey's schedule (journey id -> outcome); see PLANNING.md.
+// What the Planning Agent's one proposal did to a journey's schedule (journey id -> outcome); see P4_PLANNING.md.
 export interface Optimized {
   status: 'accepted' | 'fallback'
   before: number // travel minutes of the baseline
@@ -45,13 +47,19 @@ const write = (k: string, v: unknown) => {
   }
 }
 
-const SAVED = 'tg.saved.v1'
-const TRIPS = 'tg.trips.v1'
+const SAVED = 'tg.saved.v1' // the list from before saved places lived in the account: merged once, then removed
+const TRIPS = 'tg.trips.v1' // the list before it was kept per account: dropped once an account is known
+const OWNER = 'tg.owner'
+// What this browser keeps about one account's trips. Another account (or a guest) never sees it.
+const OWNED_KEYS = ['tg.tu.v1', 'tg.trip.v1']
+const OWNED_PREFIXES = ['tg.tu.hist.', 'tg.lodging.asked.', 'tg.journey.pending.']
+let owner: { id: string; guest: boolean } | null = null
+const tripsKey = (id: string) => `${TRIPS}.${id}`
 
 let ui: Ui = {
   optimized: {},
-  saved: read<string[]>(SAVED, []),
-  trips: read<string[]>(TRIPS, []),
+  saved: [],
+  trips: [],
   toast: null,
   flashId: null,
   tab: null,
@@ -91,25 +99,79 @@ export function flash(id: string | null) {
   flashTimer = setTimeout(() => setUi({ flashId: null }), 1200)
 }
 
-// Saved places live in this browser (no account backend yet); they never enter a trip on their own.
+// Saved places belong to the account (docs/ACCOUNTS.md §3); they never enter a trip on their own.
+const SAVED_API = '/api/harness/me/saved'
+const savedCall = async (method: 'GET' | 'POST' | 'DELETE', body?: unknown, id?: string) => {
+  const res = await fetch(id ? `${SAVED_API}/${encodeURIComponent(id)}` : SAVED_API, body === undefined ? { method } : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  if (!res.ok) throw new Error(`saved ${res.status}`)
+  return ((await res.json()) as { saved: string[] }).saved
+}
+
+// After sign-in: the account's list; a list this browser kept before is merged into the account once, then dropped.
+export async function loadSaved() {
+  try {
+    const local = read<string[]>(SAVED, []).filter((x) => typeof x === 'string')
+    let saved = await savedCall('GET')
+    if (local.length) {
+      saved = await savedCall('POST', { place_ids: local.slice(0, 500) })
+      try { localStorage.removeItem(SAVED) } catch { /* private mode: nothing kept */ }
+    }
+    setUi({ saved })
+  } catch {
+    /* hearts start empty; the next toggle still writes to the account */
+  }
+}
+
+export const clearSaved = () => setUi({ saved: [] })
+
+// Optimistic: the heart changes at once; a failed write puts it back and says so.
 export function toggleSaved(id: string, name?: string) {
+  if (owner?.guest) { toast('Đăng nhập để lưu nơi này; bản dùng thử không lưu được'); return } // the server refuses a guest's list
   const on = ui.saved.includes(id)
-  const saved = on ? ui.saved.filter((x) => x !== id) : [id, ...ui.saved]
-  write(SAVED, saved)
-  setUi({ saved })
+  setUi((u) => ({ saved: on ? u.saved.filter((x) => x !== id) : [id, ...u.saved.filter((x) => x !== id)] }))
   if (!on) toast(`Đã lưu ${name ?? 'nơi này'}`)
+  ;(on ? savedCall('DELETE', undefined, id) : savedCall('POST', { place_ids: [id] })).catch(() => {
+    setUi((u) => ({ saved: on ? [id, ...u.saved.filter((x) => x !== id)] : u.saved.filter((x) => x !== id) }))
+    toast(on ? 'Chưa bỏ lưu được, bạn thử lại nhé' : 'Chưa lưu được nơi này, bạn thử lại nhé')
+  })
 }
 
 // Journeys started in this browser, newest first: what "Chuyến của tôi" asks the server about.
+// A guest has no history, so nothing is listed or written for one.
 export function rememberTrip(id: string) {
+  if (!owner || owner.guest) return
   const trips = [id, ...ui.trips.filter((x) => x !== id)].slice(0, 20)
-  write(TRIPS, trips)
+  write(tripsKey(owner.id), trips)
   setUi({ trips })
 }
 export function forgetTrip(id: string) {
+  if (!owner || owner.guest) return
   const trips = ui.trips.filter((x) => x !== id)
-  write(TRIPS, trips)
+  write(tripsKey(owner.id), trips)
   setUi({ trips })
+}
+
+// Who this browser's trip data belongs to. When it is another account (or a guest, or nobody) the previous one's
+// open trip, chat history and unsent requests are removed; returns true then, so the app can reset what it holds.
+export function bindOwner(id: string | null, guest: boolean): boolean {
+  let changed = false
+  try {
+    const prev = localStorage.getItem(OWNER) ?? ''
+    changed = prev !== (id ?? '')
+    if (changed) {
+      const drop = [...OWNED_KEYS, TRIPS]
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && OWNED_PREFIXES.some((p) => k.startsWith(p))) drop.push(k)
+      }
+      drop.forEach((k) => localStorage.removeItem(k))
+      if (id) localStorage.setItem(OWNER, id)
+      else localStorage.removeItem(OWNER)
+    }
+  } catch { /* private mode: nothing is kept between visits anyway */ }
+  owner = id ? { id, guest } : null
+  setUi({ trips: id && !guest ? read<string[]>(tripsKey(id), []) : [] })
+  return changed
 }
 
 export const setOptimized = (id: string, o: Optimized | null) =>

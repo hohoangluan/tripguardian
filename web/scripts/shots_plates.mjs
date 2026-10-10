@@ -1,5 +1,5 @@
 // Makes the light landing's chapter pictures (public/img/landing-p1..p5.webp) from the live 3D model: one frame per
-// chapter, with the page's own text and labels hidden. The hero picture is landing-poster.webp (scripts/ in docs/UI_SPEC_LANDING.md §3).
+// chapter, with the page's own text and labels hidden. The hero picture is landing-poster.webp (scripts/ in docs/UI_DESIGN.md §7).
 // Needs the Vite dev server running and Python with Pillow (.venv).  usage: node web/scripts/shots_plates.mjs [base url, default http://127.0.0.1:5173]
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync } from 'node:fs'

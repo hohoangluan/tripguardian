@@ -1,4 +1,4 @@
-"""Trip State -> the understanding panel (docs/TRIP_UNDERSTANDING.md §10). Data only; the web writes the words."""
+"""Trip State -> the understanding panel (docs/P2_TRIP_UNDERSTANDING.md §10). Data only; the web writes the words."""
 
 from dataclasses import asdict
 

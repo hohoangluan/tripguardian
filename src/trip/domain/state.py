@@ -1,4 +1,4 @@
-"""Trip State and Search Input (docs/TRIP_UNDERSTANDING.md §3, §9).
+"""Trip State and Search Input (docs/P2_TRIP_UNDERSTANDING.md §3, §9).
 
 Every value carries where it came from. apply() is the only way a state changes; settle() closes physical signals that
 a hard filter already answers.
@@ -215,9 +215,10 @@ class Meta(Frozen):
     held: str | None = None  # the card a typed message did not answer; it stays open for one such message
     user_id: str | None = None  # opaque id whose stored patterns seeded this session
     remember: bool = False  # the user agreed that this session may add to those patterns
-    prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/TRIP_UNDERSTANDING.md §17)
+    prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/P2_TRIP_UNDERSTANDING.md §17)
     declined: tuple[str, ...] = ()  # questions the user skipped or was unsure about: never asked again
-    phase: Literal["chat", "quiz", "review"] = "chat"  # chat: free talk; quiz: deterministic bank; review: after the quiz
+    phase: Literal["chat", "quiz", "review", "paused"] = "chat"  # chat: free talk; quiz: deterministic bank; review: after the quiz; paused: quiz on hold, chatting with its progress kept
+    requiz: bool = False  # a redo pass is under way: answered cards show again so answers can change
     offered_quiz: bool = False  # unused: the F transition card is gone; kept so sessions saved with it still load
     told: bool = False  # the agent has read the user's own telling of the trip; every later question is a chip card
     other_qid: str | None = None  # quiz card a typed answer left unclear: the chat is resolving it

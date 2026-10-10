@@ -33,10 +33,15 @@ def test_no_places_has_no_search_area():
     assert search_area({}, "car", CFG) == []
 
 
-def test_price_cap_is_the_lodging_share_of_budget_over_the_nights_or_unknown():
-    assert price_cap({"budget_vnd": 3_000_000}, 3, CFG) == round(3_000_000 * CFG.lodging_share / 3)
-    assert price_cap({"budget_vnd": None}, 3, CFG) is None
-    assert price_cap({"budget_vnd": 1_000_000}, 0, CFG) is None
+def test_price_cap_is_the_lodging_share_of_the_trip_budget_over_the_nights_or_unknown():
+    # budget_vnd is per person per day: 2 people x 4 days of 500k is a 4M trip
+    trip = {"budget_vnd": 500_000, "people": 2, "days": 4}
+    assert price_cap(trip, 3, CFG) == round(4_000_000 * CFG.lodging_share / 3)
+    assert price_cap({"budget_vnd": 500_000, "companions": ["partner"], "days": 4}, 3, CFG) == price_cap(trip, 3, CFG)
+    assert price_cap({"budget_vnd": 500_000, "companions": ["solo"], "days": 4}, 3, CFG) == round(2_000_000 * CFG.lodging_share / 3)
+    assert price_cap({"budget_vnd": 500_000, "companions": ["friends"], "days": 4}, 3, CFG) is None   # how many: unknown
+    assert price_cap({**trip, "budget_vnd": None}, 3, CFG) is None
+    assert price_cap(trip, 0, CFG) is None
 
 
 def cand(i, reviews=10, price=None, amenities=()):
@@ -76,7 +81,7 @@ def test_candidates_merges_two_centres_without_duplicates_and_passes_the_price_c
         return [cand(0), cand(1)]  # same ids from both centres: a duplicate to drop
 
     out = candidates(places, decision(["a", "b"], budget=3_000_000, days=3), CFG, fake, None)
-    assert len(seen) == 2 and all(p == round(3_000_000 * CFG.lodging_share / 2) for p in seen)
+    assert len(seen) == 2 and all(p == round(3_000_000 * 2 * 3 * CFG.lodging_share / 2) for p in seen)  # 2 people, 3 days
     assert sorted(c["id"] for c in out) == ["h0", "h1"]
 
 

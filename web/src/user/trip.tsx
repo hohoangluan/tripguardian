@@ -22,8 +22,8 @@ export interface TripState {
   vehicle: Vehicle | null
   lodging: string | null // place id or free text address
   mustVisit: string[]
-  arriveAt: string // first day, HH:MM
-  leaveAt: string // last day, HH:MM (hard rule)
+  checkinAt: string // first day starts, HH:MM (lodging check-in)
+  checkoutAt: string // last day ends, HH:MM (lodging check-out)
   rules: { maxLegMin: number | null; avoidSteep: boolean; dayEnd: string }
   prefs: Record<string, Pref>
   pace: 'slow' | 'normal' | 'packed' | null
@@ -57,8 +57,8 @@ export const initialTrip: TripState = {
   vehicle: null,
   lodging: null,
   mustVisit: [],
-  arriveAt: '09:00',
-  leaveAt: '15:00',
+  checkinAt: '09:00',
+  checkoutAt: '15:00',
   rules: { maxLegMin: null, avoidSteep: false, dayEnd: '21:30' },
   prefs: {},
   pace: null,

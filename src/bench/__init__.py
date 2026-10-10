@@ -1,4 +1,4 @@
-"""Trip Understanding benchmark: hidden trips, simulated users, scores (docs/plans/BENCH.md).
+"""Trip Understanding benchmark: hidden trips, simulated users, scores (docs/P2_TRIP_UNDERSTANDING.md §16).
 
 python -m bench generate --seed 1 [--briefs --live]
 python -m bench run [--styles tapper,baseline,brief] [--only t01,t02] [--live]

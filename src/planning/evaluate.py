@@ -1,4 +1,4 @@
-"""Offline check of Planning on the serving records (docs/PLANNING.md §Đo).
+"""Offline check of Planning on the serving records (docs/P4_PLANNING.md §Đo).
 
 python -m planning evaluate  ->  data/planning/eval.json
 
@@ -19,6 +19,7 @@ from corpus.ontology import load as load_ontology
 from decision import Data as DecisionData, Engine as DecisionEngine, Store as DecisionStore
 from decision import load_settings as decision_default
 from trip import SearchInput
+from trip import nights as nights_of
 
 from .engine import Engine
 from .session import Store
@@ -43,7 +44,7 @@ def search_input(trip: dict, version: int, days: int = 3) -> SearchInput:
     return SearchInput.model_validate({
         "ontology_version": version,
         "context": {"start_date": "2026-12-14", "month": None, "days": days, "base": None, "mobility": "motorbike",
-                    "companions": [], "people": 2, "arrive_at": "09:00", "leave_at": "15:00", "day_end": None,
+                    "companions": [], "people": 2, "checkin_at": "09:00", "checkout_at": "15:00", "day_end": None,
                     "budget_vnd": 3_000_000, "experience": None},
         "hard_filters": [{"feature": f, "op": "ne", "value": v, "unknown_policy": "exclude"}
                          for f, v in trip["hard"].items()],
@@ -83,7 +84,7 @@ def plan_results(decision_output: dict, records: list[dict], planning_cfg=None, 
                  matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None) -> dict:
     """One hidden trip's Decision Output, laid out and measured. background=False: the lodging crawl (itself
     offline/fixture-driven in tests, real in run()) finishes before create() returns, so ms_total below already
-    includes it -- matching docs/PLANNING.md §Đo's "Độ trễ: dựng 21 phương án · crawl chỗ ở"."""
+    includes it -- matching docs/P4_PLANNING.md §Đo's "Độ trễ: dựng 21 phương án · crawl chỗ ở"."""
     if not decision_output["confirmed"]:  # Planning would call an empty trip ok with 0 minutes: not a feasible itinerary
         return {"ok": False, "ms_variants": 0, "reason": "no_confirmed_places"}
     eng = Engine(records, cfg=planning_cfg, live_cfg=live_cfg, store=Store(None), geocode_fn=geocode_fn,
@@ -118,7 +119,7 @@ def plan_results(decision_output: dict, records: list[dict], planning_cfg=None, 
         out = eng.confirm(sid)
     except Exception as e:
         return {"ok": False, "ms_variants": ms_variants, "ms_total": ms_total, "reason": str(e)}
-    nights = max((decision_output["trip_context"]["context"].get("days") or 1) - 1, 0)
+    nights = nights_of(decision_output["trip_context"]["context"])
     saved_per_day = (travel_no_lodging - best_travel) / max(nights, 1)
     return {"ok": True, "ms_variants": ms_variants, "ms_total": ms_total, "travel_min": travel_no_lodging,
             "travel_with_lodging_min": best_travel, "baseline_travel_min": baseline,

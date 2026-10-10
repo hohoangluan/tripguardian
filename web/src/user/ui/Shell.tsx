@@ -1,41 +1,46 @@
 import { useEffect, type ReactNode } from 'react'
 import { navigate } from '../../router'
-import { initialOf, useAccount } from '../account'
+import { initialOf, isGuest, signInHref, useAccount } from '../account'
 import { enterStage, requestStageEntry, resumeJourney, type Stage } from '../journey'
 import { useUi } from '../store'
 import { STEPS, useTrip, type StepId } from '../trip'
 import { go, href, Link } from './common'
 import { Icon, Logo, type IconName } from './icons'
 
-const NAV: { to: string; label: string; icon: IconName; exact?: boolean }[] = [
-  { to: '/', label: 'Khám phá', icon: 'compass', exact: true },
-  { to: '/today', label: 'Hôm nay', icon: 'sun' },
-  { to: '/trips', label: 'Chuyến của tôi', icon: 'suitcase' },
-  { to: '/saved', label: 'Đã lưu', icon: 'heart' },
-  { to: '/inbox', label: 'Thông báo', icon: 'bell' },
-  { to: '/profile', label: 'Hồ sơ', icon: 'user' },
+const NAV: { to: string; label: string; short: string; icon: IconName; exact?: boolean }[] = [
+  { to: '/', label: 'Khám phá', short: 'Khám phá', icon: 'compass', exact: true },
+  { to: '/today', label: 'Hôm nay', short: 'Hôm nay', icon: 'sun' },
+  { to: '/trips', label: 'Chuyến của tôi', short: 'Chuyến', icon: 'suitcase' },
+  { to: '/saved', label: 'Đã lưu', short: 'Đã lưu', icon: 'heart' },
+  { to: '/inbox', label: 'Thông báo', short: 'Thông báo', icon: 'bell' },
+  { to: '/profile', label: 'Hồ sơ', short: 'Hồ sơ', icon: 'user' },
 ]
+
+const GUEST_NAV = new Set(['/', '/today']) // the rest needs an account
 
 function Me({ className }: { className: string }) {
   const account = useAccount()
   const initial = initialOf(account)
+  if (isGuest(account)) return <a href={signInHref('/app')} className={className} aria-label="Đăng nhập để lưu chuyến"><Icon name="user" size={18} /></a>
   return <Link to="/profile" className={className} aria-label="Hồ sơ của bạn">{account?.avatar ? <img src={account.avatar} alt="" referrerPolicy="no-referrer" /> : initial ? <span>{initial}</span> : <Icon name="user" size={18} />}</Link>
 }
 
 // `path` is the part after /app ('' for Khám phá).
 export function Rail({ path }: { path: string }) {
   const saved = useUi((u) => u.saved.length)
+  const guest = isGuest(useAccount())
   return (
     <nav className="tg-rail" aria-label="Điều hướng chính">
       <a href="/" className="tg-rail__logo" aria-label="TripGuardian, về trang giới thiệu" onClick={(e) => { e.preventDefault(); navigate('/') }}><Logo /></a>
       <ul>
-        {NAV.map((n) => {
+        {NAV.filter((n) => !guest || GUEST_NAV.has(n.to)).map((n) => {
           const on = n.exact ? path === '' : path.startsWith(n.to)
           return (
             <li key={n.to}>
               <Link to={n.to} className={`tg-rail__a ${on ? 'is-on' : ''}`} aria-current={on ? 'page' : undefined}>
                 <Icon name={n.icon} size={22} />
-                <span className="tg-rail__tip">{n.label}</span>
+                <span className="tg-rail__txt">{n.short}</span>
+                {n.label !== n.short && <span className="tg-rail__tip">{n.label}</span>}
                 {n.to === '/saved' && saved > 0 && <b className="tg-rail__badge" aria-label={`${saved} nơi`}>{saved}</b>}
               </Link>
             </li>

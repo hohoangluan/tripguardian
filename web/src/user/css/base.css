@@ -1,4 +1,4 @@
-body.tg-body { background: #faf7f2; }
+body.tg-body { background: #fff9f8; } /* = --tg-bg; the body sits outside .tg */
 .tg, .tg *, .tg *::before, .tg *::after { box-sizing: border-box; }
 .tg-root { min-height: 100vh; background: var(--tg-bg); }
 .tg {
@@ -35,8 +35,8 @@ body.tg-body { background: #faf7f2; }
 .tg-btn--ghost { border: 1px solid var(--tg-line-2); background: var(--tg-surface); color: var(--tg-ink); }
 .tg-btn--ghost:hover:not(:disabled) { border-color: var(--tg-pine); color: var(--tg-pine); }
 .tg-btn--soft { background: var(--tg-pine-soft); color: var(--tg-pine); }
-.tg-btn--soft:hover:not(:disabled) { background: #d3e9e4; }
-.tg-btn--sun { background: var(--tg-sun); color: #1b0f08; }
+.tg-btn--soft:hover:not(:disabled) { background: var(--tg-pine-line); }
+.tg-btn--sun { background: var(--tg-sun); color: var(--tg-on-sun); }
 .tg-btn--sm { min-height: 36px; padding: 0 14px; font-size: 0.85rem; }
 .tg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .tg-link { color: var(--tg-pine); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--tg-pine-line); }
@@ -54,7 +54,7 @@ button.tg-chip:hover { border-color: var(--tg-pine); color: var(--tg-pine); }
 .tg-tag { display: inline-flex; align-items: center; gap: 5px; font: 600 0.72rem/1 var(--tg-sans); padding: 5px 9px; border-radius: 999px; background: var(--tg-pine-soft); color: var(--tg-pine); }
 .tg-tag--warn { background: var(--tg-warn-bg); color: var(--tg-warn); }
 .tg-tag--danger { background: var(--tg-danger-bg); color: var(--tg-danger); }
-.tg-tag--dark { background: rgba(20, 38, 43, 0.72); color: #fff; backdrop-filter: blur(6px); }
+.tg-tag--dark { background: color-mix(in srgb, var(--tg-night) 72%, transparent); color: #fff; backdrop-filter: blur(6px); }
 
 /* card */
 .tg-card { background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: var(--tg-r-m); box-shadow: var(--tg-sh-1); }
@@ -67,7 +67,7 @@ button.tg-chip:hover { border-color: var(--tg-pine); color: var(--tg-pine); }
 .tg-line-input::placeholder { color: var(--tg-ink-3); }
 
 /* skeleton */
-.tg-skel { background: linear-gradient(100deg, #efe9de 30%, #f7f3ec 50%, #efe9de 70%); background-size: 220% 100%; animation: tg-shimmer 1.4s linear infinite; border-radius: 8px; }
+.tg-skel { background: linear-gradient(100deg, var(--tg-well) 30%, var(--tg-well-2) 50%, var(--tg-well) 70%); background-size: 220% 100%; animation: tg-shimmer 1.4s linear infinite; border-radius: 8px; }
 @keyframes tg-shimmer { to { background-position: -220% 0; } }
 @keyframes tg-pop { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes tg-flash { 0% { background-color: var(--tg-pine-soft); } 100% { background-color: transparent; } }

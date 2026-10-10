@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useState } from 'react'
-import { fmtMin, fmtVnd } from '../lib'
+import { blockerLines, fmtMin, fmtVnd } from '../lib'
 import { useDecision } from '../pd/decision'
 import type { Conflict, Diff, Fix, PreviewVariant } from '../pd/types'
 import { PlacePhoto } from './common'
@@ -30,13 +30,16 @@ export function useBar() {
 
 export function SelectedBar({ onRelax }: { onRelax: () => void }) {
   const { view, diff, act, busy, toPlan, error } = useDecision()
-  const { level, best, days, preview } = useBar()
+  const { level, best, preview } = useBar()
   const [open, setOpen] = useState(false)
   const [strip, setStrip] = useState(false)
   const [shown, setShown] = useState<Diff | null>(null)
   const f = view?.feasibility
   const key = f?.conflicts.map((c) => c.id).join('|') ?? ''
-  useEffect(() => { setStrip(level === 'blocked') }, [key, level])
+  const back = 'plan' in preview && preview.status === 'failed' ? preview.plan?.back_to_decision ?? null : null
+  const failedKey = back?.places.join('|') ?? ''
+  // A schedule that cannot be built opens the strip at once: the user should hear it while choosing, not at "Xem lịch trình".
+  useEffect(() => { setStrip(level === 'blocked' || failedKey !== '') }, [key, level, failedKey])
   useEffect(() => {
     if (!diff?.text) return
     setShown(diff)
@@ -46,11 +49,21 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
   if (!view || !f || (!view.selected.length && level !== 'blocked')) return null
   const t = f.totals
   const names = new Map(view.groups.flatMap((g) => g.cards).map((c) => [c.id, c.name]))
-  const failed = 'plan' in preview && preview.status === 'failed' ? preview.plan?.back_to_decision?.places ?? [] : []
+  const failed = back?.places ?? []
+  const why = blockerLines(back?.reasons, (id) => names.get(id) ?? id)
   const needs = level === 'attention' || level === 'blocked'
   const canGo = (f.status === 'feasible' || f.status === 'unknown') && view.selected.length > 0 && !busy
   const nConflicts = f.conflicts.length + (failed.length ? 1 : 0)
   const go2plan = async () => { if (await toPlan()) setOpen(false) }
+  // Free time in the trip's real hours (arrival and leaving times, meals out), as an optional hint: the plan can be
+  // built with free time left, so it never reads as a requirement.
+  const room = f.room
+  const hours = room ? Math.max(1, Math.round(room.free / 60)) : 0
+  const more = room ? (room.more <= 1 ? '1 nơi' : `${room.more - 1}–${room.more} nơi`) : ''
+  const short = Boolean(room && !room.filled)
+  const status = level !== 'ready' ? LEVEL_TEXT[level]
+    : room ? (room.filled ? 'Đủ cho chuyến đi' : `Còn trống khoảng ${hours} tiếng, thêm ${more} nếu bạn muốn`)
+      : f.status === 'unknown' ? 'Chưa biết số ngày' : 'Đi kịp'
   return (
     <>
       {needs && (
@@ -67,7 +80,8 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
               {failed.length > 0 && (
                 <div className="tg-conflict">
                   <div className="tg-conflict__top"><span className="tg-tag tg-tag--warn">Lịch</span><b>Chưa xếp được lịch với các nơi này</b></div>
-                  <p className="tg-muted">Vướng ở: {failed.map((id) => names.get(id) ?? id).join(', ')}. Bỏ hoặc đổi nơi này thì lịch dựng lại ngay.</p>
+                  {why.length > 0 ? <ul className="tg-muted tg-conflict__why">{why.map((l) => <li key={l}>{l}</li>)}</ul> : <p className="tg-muted">Vướng ở: {failed.map((id) => names.get(id) ?? id).join(', ')}.</p>}
+                  <p className="tg-muted">Bỏ hoặc đổi nơi vướng thì lịch dựng lại ngay.</p>
                   <div className="tg-conflict__fixes">{failed.map((id) => <button key={id} type="button" className="tg-fix" disabled={busy} onClick={() => act({ type: 'drop', place_id: id })}><span><b>Bỏ {names.get(id) ?? id}</b><em>lịch được dựng lại ngay</em></span><Icon name="check" size={18} /></button>)}</div>
                 </div>
               )}
@@ -85,15 +99,16 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
         {error && <p className="tg-diff is-bad" role="alert"><Icon name="warn" size={15} />{error}</p>}
         <div className={`tg-bar is-${level}`} role="region" aria-label="Đã chọn">
           <button type="button" className="tg-bar__main" onClick={() => setOpen(true)} aria-haspopup="dialog">
-            <span className="tg-bar__status"><i />{level !== 'ready' ? LEVEL_TEXT[level] : days ? `Lịch ${days} ngày sẵn sàng` : f.status === 'unknown' ? 'Chưa biết số ngày' : 'Đi kịp'}</span>
+            <span className={`tg-bar__status ${short && level === 'ready' ? 'is-short' : ''}`}><i />{status}</span>
             {level === 'building' ? (
               <span className="tg-bar__skel" aria-busy="true"><span className="tg-skel" style={{ width: 120 }} /><span className="tg-skel" style={{ width: 90 }} /><span className="tg-skel" style={{ width: 110 }} /></span>
             ) : (
               <span className="tg-bar__stats">
-                <span><b className="tg-mono">{t.places}</b> nơi</span>
-                <span><b className="tg-mono">{fmtMin(t.visit)}</b> tham quan</span>
-                <span>≈ <b className="tg-mono">{fmtMin(best ? best.metrics.travel_min : t.travel)}</b> đi lại</span>
-                {best && <span>{best.metrics.cost_vnd ? <>~<b className="tg-mono">{fmtVnd(best.metrics.cost_vnd)}</b>{best.metrics.cost_unknown > 0 && <em> · một phần chưa có giá</em>}</> : <em>Chưa có giá</em>}</span>}
+                <span><b>{t.places}</b> nơi</span>
+                <span><b>{fmtMin(t.visit)}</b> tham quan</span>
+                {/* 0 = no leg between two stops yet (one place a day, no lodging): nothing worth stating */}
+                {(best ? best.metrics.travel_min : t.travel) > 0 && <span><b>{fmtMin(best ? best.metrics.travel_min : t.travel)}</b> đi lại (ước tính)</span>}
+                {best && best.metrics.cost_vnd > 0 && <span>~<b>{fmtVnd(best.metrics.cost_vnd)}</b>{best.metrics.cost_unknown > 0 && <em> · một phần chưa có giá</em>}</span>}
               </span>
             )}
             <Icon name="chevronUp" size={18} />
@@ -123,7 +138,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
               })}
             </ul>
             {f.warnings.length > 0 && <ul className="tg-listpanel__warn">{f.warnings.map((w) => <li key={w}><Icon name="warn" size={14} />{w}</li>)}</ul>}
-            <footer><span className="tg-faint">Giờ giấc và đường đi là ước tính.{f.known_days ? ` Chuyến đi có ${fmtMin(t.available)}.` : ' Chưa biết số ngày.'}</span><button type="button" className="tg-btn tg-btn--primary" disabled={!canGo} onClick={go2plan}>Xem lịch trình <Icon name="arrow" size={18} /></button></footer>
+            <footer><span className="tg-faint">Giờ giấc và đường đi là ước tính.{room ? ` Chuyến đi có khoảng ${fmtMin(room.usable)} để tham quan, đã trừ giờ ăn.` : f.known_days ? ` Chuyến đi có ${fmtMin(t.available)}.` : ' Chưa biết số ngày.'}</span><button type="button" className="tg-btn tg-btn--primary" disabled={!canGo} onClick={go2plan}>Xem lịch trình <Icon name="arrow" size={18} /></button></footer>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

@@ -1,4 +1,4 @@
-# Airports with direct flights to Đà Lạt (DLI, Liên Khương), a static table (docs/TRIP_UNDERSTANDING.md §Hậu cần):
+# Airports with direct flights to Đà Lạt (DLI, Liên Khương), a static table (docs/P2_TRIP_UNDERSTANDING.md §Hậu cần):
 # the trip flies from the one nearest to where it starts. Routes change by season: check this list against the
 # airlines' schedules when transit prewarm (config/live.yaml transit_prewarm) finds a route with no flights for weeks.
 dest: {iata: DLI, name: "Sân bay Liên Khương", lat: 11.7502, lng: 108.3672}

@@ -6,9 +6,10 @@ type Att = { name: string; image?: string; file?: Attachment }
 import { FIELD_LABEL, hardText, softText } from '../tu/labels'
 import type { Card, Understanding } from '../tu/types'
 import { BotAvatar, Icon } from '../ui/icons'
+import { RentalPick } from '../ui/RentalPick'
 import { linesOf } from '../ui/Ticket'
 
-// docs/UI_SPEC_USER_WEB.md Trang 3 §Mở đầu. The opening question is a conversation: the user tells the trip,
+// docs/WEB.md Trang 3 §Mở đầu. The opening question is a conversation: the user tells the trip,
 // the agent says back what it understood (each line editable) and what is still unclear, and only when the
 // user agrees does the deck of short questions start.
 
@@ -41,14 +42,18 @@ interface Props {
   u: Understanding | null
   card: Card | null
   preview: Set<string>
-  leaving: boolean
   onTell: (text: string, shown: ChatMsg) => void // text = what the agent reads; shown = the bubble
   onOpen: (target: string | null) => void
   onEdit: (target: string, value: string | null) => void
-  onGo: () => void
+  onGo: () => void // start the search: always open, what is still unknown rides along
+  onMore: () => void // Hỏi tiếp: the short questions start, the open question can wait
+  onRequiz: () => void // Làm lại trắc nghiệm: the answered cards come back so answers can change
+  onResume: () => void // Quay lại trắc nghiệm: resume a paused quiz where it left off
+  paused: boolean // the quiz is on hold: the chat owns the screen, progress kept server-side
+  onAnswer: (chips: string[], value?: string | null, label?: string) => void // the open question's options, pressed in the chat
 }
 
-export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, preview, leaving, onTell, onOpen, onEdit, onGo }: Props) {
+export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, preview, onTell, onOpen, onEdit, onGo, onMore, onRequiz, onResume, paused, onAnswer }: Props) {
   const [text, setText] = useState('')
   const [atts, setAtts] = useState<Att[]>([])
   const [fileNote, setFileNote] = useState<string | null>(null)
@@ -57,8 +62,13 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
   const end = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLTextAreaElement>(null)
   const told = msgs.some((m) => m.who === 'me')
+  // Only the exchange in progress is shown: from the user's last message on. Earlier lines are dropped, the summary keeps what they said.
+  const since = msgs.map((m) => m.who).lastIndexOf('me')
+  const shown = since > 0 ? msgs.slice(since) : msgs
   const thinking = told && (busy || !ready)
   const summary = told && !thinking && !!u
+  // In the review the quiz queue is empty, so "hỏi tiếp" would ask nothing: the button searches instead.
+  const more = summary && (!!u?.missing.length || !!card?.qid.startsWith('ask:')) && card?.qid !== 'review'
 
   useEffect(() => {
     if (!told) box.current?.focus({ preventScroll: true })
@@ -106,13 +116,13 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
   }
 
   return (
-    <div className={`tg-ask__card tg-chat ${leaving ? 'is-leaving' : ''}`} aria-busy={busy || leaving}>
+    <div className="tg-ask__card tg-chat" aria-busy={busy}>
       <div className="tg-ask__top">
         <BotAvatar size={40} live={thinking} />
         <span className="tg-ask__intent"><b>TRỢ LÝ TRIPGUARDIAN</b><span>{thinking ? 'đang đọc chuyến đi của bạn…' : 'kể tự nhiên, mình ghi lại'}</span></span>
       </div>
       <ol className="tg-chat__log" aria-live="polite" aria-label="Trò chuyện về chuyến đi">
-        {msgs.map((m, i) => {
+        {shown.map((m, i) => {
           const body = (
             <div className={`tg-chat__msg is-${m.who}`}>
               {m.text && <p>{m.text}</p>}
@@ -121,23 +131,29 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
             </div>
           )
           // the avatar sits by the first of a run of the assistant's messages
-          return m.who === 'ai' ? <li key={i} className="tg-chat__line">{msgs[i - 1]?.who === 'ai' ? <span className="tg-chat__gap" /> : <BotAvatar />}{body}</li> : <li key={i} className="tg-chat__me">{body}</li>
+          return m.who === 'ai' ? <li key={i} className="tg-chat__line">{shown[i - 1]?.who === 'ai' ? <span className="tg-chat__gap" /> : <BotAvatar />}{body}</li> : <li key={i} className="tg-chat__me">{body}</li>
         })}
         {thinking && (
           <li className="tg-chat__line"><BotAvatar live /><div className="tg-chat__msg is-ai is-live">
             <p>{live || 'Mình đang đọc chuyến đi của bạn'}{!live && <span className="tg-dots" aria-hidden="true"><i /><i /><i /></span>}</p>
             {reads.length > 0 && (
               <ul className="tg-chat__reads" aria-label="Mình đang ghi">
-                {reads.map((r) => <li key={r.target}><span>“{r.quote}”</span><Icon name="arrow" size={13} /><b>{readLabel(r.target)}</b></li>)}
+                {reads.map((r) => <li key={`${r.target}:${r.quote}`}><span>“{r.quote}”</span><Icon name="arrow" size={13} /><b>{readLabel(r.target)}</b></li>)}
               </ul>
             )}
           </div></li>
         )}
         {summary && u && <li className="tg-chat__msg is-ai is-sum tg-chat__indent"><Understood u={u} card={card} quotes={quotes} preview={preview} onOpen={onOpen} onEdit={onEdit} /></li>}
+        {summary && card?.qid.startsWith('ask:') && (
+          <li className="tg-chat__line"><BotAvatar /><div className="tg-chat__msg is-ai tg-chat__ask"><p>{card.text}</p><Replies card={card} busy={busy} onAnswer={onAnswer} /></div></li>
+        )}
       </ol>
       {summary && (
         <div className="tg-chat__go">
-          <button type="button" className="tg-btn tg-btn--primary" disabled={busy || leaving} onClick={onGo}>{card ? 'Đúng rồi, hỏi tiếp' : 'Đúng rồi, bắt đầu tìm'} <Icon name="arrow" size={18} /></button>
+          {/* one button, never locked: while something is unknown it asks on (the open question can wait), else it searches */}
+          <button type="button" className="tg-btn tg-btn--primary" disabled={busy} onClick={more ? onMore : onGo}>{more ? 'Đúng rồi, hỏi tiếp' : 'Đúng rồi, bắt đầu tìm'} <Icon name="arrow" size={18} /></button>
+          {card?.qid === 'review' && <button type="button" className="tg-link" disabled={busy} onClick={onRequiz}>Sửa lại câu trả lời</button>}
+          {paused && <button type="button" className="tg-btn tg-btn--ghost" disabled={busy} onClick={onResume}>Quay lại trắc nghiệm</button>}
         </div>
       )}
       <form
@@ -159,13 +175,12 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
           </div>
         )}
         <input ref={picker} type="file" accept={`image/*,${ACCEPT}`} multiple hidden onChange={(e) => attach(e.target.files)} />
-        <button type="button" className="tg-chat__clip" disabled={leaving || busy} aria-label="Đính kèm ảnh hoặc file" title="Đính kèm ảnh hoặc file" onClick={() => picker.current?.click()}><Icon name="clip" size={18} /></button>
+        <button type="button" className="tg-chat__clip" disabled={busy} aria-label="Đính kèm ảnh hoặc file" title="Đính kèm ảnh hoặc file" onClick={() => picker.current?.click()}><Icon name="clip" size={18} /></button>
         <textarea
           id="tg-chat-box"
           ref={box}
           rows={1}
           value={text}
-          disabled={leaving}
           onChange={(e) => setText(e.target.value)}
           onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); attach(e.clipboardData.files) } }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit() } }}
@@ -178,7 +193,7 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
   )
 }
 
-function Understood({ u, card, quotes, preview, onOpen, onEdit }: { u: Understanding; card: Card | null; quotes: Record<string, string>; preview: Set<string>; onOpen: (t: string | null) => void; onEdit: (t: string, v: string | null) => void }) {
+export function Understood({ u, card, quotes, preview, bare = false, onOpen, onEdit }: { bare?: boolean; u: Understanding; card: Card | null; quotes: Record<string, string>; preview: Set<string>; onOpen: (t: string | null) => void; onEdit: (t: string, v: string | null) => void }) {
   const lines = linesOf(u)
   const flash = (t: string) => (preview.has(t) ? ' tg-flash' : '')
   let i = 0
@@ -187,7 +202,7 @@ function Understood({ u, card, quotes, preview, onOpen, onEdit }: { u: Understan
   const unclear = [...(u.safety_pending ? ['một điều về an toàn'] : []), ...u.unknowns.map((k) => (FIELD_LABEL[k] ?? k).toLowerCase())]
   return (
     <div className="tg-chat__sum">
-      <h3>Mình đã hiểu như này</h3>
+      {!bare && <h3>Mình đã hiểu như này</h3>}
       {empty ? (
         <p className="tg-muted">Mình chưa rút ra được điều gì chắc chắn từ câu này. Bạn kể thêm, hoặc để mình hỏi từng câu ngắn.</p>
       ) : (
@@ -228,15 +243,44 @@ function Understood({ u, card, quotes, preview, onOpen, onEdit }: { u: Understan
           </div>
         </div>
       )}
+      {u.rental?.status === 'suggest' && card?.input !== 'rental' && <div className="tg-chat__next" style={step()}><h3>Thuê xe máy gần nơi bạn xuống</h3><RentalPick params={u.rental.params} /></div>}
+      {u.rental?.status === 'declined' && <p className="tg-faint tg-chat__note" style={step()}>{u.rental.note}</p>}
       {u.unmapped.length > 0 && <p className="tg-faint tg-chat__note" style={step()}>Mình ghi lại nhưng chưa kiểm được bằng dữ liệu: {u.unmapped.map((x) => `“${x.phrase}”`).join(', ')}.</p>}
-      {card ? (
+      {u.missing.length > 0 ? (
         <div className="tg-chat__next" style={step()}>
-          <h3>Mình cần hỏi thêm một số ý</h3>
-          {unclear.length > 0 ? <p>Còn chưa rõ: {unclear.slice(0, 5).map((x) => <b key={x} className="tg-chip tg-chip--soft">{x}</b>)}</p> : <p className="tg-muted">Vài câu ngắn để gợi ý sát hơn, câu nào không chắc thì bỏ qua.</p>}
+          <h3>Mình còn chưa biết</h3>
+          <p>{u.missing.map((m) => <b key={m.target} className="tg-chip tg-chip--soft">{m.label}</b>)}</p>
+        </div>
+      ) : card?.qid.startsWith('ask:') ? (
+        <div className="tg-chat__next" style={step()}>
+          <h3>Mình hỏi thêm vài ý cho sát hơn</h3>
+          {unclear.length > 0 ? <p>Còn chưa rõ: {unclear.slice(0, 5).map((x) => <b key={x} className="tg-chip tg-chip--soft">{x}</b>)}</p> : <p className="tg-muted">Câu nào không chắc thì bấm “Chưa chắc”.</p>}
         </div>
       ) : (
-        <p className="tg-chat__next" style={step()}><b>Mình đủ hiểu để gợi ý rồi.</b></p>
+        <p className="tg-chat__next" style={step()}><b>Mình đủ hiểu để gợi ý rồi.</b> Bạn kể thêm nếu muốn, hoặc bấm Đúng rồi, bắt đầu tìm.</p>
       )}
+    </div>
+  )
+}
+
+// The open question's own options under it, so it can be answered without leaving the chat: one tap for a single
+// choice, several then "Xong" for a multiple one, a day for the start-date question, and "Chưa chắc" when allowed.
+function Replies({ card, busy, onAnswer }: { card: Card; busy: boolean; onAnswer: Props['onAnswer'] }) {
+  const [picked, setPicked] = useState<string[]>([])
+  const [day, setDay] = useState('')
+  const today = new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD, local
+  return (
+    <div className="tg-chat__replies" role="group" aria-label="Trả lời nhanh">
+      {card.chips.map((c) => (
+        <button key={c.id} type="button" className="tg-chip" aria-pressed={card.multi ? picked.includes(c.id) : undefined} disabled={busy}
+          onClick={() => (card.multi ? setPicked((p) => (p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id])) : onAnswer([c.id], null, c.label))}>{c.label}</button>
+      ))}
+      {card.input === 'date' && <input className="tg-input" type="date" min={today} value={day} aria-label="Ngày khởi hành" onChange={(e) => setDay(e.target.value)} />}
+      {(card.multi || card.input === 'date') && (
+        <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" disabled={busy || !(picked.length || day)}
+          onClick={() => onAnswer(picked, day || null, day ? new Date(day + 'T00:00').toLocaleDateString('vi-VN') : card.chips.filter((c) => picked.includes(c.id)).map((c) => c.label).join(', '))}>Xong</button>
+      )}
+      {card.exits && <button type="button" className="tg-chip tg-chip--dash" disabled={busy} onClick={() => onAnswer(['unsure'], null, 'Chưa chắc')}>Chưa chắc</button>}
     </div>
   )
 }

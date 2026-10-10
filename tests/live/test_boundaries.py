@@ -1,4 +1,4 @@
-"""The invariants that keep live context from becoming Place Intelligence (docs/PLANNING.md)."""
+"""The invariants that keep live context from becoming Place Intelligence (docs/P4_PLANNING.md)."""
 
 import ast
 from pathlib import Path
@@ -11,7 +11,7 @@ SRC = Path(__file__).resolve().parents[2] / "src" / "live"
 CORPUS_DIRS = ("data/intel", "data/serving", "data/gmaps", "data/tiktok", "data/review",
                "data\intel", "data\serving", "data\gmaps")
 OTHER_PACKAGES = {"corpus", "decision", "trip", "planning"}
-CORPUS_EXCEPTION = {"corpus"}  # live/lodging, live/flights reuse corpus.crawl's public API (docs/PLANNING.md §Live Context)
+CORPUS_EXCEPTION = {"corpus"}  # live/lodging, live/flights reuse corpus.crawl's public API (docs/P4_PLANNING.md §Live Context)
 
 
 def modules():

@@ -1,9 +1,9 @@
-"""One agent call per typed message on the Planning screen (docs/PLANNING.md §Vòng người dùng sửa và góp
+"""One agent call per typed message on the Planning screen (docs/P4_PLANNING.md §Vòng người dùng sửa và góp
 ý): prompt from the session's current laid-out trip, streamed `say`, typed plan. Streaming deadlines and retry are handled by the shared agents runtime."""
 
-from typing import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 
-from agents import AgentError, SayStream, run_structured
+from agents import AgentError, SayStream, run_structured  # AgentError, SayStream: re-exported for engine and tests
 
 from corpus.llm import AGENT, PLANNING_TURN
 

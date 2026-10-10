@@ -33,7 +33,7 @@
 /* explore, bar */
 .tg-narrow__why { flex-basis: 100%; font-size: 0.8rem; }
 .tg-xnote { display: flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 0.86rem; }
-.tg-diff__undo { margin-left: 6px; color: #9fd8d0; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.tg-diff__undo { margin-left: 6px; color: var(--tg-on-night-link); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .tg-diff.is-bad { background: var(--tg-danger); }
 .tg-diff.is-bad svg { color: #fff; }
 .tg-listpanel__name { font-weight: 600; text-align: left; }

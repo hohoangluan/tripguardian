@@ -1,4 +1,4 @@
-"""judge audit: the Judge model labels what the Extractor claimed, in place of a person (docs/CORPUS.md §6).
+"""judge audit: the Judge model labels what the Extractor claimed, in place of a person (docs/P1_CORPUS.md §6).
 
 Which model-made observations it reads (rule-made ones from Maps details / attributes are not labelled, nor a
 targeted sample's opinions, which aggregate leaves out):
@@ -179,7 +179,7 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: se
     for r in rows:
         strata[(r[3]["feature"], r[3]["value"], r[0])].append(r)
     out = []
-    for (fid, value, source), items in strata.items():
+    for (fid, _value, _source), items in strata.items():
         keyed = {label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"]): (s, st, h, o)
                  for s, st, h, o in items}
         labels = collections.Counter(done[k] for k in keyed if k in done)
@@ -200,7 +200,7 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: se
 def pending_gemma(records: dict[str, dict], done: dict[str, str]) -> set[str]:
     """Claims the Gemma audit called wrong or unsure, off the Gemma engine. Those labels do not stand (current), and
     the Codex Judge reads every one of them, even where the stratum passes the gate: Gemma calls ~30% of correct
-    claims wrong (docs/CORPUS.md §6), and in a passing stratum most of its "wrong" are such false drops, so leaving
+    claims wrong (docs/P1_CORPUS.md §6), and in a passing stratum most of its "wrong" are such false drops, so leaving
     them unread would drop good claims on Gemma's word alone -- while a claim nobody read there is kept."""
     return {k for k, r in records.items()
             if k not in done and r["label"] != "correct" and "gemma" in r.get("by", "")}

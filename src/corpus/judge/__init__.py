@@ -1,4 +1,4 @@
-"""Judge (docs/CORPUS.md §6): a strong model decides what a person used to, so nothing waits in a review queue.
+"""Judge (docs/P1_CORPUS.md §6): a strong model decides what a person used to, so nothing waits in a review queue.
 
 audit   labels the Extractor's claims (corpus.review judge labels): wrong ones leave the evidence
 status  places reviewers reported closed or changed -> decisions kind place_status

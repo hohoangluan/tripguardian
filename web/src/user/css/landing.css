@@ -1,13 +1,7 @@
-/* Landing (/): sticky 3D stage + scroll chapters, then photos, FAQ, CTA. docs/UI_SPEC_LANDING.md */
+/* Landing (/): sticky 3D stage + scroll chapters, then photos, FAQ, CTA. docs/UI_DESIGN.md §7 */
 .tg-landing { background: var(--tg-bg); }
-/* Landing colour: the soft rose system (blush paper, plum ink, rose accents) over the 3D valley.
-   Only the landing wears it; the app keeps its own tokens. */
+/* Landing colour: the shared rose tokens (tokens.css); only the softer, longer shadows over the 3D valley are its own. */
 .tg.tg-landing {
-  --tg-bg: #fff9f8; --tg-surface: #ffffff; --tg-ink: #3a2b32; --tg-ink-2: #5e4a54; --tg-ink-3: #7d6873;
-  --tg-line: #f3e1e4; --tg-line-2: #e8cdd3;
-  --tg-pine: #6b3550; --tg-pine-d: #4f2539; --tg-pine-soft: #fceef1; --tg-pine-line: #f0cfd8;
-  --tg-sun: #c97890; --tg-sun-ink: #8a3d58; --tg-sun-soft: #fbe6ec;
-  --tg-night: #3a2330;
   --tg-sh-1: 0 1px 2px rgba(58, 43, 50, 0.05), 0 8px 24px -14px rgba(107, 53, 80, 0.32);
   --tg-sh-2: 0 2px 6px rgba(58, 43, 50, 0.06), 0 22px 48px -22px rgba(107, 53, 80, 0.42);
 }
@@ -195,15 +189,6 @@
 /* phones: "use the app" (screens/GetApp.tsx) */
 .tg-ga { min-height: 100dvh; display: flex; flex-direction: column; gap: 28px; padding: max(18px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom)); background: radial-gradient(120% 60% at 50% 0%, var(--tg-pine-soft), var(--tg-bg) 70%); }
 .tg-ga__top { display: flex; align-items: center; gap: 10px; font: 600 1.1rem var(--tg-display); }
-.tg-ga__art { display: grid; place-items: center; padding: 8px 0; }
-.tg-ga__phone { position: relative; width: 150px; aspect-ratio: 10 / 19; border-radius: 30px; border: 7px solid var(--tg-ink); background: linear-gradient(180deg, rgba(250, 247, 242, 0) 40%, rgba(250, 247, 242, 0.85)), url(/img/gen/hero.webp) 62% center / cover, var(--tg-pine-soft); box-shadow: var(--tg-sh-2); overflow: hidden; transform: rotate(-4deg); }
-.tg-ga__notch { position: absolute; left: 50%; top: 6px; width: 46px; height: 12px; border-radius: 999px; transform: translateX(-50%); background: var(--tg-ink); }
-.tg-ga__route { position: absolute; inset: 0; width: 100%; height: 100%; }
-.tg-ga__route path { fill: none; stroke: var(--tg-pine); stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 5 4; }
-.tg-ga__pin { position: absolute; z-index: 1; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-sun); color: #3a2b32; border: 2px solid #fff; font: 700 0.7rem var(--tg-sans); transform: translate(-50%, -50%); }
-.tg-ga__pin.p1 { left: 24%; top: 74%; } .tg-ga__pin.p2 { left: 72%; top: 49%; } .tg-ga__pin.p3 { left: 58%; top: 21%; }
-.tg-ga__bar { position: absolute; left: 10px; right: 10px; bottom: 12px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 12px; background: var(--tg-surface); box-shadow: var(--tg-sh-1); font-size: 0.66rem; font-weight: 700; }
-.tg-ga__bar i { width: 7px; height: 7px; border-radius: 50%; background: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }
 .tg-ga__body { display: grid; gap: 14px; }
 .tg-ga__body h1 { font-size: clamp(1.9rem, 8.4vw, 2.4rem); line-height: 1.1; }
 .tg-ga__stores { display: grid; gap: 10px; margin-top: 8px; }
@@ -211,9 +196,11 @@
 .tg-ga__store span:first-of-type { display: grid; flex: 1; line-height: 1.2; }
 .tg-ga__store small { font-size: 0.72rem; opacity: 0.8; }
 .tg-ga__store b { font-size: 1.05rem; }
-.tg-ga__store.is-soon { background: var(--tg-surface); color: var(--tg-ink-3); border: 1.5px dashed var(--tg-line-2); }
-.tg-ga__store.is-soon b { color: var(--tg-ink-2); }
 .tg-ga__share { width: 100%; min-height: 52px; }
+.tg-ga__send { display: grid; gap: 10px; margin-top: 8px; }
+.tg-ga__qr { display: grid; justify-items: center; gap: 8px; margin: 4px 0 0; text-align: center; font-size: 0.82rem; }
+.tg-ga__qr svg { width: 168px; height: 168px; border-radius: 12px; box-shadow: var(--tg-sh-1); }
+.tg-ga__later { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.86rem; }
 .tg-ga__status { min-height: 1.4em; font-size: 0.86rem; color: var(--tg-pine); text-align: center; }
 .tg-ga__foot { margin-top: auto; text-align: center; font-size: 0.78rem; color: var(--tg-ink-3); }
 

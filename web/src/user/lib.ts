@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { coversOf, placeById, type Cover } from '../data/store'
+import { coversOf, DAYS, openWindows, placeById, type Cover } from '../data/store'
 import type { CrowdTable, PriceRange, Quote, Video } from '../data/types'
 
 export const fmtMin = (m: number) => {
@@ -23,6 +23,33 @@ export const fmtVnd = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixe
 export const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
   return h * 60 + (m || 0)
+}
+
+// Why the planner could not lay the chosen places out (planning back_to_decision.reasons), in the reader's words.
+export interface Blocker { kind: string; place_id: string | null; day: number | null; minutes: number }
+const BLOCKER_TEXT: Record<string, string> = {
+  hours: 'giờ mở cửa không khớp với giờ trong lịch',
+  timed: 'chỉ hợp một khung giờ trong ngày, mà khung đó đã kín',
+  overlap: 'bị chồng giờ với nơi khác',
+  day_window: 'ngày này không đủ giờ cho các nơi đã chọn',
+  travel: 'đường đi tới đây không kịp trong giờ có',
+  long_leg: 'đường đi tới đây quá dài so với mức bạn chịu được',
+  anchor: 'là nơi bạn muốn đi nhưng chưa xếp vào được',
+  requested_visit: 'là nơi bạn muốn đi nhưng chưa xếp vào được',
+  requested_start: 'không khớp giờ bắt đầu bạn yêu cầu',
+  requested_duration: 'không khớp thời gian ở lại bạn yêu cầu',
+  budget: 'vượt ngân sách của chuyến đi',
+  hard: 'không đạt điều kiện bắt buộc bạn đã đặt',
+  hazard: 'ngày này có cảnh báo thời tiết hoặc đường đi',
+  duplicate: 'bị xếp hai lần',
+}
+// One line per reason, "Tên nơi: lý do" or "Ngày N: lý do" when the reason belongs to a day.
+export function blockerLines(reasons: Blocker[] | undefined, name: (id: string) => string) {
+  const lines = (reasons ?? []).map((r) => {
+    const text = BLOCKER_TEXT[r.kind] ?? 'chưa xếp vào lịch được'
+    return r.place_id ? `${name(r.place_id)}: ${text}` : r.day !== null ? `Ngày ${r.day + 1}: ${text}` : text[0].toUpperCase() + text.slice(1)
+  })
+  return [...new Set(lines)]
 }
 
 export const DAY_NAMES = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy']
@@ -78,7 +105,8 @@ export interface PlaceInfo {
   rating: number | null
   reviews: number | null
   voices: number | null
-  hours: string | null // one span shared by every day, else null (the full lines stay in hoursText)
+  hours: string | null // one span shared by every day, else today's span; null only when today's hours are unknown
+  hoursVary: boolean // true when `hours` is today's span because the days differ
   hoursText: string[]
   price: PriceRange | null
   crowd: CrowdTable | null
@@ -91,18 +119,26 @@ export interface PlaceInfo {
 
 const infoCache = new Map<string, PlaceInfo>()
 
+// A name the source wrote all in lowercase ("đồi container") reads as a typo: capitalise each word. Every other
+// spelling (all caps, no accents) is kept, since it may be the place's own branding.
+export function displayName(name: string) {
+  return /\p{L}/u.test(name) && name === name.toLocaleLowerCase('vi') ? name.replace(/(^|\s)(\p{L})/gu, (_, a: string, b: string) => a + b.toLocaleUpperCase('vi')) : name
+}
+
 export function info(id: string): PlaceInfo | null {
   const hit = infoCache.get(id)
   if (hit) return hit
   const p = placeById(id)
   if (!p) return null
   const spans = new Set(p.hoursText.map((l) => l.replace(/^[^\d]*/, '')).filter(Boolean))
+  const shared = spans.size === 1 && p.hoursText.length >= 7 ? [...spans][0] : null
+  const today = shared ? null : openWindows(p, DAYS[new Date().getDay()])
   const quotes: Quote[] = []
   for (const f of [...p.features].filter((f) => f.status !== 'NEEDS_REVIEW' && f.status !== 'DISABLED').sort((a, b) => b.n - a.n))
     for (const q of f.quotes) if (q.text.length >= 25 && q.text.length <= 160 && quotes.length < 3) quotes.push(q)
   const out: PlaceInfo = {
     id: p.id,
-    name: p.name,
+    name: displayName(p.name),
     category: p.category,
     group: p.group,
     area: areaOf(p.lat, p.lng),
@@ -111,7 +147,8 @@ export function info(id: string): PlaceInfo | null {
     rating: p.rating,
     reviews: p.reviewCount,
     voices: p.voices ?? null,
-    hours: spans.size === 1 && p.hoursText.length >= 7 ? [...spans][0] : null,
+    hours: shared ?? (today?.length ? today.map(([a, b]) => `${fmtClock(a)}–${fmtClock(b)}`).join(', ') : null),
+    hoursVary: !shared && !!today?.length,
     hoursText: p.hoursText,
     price: p.priceRange ?? null,
     crowd: p.crowdByTime ?? null,

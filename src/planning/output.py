@@ -1,10 +1,11 @@
-"""Plan Output (docs/PLANNING.md §Plan Output): the chosen variant, finalized at confirm().
+"""Plan Output (docs/P4_PLANNING.md §Plan Output): the chosen variant, finalized at confirm().
 
 route and cost are the two parts no variant dict already carries (route needs a fresh OSRM call per day; cost needs
 the chosen lodging's price). Everything else here is reshaping what build.py / variants.py already computed.
 """
 
 import live
+from trip import nights as nights_of
 
 from .build import flag_warnings, shared_output
 
@@ -40,7 +41,7 @@ def build(trip, variants: list[dict], chosen: dict, chosen_results: list, decisi
     chosen_results: the DayResult objects behind it (Schedule.results for the day order route_of_day needs)."""
     mobility = decision["trip_context"]["context"].get("mobility")
     days = [cx.day for cx in trip.ctxs][: len(chosen_results)] or trip.days[: len(chosen_results)]
-    nights = max((decision["trip_context"]["context"].get("days") or 1) - 1, 0)
+    nights = nights_of(decision["trip_context"]["context"])
     lodging = chosen.get("lodging") or {}
     shared = shared_output(trip)
     return {

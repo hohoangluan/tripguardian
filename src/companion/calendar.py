@@ -1,4 +1,4 @@
-"""Google Calendar export (docs/COMPANION.md §Calendar): one calendar per trip that the app created itself (scope
+"""Google Calendar export (docs/P5_COMPANION.md §Calendar): one calendar per trip that the app created itself (scope
 calendar.app.created), one event per stop, no reminders. Every write goes preview -> the user confirms that exact
 preview (preview_hash) -> apply. Nothing syncs on its own; a changed plan only marks the calendar "drifted"."""
 

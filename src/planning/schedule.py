@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from .conditions import DayCond, queue_minutes, crowd_sensitive
 from .model import Day, DayResult, Item, Place, Violation
 from .places import windows_on
+from .personalization import duration, preferred_start, suitability
 from .settings import Settings
 from .travel import Travel
 
@@ -26,6 +27,9 @@ class DayCtx:
     cond: DayCond | None = None     # what the date itself changes (conditions.py); None = nothing known, nothing changes
     crowd_tol: str | None = None    # the user's crowd tolerance: avoid | ok_if_worth | fine
 
+    soft_weights: list | None = None
+    allow_shrink: bool = True
+
     @property
     def wet(self) -> float | None:
         """Rain probability as the day's planning treats it: a heavy day counts as at least rain_high, a severe one as
@@ -37,9 +41,19 @@ class DayCtx:
 
 
 def intervals_for(place: Place, ctx: DayCtx) -> list[tuple[int, int]]:
-    """When the place is open that day. Unknown hours or an unknown weekday do not constrain: the whole day."""
+    """When the place is open that day. Unknown hours or an unknown weekday do not constrain: the whole day, except
+    that a shop-like place (a cafe, a restaurant) is never planned before unknown_hours_from on a guess."""
     w = windows_on(place.hours, ctx.day.weekday)
-    return [(0, DAY_MINUTES)] if w is None else w
+    if w is not None:
+        return w
+    shop = place.rec.get("identity", {}).get("category_group") in ctx.cfg.unknown_hours_groups
+    return [(ctx.cfg.unknown_hours_from if shop else 0, DAY_MINUTES)]
+
+
+def visit_minutes(place: Place, ctx: DayCtx, *, minimum: bool = False) -> int:
+    """Automatic estimates include queues; exact durations already specify the whole visit block."""
+    visit = duration(place, ctx.cfg, ctx.pace, ctx.soft_weights, minimum=minimum)
+    return visit if place.requested_duration is not None else visit + queue_minutes(place, visit, ctx.cond, ctx.cfg)
 
 
 def pin_window(place: Place, ctx: DayCtx) -> tuple[int, int]:
@@ -48,6 +62,8 @@ def pin_window(place: Place, ctx: DayCtx) -> tuple[int, int]:
     taken is the first one the place's own opening hours can host for a visit of this pace, preferring one inside the
     day; a pin the place itself can never host (live music after closing time) does not pin it at all. A sun-based
     pin on a day with no known sun is ignored rather than guessed."""
+    if place.requested_start is not None:
+        return place.requested_start, place.requested_start
     wins = []
     for fid in place.pins:
         pin = ctx.cfg.pins[fid]
@@ -56,7 +72,7 @@ def pin_window(place: Place, ctx: DayCtx) -> tuple[int, int]:
         elif ctx.sun is not None:
             base = ctx.sun[0] if pin["anchor"] == "sunrise" else ctx.sun[1]
             wins.append((base + pin["from_min"], base + pin["to_min"]))
-    visit = min(place.visit[ctx.cfg.visit_key[ctx.pace]], place.visit["short"])
+    visit = visit_minutes(place, ctx, minimum=True)
     open_ = intervals_for(place, ctx)
     hosted = [(a, b) for a, b in wins if any(max(a, o) <= b and max(a, o) + visit <= c for o, c in open_)]
     in_day = [(a, b) for a, b in hosted if max(a, ctx.day.start) <= b and max(a, ctx.day.start) + visit <= ctx.day.end]
@@ -71,7 +87,7 @@ def _meal_slots(order: list[str], ctx: DayCtx) -> tuple[dict, list[str]]:
     for pid in (p for p in order if ctx.places[p].kind == "meal"):
         p = ctx.places[pid]
         lo, hi = pin_window(p, ctx)                     # a dinner place known for evening music takes dinner
-        need = min(p.visit[ctx.cfg.visit_key[ctx.pace]], p.visit["short"])
+        need = visit_minutes(p, ctx, minimum=True)
         # a meal window the place can host: open then (an afternoon-only place never takes lunch) and at its pin
         fits = [n for n in reachable if n not in claimed.values()
                 and any(max(lo, o, ctx.cfg.meal_windows[n][0]) <= min(hi, ctx.cfg.meal_windows[n][1], c - need)
@@ -101,10 +117,29 @@ def _breaks(t: int, active: int, items: list, free: list, served: set, notes: li
     return t, active
 
 
+def _evening(t: int, items: list, free: list, served: set, notes: list, ctx: DayCtx) -> int:
+    """After the last stop the traveller is still in town until the day's end: a meal window the day still reaches
+    gets its free block (no rest is needed after the last stop). A window already over is noted as missed."""
+    cfg, day = ctx.cfg, ctx.day
+    for name in free:
+        a, b = cfg.meal_windows[name]
+        if name in served or b < day.start:
+            continue
+        m = max(t, a)
+        if m <= b and m + cfg.meal_min <= day.end:
+            items.append(Item("meal_free", m, m + cfg.meal_min, name=name, note="free"))
+            served.add(name)
+            t = m + cfg.meal_min
+        elif t > b:
+            notes.append(f"meal_missed:{name}")
+    return t
+
+
 def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
     """shrink=False keeps every visit at the pace's length: robustness asks whether the day survives a delay as
     planned, not whether it survives by cutting visits short."""
     cfg, day, travel = ctx.cfg, ctx.day, ctx.travel
+    shrink = shrink and ctx.allow_shrink
     claimed, free = _meal_slots(order, ctx)
     t, here, active = day.start, day.start_node, 0
     items: list[Item] = []
@@ -125,22 +160,31 @@ def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
         p = ctx.places[pid]
         t, active = _breaks(t, active, items, free, served, notes, ctx)
         move(here, pid)
-        visit = p.visit[cfg.visit_key[ctx.pace]]
-        visit += queue_minutes(p, visit, ctx.cond, cfg)
+        visit = visit_minutes(p, ctx)
         lo, hi = pin_window(p, ctx)
-        if pid in claimed:
+        if pid in claimed and p.requested_start is None:
             a, b = cfg.meal_windows[claimed[pid]]
             lo, hi = max(lo, a), min(hi, b)
+        if pid in claimed:
             served.add(claimed[pid])
         pin_lo = pin_window(p, ctx)[0]
         start, why = None, "opening"
-        shortest = min(visit, p.visit["short"] + queue_minutes(p, p.visit["short"], ctx.cond, cfg)) if shrink else visit
+        shortest = visit_minutes(p, ctx, minimum=True)
+        shortest = min(visit, shortest) if shrink else visit
         for o, c in intervals_for(p, ctx):
             s = max(t, o, lo)
+            if idx == len(order) - 1 and p.requested_duration is None:
+                for name in free:
+                    a, b = cfg.meal_windows[name]
+                    if name not in served and a <= s <= b and a + cfg.meal_min <= day.end:
+                        c = min(c, b, day.end - cfg.meal_min)
             # The visit is an estimate range: when the pace's length does not fit the opening block or what is
             # left of the day, it shrinks toward the short estimate, never below it.
             room = min(c, day.end) - s
             if s <= hi and room >= shortest:
+                if p.requested_start is None:
+                    s = preferred_start(p, s, min(hi, c - visit, day.end - visit), cfg, ctx.soft_weights)
+                    room = min(c, day.end) - s
                 start, visit = s, min(visit, room)
                 why = "opening" if s == o and o > max(t, lo) else "meal" if pid in claimed and s == lo > pin_lo else "pin"
                 break
@@ -148,22 +192,24 @@ def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
             viol.append(Violation("hours", day.index, pid, 0, False, "no feasible start"))
             start = t
         elif start > t:
-            if here is not None:
-                w_at = t
-                for name in free:       # a meal that falls inside a long wait is eaten there, not skipped
-                    a, b = cfg.meal_windows[name]
-                    m = max(w_at, a)
-                    if name not in served and m <= b and m + cfg.meal_min <= start:
-                        if m > w_at:
-                            items.append(Item("wait", w_at, m, place_id=pid, note=why))
-                            wait_min += m - w_at
-                        items.append(Item("meal_free", m, m + cfg.meal_min, name=name, note="free"))
-                        served.add(name)
-                        w_at, active = m + cfg.meal_min, 0
-                if start > w_at:
-                    items.append(Item("wait", w_at, start, place_id=pid, note=why))
-                    wait_min += start - w_at
-            t = start       # with no start point the day simply opens at the first stop: nothing is waited out
+            # A meal that falls inside a long wait is eaten there, not skipped. With no start point the day simply
+            # opens at the first stop: nothing is waited out, but a meal the traveller is already in town for (an
+            # arrival at noon, a sunset stop as the first one) still gets its block from the day's start.
+            w_at = t
+            for name in free:
+                a, b = cfg.meal_windows[name]
+                m = max(w_at, a)
+                if name not in served and m <= b and m + cfg.meal_min <= start:
+                    if m > w_at and here is not None:
+                        items.append(Item("wait", w_at, m, place_id=pid, note=why))
+                        wait_min += m - w_at
+                    items.append(Item("meal_free", m, m + cfg.meal_min, name=name, note="free"))
+                    served.add(name)
+                    w_at, active = m + cfg.meal_min, 0
+            if start > w_at and here is not None:
+                items.append(Item("wait", w_at, start, place_id=pid, note=why))
+                wait_min += start - w_at
+            t = start
         items.append(Item("visit", start, start + visit, place_id=pid, name=p.name))
         t, active, here = start + visit, active + visit, pid
         nxt = order[idx + 1] if idx + 1 < len(order) else day.end_node
@@ -184,9 +230,13 @@ def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
     if order and day.end_node not in (None, here):
         t, active = _breaks(t, active, items, free, served, notes, ctx)
         move(here, day.end_node)
-    elif order:             # a day that just ends after its last stop needs no breaks, but a missed meal is still noted
-        notes += [f"meal_missed:{n}" for n in free if n not in served and t > cfg.meal_windows[n][1]
-                  and cfg.meal_windows[n][1] >= day.start]
     if t > day.end:
         viol.append(Violation("day_window", day.index, None, t - day.end, False, "the day runs past its end"))
-    return DayResult(tuple(items), tuple(order), tuple(viol), travel_min, wait_min, t, tuple(notes), "single")
+    end = t                 # when the stops are done: what an order is judged on, the evening meals aside
+    if order:
+        _evening(t, items, free, served, notes, ctx)
+    fit = sum(suitability(ctx.places[it.place_id], it.start, cfg, ctx.soft_weights)
+              for it in items if it.kind == "visit")
+    penalty = -cfg.personalization.get("time_weight_min", 60) * fit
+    return DayResult(tuple(items), tuple(order), tuple(viol), travel_min, wait_min, end, tuple(notes), "single",
+                     timing_penalty=penalty)

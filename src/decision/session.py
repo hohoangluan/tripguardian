@@ -23,9 +23,10 @@ class SoftAdd(BaseModel):
 
 
 class Profile(BaseModel):
-    """Session Profile (docs/Project_Context.md §8): this trip only, never the long-term profile."""
+    """Session Profile (docs/PROJECT_CONTEXT.md §8): this trip only, never the long-term profile."""
     travel_mult: float = 1.0
     crowd_tolerance: Literal["avoid", "ok_if_worth", "fine"] | None = None
+    hide_crowded: bool = False  # "bỏ mấy chỗ đông đi": places whose authors settled on crowded leave the list
     price_sensitivity: float = 0.0
     soft: list[SoftAdd] = Field(default_factory=list)
     visited: list[str] = Field(default_factory=list)

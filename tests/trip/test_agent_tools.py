@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from trip.agent.tools import ToolExecutor
+from trip.agent import ToolExecutor
 
 
 def test_relative_date_tool_resolves_a_weekday(catalog):
@@ -71,6 +71,21 @@ def test_an_unknown_tool_or_bad_arguments_come_back_as_errors(catalog):
     assert "error" in t.run("record_fact", {"field": "days"})
 
 
+def test_open_quiz_tool_starts_resumes_or_restarts(catalog):
+    from trip.domain.state import with_meta
+
+    t = tools(catalog, "mở phần câu hỏi")
+    assert "open_quiz" in [s["function"]["name"] for s in t.specs()]
+    assert t.run("open_quiz", {}) == {"ok": True} and t.opened and t.stopped
+    t = tools(catalog, "làm lại trắc nghiệm", with_meta(TripState(), phase="review"))
+    assert "open_quiz" in [s["function"]["name"] for s in t.specs()]
+    assert t.run("open_quiz", {}) == {"ok": True} and t.opened and t.stopped
+    t = tools(catalog, "hỏi tiếp đi", with_meta(TripState(), phase="paused"))  # quiz on hold: resume it
+    assert t.run("open_quiz", {}) == {"ok": True} and t.opened and t.stopped
+    t = tools(catalog, may_ask=False)  # a quiet turn cannot reopen either
+    assert "open_quiz" not in [s["function"]["name"] for s in t.specs()]
+
+
 def test_search_features_finds_a_feature_by_its_meaning_and_admits_when_none_fits(catalog):
     t = tools(catalog)
     ids = [f["id"] for f in t.run("search_features", {"query": "vật nuôi thú"})["features"]]
@@ -109,7 +124,7 @@ def test_search_features_returns_a_value_the_agent_can_copy(catalog):
 def test_every_soft_and_hard_example_in_the_system_prompt_is_valid():
     import re
 
-    from trip.agent.prompt import system_prompt
+    from trip.agent import system_prompt
     from trip.domain.state import ontology
     from trip.domain.values import split_weight
     text = system_prompt()

@@ -38,7 +38,7 @@
 .tg-cal__list { display: grid; gap: 8px; margin: 8px 0; padding: 0; list-style: none; max-height: 50vh; overflow: auto; }
 .tg-cal__list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.9rem; }
 .tg-cal__list li.is-delete .tg-tag { background: var(--tg-danger-bg); color: var(--tg-danger); }
-.tg-td__scrim { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(20, 38, 43, 0.42); }
+.tg-td__scrim { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--tg-night) 42%, transparent); }
 .tg-td__modal { display: grid; gap: 12px; width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px; box-shadow: var(--tg-sh-2); }
 .tg-td__btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .tg-td__note { padding: 10px 12px; border-radius: var(--tg-r-s); background: var(--tg-warn-bg); color: var(--tg-warn); font-size: 0.9rem; }
@@ -71,5 +71,5 @@
 .tg-npref { display: grid; gap: 8px; }
 .tg-npref label { display: flex; gap: 10px; align-items: center; min-height: 40px; font-size: 0.92rem; cursor: pointer; }
 .tg-npref input { width: 18px; height: 18px; accent-color: var(--tg-pine); }
-.tg-a2hs { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 0.9rem; list-style: decimal; }
 .tg-push { margin-top: 12px; max-width: 760px; }
+.tg-stop.is-extra { border-style: dashed; }

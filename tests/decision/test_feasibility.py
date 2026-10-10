@@ -32,6 +32,19 @@ def checks(res):
 def test_two_places_two_days_is_feasible_with_slack():
     res = run(cands(srec("A"), srec("B")), si())
     assert res["status"] == "feasible" and res["slack"] > 0 and res["totals"]["places"] == 2
+    assert not res["room"]["filled"] and res["room"]["more"] > 0  # two places leave two days mostly free
+
+
+def test_room_counts_only_the_hours_the_trip_really_has():
+    """D-7: the bar asked for 12 places for a trip arriving 12:00 and leaving 14:30 two days later."""
+    s = si(context={"days": 3, "checkin_at": "12:00", "checkout_at": "14:30"})
+    three = run(cands(*[srec(f"P{i}") for i in range(3)]), s)["room"]
+    # 9 h + 13 h + 6.5 h of window, minus five meals inside them
+    assert three["usable"] == 540 + 780 + 390 - 5 * CFG.meal_min
+    assert 3 <= three["more"] <= 6 and not three["filled"]
+    full = run(cands(*[srec(f"P{i}") for i in range(3 + three["more"])]), s)["room"]
+    assert full["filled"] and full["more"] == 0
+    assert run(cands(srec("A")), si(context={"days": None}))["room"] is None  # no days: no hint
 
 
 def test_too_much_for_one_day_is_infeasible_and_fix_drops_lowest_score():

@@ -4,9 +4,10 @@ and the encrypted Calendar refresh token (docs/ACCOUNTS.md)."""
 import base64
 import hashlib
 import io
+import re
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 from psycopg.types.json import Jsonb
@@ -14,15 +15,18 @@ from psycopg.types.json import Jsonb
 from .google import CALENDAR_SCOPE, LOGIN_SCOPES, GoogleClient, GoogleError
 
 SESSION_DAYS = 30
+GUEST_DAYS = 1  # a guest session never slides: the trial lasts a day
 SLIDE_AFTER_S = 3600  # a session seen again after this long gets 30 fresh days
 STATE_MINUTES = 10
 TERMS_VERSION = "2026-10-09"
 PROFILE_FIELDS = {"display_name": 60, "home_city": 80, "usual_mobility": 40, "usual_companions": 40}
-MOBILITY = {"motorbike", "car", "ride"}  # trip.domain.state Vehicle
+MOBILITY = {"motorbike", "car"}  # trip.domain.state Vehicle
 COMPANIONS = {"solo", "partner", "friends", "kids", "parents"}  # trip.domain.state Who
 AVATAR_MAX_BYTES = 5 * 1024 * 1024
 AVATAR_PX = 256
 AVATAR_FORMATS = {"JPEG", "PNG", "WEBP"}
+PLACE_ID = re.compile(r"[A-Za-z0-9_:.-]{1,128}")  # a serving record id ("0x…:0x…"); never shown unescaped
+SAVED_MAX = 500  # places kept per account; the oldest go first
 
 
 class AuthError(ValueError):
@@ -119,13 +123,21 @@ class Accounts:
         """Only for the walk-through route that the server enables with TG_TEST_LOGIN on a non-https base URL."""
         return self.session(self._upsert({"sub": "test:" + email, "email": email, "name": name}), user_agent)
 
-    def session(self, user_id: str, user_agent: str = "") -> str:
+    def session(self, user_id: str, user_agent: str = "", days: int = SESSION_DAYS) -> str:
         token = secrets.token_urlsafe(32)
         with self.pool.connection() as conn:
             conn.execute("INSERT INTO auth_sessions (token_hash, user_id, expires_at, user_agent) "
                          "VALUES (%s, %s, now() + make_interval(days => %s), %s)",
-                         (_hash(token), user_id, SESSION_DAYS, user_agent[:300]))
+                         (_hash(token), user_id, days, user_agent[:300]))
         return token
+
+    def guest(self, user_agent: str = "") -> str:
+        """A trial visitor: a new users row with role 'guest' (no email, no profile) and a one-day session. The row and
+        everything it owns stay, so the Admin can still read what the guest did."""
+        with self.pool.connection() as conn:
+            row = conn.execute("INSERT INTO users (role, display_name, last_login_at) VALUES ('guest', 'Khách', now()) "
+                               "RETURNING id").fetchone()
+        return self.session(str(row["id"]), user_agent, GUEST_DAYS)
 
     def user_for(self, token: str | None) -> tuple[dict | None, bool]:
         """(user, refreshed): refreshed means the server should send the cookie again with 30 fresh days."""
@@ -138,7 +150,7 @@ class Accounts:
                 "AND u.status = 'active' AND u.deleted_at IS NULL", (_hash(token),)).fetchone()
             if not row:
                 return None, False
-            refreshed = row["idle"] > SLIDE_AFTER_S
+            refreshed = row["idle"] > SLIDE_AFTER_S and row["role"] != "guest"
             if refreshed:
                 conn.execute("UPDATE auth_sessions SET last_seen_at = now(), "
                              "expires_at = now() + make_interval(days => %s) WHERE token_hash = %s",
@@ -167,16 +179,26 @@ class Accounts:
                 "avatar": f"/api/harness/avatars/{row['avatar_key']}" if row["avatar_key"] else row["picture_url"],
                 "role": row["role"], "home_city": row["home_city"], "usual_mobility": row["usual_mobility"],
                 "usual_companions": row["usual_companions"], "consents": consents,
-                "needs_consent": (consents.get("terms") or {}).get("version") != TERMS_VERSION,
+                "needs_consent": row["role"] != "guest" and (consents.get("terms") or {}).get("version") != TERMS_VERSION,
                 "calendar": row["calendar"], "terms_version": TERMS_VERSION}
 
     def consent(self, user_id: str, version: str) -> dict:
         if version != TERMS_VERSION:
             raise ValueError("terms version is not current")
-        stamp = {"version": version, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        stamp = {"version": version, "at": datetime.now(UTC).isoformat(timespec="seconds")}
         with self.pool.connection() as conn:
             conn.execute("UPDATE profiles SET consents = consents || %s, updated_at = now() WHERE user_id = %s",
                          (Jsonb({"terms": stamp, "privacy": stamp}), user_id))
+        return self.me(user_id)
+
+    def set_patterns(self, user_id: str, on: bool) -> dict:
+        """Whether TripGuardian may remember this account's explicit choices across trips and use them to ask less
+        (docs/P2_TRIP_UNDERSTANDING.md §17). Separate from the terms; the caller forgets what was learned when it is off."""
+        if not isinstance(on, bool):
+            raise ValueError("patterns must be true or false")
+        with self.pool.connection() as conn:
+            conn.execute("UPDATE profiles SET consents = consents || %s, updated_at = now() WHERE user_id = %s",
+                         (Jsonb({"patterns": on}), user_id))
         return self.me(user_id)
 
     def update(self, user_id: str, patch: dict) -> dict:
@@ -243,7 +265,7 @@ class Accounts:
         with self.pool.connection() as conn:
             row = conn.execute("SELECT avatar_key FROM users WHERE id = %s", (user_id,)).fetchone()
             for table in ("profiles", "calendar_links", "push_subscriptions", "notification_prefs", "auth_sessions",
-                          "oauth_states"):
+                          "oauth_states", "saved_places"):
                 conn.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
             for table in ("journeys", "events", "feedback", "trips", "notifications"):
                 conn.execute(f"UPDATE {table} SET user_id = NULL WHERE user_id = %s", (user_id,))
@@ -251,6 +273,38 @@ class Accounts:
                          "picture_url = NULL, google_sub = NULL, avatar_key = NULL WHERE id = %s", (user_id,))
         if row and row["avatar_key"]:
             (self.avatars / f"{row['avatar_key']}.webp").unlink(missing_ok=True)
+
+    # --- saved places ("Đã lưu") -------------------------------------------------------------------------------
+
+    def saved(self, user_id: str) -> list[str]:
+        """Place ids, newest first."""
+        with self.pool.connection() as conn:
+            rows = conn.execute("SELECT place_id FROM saved_places WHERE user_id = %s ORDER BY saved_at DESC, place_id",
+                                (user_id,)).fetchall()
+        return [r["place_id"] for r in rows]
+
+    def save_places(self, user_id: str, place_ids: list) -> list[str]:
+        """Adds places (one heart, or a browser's old local list merged once); saving twice keeps the first time.
+        Returns the whole list."""
+        if not isinstance(place_ids, list) or not 1 <= len(place_ids) <= SAVED_MAX:
+            raise ValueError(f"place_ids must be a list of 1 to {SAVED_MAX} ids")
+        if not all(isinstance(p, str) and PLACE_ID.fullmatch(p) for p in place_ids):
+            raise ValueError("bad place id")
+        now = datetime.now(UTC)
+        with self.pool.connection() as conn:
+            for i, pid in enumerate(place_ids):  # the first id is the newest, as in the list the browser shows
+                conn.execute("INSERT INTO saved_places (user_id, place_id, saved_at) VALUES (%s, %s, %s) "
+                             "ON CONFLICT DO NOTHING", (user_id, pid, now - timedelta(microseconds=i)))
+            conn.execute("DELETE FROM saved_places WHERE user_id = %s AND place_id NOT IN (SELECT place_id FROM "
+                         "saved_places WHERE user_id = %s ORDER BY saved_at DESC LIMIT %s)", (user_id, user_id, SAVED_MAX))
+        return self.saved(user_id)
+
+    def unsave_place(self, user_id: str, place_id: str) -> list[str]:
+        if not isinstance(place_id, str) or not PLACE_ID.fullmatch(place_id):
+            raise ValueError("bad place id")
+        with self.pool.connection() as conn:
+            conn.execute("DELETE FROM saved_places WHERE user_id = %s AND place_id = %s", (user_id, place_id))
+        return self.saved(user_id)
 
     # --- Calendar link -----------------------------------------------------------------------------------------
 

@@ -23,11 +23,16 @@ class Settings:
     rainy_months: tuple
     min_context_fit: float
     weights: dict
+    stars: dict
+    top_min_pref: float
     price_ref_vnd: int
     near_min: int
     per_day: dict
     per_day_max: dict
     meals_per_day: int
+    meal_at: tuple
+    meal_min: int
+    fill_share: float
     spare_factor: float
     pool_factor: int
     default_days: int
@@ -55,6 +60,7 @@ class Settings:
     page_size: int
     keep_factor: float
     replace_below: float
+    day_visit: dict
     first_token_s: float
     total_s: float
     display_groups: dict
@@ -64,7 +70,7 @@ class Settings:
 
 def load(path: Path = PATH) -> Settings:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    for k in ("rainy_months", "narrow_buckets", "timed_features"):
+    for k in ("rainy_months", "narrow_buckets", "timed_features", "meal_at"):
         raw[k] = tuple(raw[k])
     return Settings(**raw)
 

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { featureLabel, valueLabel } from '../../data/labels'
-import { deleteAccount, refreshAccount, signOut, updateProfile, uploadAvatar, useAccount, type Companions, type Me, type Mobility } from '../account'
+import { deleteAccount, refreshAccount, setPatterns, signOut, updateProfile, uploadAvatar, useAccount, type Companions, type Me, type Mobility } from '../account'
 import { calendarDisconnect } from '../today'
-import { track } from '../events'
 import { enablePush, KIND_LABEL, loadPrefs, pushSupported, savePrefs, type Prefs } from '../notify'
 import { dateRange, info } from '../lib'
 import { tripSummaries } from '../pd/api'
@@ -14,6 +13,7 @@ import { ArtCup, ArtHills, ArtRoute, Busy, Empty, go, Link, placeHref, PlacePhot
 import { HeartFill, Icon } from '../ui/icons'
 import { Page, useTitle } from '../ui/Shell'
 import { useBegin } from './Discover'
+import { GROUP_LABEL } from '../tu/labels'
 
 const STAGE_STEP = { trip: 0, decision: 1, planning: 2 } as const
 type Kind = 'building' | 'confirmed' | 'done'
@@ -38,7 +38,7 @@ export function Trips() {
   useEffect(() => {
     tripSummaries().then((l) => {
       setList(l)
-      const first = (['building', 'confirmed', 'done'] as const).find((k) => l.some((t) => kindOf(t) === k))
+      const first = (['confirmed', 'building', 'done'] as const).find((k) => l.some((t) => kindOf(t) === k)) // an upcoming trip first
       if (first) setTab(first)
     }, () => setErr(true))
   }, [])
@@ -68,7 +68,7 @@ export function Trips() {
                   {t.places[0] ? <PlacePhoto id={t.places[0]} className="tg-trip__ph" /> : <div className="tg-trip__ph tg-hero__img" aria-hidden="true" />}
                   <div className="tg-trip__body">
                     <span className={`tg-tag ${k === 'building' ? 'tg-tag--warn' : ''}`}>{STATUS[k]}</span>
-                    <h2>Đà Lạt{t.days ? ` ${t.days} ngày` : ''}</h2>
+                    <h2>Đà Lạt{t.days ? ` ${t.days} ngày${t.nights != null ? ` ${t.nights} đêm` : ''}` : ''}</h2>
                     <p className="tg-mono tg-muted">{[dateRange(t.start_date, t.days) ?? 'Chưa chốt ngày', t.people ? `${t.people} người` : null, `${t.places.length} nơi`].filter(Boolean).join(' · ')}</p>
                     {k === 'building' && <div className="tg-prog" aria-label={`Bước ${step + 1} trên ${STEPS.length}`}>{STEPS.map((s, i) => <span key={s.id} className={i < step ? 'is-done' : i === step ? 'is-now' : ''}><i />{s.label}</span>)}</div>}
                     <div className="tg-trip__act">
@@ -98,7 +98,7 @@ export function Saved() {
   const count = (k: string) => saved.filter((id) => k === 'all' || info(id)?.group === k).length
   return (
     <Page>
-      <header className="tg-head"><div><p className="tg-kicker">Đã lưu</p><h1>Địa điểm bạn đã lưu</h1><p>Lưu trên trình duyệt này. Nơi đã lưu không tự vào lịch; thêm vào chuyến khi nơi đó nằm trong gợi ý.</p></div></header>
+      <header className="tg-head"><div><p className="tg-kicker">Đã lưu</p><h1>Địa điểm bạn đã lưu</h1><p>Lưu theo tài khoản, mở được trên mọi máy. Nơi đã lưu không tự vào lịch; thêm vào chuyến khi nơi đó nằm trong gợi ý.</p></div></header>
       <div className="tg-tabs" role="tablist" aria-label="Nhóm">
         {GROUPS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={f === k} className="tg-tab" onClick={() => setF(k)}>{l}<b>{count(k)}</b></button>)}
       </div>
@@ -124,15 +124,15 @@ export function Saved() {
   )
 }
 
-const MOBILITY: [Mobility, string][] = [['motorbike', 'Xe máy'], ['car', 'Ô tô tự lái'], ['ride', 'Taxi / xe công nghệ']]
+const MOBILITY: [Mobility, string][] = [['motorbike', 'Xe máy'], ['car', 'Ô tô tự lái']]
 const WHO: [Companions, string][] = [['solo', 'Đi một mình'], ['partner', 'Với người yêu / vợ chồng'], ['friends', 'Với bạn bè'], ['kids', 'Với con nhỏ'], ['parents', 'Với bố mẹ']]
 
 export function Account() {
   useTitle('Hồ sơ')
   const account = useAccount()
   const { trip } = useTrip()
-  const { view } = useDecision()
   const prefs = trip.searchInput?.soft_weights.filter((w) => w.weight !== 0) ?? []
+  const groups = trip.searchInput?.liked_groups ?? []
   if (!account) return null
   return (
     <Page>
@@ -145,15 +145,38 @@ export function Account() {
       <div className="tg-prof">
         <ProfileForm account={account} />
         <section className="tg-card tg-prof__c" aria-labelledby="tg-inf-h"><h2 id="tg-inf-h">Sở thích của chuyến hiện tại</h2><p className="tg-faint">Đây là điều bạn nói hoặc mình suy ra cho chuyến này, không phải cài đặt. Sửa ở vé chuyến.</p>
-          {prefs.length === 0 ? <p className="tg-muted">Chưa có sở thích nào được ghi.</p> : prefs.map((w) => <div key={w.feature + w.value} className="tg-prof__row"><div><span className="tg-chip tg-chip--dash">{w.weight < 0 ? 'Tránh: ' : ''}{featureLabel(w.feature)}{w.value !== 'present' ? `: ${valueLabel(w.value)}` : ''}</span><span className="tg-faint"> {w.source === 'profile' ? 'từ hồ sơ' : 'từ lời bạn'}</span></div></div>)}
+          {groups.length > 0 && <div className="tg-prof__row"><div><span className="tg-chip tg-chip--dash">Muốn đi: {groups.map((g) => GROUP_LABEL[g] ?? g).join(', ')}</span><span className="tg-faint"> từ lời bạn</span></div></div>}
+          {prefs.length === 0 && groups.length === 0 ? <p className="tg-muted">Chưa có sở thích nào được ghi.</p> : prefs.map((w) => <div key={w.feature + w.value} className="tg-prof__row"><div><span className="tg-chip tg-chip--dash">{w.weight < 0 ? 'Tránh: ' : ''}{featureLabel(w.feature)}{w.value !== 'present' ? `: ${valueLabel(w.value)}` : ''}</span><span className="tg-faint"> {w.source === 'profile' ? 'từ hồ sơ' : 'từ lời bạn'}</span></div></div>)}
         </section>
       </div>
-      {hasTrip(trip) && <section className="tg-card tg-prof__trip"><div><b>Chuyến đi đang lập</b><span className="tg-muted">{trip.searchInput?.context.days ? `${trip.searchInput.context.days} ngày · ` : ''}{view?.selected.length ?? trip.selected.length} nơi đã chọn</span></div><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => go(stepOf(trip).path)}>Mở tiếp</button></section>}
+      {hasTrip(trip) && <CurrentTrip />}
+      <RememberChoices account={account} />
       <NotifyPrefs />
       {account.calendar && <CalendarLink />}
       <DeleteAccount />
       <p className="tg-faint tg-prof__fine"><Icon name="shield" size={14} /> Tín hiệu sức khỏe hay thể chất chỉ dùng trong phiên, không lưu lâu dài. Không thu vị trí GPS.</p>
     </Page>
+  )
+}
+
+// The trip in this browser, told the same way as in Chuyến của tôi (the server summary decides Đang lập / Sắp tới / Đã đi).
+function CurrentTrip() {
+  const { trip } = useTrip()
+  const { view } = useDecision()
+  const [t, setT] = useState<TripSummary | null | undefined>()
+  useEffect(() => { tripSummaries().then((l) => setT(l.find((x) => x.id === trip.journeyId) ?? null), () => setT(null)) }, [trip.journeyId])
+  if (t === undefined) return null
+  const k = t ? kindOf(t) : 'building'
+  const days = t?.days ?? trip.searchInput?.context.days
+  const places = t ? t.places.length : view?.selected.length ?? trip.selected.length
+  const title = k === 'building' ? 'Chuyến đi đang lập' : k === 'confirmed' ? 'Chuyến sắp tới · đã chốt lịch' : 'Chuyến đã đi'
+  const line = [days ? `${days} ngày` : null, t ? dateRange(t.start_date, t.days) : null, `${places} nơi ${k === 'building' ? 'đã chọn' : 'trong lịch'}`].filter(Boolean).join(' · ')
+  return (
+    <section className="tg-card tg-prof__trip"><div><b>{title}</b><span className="tg-muted">{line}</span></div>
+      {k === 'building' ? <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => go(stepOf(trip).path)}>Mở tiếp</button>
+        : k === 'confirmed' ? <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => go(`/today?journey=${t!.id}`)}>Mở Hôm nay</button>
+        : <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => go('/trips')}>Chuyến của tôi</button>}
+    </section>
   )
 }
 
@@ -207,10 +230,29 @@ function ProfileForm({ account }: { account: Me }) {
   )
 }
 
+// Off by default for anyone who did not tick it: nothing is remembered, and turning it off forgets what was learned.
+function RememberChoices({ account }: { account: Me }) {
+  const on = account.consents.patterns === true
+  const [busy, setBusy] = useState(false)
+  const change = (next: boolean) => {
+    setBusy(true)
+    setPatterns(next).then(() => toast(next ? 'Đã bật nhớ lựa chọn' : 'Đã tắt và xóa phần đã nhớ'), () => toast('Chưa lưu được, thử lại nhé')).finally(() => setBusy(false))
+  }
+  return (
+    <div className="tg-prof">
+      <section className="tg-card tg-prof__c" aria-labelledby="tg-rc-h">
+        <h2 id="tg-rc-h">Nhớ lựa chọn của bạn</h2>
+        <p className="tg-faint">Khi bạn chọn giống nhau qua vài chuyến (cách tới Đà Lạt, phương tiện, ngân sách, giờ nhận phòng, gu đi chơi), các chuyến sau không hỏi lại mà dùng làm gợi ý, hiện trên vé chuyến và sửa được. Điều bạn nói cho chuyến hiện tại luôn thắng.</p>
+        <div className="tg-npref"><label><input type="checkbox" checked={on} disabled={busy} onChange={(e) => change(e.target.checked)} /> Nhớ lựa chọn của tôi qua các chuyến</label></div>
+      </section>
+    </div>
+  )
+}
+
 function NotifyPrefs() {
   const [p, setP] = useState<Prefs | null>(null)
   const [busy, setBusy] = useState(false)
-  useEffect(() => { loadPrefs().then(setP, () => {}); track('install_prompt_seen') }, [])
+  useEffect(() => { loadPrefs().then(setP, () => {}) }, [])
   if (!p) return null
   // Optimistic: the box changes at once; a failed save puts it back.
   const save = (patch: Parameters<typeof savePrefs>[0]) => {
@@ -230,11 +272,6 @@ function NotifyPrefs() {
           {p.kinds.map((k) => <label key={k}><input type="checkbox" checked={p.enabled_kinds.includes(k)} disabled={busy || p.paused} onChange={() => toggle(k)} /> {KIND_LABEL[k] ?? k}</label>)}
         </div>
         {pushSupported() && Notification.permission === 'default' && <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={async () => { const r = await enablePush(); if (r === 'granted') { toast('Đã bật thông báo'); loadPrefs().then(setP) } }}>Bật trên trình duyệt này</button>}
-      </section>
-      <section className="tg-card tg-prof__c" aria-labelledby="tg-a2hs-h">
-        <h2 id="tg-a2hs-h">Thêm TripGuardian vào màn hình chính</h2>
-        <p className="tg-faint">Trên iPhone, thông báo chỉ đến khi TripGuardian nằm trên màn hình chính:</p>
-        <ol className="tg-a2hs"><li>Mở trang này bằng Safari.</li><li>Bấm nút Chia sẻ.</li><li>Chọn “Thêm vào MH chính”, rồi mở TripGuardian từ biểu tượng mới.</li></ol>
       </section>
     </div>
   )
