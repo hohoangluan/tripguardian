@@ -4,37 +4,34 @@
 
 Hệ thống place intelligence + lập lịch trình cá nhân hóa: giúp người dùng **chọn đúng địa điểm trước khi tạo lịch trình**, rồi kiểm tra tổ hợp đã chọn có đi được cùng nhau không. Phạm vi kiểm chứng ban đầu: Đà Lạt.
 
-Bốn giai đoạn, mỗi giai đoạn một package và một tài liệu:
+Năm giai đoạn, mỗi giai đoạn một package và một tài liệu:
 
-```text
-Place Intelligence  src/corpus/   offline: địa điểm → fact / signal / estimate có bằng chứng
-Trip Understanding  src/trip/     người dùng cần gì cho chuyến này → Search Input
-Place Decision      src/decision/ → shortlist → người dùng tuyển chọn → Decision Output
-Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ vững → Plan Output
+```mermaid
+flowchart LR
+  P1["P1 Place Intelligence<br/>src/corpus · offline"] --> P2["P2 Trip Understanding<br/>src/trip"] --> P3["P3 Place Decision<br/>src/decision"] --> P4["P4 Planning<br/>src/planning + src/live"] --> P5["P5 Đang đi<br/>src/companion + src/notify"]
 ```
 
 ## Tài liệu
 
 | Tài liệu | Nội dung |
 |---|---|
-| `docs/Project_Context.md` | Vì sao, cho ai, User Profile, nguyên tắc sản phẩm, phạm vi MVP, thước đo |
-| `docs/ARCHITECTURE.md` | Bản đồ hệ thống: bốn giai đoạn, ranh giới module, constraint, cấu hình, quyết định thiết kế |
-| `docs/AGENT_HARNESS.md` | Agent/tool/skill, router, hành trình chung, revision/retry, HTTP và SSE |
-| `docs/CORPUS.md` | Place Intelligence: nguồn, vai trò model, pipeline, gate, data model, CLI, đo chất lượng |
-| `docs/TRIP_UNDERSTANDING.md` | Trip State, chọn câu hỏi, ngân hàng câu hỏi, Search Input, CLI và API |
-| `docs/PLACE_DECISION.md` | Sàng lọc fail-closed, xếp hạng, đa dạng, khả thi của tổ hợp, Decision Output, CLI và API |
-| `docs/PLANNING.md` | Live Context, chia ngày, thứ tự, chỗ ở live, độ vững, dự phòng, Plan Output, CLI và API |
-| `docs/ACCOUNTS.md` | Đăng nhập Google, phiên, hồ sơ, avatar, xóa tài khoản, liên kết Calendar, Postgres |
-| `docs/COMPANION.md` | Chế độ Đang đi (màn Hôm nay, check-in, gợi ý tại chỗ), xuất Google Calendar có xác nhận, thông báo |
+| `docs/PROJECT_CONTEXT.md` | Vì sao, cho ai, User Profile, nguyên tắc sản phẩm, phạm vi MVP, thước đo |
+| `docs/ARCHITECTURE.md` | Bản đồ hệ thống: giai đoạn, phụ thuộc package, constraint, cấu hình, dữ liệu, triển khai |
+| `docs/P1_CORPUS.md` | Place Intelligence: nguồn, pipeline từng nguồn, observe, aggregate, Judge, serving, CLI |
+| `docs/P2_TRIP_UNDERSTANDING.md` | Trip State, chat → quiz, Clef + Agent, hậu cần, Search Input, học mẫu, bench |
+| `docs/P3_PLACE_DECISION.md` | Sàng lọc fail-closed, xếp hạng, đa dạng, khả thi tổ hợp, Decision Output |
+| `docs/P4_PLANNING.md` | Live Context, chỗ ở, chia ngày, thứ tự, validate, độ vững, phương án, Plan Output |
+| `docs/P5_COMPANION.md` | Đang đi: Hôm nay, check-in, gợi ý tại chỗ, Google Calendar, thông báo |
+| `docs/AGENT_HARNESS.md` | Agent / tool / skill, router, hành trình chung, revision / retry, HTTP và SSE |
+| `docs/ACCOUNTS.md` | Đăng nhập Google, khách dùng thử, hồ sơ, avatar, xóa tài khoản, Postgres |
 | `docs/ANALYTICS.md` | Event server / web, server analytics private, chỉ số Admin, Insights |
-| `docs/Role_Web_Functional_Design.md` | Chức năng Web theo vai trò, từng màn, và màn nào nằm ở file nào |
-| `docs/UX_Design_Brief.md` | Brief UI/UX: nguyên tắc, cách hiển thị chất lượng dữ liệu, hệ thị giác |
-| `docs/UI_SPEC_USER_WEB.md` | Đặc tả trang User Web cho designer / Figma |
-| `docs/UI_SPEC_FLOW_LAYOUT.md` | Luồng chuyển màn, kiểu chuyển cảnh và bố cục từng màn User Web |
-| `docs/UI_SPEC_LANDING.md` | Đặc tả landing: sa bàn 3D và các chương cuộn (máy tính), trang Dùng ứng dụng (điện thoại) |
+| `docs/SPEECH.md` | Giọng nói của trợ lý: nghe (ASR) và đọc (TTS) |
 | `docs/LLM_PROVIDER.md` | Model nào đảm nhận vai trò nào: endpoint, key, chứng chỉ, ASR local |
+| `docs/WEB.md` | Chức năng Web theo vai trò, từng màn, chuyển màn, màn nào ở file nào |
+| `docs/UI_DESIGN.md` | Nguyên tắc hiển thị dữ liệu, hệ thị giác, chuyển cảnh, landing |
 | `docs/log/DEV_LOG.md` | Nhật ký **code đang có gì** theo từng tính năng |
 | `docs/log/AGENT_FAILURES.md` | Nhật ký lỗi của coding agent, làm bằng chứng trước khi nâng thành rule |
+| `docs/plans/OPEN_TASKS.md` | Việc còn mở (file làm việc tạm, không phải tài liệu chính thức) |
 
 Quy tắc làm việc (bắt buộc): `RULE.md`. Hướng dẫn cho agent: `AGENTS.md`.
 
@@ -113,16 +110,16 @@ Log ở `logs/run/<tên>.log`. Web đọc địa điểm từ `web/public/data/s
 Lệnh đầy đủ của từng giai đoạn nằm trong tài liệu của giai đoạn đó. Đường chính:
 
 ```sh
-# 1. Place Intelligence (docs/CORPUS.md §CLI)
+# 1. Place Intelligence (docs/P1_CORPUS.md §CLI)
 python -m corpus gmaps all --city dalat --headed     # search → filter → counts → list → crawl → qc → observe
 python -m corpus gmaps photos && python -m corpus gmaps photo_observe
 python -m corpus tiktok all --city dalat --headed
 python -m corpus aggregate && python -m corpus serving
 
-# 2. Đo xem corpus đã đủ cho Place Decision chưa (docs/PLACE_DECISION.md §17)
+# 2. Đo xem corpus đã đủ cho Place Decision chưa (docs/P3_PLACE_DECISION.md §17)
 python -m decision evaluate                          # 30 Trip State ẩn → data/decision/eval.json
 
-# 3. Lập lịch trình từ một Decision Output (docs/PLANNING.md §CLI và API)
+# 3. Lập lịch trình từ một Decision Output (docs/P4_PLANNING.md §CLI và API)
 python -m planning build    <decision_output.json>
 python -m planning variants <decision_output.json> [--weather forecast.json]
 python -m planning lodging  <decision_output.json>   # chỗ ở cạnh tranh làm neo mỗi ngày

@@ -11,10 +11,11 @@ Hệ thống place intelligence + lập lịch trình cá nhân hóa.
 | Việc | Đọc |
 |---|---|
 | Hiểu toàn hệ thống trước khi sửa | `docs/ARCHITECTURE.md` |
-| Sửa một giai đoạn | tài liệu của chính giai đoạn đó (`docs/CORPUS.md`, `TRIP_UNDERSTANDING.md`, `PLACE_DECISION.md`, `PLANNING.md`) — mỗi file có §Ranh giới module / §CLI và API trỏ thẳng vào code |
+| Sửa một giai đoạn | tài liệu của chính giai đoạn đó (`docs/P1_CORPUS.md` … `docs/P5_COMPANION.md`) — mỗi file có mục module / CLI và API trỏ thẳng vào code |
 | Biết code đã làm gì, đã sửa gì | `docs/log/DEV_LOG.md` (chỉ khi cần) |
 | Đổi prompt, model, key | `docs/LLM_PROVIDER.md` |
-| Sửa Web | `docs/Role_Web_Functional_Design.md` (§6 = màn nào ở file nào) |
+| Sửa Web | `docs/WEB.md` (§6 = màn nào ở file nào), `docs/UI_DESIGN.md` |
+| Việc còn mở | `docs/plans/OPEN_TASKS.md` |
 
 ## Bất biến không được phá
 

@@ -55,7 +55,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 - hành vi: nhãn khóa theo nội dung (`key` = review / video id + feature + value + quote chuẩn hóa), không theo id observation: chạy lại observe không làm mất nhãn, nhãn của khẳng định mà lần chạy mới không còn tạo thì không vào thống kê; `migrate()` ghi key cho bản ghi cũ. Observation của mọi version ontology được tính khi giá trị còn trong ontology. Màn `Gán nhãn` hiện thêm bằng chứng: nghĩa của nhãn (claim + hint), sao / ngày / tác giả / mục chấm điểm Maps của review, các observation khác cùng nơi về feature đó (đồng ý / ngược lại), category / giá / thuộc tính / link Maps. Nguồn TikTok (`tiktok_segment` / `tiktok_caption` / `tiktok_frame`): transcript quanh quote, caption, link video, khung hình (`GET /api/labels/frame`). `stats` có `by_source`. Index cache theo từng file (lúc observe chạy lại không quét lại 1.437 file mỗi request). Kiểm chứng: 14 test review, `npm run build`, API thật.
 
 ### Trước đó (2026-10-02)
-- hành vi: như bản trước, thêm: (1) `labels.py` + `GET /api/labels/next`, `POST /api/labels`, `GET /api/labels/stats`: lấy mẫu observation từ review chưa gán nhãn (giá trị ít nhãn nhất trước, bỏ observation do rule và file ontology cũ), nhãn `correct | wrong | unsure` ghi nối vào `data/review/labels.jsonl`, thống kê độ chính xác theo (feature, value) với cận dưới Wilson và ngưỡng (`GATE_MIN_N = 30`, `GATE_LOWER = 0.8`); (2) loại quyết định `feature_review` (accept / disable / report / refresh / undo, id `<fid>#<feature>`) và `GET /api/decisions?kind=`; (3) Admin Web (`web/`): màn `Gán nhãn` (`/admin/labels`, phím c / w / u / s), `decisions.ts` ghi quyết định về backend và đọc lại khi mở trang, Vite proxy `/api` tới `127.0.0.1:8765`. `aggregate` chưa đọc nhãn và quyết định. Kế hoạch tiếp: `docs/plans/CORPUS_QUALITY.md`. Kiểm chứng: 12 test review, chạy thật với Chrome không lỗi console, mẫu lấy từ 249.605 bằng chứng (lần đọc đầu ~4 giây).
+- hành vi: như bản trước, thêm: (1) `labels.py` + `GET /api/labels/next`, `POST /api/labels`, `GET /api/labels/stats`: lấy mẫu observation từ review chưa gán nhãn (giá trị ít nhãn nhất trước, bỏ observation do rule và file ontology cũ), nhãn `correct | wrong | unsure` ghi nối vào `data/review/labels.jsonl`, thống kê độ chính xác theo (feature, value) với cận dưới Wilson và ngưỡng (`GATE_MIN_N = 30`, `GATE_LOWER = 0.8`); (2) loại quyết định `feature_review` (accept / disable / report / refresh / undo, id `<fid>#<feature>`) và `GET /api/decisions?kind=`; (3) Admin Web (`web/`): màn `Gán nhãn` (`/admin/labels`, phím c / w / u / s), `decisions.ts` ghi quyết định về backend và đọc lại khi mở trang, Vite proxy `/api` tới `127.0.0.1:8765`. `aggregate` chưa đọc nhãn và quyết định. Kế hoạch tiếp: `docs/plans/OPEN_TASKS.md`. Kiểm chứng: 12 test review, chạy thật với Chrome không lỗi console, mẫu lấy từ 249.605 bằng chứng (lần đọc đầu ~4 giây).
 
 ## corpus-crawl — Crawl dữ liệu thô TikTok + Google Maps
 
@@ -64,7 +64,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 
 ### Hiện tại (2026-10-01)
 - hành vi:
-  - Lệnh, phase, layout file: `docs/CORPUS.md` §1 Discover (Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
+  - Lệnh, phase, layout file: `docs/P1_CORPUS.md` §1 Discover (Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
   - Rời trang theo tín hiệu kết thúc (spec §1): TikTok `comments_complete` (mọi danh sách comment / reply trả `has_more=0`, không còn request chờ; body rỗng = bị chặn, dừng ngay); Maps review dừng khi ô loader cuối khung bị làm rỗng (`reviews_complete`); Maps search dừng ở dòng "Bạn đã xem hết danh sách này", ô không tới được dòng đó (`end=false`) thì chia nhỏ như ô đầy.
   - Trang TikTok tự tải lại ngay sau khi mở: item JSON đọc bằng vòng chờ (tối đa 20 s), lỗi "Execution context was destroyed" coi là chưa xong.
   - Maps: sắp xếp review "Mới nhất" được kiểm bằng nhãn nút (text dạng tổ hợp, so sánh sau `normalize('NFC')`), không áp dụng được thì lỗi + thử lại; cuộn bằng cách đưa mục cuối vào tầm nhìn (`scrollBy` / wheel hay không tải thêm); review layout lưu trú ("4/5", "… trước trên Google") đọc được; bỏ chữ icon-font khỏi `address` / `hours`; trang có link đăng nhập → `LoginRequired` (phiên hết hạn mà cookie `SID` vẫn còn).
@@ -86,7 +86,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 
 ### Trước đó (2026-09-29, tối)
 - hành vi:
-  - Lệnh, phase, layout file: `docs/CORPUS.md` §1 Discover (Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
+  - Lệnh, phase, layout file: `docs/P1_CORPUS.md` §1 Discover (Dữ liệu thô). `python -m corpus login <source>` để đăng nhập lại.
   - Rời trang theo tín hiệu kết thúc (spec §1): TikTok `comments_complete` (mọi danh sách comment / reply trả `has_more=0`, không còn request chờ; body rỗng = bị chặn, dừng ngay); Maps review dừng khi ô loader cuối khung bị làm rỗng (`reviews_complete`); Maps search dừng ở dòng "Bạn đã xem hết danh sách này", ô không tới được dòng đó (`end=false`) thì chia nhỏ như ô đầy.
   - Trang TikTok tự tải lại ngay sau khi mở: item JSON đọc bằng vòng chờ (tối đa 20 s), lỗi "Execution context was destroyed" coi là chưa xong.
   - Maps: sắp xếp review "Mới nhất" được kiểm bằng nhãn nút (text dạng tổ hợp, so sánh sau `normalize('NFC')`), không áp dụng được thì lỗi + thử lại; cuộn bằng cách đưa mục cuối vào tầm nhìn (`scrollBy` / wheel hay không tải thêm); review layout lưu trú ("4/5", "… trước trên Google") đọc được; bỏ chữ icon-font khỏi `address` / `hours`; trang có link đăng nhập → `LoginRequired` (phiên hết hạn mà cookie `SID` vẫn còn).
@@ -125,7 +125,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 - hành vi: mỗi feature có `quality` (độ chính xác đo bằng nhãn của giá trị đứng đầu), `servable` (nguồn thẩm quyền, qua ngưỡng nhãn, hoặc người `accept`), `review_decision`; quyết định `feature_review` của người: `disable` → `status = disabled`, `accept` bỏ `needs_review`, `report` / `refresh` đặt `needs_review`. File observation ontology cũ vẫn được đọc tới khi observe chạy lại (trước đây bị bỏ: đổi ontology là xóa sạch intel); intel ghi `observation_versions`. `estimates` (`aggregate/estimates.py`, `config/category_defaults.yaml`): nhóm category, thời gian tham quan [ngắn, thường, dài] (review khi ≥ 3 tác giả đồng ý, còn lại mặc định theo category), giá vé VND (số tiền trong quote `entry_fee`, mỗi tác giả một giá trị lớn nhất, hoặc vé Maps), `usable_as` mặc định, `effort_hint` (chỉ để xếp hạng: dốc có ở 16% nhà hàng, 37% quán cà phê đã có bằng chứng). Lần chạy: 1.437 nơi, 100% có thời gian tham quan (51 từ review), 241 có giá vé.
 
 ### Trước đó (2026-10-01, đêm)
-- hành vi: thêm `mention_rate` mỗi feature (tác giả nói / `voices`), `identity` (category, lat, lng, address), `operation.hours` / `closure`. Lý do: feature chỉ `present` có `agreement` luôn 1 (1/250 review nói view đẹp vẫn là "có view"); Place Decision cần giờ mở cửa, đóng cửa, vị trí. Quy tắc: `docs/CORPUS.md` §5 Aggregate.
+- hành vi: thêm `mention_rate` mỗi feature (tác giả nói / `voices`), `identity` (category, lat, lng, address), `operation.hours` / `closure`. Lý do: feature chỉ `present` có `agreement` luôn 1 (1/250 review nói view đẹp vẫn là "có view"); Place Decision cần giờ mở cửa, đóng cửa, vị trí. Quy tắc: `docs/P1_CORPUS.md` §5 Aggregate.
 
 ## corpus-observe-tiktok — Observation từ video TikTok
 
@@ -156,7 +156,7 @@ _không có_
 - cách kiểm chứng: `python -m pytest -q tests/crawl/gmaps tests/observe/gmaps`; `python -m corpus gmaps photos --limit 5` rồi `python -m corpus gmaps photo_observe --limit 5` (mạng UIT)
 
 ### Hiện tại (2026-10-02)
-- hành vi: quy tắc ở `docs/CORPUS.md` §4 Observe (Ảnh Google Maps). Phát hiện khi dò: Chrome headless bị Google cho Maps "chế độ bị hạn chế" (không tab review / ảnh) dù đăng nhập → `open_profile` / `open_sessions` dùng user agent Chrome thường, `check_signed_in` dừng khi gặp thông báo. Thử 4 nơi: lần đầu `setting` suy từ ảnh món ăn, một ảnh vừa `indoor` vừa `outdoor`, "vài bậc ở cửa" thành `steep_or_stairs` → prompt chỉ cho `setting` từ khu khách ngồi / đi, bậc thang phải là leo dài, gate bỏ ảnh có hai giá trị. Ảnh cận cảnh vẫn đôi khi thành `indoor` (yếu; aggregate đếm theo người đăng). Thư viện "Tất cả" của nhiều nơi phần lớn là ảnh cũ (một nơi 30 ảnh cũ / 0 giữ). Tốc độ crawl ~2,6 nơi/phút ở 3 tab.
+- hành vi: quy tắc ở `docs/P1_CORPUS.md` §4 Observe (Ảnh Google Maps). Phát hiện khi dò: Chrome headless bị Google cho Maps "chế độ bị hạn chế" (không tab review / ảnh) dù đăng nhập → `open_profile` / `open_sessions` dùng user agent Chrome thường, `check_signed_in` dừng khi gặp thông báo. Thử 4 nơi: lần đầu `setting` suy từ ảnh món ăn, một ảnh vừa `indoor` vừa `outdoor`, "vài bậc ở cửa" thành `steep_or_stairs` → prompt chỉ cho `setting` từ khu khách ngồi / đi, bậc thang phải là leo dài, gate bỏ ảnh có hai giá trị. Ảnh cận cảnh vẫn đôi khi thành `indoor` (yếu; aggregate đếm theo người đăng). Thư viện "Tất cả" của nhiều nơi phần lớn là ảnh cũ (một nơi 30 ảnh cũ / 0 giữ). Tốc độ crawl ~2,6 nơi/phút ở 3 tab.
 
 ### Trước đó
 _không có_
@@ -177,63 +177,57 @@ _không có_
 - file: `src/trip/` (toàn bộ), `config/trip.yaml`, `tests/trip/`, `web/src/user/tu/`, `web/src/user/screens/Understand.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/trip`; `python -m pytest -m live tests/trip/test_live.py` (Gemma thật); `python -m trip serve` + `/app/understand`
 
-### Hiện tại (2026-10-08, tối)
-- hành vi: như bản trước, thêm: (1) câu mở `frame` là khung chat của web: lượt chữ đầu trong lúc nó mở là đã trả lời (`agent/nodes.finalize_text`), kể cả khi không ghi được gì, nên "Đúng rồi, hỏi tiếp" chia câu ngắn đầu tiên còn thiếu, không bao giờ chia lại `frame`; chat bao nhiêu lượt cũng được. (2) Ngân hàng câu hỏi bỏ `base`, `entry_exit` (trùng câu chỗ ở, phương tiện của hậu cần); `times` thành câu hậu cần, chỉ hỏi giờ mà chuyến xe / bay chưa cho (tự đi, bỏ qua chuyến, không có ngày). (3) Viết lại lời các câu gượng (dốc / bậc thang, lọc sức khỏe, giới hạn chưa xác minh, khoảnh khắc → trải nghiệm, chỗ đông, nhịp, chặng di chuyển, ngân sách…). (4) Web: khung chat bỏ bốn nút "cách bắt đầu", thêm đính kèm file chữ (`tu/attach.ts`: .txt, .csv Google Takeout, .json / .geojson, .kml → từng dòng tên nơi hoặc link) và nhắc dán link Maps / TikTok; thẻ câu hỏi nói rõ chọn một hay chọn nhiều (dòng hướng dẫn + dấu tròn / vuông). Kiểm chứng: 182 test trip; chat thật "đà lạt" → "hỏi tiếp" → thẻ Số ngày.
+### Hiện tại (2026-10-09, chiều)
+- hành vi: như bản trước, thêm hai phase sau lời kể. (1) Chỉ lượt agent đọc lời kể đầu tiên được hỏi bằng lời (`meta.told`; tool `ask_*` chỉ có ở lượt đó, prompt ưu tiên `ask_choice`; câu hỏi rơi vào văn bản kết bằng "… không?" kèm chip Có / Không). Trả lời câu làm rõ, bỏ qua nó, hoặc agent không cần hỏi → vào thẳng phase quiz (`domain/questions.py`, flashcard chip, không gọi model) rồi review; thẻ F mời trắc nghiệm bỏ. Lời chào / "không đi nữa" không ghi được gì thì chưa tính là kể. Thẻ chủ đề tính là kể. Agent lỗi giữ thẻ đang mở để bấm lại. (2) Next không còn bị chặn bởi tín hiệu sức khỏe mở: `_show` ghi lựa chọn chặt nhất của thẻ an toàn (`questions.strictest`, source `inferred`) rồi biên dịch, chỉ thêm giới hạn, không nới. Đo events 2 ngày: `trip.turn` qua agent p50 5,7 s / p90 22 s, lượt không gọi model ~20 ms.
 
-### Trước đó (2026-10-08, chiều)
-- hành vi: như bản trước, thêm hai điểm. (1) Câu có "giống / kiểu / như / tương tự" + tên một nơi trong catalog: `domain/traits.py` lấy tối đa 4 nét nổi bật của nơi đó (giá trị khác phổ biến trong cùng category, theo số người nhắc) đưa vào `compared_places`; guard chỉ nhận soft `inferred` nhắc nơi đó khi giá trị nằm trong các nét ấy, và cho `say` nhắc tên nơi đó. (2) `Engine.refine` / tool `trip.refine`: harness chuyển mong muốn gõ ở Chọn nơi sang, chạy như lượt chữ, giữ thẻ đang mở, compile lại và phát `done`; lời trả lời không kết bằng câu hỏi. (3) Soft suy từ nơi so sánh ghi `place:<id>`, vé hiện "Tránh: …, … (giống X)". (4) Chip của thẻ mang `effect` (+/− số nơi "Đang hợp với bạn" nếu chọn chip đó, `understanding.chip_effects`); màn Hiểu chuyến đi hiện số trên chip, số đếm chạy tới giá trị mới kèm "−N nơi" và bốn lựa chọn gần nhất.
+### Trước đó (2026-10-09)
+- hành vi: sửa các lỗi T-1…T-8 của phiên test người mới, agent chạy trên Gemma host LAN. (1) Ngân sách giữ đúng lời người dùng: `budget_vnd` + `budget_scope` (`trip_total | per_day | per_person | per_person_day`, prepass đọc "tổng", "cả chuyến", "cho 2 người", "/người/ngày"); không nói phạm vi thì ≥ 2 triệu tính cả chuyến (có ✎); `compile` chia theo số ngày và số người thành `Context.budget_vnd` (VND/người/ngày), chưa biết số người thì `unknown` (`domain/budget.py`). Web: "5 triệu cho cả chuyến · ≈ 830 nghìn/người/ngày". (2) Lời sửa được prepass đọc trước agent; câu hỏi thật của agent hiện trong chat kèm lựa chọn trả lời nhanh. (3) Trả lời xong thì đóng thẻ; "Bỏ qua" / "Chưa chắc" xử lý không gọi model, ghi vào `meta.declined`, agent không được hỏi lại; bấm nút mà agent lỗi thì không bao giờ ra `FALLBACK_SAY`. (4) `liked_groups` (`nature | sights | chill | meal`, "thích cà phê" → `chill`) và `month_part` ("cuối tháng 10") vào SearchInput. (5) Thẻ chủ đề ở Khám phá là lượt `theme` ghi soft / nhóm cố định (`config/trip.yaml` `themes`), không qua model. (6) Ngày đi chọn bằng lịch (`ask_text` `kind: "date"`). (7) Khối suy nghĩ của Gemma (`<|channel>thought…`) bị lọc khi stream; câu hỏi Gemma viết thành chữ được đổi thành thẻ. Đo trên Gemma: lượt gõ đầu 6–7 s, bấm lựa chọn 1,5–4 s, bỏ qua / ngày / chủ đề < 0,1 s.
 
 ## decision — Place Decision: Search Input tới Decision Output
 
 - file: `src/decision/` (toàn bộ), `config/decision.yaml`, `config/eval_trips.yaml`, `tests/decision/`, `web/src/user/pd/`, `web/src/user/screens/{Shortlist,PlaceDetail,Compare,Curate,Feasibility}.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/decision`; `python -m pytest -m live tests/decision/test_decision_live.py`; `python -m decision serve` + `/app/shortlist`; `python -m decision evaluate`
 
-### Hiện tại (2026-10-08)
+### Hiện tại (2026-10-09)
+- hành vi: sửa D-1…D-7. (1) Agent chạy trên Gemma host LAN (0,7–1,6 s; 9router trước đó 10–16 s nên mọi lượt rơi xuống từ khóa). Prompt `DECISION_TURN` tách op `travel / crowd / price`; runtime nhận JSON bọc ```json; agent lỗi thì trả "Trợ lý đang bận…", `NONE` chỉ khi thật sự không khớp; "bỏ mấy chỗ đông đi" ẩn các nơi có cảnh báo đông (`Profile.hide_crowded`). Analytics có `decision_fallback`. (2) `fit.crowd_evidence` trừ điểm theo bằng chứng đông / chờ lâu khi chuyến tránh đông; nơi có cảnh báo đông không được "Hợp nhất". (3) Độ mạnh bằng chứng theo log số người (bão hòa ở 30), trải nghiệm ít được nhắc tính ít hơn, "Hợp nhất" cần `top_min_pref` 0,25; `liked_groups` cộng điểm nhóm và chọn tab mở đầu (`view.focus`). (4) `decision.day_visit`: khu cắm trại tính một lần ghé trong ngày, khoảng qua đêm để riêng (`stay`); ghi vào `confirmed[].visit` cho Planning. (5) Cảnh báo chung của chuyến hiện một lần (`view.notes`), thẻ tối đa 2 cảnh báo riêng. (6) Giá "dưới 100k/người", vé vào cửa khi không có khoảng giá, ngân sách người dùng hiện ở đầu trang. (7) Chat thành cột bên, nút Khóa / So sánh / Bỏ có chữ, thanh dưới nói còn chỗ cho bao nhiêu nơi thay vì "Lịch sẵn sàng".
+
+### Trước đó (2026-10-08)
 - hành vi: như bản trước, thêm ba điểm. (1) Không cắt ở shortlist nữa: mỗi nhóm hiển thị có thứ hạng đầy đủ (nơi đã chọn → nơi MMR `top` → mọi nơi còn lại theo `score`), view chỉ mang cửa sổ đang hiện (`window.py`, `State.shown`, `page_size` 24) kèm `total`; `read page` nối trang tiếp. Dữ liệu thật chuyến 3 ngày: 116 / 193 / 424 / 545 nơi, view 114 KB. (2) Dựng lại thì gộp ít xáo trộn: nơi còn khớp đứng nguyên ô, ô trống nhận nơi mới hợp nhất, cửa sổ phần lớn lỗi thời thì thay hết; view có `change` mỗi nhóm cho web chạy chuyển cảnh. `first_shortlist` = số card `top` + anchor. (3) Lượt chữ: op `soft` / `unmapped` thay bằng `trip`; engine phát event `trip`, harness chuyển cho Trip `refine` rồi `rebase` (`docs/AGENT_HARNESS.md` §2). Đo trên journey thật: "không thích quán giống Miền Du Mục" → 4 soft `avoid` từ nét của nơi đó, nhóm cà phê giữ 23 / thay 1, ăn uống giữ 22 / thay 2.
 - web: lưới tự tải khi cuộn (3 thẻ khung, dòng "Đã xem hết"), nhãn "Hợp nhất", header "N nơi hợp… · Chat để thu hẹp" kèm "−N nơi" khi số đổi, tab "+N mới", chuyển cảnh `useStagedList` + FLIP. Đĩa xoay làm lại: nửa đĩa 180° quay vòng không có điểm đầu, cánh là mảnh vành khuyên khép thành vòng liền, tối đa 7 cánh để ảnh to, ít nơi thì cánh to hơn (180° / số nơi, tối đa 45°); lăn / kéo trên đĩa xoay đĩa, phần nội dung cuộn như trang; nhóm thành tab có chữ, bỏ hàng "Nơi trước / Nơi sau" (trước đây lăn ở đâu cũng xoay đĩa, cánh hình thang nhỏ, nút nhóm chồng nhau ở 1280×720, hàng điều hướng bị cắt ở 1440×900).
 - sau lượt chat có mong muốn: câu trả lời kết bằng `diff(rebuilt=True)` ("Giữ 45 nơi, thay 3 nơi hợp hơn"); thay đổi không xê dịch gì thì không có câu báo (trước đây "0 nơi, 0 phút…"); `rebase` giữ lịch sử hoàn tác; `why-not` chỉ chỗ của nơi nằm dưới phần đã tải; prompt agent chỉ có lý do cho trang đầu mỗi nhóm. `backup_pool` và hai bản đo offline chỉ dùng nơi `top`.
 
-### Trước đó (2026-10-02)
-- hành vi: một đường tất định `pipeline.py`: resolve anchor → truy xuất → `screen.py` sàng lọc fail-closed (`corpus.serving.check()` trả `pass | fail | unknown`; `unknown` không vào danh sách chính, nới chỉ áp cho đúng một nơi) → `fit.py` độ hợp bối cảnh thô (cụm, độ đông theo buổi, mùa mưa, đường vào — không gọi route service) → `rank.py` điểm lưu từng thành phần → `diversify.py` gom nơi gần trùng + MMR → `cards.py` thẻ ứng viên, `compare.py` so sánh chỉ trên khía cạnh cả hai đều có bằng chứng.
-- tuyển chọn: `curation.py` act thuần (`select`, `drop` kèm `reason`, `lock`, `unlock`, `swap`, `relax`, `wishlist`, `prefer`, `feedback`, `answer`, `undo`) sinh `State` mới và Session Profile nó dạy; `scope.replan_scope` / `input_scope` nói bước sớm nhất phải chạy lại. `feasibility.py` chấm tổ hợp sau mỗi thao tác. `confirm` → Decision Output (`confirmed`, `backup_pool`, `wishlist`, `trip_context`, `decision_log`).
-- gõ chữ: `agent.py` một call mỗi lượt, `guard.py` đòi quote thật + alias thật + nêu tên khi act rủi ro, `policy.py` từ khóa khi agent lỗi. Phiên mirror ra `data/decision/sessions/<id>.json`.
-- `python -m decision evaluate`: 30 Trip State ẩn chạy qua đúng pipeline thật. 18/30 chuyến không đủ 8 nơi vì mọi điều kiện effort / thời tiết / chặt chém chưa có giá trị `pass` nào được đo (chưa có nhãn) — giới hạn của corpus, không của Decision.
-
 ## planning — Lịch trình từ Decision Output tới Plan Output
 
-- file: `src/live/` (`osrm/`, `weather/`, `lodging/`, `geocode/`, `sun.py`, `holidays.py`, `events.py`, `advisories.py`, `cache.py`), `src/planning/` (toàn bộ), `config/planning.yaml`, `config/live.yaml`, `config/climate.yaml`, `config/holidays.yaml`, `config/events.yaml`, `config/advisories.yaml`, `tests/live/`, `tests/planning/`, `web/src/user/planning/`, `web/src/user/screens/Itinerary.tsx`
+- file: `src/live/`, `src/planning/`, `config/planning.yaml`, `config/live.yaml`, `tests/live/`, `tests/planning/`, `src/harness/dispatch.py`, `web/src/user/planning/`, `web/src/user/pd/previewQueue.ts`, `web/src/user/screens/Plan.tsx`
 - cách kiểm chứng: `python -m pytest -q tests/live tests/planning`; `python -m planning build|variants|lodging <decision_output.json>`; `python -m planning serve` (web qua `/api/planning`); `python -m planning evaluate` (cần OSRM, không chạy trong CI)
 
-### Hiện tại (2026-10-08)
-- hành vi: như bản trước, sửa hai lỗi tìm thấy khi chọn một nơi: (1) phí chia ngày bằng nhau thì ngày sớm hơn nhận nơi (`days.assign_days`); trước đó DP trao cho ngày sau nên một nơi duy nhất rơi vào Ngày 2 và Ngày 1 trống. (2) Nơi có nhiều ghim theo giờ chỉ giữ ghim người dùng muốn (`build.prepare`): Đèo Mây Farm với "săn mây" giờ xếp 06:00 thay vì 16:03 (ghim hoàng hôn). Web mở Lịch trình ở ngày đầu tiên có điểm dừng.
+### Hiện tại (2026-10-10)
+- hành vi: cá nhân hóa thời lượng theo hoạt động/sở thích có bằng chứng, chọn giờ phù hợp từ ngữ cảnh; thử chuyển sang ngày khả thi ở cả hai phía trước khi rút phần flexible. `set_visit`/`clear_visit` giữ hoặc xóa riêng giờ/thời lượng; clock lock, undo/redo, proposal và replay giữ chỉnh sửa, act xung đột không commit. Validator kiểm giờ/thời lượng thực và missing requested visit; hard `eq`/`ne` fail-closed, physical không bỏ qua qua `relaxed`. Drawer sửa điểm ghé chuyển đúng ngày hiển thị sang index backend. Preview gom request trùng, reuse ma trận tập con và route còn hợp lệ, namespace theo hành trình; cache không kéo dài TTL nguồn kể cả cache disk. Web chỉ chạy một preview và giữ lựa chọn mới nhất. Kiểm chứng: 802 test Planning/Harness/Decision pass (109 skip, 2 deselected), 5 test editor, 7 test queue, web build pass; review Tasks 1–4 đạt.
 
-### Trước đó (2026-10-07)
-- hành vi: như bản trước, thêm điều kiện từng ngày (`planning/conditions.py`, `docs/PLANNING.md` §Điều kiện từng ngày). `Engine` gọi `conditions.fetch_live`: trước đây engine không lấy thời tiết nên kế hoạch online không xét mưa. Giờ mỗi ngày có `DayCond` từ Open-Meteo (mưa mm, gió giật, dông), `holidays.yaml`, `events.yaml` (lễ hội, Noel, Tết) và `advisories.yaml` (thông báo nhập tay có nguồn). Ngày dông / mưa lớn tính như ngày mưa; ngày rất xấu hoặc thông báo `severe` không cho xếp nơi bị ảnh hưởng (validate báo `hazard`, không ngày nào xếp được thì `back_to_decision`); nơi đông vào cuối tuần / lễ tăng thời gian chờ và đệm, bị phạt khi chia ngày (nặng hơn nếu người dùng tránh đông); dịp Tết có cờ đóng cửa và nơi ăn uống thành nơi nhạy cảm với dự phòng. Output thêm `day_conditions`, `crowd_tips`; Web hiện trên ngày đang chọn.
-- không đổi: khi không có tín hiệu nào, lịch giống hệt trước (golden không đổi).
-- sửa: kế hoạch hiện ra là hợp lệ nhưng không xác nhận được (`plan has unresolved violations`) khi bộ xếp lịch đã bỏ ghim giờ của một nơi: `DayResult.unpinned` ghi lại, `validate` tôn trọng. Plan Output đã chốt giữ `day_conditions`, `crowd_tips`. Phát hiện bằng `scripts/journey_sim.py` (mô phỏng 11 kiểu người dùng + hành vi ngẫu nhiên trên dữ liệu thật, không gọi model).
-- giới hạn: thông báo thiên tai và lễ hội nhập tay (chưa có nguồn tự động; `advisories.yaml` rỗng không có nghĩa an toàn); ngưỡng thời tiết, hệ số đông khách là ước lượng chờ pilot; chưa kiểm cửa hàng đóng tạm thời trực tiếp (`place_live_status`).
+### Trước đó (2026-10-09, chiều)
+- hành vi: như bản trước, thêm: ô gõ chỗ ở / xuất phát (`live/geocode/photon.py`) chỉ giữ kết quả Photon `countrycode = VN` (khung `VN_BBOX` trùm cả Nam Ninh, Hải Nam, Thái Lan nên trước đó ra "大沙田 南宁市", "儋州市"); hỏi dư ×3 rồi cắt về `limit`; khóa cache thêm `country` để bỏ các entry cũ.
 
 ## landing — Landing 3D (máy tính) + Dùng ứng dụng (điện thoại)
 
 - file: `web/src/user/screens/{Landing,GetApp}.tsx`, `web/src/user/landing/{scene,terrain,device}.ts`, `web/src/user/landing/{places,points,stats}.json` (sinh bằng `web/scripts/pick_landing_places.py`), `web/src/user/css/landing.css`, `web/src/user/UserApp.tsx`; phụ thuộc `three`
 - cách kiểm chứng: `npm run build --prefix web` (chunk `scene` riêng chứa three.js); mở `/` ở 1440×900 và 1024×768, cuộn qua 6 đoạn; giả UA iPhone mở `/` phải thấy trang Dùng ứng dụng; bật `prefers-reduced-motion` thấy khung tĩnh + 4 chương xếp lưới
 
-### Hiện tại (2026-10-08, khuya)
-- hành vi: máy tính thấy sân khấu sticky với thung lũng Đà Lạt 3D lúc bình minh (three.js thuần, tải lười): bầu trời hồng đào, sương, đồi thông, hai hồ, phố mái ngói; 1.773 đốm sáng là toạ độ thật của mọi nơi; 5 nơi được chọn là bưu thiếp in ảnh thật, tuyến là đường chấm. Cuộn qua 6 đoạn theo bước sản phẩm (Mở đầu → Tìm hiểu → Lựa chọn → Lựa chọn · lý do → Lịch trình → Đánh giá), thanh bước bên phải 5 mục. Đoạn Đánh giá diễn 4 câu của màn Phản hồi. Ô nhập ở Mở đầu là ô thật. Sau sân khấu: bento ảnh thật, Hỏi nhanh cạnh Sắp có, CTA, footer. Chữ: Lora + Be Vietnam Pro, giọng "TripGuardian" / "bạn". Điện thoại vào `/` thấy trang Dùng ứng dụng (link cửa hàng từ `VITE_APP_IOS_URL` / `VITE_APP_ANDROID_URL`, chưa có thì `Sắp có` + `chưa mở`; `Gửi link sang máy tính`; `Tiếp tục với bản web` → `/app`).
+### Hiện tại (2026-10-09)
+- hành vi: như bản trước, sửa câu chữ cho đúng sản phẩm: hero và Hỏi nhanh nói "Đăng nhập bằng Google, miễn phí" (bỏ "Không cần tài khoản"); số nơi làm tròn "hơn 1.700" để không lệch app; bỏ "Khám phá Đà Lạt · chưa mở" khỏi Sắp có. Điện thoại: trang "Mở trên máy tính" với Chép link, mã QR của link hiện tại (`ui/qr.ts`, bộ mã hóa tại chỗ) và nút chia sẻ khi trình duyệt có; nút cửa hàng chỉ hiện khi đã có link. App dùng Lora cho tiêu đề như landing.
 
-### Trước đó (2026-10-08, tối)
-- hành vi: landing 3D dạng sa bàn nổi trên nền giấy (khối đất có đế, ghim cầu cam, tuyến ống liền), 5 chương Mở đầu → Hiểu chuyến đi → Lọc địa điểm → Nguồn kiểm chứng → Lịch trình; điện thoại thấy trang Dùng ứng dụng như hiện tại.
+### Trước đó (2026-10-08, khuya)
+- hành vi: máy tính thấy sân khấu sticky với thung lũng Đà Lạt 3D lúc bình minh (three.js thuần, tải lười): bầu trời hồng đào, sương, đồi thông, hai hồ, phố mái ngói; 1.773 đốm sáng là toạ độ thật của mọi nơi; 5 nơi được chọn là bưu thiếp in ảnh thật, tuyến là đường chấm. Cuộn qua 6 đoạn theo bước sản phẩm (Mở đầu → Tìm hiểu → Lựa chọn → Lựa chọn · lý do → Lịch trình → Đánh giá), thanh bước bên phải 5 mục. Đoạn Đánh giá diễn 4 câu của màn Phản hồi. Ô nhập ở Mở đầu là ô thật. Sau sân khấu: bento ảnh thật, Hỏi nhanh cạnh Sắp có, CTA, footer. Chữ: Lora + Be Vietnam Pro, giọng "TripGuardian" / "bạn". Điện thoại vào `/` thấy trang Dùng ứng dụng (link cửa hàng từ `VITE_APP_IOS_URL` / `VITE_APP_ANDROID_URL`, chưa có thì `Sắp có` + `chưa mở`; `Gửi link sang máy tính`; `Tiếp tục với bản web` → `/app`).
 
 ## user-web — Giao diện người dùng chính thức (landing + `/app`)
 
 - file: `web/src/user/` (`UserApp.tsx`, `screens/`, `ui/`, `css/`, `store.ts`, `lib.ts`, `landing/`), `web/src/App.tsx`; backend `src/harness/{dispatch,server,session}.py` (`preview`, `summaries`, `feedback`, `report`), `src/planning/engine.py` (`preview`, cache theo hash Decision Output), `src/decision/{engine,tools}.py` (`draft`, `report`)
 - cách kiểm chứng: `npm run build:prod --prefix web`; `python -m pytest -q tests/harness tests/planning tests/decision tests/trip`; chạy harness + Vite rồi `node web/scripts/shots_app.mjs <url>` (đi trọn luồng với agent thật, chụp `web/shots/app/`)
 
-### Hiện tại (2026-10-08, tối)
-- hành vi: như bản trước; câu mở của Hiểu chuyến đi thành cuộc trò chuyện (`screens/TripChat.tsx`, `UI_SPEC_USER_WEB` §Trang 3 Mở đầu): AI hỏi, người dùng gõ (câu ở landing là tin nhắn đầu), lúc AI đọc hiện chấm gõ + lời stream + `“quote” → trường` từ sự kiện `preview`; xong thì dừng ở `Mình đã hiểu như này` (mỗi dòng có nguồn và nút sửa, giới hạn / nơi muốn đến bỏ được, chip sở thích có ×) + `Mình cần hỏi thêm một số ý` (`unknowns`), người dùng sửa bằng lời hoặc bấm `Đúng rồi, hỏi tiếp` mới sang chồng thẻ. Chuyển câu: thẻ rơi ngay khi bấm (trước: chờ 380 ms rồi mới gửi, thẻ cũ hiện lại và bị chia hai lần trong lúc chờ máy chủ), chồng thẻ nghiêng lên + chấm chờ trong lúc chờ, thẻ mới chờ thẻ cũ rơi xong; khoá thẻ theo lần nhận thẻ thay vì `hist.length` nên không chia lại khi lịch sử cập nhật; lượt trả lời vào lịch sử ngay nên `câu N` đúng từ lúc thẻ mới hiện; trang tự cuộn về đầu chồng thẻ khi thẻ mới khuất.
+### Hiện tại (2026-10-09)
+- hành vi: như bản trước, thêm: (1) Hiểu chuyến đi: thẻ quiz (mọi thẻ không phải `frame` / `conversation` / `ask:`) tự hiện thành flashcard; flashcard có chip không hiện lại đoạn hội thoại; `Khác, tự gõ` đưa con trỏ vào ô gõ thay vì gửi câu rỗng. `Xem gợi ý` (cột phải), `Xem gợi ý luôn` (dưới tóm tắt) và bước `Lựa chọn` trên thanh bước không còn khóa theo `ready`; bấm bước khi đang chờ AI thì chuyển khi lượt xong. (2) Chọn nơi bỏ dòng "X và Y khá giống nhau". (3) `PlaceSheet` có tab `Video` (clip người đã đến, chỉ khi có) tách khỏi `Đánh giá`. (4) Clip tự phục vụ: `web/scripts/make_clips.py` (NVENC, fallback libx264) làm bản 540×960 ~1 Mbit/s faststart ở `data/thumbs/tiktok/<id>/video.mp4`, `web/server.mjs` gửi bản này khi có (URL giữ nguyên), `./run.sh prod` chạy nó nền; 155 clip web dùng nặng 6,3 GB bản gốc (trung vị 8,5 MB, tối đa 256 MB).
 
-### Trước đó (2026-10-08, chiều)
-- hành vi: như bản trước, tối ưu production: landing → hỏi chuyến không chờ snapshot (`/app/understand` tự render, landing tải trước snapshot lúc rảnh, covers + snapshot tải song song) — thẻ câu hỏi hiện sau ~0,4 s thay vì ~13 s qua Cloudflare. Câu gõ ở landing hiện thành thẻ "bạn kể" thay vì hỏi lại câu mở. Thẻ hỏi giữ một màu pine (trước đổi màu theo lượt). Ảnh dùng thumbnail WebP `/media/thumb` qua `srcset`, rơi về ảnh gốc khi thiếu. Thanh bước gọn một dòng trên điện thoại. Server: snapshot gọn + brotli (4,3 MB/10,5 s → 1,7 MB/0,9 s), ETag/304, keep-alive tới harness (README §Production).
+### Trước đó (2026-10-08, tối)
+- hành vi: như bản trước; câu mở của Hiểu chuyến đi thành cuộc trò chuyện (`screens/TripChat.tsx`, `UI_SPEC_USER_WEB` §Trang 3 Mở đầu): AI hỏi, người dùng gõ (câu ở landing là tin nhắn đầu), lúc AI đọc hiện chấm gõ + lời stream + `“quote” → trường` từ sự kiện `preview`; xong thì dừng ở `Mình đã hiểu như này` (mỗi dòng có nguồn và nút sửa, giới hạn / nơi muốn đến bỏ được, chip sở thích có ×) + `Mình cần hỏi thêm một số ý` (`unknowns`), người dùng sửa bằng lời hoặc bấm `Đúng rồi, hỏi tiếp` mới sang chồng thẻ. Chuyển câu: thẻ rơi ngay khi bấm (trước: chờ 380 ms rồi mới gửi, thẻ cũ hiện lại và bị chia hai lần trong lúc chờ máy chủ), chồng thẻ nghiêng lên + chấm chờ trong lúc chờ, thẻ mới chờ thẻ cũ rơi xong; khoá thẻ theo lần nhận thẻ thay vì `hist.length` nên không chia lại khi lịch sử cập nhật; lượt trả lời vào lịch sử ngay nên `câu N` đúng từ lúc thẻ mới hiện; trang tự cuộn về đầu chồng thẻ khi thẻ mới khuất.
 
 ## detail-logistics — Xem chi tiết, hiện hết gợi ý, hỏi hậu cần, chỗ ở theo gu
 
@@ -243,9 +237,9 @@ _không có_
 ### Hiện tại (2026-10-08)
 - hành vi:
   - "Xem chi tiết" là một modal `PlaceSheet` (`?place=<id>`, Back / Esc đóng, ảnh bay vào chỗ bằng View Transitions / FLIP) mở từ đĩa, lưới, anchor, trợ lý, thanh "Đã chọn"; tab Hình ảnh hiện ≤ 12 ảnh/nơi do `pick_covers.py` chọn (YOLO + pHash + Gemma `photo_rank`; 1.704 nơi có gallery), thumbnail WebP cho mọi ảnh mới (`make_thumbs.py`).
-  - Chọn nơi hiện hết ứng viên qua lọc: cuộn tải thêm 24 nơi/lần; chat thu hẹp giữ nơi còn khớp đúng chỗ (`docs/PLACE_DECISION.md` §9.2–9.4).
-  - Trip Understanding hỏi hậu cần trước `ready` (`docs/TRIP_UNDERSTANDING.md` §Hậu cần); web: ô gõ có gợi ý cho xuất phát / chỗ ở, danh sách chuyến bay / xe khách thật (cache, thiếu thì crawl nền + SSE, lỗi thì mở trang đặt vé + nhập tay giờ), các dòng mới trên vé chuyến.
-  - Chỗ ở: corpus có nhóm `stay` chỉ Planning đọc; Planning xếp chỗ ở theo gu trước, vị trí sau (`docs/PLANNING.md` ⓐ); chưa có chỗ ở thì web hiện "Bạn ở đâu?" một lần trước lịch; đã đặt thì lịch neo thẳng vào chỗ đó.
+  - Chọn nơi hiện hết ứng viên qua lọc: cuộn tải thêm 24 nơi/lần; chat thu hẹp giữ nơi còn khớp đúng chỗ (`docs/P3_PLACE_DECISION.md` §9.2–9.4).
+  - Trip Understanding hỏi hậu cần trước `ready` (`docs/P2_TRIP_UNDERSTANDING.md` §Hậu cần); web: ô gõ có gợi ý cho xuất phát / chỗ ở, danh sách chuyến bay / xe khách thật (cache, thiếu thì crawl nền + SSE, lỗi thì mở trang đặt vé + nhập tay giờ), các dòng mới trên vé chuyến.
+  - Chỗ ở: corpus có nhóm `stay` chỉ Planning đọc; Planning xếp chỗ ở theo gu trước, vị trí sau (`docs/P4_PLANNING.md` ⓐ); chưa có chỗ ở thì web hiện "Bạn ở đâu?" một lần trước lịch; đã đặt thì lịch neo thẳng vào chỗ đó.
   - Đo 2026-10-08: chuyến bay SGN→DLI `pending` → `ready` sau ~18 s (5 chuyến), lần sau từ cache; xe khách ~1,5 s.
 
 ### Trước đó
@@ -258,7 +252,7 @@ _không có_
 
 ### Hiện tại (2026-10-09)
 - hành vi:
-  - Mô tả phase và layout file: `docs/CORPUS.md` §1 (Phase 2, `place_poi/`). `video.json` mới có `poi`; video cũ đọc `poi` từ `info.json` (5.722 / 11.356 video có gắn).
+  - Mô tả phase và layout file: `docs/P1_CORPUS.md` §1 (Phase 2, `place_poi/`). `video.json` mới có `poi`; video cũ đọc `poi` từ `info.json` (5.722 / 11.356 video có gắn).
   - Đo 2026-10-09, Đà Lạt: 983 nơi có ứng viên, 709 nơi được gán; 2 lần đọc lệch nhau ở 91 cặp (`unsure`). Một lần đọc đơn: 43 / 983 nơi đổi kết quả giữa hai lần chạy giống nhau, có ca sai kiểu "Nhà Hàng Datanla" = khu du lịch thác. Mẫu 20 nơi đã gán (trước luật một POI một nơi): 17 đúng rõ.
   - Thử trang POI (`tiktok.com/place/<slug>-<poi_id>`): mở được khi không đăng nhập, không captcha; `/api/poi/item_list/` trả 25–30 item / trang kèm `playAddr` h264 tải được bằng phiên ẩn danh; một quán 1.009 video / 44 trang trong ~6 phút, không bị chặn.
   - `poi_crawl` lô đầu 20 nơi: 90 video / nơi liệt kê trong 12–16 s, 187 video tải; 1 nơi dính 403 cả 10 lần tải cùng lúc, chạy lại thì được. Tỉ lệ `place_verify` = yes của video trang POI: chưa đo.
@@ -277,16 +271,16 @@ _không có_
 ### Trước đó
 - _không có_ (tài khoản giả lập trong localStorage, hành trình ở `data/harness/sessions/*.json`)
 
-## companion — Đang đi, Calendar, thông báo (`docs/COMPANION.md`)
+## companion — Đang đi, Calendar, thông báo (`docs/P5_COMPANION.md`)
 
 - file: `src/companion/`, `src/notify/`, `config/{companion,notifications}.yaml`, `web/src/user/{today.ts,notify.ts,screens/Today.tsx,screens/Inbox.tsx}`, `web/public/{sw.js,manifest.webmanifest}`
 - cách kiểm chứng: `TEST_DATABASE_URL=… python -m pytest -q tests/companion tests/notify`; `python -m notify run --once`; walk màn Hôm nay ở 1440 và 390 px
 
 ### Hiện tại (2026-10-09)
-- hành vi: chốt lịch tạo `trips` / `trip_stops`; màn `/app/today` với Đã đến tự nguyện, bỏ qua, Hợp / Không hợp, gợi ý "Ở đây" chỉ từ serving (hard filter fail-closed, giờ chưa xác nhận giữ nguyên), "Tôi đang ở nơi khác", dòng "Phần còn lại hơi chật" với phương án `on_delay` qua Planning khi người dùng xác nhận. Google Calendar: calendar riêng mỗi chuyến, không reminder, xem trước → xác nhận theo `preview_hash`, lệch thì chỉ báo `drifted`. Thông báo 9 loại, giờ yên lặng 22–7, 1 / 3 mỗi ngày, tạm im sau 3 lần bỏ qua, biến thể thiếu dữ liệu thì không gửi, bandit khi đủ 200 lượt; web push + hộp thông báo; worker `python -m notify run`.
+- hành vi: như bản trước, sửa C-1…C-7, E-1, E-2. Trước ngày đi, Hôm nay ở chế độ xem trước "còn N ngày"; Đã đến / Bỏ qua chỉ được cho đúng ngày của điểm đó, chuyến không chuyển `active` sớm. "Còn N phút" tính tới điểm kế tiếp trong cùng ngày; giờ bình minh / hoàng hôn ghi ngày. Gợi ý gần đây theo giờ (giờ ăn → chỗ ăn, săn mây chỉ sáng sớm), đa dạng loại, bỏ nơi trùng ngọn đồi đang đứng (`config/companion.yaml`). Check-in ngoài lịch hiện trong `today.extra` sau khi tải lại. Harness: chỉ `harness.Missing` mới là 404, `KeyError` khác là 500 có log. Chốt xong vào `/app/done` thấy lịch đã chốt, Thêm vào Google Calendar, Chia sẻ lịch; khảo sát chỉ hiện khi chuyến đã xong. Hồ sơ đọc trạng thái chuyến từ server, link `?journey=` mở đúng chuyến; lỗi tải dữ liệu hiện "TripGuardian đang cập nhật" + Thử lại.
 
-### Trước đó
-- _không có_
+### Trước đó (2026-10-09)
+- hành vi: chốt lịch tạo `trips` / `trip_stops`; màn `/app/today` với Đã đến tự nguyện, bỏ qua, Hợp / Không hợp, gợi ý "Ở đây" chỉ từ serving (hard filter fail-closed, giờ chưa xác nhận giữ nguyên), "Tôi đang ở nơi khác", dòng "Phần còn lại hơi chật" với phương án `on_delay` qua Planning khi người dùng xác nhận. Google Calendar: calendar riêng mỗi chuyến, không reminder, xem trước → xác nhận theo `preview_hash`, lệch thì chỉ báo `drifted`. Thông báo 9 loại, giờ yên lặng 22–7, 1 / 3 mỗi ngày, tạm im sau 3 lần bỏ qua, biến thể thiếu dữ liệu thì không gửi, bandit khi đủ 200 lượt; web push + hộp thông báo; worker `python -m notify run`.
 
 ## analytics — Event và Analytics (`docs/ANALYTICS.md`)
 
@@ -294,7 +288,31 @@ _không có_
 - cách kiểm chứng: `TEST_DATABASE_URL=… python -m pytest -q tests/analytics tests/harness/test_events.py`; `python -m analytics serve` rồi mở `/admin/analytics`
 
 ### Hiện tại (2026-10-09)
+- hành vi: như bản trước, tab Agent có `decision_fallback` (số lượt, số lượt hỏi agent, số lượt rơi xuống từ khóa, tỉ lệ, lý do) đọc từ log phiên Decision trong `journeys.envelope`.
+
+### Trước đó (2026-10-09)
 - hành vi: harness ghi event sau mỗi mutation (`<stage>.<operation>[.<act>]`, latency, path agent / fallback / heuristic, lỗi, chất lượng lịch khi chốt) và các event đọc; web gửi lô event allowlist (sendBeacon). Server analytics private :8770 với role chỉ đọc: phễu (so sánh phiên bản), Trip, Quyết định, Lịch trình, Thực tế, Thông báo, Agent, Chất lượng, phiên + phát lại, Hôm nay, Insights, nhu cầu một nơi; job `python -m analytics cluster` nhóm ý người dùng viết mỗi tuần.
 
-### Trước đó
-- _không có_ (Admin Analytics là khung tĩnh, Phiên chỉ đọc localStorage)
+
+## geo-search — Ô gợi ý nơi xuất phát và chỗ ở theo địa chỉ
+
+- file: `src/live/geocode/{address,photon}.py`, `src/live/settings.py` (`suggest_timeout_s`), `src/planning/logistics.py`, `web/src/user/ui/PlaceInput.tsx`, `web/src/user/tu/types.ts`
+- cách kiểm chứng: `python -m pytest -q tests/live/test_address.py tests/live/test_geosearch.py tests/planning/test_planning_logistics.py`; gõ `55/13/19 đường 18b, bình hưng hòa, tphcm` vào ô xuất phát
+
+### Hiện tại (2026-10-09)
+- hành vi: Photon bỏ đường cao tốc, công trình, lô đất, tuyến metro và gắn `kind` cho từng dòng; timeout 4 giây rồi sang Nominatim. Chuỗi bắt đầu bằng số nhà được `address.search` mở rộng `tphcm` / `hcm` / `hn`, tìm sâu nhất bản đồ có (hẻm → số ngắn hơn → đường, ưu tiên phường đã gõ) và đặt lên đầu dòng `approx: true` mang chuỗi người dùng gõ + toạ độ của dòng thật; khớp đủ thì không đánh dấu. Ô gợi ý hiện nhãn "Gần đúng" và icon theo loại, dùng chung `geoRow` / `lodgingRow`.
+
+### Trước đó (2026-10-09)
+- _không có_
+
+## plan-journey — Lịch trình: hành trình là trang chính, kéo thả, chi tiết theo giờ
+
+- file: `web/src/user/screens/{Plan,PlanDetail,Lodging}.tsx`, `web/src/user/ui/{RouteStory,PlanAlerts}.tsx`, `web/src/user/planning/view.ts` (`placeAt`, `alertsOf`), `web/scripts/test_plan_view.mjs`
+- cách kiểm chứng: biên dịch `planning/view.ts` rồi `node --test web/scripts/test_plan_view.mjs`; `npx tsc --noEmit -p web/tsconfig.json`; mở `/app/plan`, kéo một thẻ sang thẻ khác và lên tên ngày
+- ghi chú: kéo thả đã thử trên trang xem trước với dữ liệu mẫu, chưa thử trên một hành trình thật
+
+### Hiện tại (2026-10-09)
+- hành vi: Hành trình là trang chính: thanh chỗ ở (3 thẻ đề xuất, bấm chọn), dải lưu ý nổi bật, sơ đồ có giờ từng nơi, dự phòng. Kéo thẻ để `reorder` / `move_place`, mũi tên và `Alt + ← →` thay chuột, `Tour` lần đầu. "Xem chi tiết theo giờ" mở trang timeline + bản đồ + cột bên như giao diện cũ.
+
+### Trước đó (2026-10-09)
+- _không có_

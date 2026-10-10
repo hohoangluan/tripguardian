@@ -4,6 +4,15 @@ Số liệu Admin từ event thật. Ghi: `src/harness/events.py` (harness), `we
 
 ## 1. Event
 
+```mermaid
+flowchart LR
+  HV["harness: sau mỗi mutation<br/>stage.operation[.act] + latency, path"] --> EV[(events)]
+  WB["web events.ts: lô 10 s / 20 event<br/>sendBeacon khi rời tab"] -->|POST /api/harness/events, allowlist| EV
+  EV --> AN["analytics :8770<br/>role tg_analytics, chỉ GET"] --> AD[Admin: Phễu, tab, Phiên, Insights]
+  EV --> CL["analytics cluster (tuần)<br/>INSIGHT_CLUSTER"] --> IC[(insight_clusters)]
+```
+
+
 Bảng `events`: `at, user_id, journey_id, source (server | client), name, props, app_version`. Không chứa email, tên, số điện thoại hay chữ người dùng gõ (trừ `q` của ô tìm nơi). Ghi lỗi không làm hỏng request gây ra nó.
 
 **Server** (harness): sau mỗi mutation hành trình, `name = <stage>.<operation>[.<act type>]`, props `revision, latency_ms, first_ms` (tới event SSE đầu), `path` (`agent | fallback | heuristic:exact_command`, từ event nội bộ `trace` của adapter `Tools`), `error` khi mutation thất bại, `compiled` khi Trip vừa ra Search Input, `refined` khi câu gõ ở Chọn nơi đi qua Trip. Lượt Trip thêm `kind, qid, exit (skip | unsure)`. Act thêm `place_id, reason, with_id, group, id, objective, pace`. `planning.confirm` thêm `places, hard_checks, hard_fail, hard_unknown, robustness`. Ngoài ra: `journey.create`, `preview.<status>`, `places.search {q, hits}`, `why_not`, `page_more`, `feedback.submit`, `auth.login`, `auth.consent`, `companion.<operation>`, `calendar.connect | apply | disconnect`, `notify.prefs {paused, kinds_off}`. Lần replay theo receipt không ghi lại.
@@ -29,6 +38,8 @@ Bảng `events`: `at, user_id, journey_id, source (server | client), name, props
 **Dữ liệu cũ**: `python -m harness import-files` nạp hành trình file và sinh các mốc phễu từ trạng thái đã lưu (`props.imported`, giờ = giờ sửa file, không dùng để tính thời gian; không biết được `preview`).
 
 ## 2. Server analytics
+
+Khách dùng thử (`users.role = 'guest'`, `docs/ACCOUNTS.md` §4b) có `user_id` như tài khoản: event và journey của họ xem được như mọi người. `sessions` / `session` trả thêm `role`; `today` trả `guests` và `new_users` không đếm khách.
 
 ```sh
 python -m analytics serve [--port 8770]   # 127.0.0.1, chỉ GET, role tg_analytics (DATABASE_URL_READONLY)
@@ -57,10 +68,10 @@ Bước phễu (mỗi hành trình đếm một lần): `journey.create` → `tr
 | Lịch trình | Thao tác, phương án được chọn, dùng gợi ý tự động, quay về Chọn nơi, độ vững của lịch đã chốt, phút từ vào tới chốt, lỗi |
 | Thực tế | **Tỉ lệ check-in lại ở điểm sau** (chỉ số chính), muộn so với lịch, khoảng giữa hai điểm so với lịch, đã đến / bỏ qua / chưa biết, check-in ngoài lịch, lý do bỏ qua, Hợp / Không hợp, thêm từ gợi ý; luôn kèm độ phủ check-in |
 | Thông báo | Tỉ lệ cho phép; gửi / mở / có ích (thao tác trong 2 giờ sau khi mở) theo loại và biến thể; bị bỏ theo lý do; **tắt hoặc tạm im trên 1.000 thông báo gửi** (chỉ số chặn) |
-| Agent | Theo loại yêu cầu dùng model: số lượt, p50 / p95, tới event đầu, fallback, lỗi. Số liệu theo từng lời gọi của từng vai trò chưa được ghi |
+| Agent | Theo loại yêu cầu dùng model: số lượt, p50 / p95, tới event đầu, fallback, lỗi. Số liệu theo từng lời gọi của từng vai trò chưa được ghi. Riêng chat bước Lựa chọn: tỉ lệ `agent_fallback` và lý do, đọc từ log phiên Decision trong `journeys.envelope` (lượt lệnh chính xác không hỏi agent nên không tính) |
 | Chất lượng | Vi phạm hard constraint trên lịch đã chốt (phải bằng 0, khác 0 là báo động), tỉ lệ kiểm tra `unknown`, tỉ lệ lịch xem trước xếp được, phút tới lịch được chấp nhận, bấm ra ngoài + rời tab ở Chọn nơi (proxy cho việc phải tìm ở ngoài) |
 
-Ngưỡng cảnh báo chỉ đặt sau khi có baseline thật (`docs/Role_Web_Functional_Design.md` §3.7).
+Ngưỡng cảnh báo chỉ đặt sau khi có baseline thật (`docs/WEB.md` §3.7).
 
 ## 4. Insights
 
