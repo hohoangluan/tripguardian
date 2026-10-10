@@ -1,0 +1,24 @@
+{
+ "at": "2026-10-08T03:40:27+00:00",
+ "places": 1761,
+ "stale_files": 2378,
+ "removed": 0,
+ "coverage": {
+  "effort=COMPLETE": 26,
+  "effort=PARTIAL": 1735,
+  "environment=COMPLETE": 998,
+  "environment=NONE": 49,
+  "environment=PARTIAL": 714,
+  "experience=COMPLETE": 922,
+  "experience=NONE": 74,
+  "experience=PARTIAL": 765,
+  "operation=NONE": 1559,
+  "operation=PARTIAL": 202,
+  "service=COMPLETE": 1399,
+  "service=NONE": 37,
+  "service=PARTIAL": 325,
+  "suitability=COMPLETE": 20,
+  "suitability=NONE": 400,
+  "suitability=PARTIAL": 1341
+ }
+}

@@ -1,0 +1,113 @@
+{
+ "summary": {
+  "trips": 10,
+  "ok": 0,
+  "feasible_itinerary_rate": 0.0,
+  "avg_saved_vs_baseline_pct": 0.0,
+  "avg_lodging_saved_min_per_day": 0.0,
+  "robustness": {
+   "solid": 0,
+   "feasible": 0,
+   "fragile": 0
+  },
+  "ms_total_max": 0,
+  "not_ok_trips": [
+   {
+    "trip": "elderly_views",
+    "reason": "no_confirmed_places"
+   },
+   {
+    "trip": "kids_animals",
+    "reason": "decision_not_confirmed"
+   },
+   {
+    "trip": "wheelchair_cafe",
+    "reason": "no_confirmed_places"
+   },
+   {
+    "trip": "couple_sunset",
+    "reason": "decision_not_confirmed"
+   },
+   {
+    "trip": "group_food",
+    "reason": "no_valid_variant"
+   },
+   {
+    "trip": "rainy_day",
+    "reason": "decision_not_confirmed"
+   },
+   {
+    "trip": "no_trap_budget",
+    "reason": "decision_not_confirmed"
+   },
+   {
+    "trip": "hikers",
+    "reason": "decision_not_confirmed"
+   },
+   {
+    "trip": "worker",
+    "reason": "decision_not_confirmed"
+   },
+   {
+    "trip": "rough_road_scooter",
+    "reason": "no_confirmed_places"
+   }
+  ]
+ },
+ "trips": [
+  {
+   "trip": "elderly_views",
+   "ok": false,
+   "ms_variants": 0,
+   "reason": "no_confirmed_places"
+  },
+  {
+   "trip": "kids_animals",
+   "ok": false,
+   "reason": "decision_not_confirmed"
+  },
+  {
+   "trip": "wheelchair_cafe",
+   "ok": false,
+   "ms_variants": 0,
+   "reason": "no_confirmed_places"
+  },
+  {
+   "trip": "couple_sunset",
+   "ok": false,
+   "reason": "decision_not_confirmed"
+  },
+  {
+   "trip": "group_food",
+   "ok": false,
+   "ms_variants": 4192,
+   "reason": "no_valid_variant"
+  },
+  {
+   "trip": "rainy_day",
+   "ok": false,
+   "reason": "decision_not_confirmed"
+  },
+  {
+   "trip": "no_trap_budget",
+   "ok": false,
+   "reason": "decision_not_confirmed"
+  },
+  {
+   "trip": "hikers",
+   "ok": false,
+   "reason": "decision_not_confirmed"
+  },
+  {
+   "trip": "worker",
+   "ok": false,
+   "reason": "decision_not_confirmed"
+  },
+  {
+   "trip": "rough_road_scooter",
+   "ok": false,
+   "ms_variants": 0,
+   "reason": "no_confirmed_places"
+  }
+ ]
+}

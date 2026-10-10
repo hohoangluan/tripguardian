@@ -1,0 +1,4 @@
+style,n,skipped,mean_turns_to_suggestion,mean_cards_asked,mean_typed_turns,mean_fields_correct,mean_fields_wrong,mean_fields_missing,mean_fields_invented,mean_fields_inferred,mean_fields_unreachable,mean_unsure_skip_rate,mean_corrections,mean_safety_missed,mean_safety_unreachable,mean_hard_violations,mean_unknown_hours_share,mean_warnings,mean_reached_plan,mean_agent_fallbacks,mean_model_calls,mean_unmapped_chips,mean_ms_total,accuracy,total_fields_invented,total_safety_missed,total_hard_violations,total_fields_unreachable,total_safety_unreachable,reached_plan_rate,latency_p50_ms,latency_p90_ms,latency_p95_ms
+tapper,40,0,6,6,0,5.825,0.025,2.95,0,2.225,3.525,0.081,0,0,0.3,0.45,0.274,8.7,0.95,0,0,0,10583.65,0.662,0,0,18,141,12,0.95,,,
+baseline,40,0,14,14,0,11.475,0,0,0,0,0,0.0,0,0,0,0,0.26,8.325,0.825,0,0,0,2827.075,1.0,0,0,0,0,0,0.825,,,
+brief,40,0,6.9,5.9,1,7.725,0.5,4.1,0,1.875,0,0.302,0,0.15,0,0.4,0.249,7.65,0.8,1,0,1.575,12465.175,0.627,0,6,16,0,0,0.8,,,

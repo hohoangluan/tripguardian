@@ -1,0 +1,196 @@
+{
+ "at": "2026-10-09T07:00:18+00:00",
+ "places": 3291,
+ "status": {
+  "cached": 1778,
+  "done": 1508,
+  "failed": 5
+ },
+ "observations": {
+  "service_quality": 266587,
+  "food_quality": 207457,
+  "service_attitude": 155265,
+  "value_for_money": 66290,
+  "cleanliness": 60292,
+  "scenic_view": 48269,
+  "drink_quality": 41387,
+  "noise": 36407,
+  "wait_time": 30999,
+  "spacious": 26369,
+  "cozy_decor": 25459,
+  "photo_spot": 16283,
+  "long_stay_chill": 13784,
+  "crowd": 12866,
+  "booking_needed": 12820,
+  "nature": 10235,
+  "animals": 10229,
+  "parking": 9998,
+  "small_space": 9514,
+  "entry_fee": 7888,
+  "local_specialty_food": 7716,
+  "rough_road_access": 7683,
+  "portion_size": 6013,
+  "heritage_architecture": 5044,
+  "outdoor_seating": 4890,
+  "toilet": 4577,
+  "kids": 4357,
+  "sunset_view": 3680,
+  "cloud_hunting": 3510,
+  "flower_garden": 3081,
+  "tourist_trap": 3066,
+  "condition_change": 2875,
+  "vegetarian_options": 2815,
+  "live_music": 2793,
+  "steep_or_stairs": 2587,
+  "pick_your_own": 2559,
+  "groups": 2219,
+  "adventure_activity": 2144,
+  "tasting_available": 1959,
+  "weather_exposed": 1760,
+  "laptop_friendly": 1653,
+  "camping": 1613,
+  "setting": 1428,
+  "long_walk": 1297,
+  "mosquitoes": 1294,
+  "couples": 1207,
+  "hands_on_workshop": 1040,
+  "visit_duration": 1031,
+  "wheelchair": 978,
+  "elderly": 762,
+  "cash_only": 575,
+  "hiking": 433,
+  "cultural_show": 427,
+  "costume_rental": 328
+ },
+ "dropped": {
+  "proposed_bad_quote": 1687,
+  "quote_not_in_review": 7455,
+  "span_check_insufficient": 1576,
+  "not_in_ontology": 4502,
+  "bad_context": 272,
+  "span_check_contradicts": 852,
+  "span_check_error": 8
+ },
+ "proposed_top": [
+  [
+   "location",
+   2657
+  ],
+  [
+   "amenities",
+   1925
+  ],
+  [
+   "scenic_view",
+   1604
+  ],
+  [
+   "vehicle_condition",
+   1235
+  ],
+  [
+   "service_quality",
+   954
+  ],
+  [
+   "food_quality",
+   901
+  ],
+  [
+   "parking",
+   870
+  ],
+  [
+   "aesthetic",
+   766
+  ],
+  [
+   "price",
+   733
+  ],
+  [
+   "spacious",
+   712
+  ],
+  [
+   "atmosphere",
+   709
+  ],
+  [
+   "cozy_decor",
+   693
+  ],
+  [
+   "vegetarian_options",
+   539
+  ],
+  [
+   "room_quality",
+   521
+  ],
+  [
+   "service_attitude",
+   480
+  ],
+  [
+   "motorbike_rental",
+   468
+  ],
+  [
+   "local_specialty_food",
+   435
+  ],
+  [
+   "value_for_money",
+   430
+  ],
+  [
+   "motorcycle_rental",
+   420
+  ],
+  [
+   "parking_easy",
+   386
+  ],
+  [
+   "room_condition",
+   386
+  ],
+  [
+   "flower_garden",
+   360
+  ],
+  [
+   "room_amenities",
+   346
+  ],
+  [
+   "vibe",
+   342
+  ],
+  [
+   "room quality",
+   304
+  ],
+  [
+   "delivery_service",
+   300
+  ],
+  [
+   "motorbike rental",
+   298
+  ],
+  [
+   "drink_quality",
+   296
+  ],
+  [
+   "elevator",
+   288
+  ],
+  [
+   "smell",
+   271
+  ]
+ ]
+}

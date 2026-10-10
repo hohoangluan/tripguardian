@@ -1,0 +1,44 @@
+{
+ "serving": {
+  "source": "data/serving/places.json",
+  "built_at": "2026-10-08T03:40:43+00:00",
+  "summary": {
+   "at": "2026-10-08T03:40:43+00:00",
+   "places": 1696,
+   "disabled": {
+    "closure_temporary": 48,
+    "closure_permanent": 12,
+    "judge_closed": 2,
+    "judge_changed": 3
+   },
+   "uncertain_places": 0,
+   "areas": 128,
+   "near_duplicate_groups": 138,
+   "in_groups": 649,
+   "feature_status": {
+    "VERIFIED": 28466,
+    "UNCERTAIN": 4081,
+    "OUTDATED": 2779
+   },
+   "usable_as": {
+    "experience": 928,
+    "backup": 1352,
+    "meal": 949,
+    "anchor": 705
+   }
+  },
+  "records": 1696
+ },
+ "intel_places": {
+  "source": "data/intel/places/*.json",
+  "files": 1761
+ },
+ "web_snapshot_places": {
+  "source": "web/public/data/snapshot.json",
+  "places": 1773
+ },
+ "judge_labels": {
+  "source": "data/review/judge_labels.jsonl",
+  "lines": 561272
+ }
+}

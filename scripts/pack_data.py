@@ -6,6 +6,9 @@ relative to the repo root, so unpacking at the repo root restores them in place.
   - data/tiktok/videos/*/video.mp4: only the ASR crawl steps read the clip; transcripts and frames are kept
   - logs, pid files, half-written *.tmp, shell scripts dropped into data/
   - data/gmaps/observations_before_v6: backup taken before the v6 observe rerun
+  - what the running site wrote about its own users, which a fresh clone never reads and the zip must not leak:
+    data/accounts (avatars), data/backup (Postgres dumps: emails), data/harness (journeys, feedback) and
+    data/{trip,decision,planning}/sessions (chat transcripts, trip state incl. health)
 --no-photos also leaves out the Maps photos (data/gmaps/places/*/photos, ~2.4 GB): /admin/labels and the web's place
 covers show them; without them covers fall back to clip frames, then to line art.
 
@@ -23,7 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 EXTRA = ("web/public/data/snapshot.json", "web/public/data/covers.json", "tests/fixtures/gmaps", "tests/fixtures/tiktok")
 SKIP_NAMES = {"video.mp4"}
 SKIP_SUFFIXES = {".tmp", ".log", ".err", ".pid", ".sh"}
-SKIP_DIRS = {("data", "gmaps", "observations_before_v6")}
+SKIP_DIRS = {("data", "gmaps", "observations_before_v6"),
+             ("data", "accounts"), ("data", "backup"), ("data", "harness"),
+             ("data", "trip", "sessions"), ("data", "decision", "sessions"), ("data", "planning", "sessions")}
 STORED = {".jpg", ".jpeg", ".png", ".webp", ".mp4"}  # already compressed
 
 

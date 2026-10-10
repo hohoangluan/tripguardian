@@ -19,9 +19,6 @@ osrm-data/
 logs/
 *.pid
 
-# Superseded design shots; the current set is docs/design/desktop/v3-rose-photo
-docs/design/**/_archive/
-
 # Data bundle made by scripts/pack_data.py, shared outside git
 tripguardian-data-*.zip
 
@@ -35,3 +32,13 @@ tests/fixtures/tiktok/
 # Local model experiments and training assets are not part of the application pipeline.
 /system_one_model/
 /training/
+
+# Local agent tooling (Claude Code, opencode): per-machine, not part of the app
+.claude/
+.opencode/
+
+# Competition material: the organizers' sample proposal (another project) and the scoring sheet photo
+/TMA__proposal_vi.docx.md
+/photo_*.jpg
+# Raw research logs behind the submission report; the report and submission/evidence/ are what ships
+/submission/research/
