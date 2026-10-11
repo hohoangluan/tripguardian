@@ -37,6 +37,9 @@
 .tg-hist .tg-link { margin-left: auto; }
 .tg-ask__done h1 { margin: 14px 0 12px; font-size: clamp(2rem, 3.4vw, 3rem); max-width: 18ch; }
 .tg-ask__ctas { display: flex; gap: 12px; margin-top: 26px; }
+/* mode bar: free chat or quick quiz, always visible, one Trip State behind both */
+.tg-mode { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.tg-mode .tg-btn { min-height: 40px; padding: 0 16px; font-size: 0.9rem; }
 .tg-basics__row { margin-bottom: 4px; }
 .tg-basics__row h3 { font: 700 0.95rem var(--tg-sans); margin-bottom: 10px; letter-spacing: 0; }
 .tg-basics__chips { display: flex; gap: 8px; flex-wrap: wrap; }

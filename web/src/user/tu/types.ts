@@ -149,6 +149,7 @@ export interface View {
   transcript: Turn[]
   understanding: Understanding
   card: Card | null
+  phase: 'chat' | 'quiz' | 'review'
 }
 
 export interface SearchInput {
@@ -187,6 +188,8 @@ export type TurnInput =
   | { kind: 'answer'; qid: string; chips: string[]; value?: string | null }
   | { kind: 'edit'; target: string; value: string | null }
   | { kind: 'show' }
+  | { kind: 'to_chat' }
+  | { kind: 'to_quiz' }
 
 export interface Handlers {
   preview?: (d: { fields: { target: string; value: unknown; quote: string }[] }) => void

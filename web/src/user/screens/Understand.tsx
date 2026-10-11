@@ -317,14 +317,21 @@ export function Understand() {
     const reply = await send({ kind: 'text', text }, undefined, id)
     if (mounted.current) setMsgs((m) => [...m, { who: 'ai', text: reply || 'Mình ghi lại được như dưới đây.' }])
   }
-  // The user agrees with what was understood: the conversation card drops and the first short question is dealt.
+  // The mode bar, always visible: free chat or quick quiz, sharing one Trip State.
+  // An open card left unanswered counts as declined when the mode changes.
+  const switchMode = (m: 'chat' | 'quiz') => {
+    if (busy || leaving || !sid) return
+    lastAct.current = m === 'chat' ? 'Trò chuyện tự do' : 'Trắc nghiệm nhanh'
+    setChat(m === 'chat')
+    drop(cardKey)
+    send({ kind: m === 'chat' ? 'to_chat' : 'to_quiz' })
+  }
+  // The user agrees with what was understood: leave the chat for the quick quiz.
   const proceed = () => {
     if (busy || leaving) return
     setRemark('')
     if (!card) return show()
-    if (still()) return setChat(false)
-    setLeaving('chat')
-    window.setTimeout(() => { setChat(false); setLeaving(null) }, DROP_MS)
+    switchMode('quiz')
   }
   const edit = (target: string, value: string | null) => {
     lastAct.current = value === null ? 'Bỏ một dòng trên vé' : 'Sửa vé chuyến'
@@ -415,6 +422,10 @@ export function Understand() {
               </ul>
             )}
             {notice && <p className="tg-alert" role="alert"><Icon name="warn" size={16} /> {notice}</p>}
+            <div className="tg-mode" role="group" aria-label="Cách trả lời">
+              <button type="button" className={`tg-btn ${talk ? 'tg-btn--primary' : 'tg-btn--ghost'}`} disabled={busy || talk} onClick={() => switchMode('chat')}><Icon name="send" size={16} /> Trò chuyện</button>
+              <button type="button" className={`tg-btn ${!talk ? 'tg-btn--primary' : 'tg-btn--ghost'}`} disabled={busy || !talk} onClick={() => switchMode('quiz')}><Icon name="sliders" size={16} /> Trắc nghiệm nhanh</button>
+            </div>
             {!talk && !card && u ? (
               <div className="tg-ask__done tg-stage">
                 <span className="tg-chip tg-chip--soft"><Icon name="check" size={14} /> ĐỦ ĐỂ TÌM</span>

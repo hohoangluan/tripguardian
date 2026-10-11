@@ -47,19 +47,25 @@ and how many, how they move, why they go (purpose), pace, budget, tastes (soft),
 
 You never end the conversation and never say what happens next. The user presses Next when they want results. So do
 not promise suggestions, an itinerary or a search ("mình sẽ gợi ý ngay"), and do not wrap up.
-You are the first and only turn that may ask in words, and ONLY to clarify what the user just wrote: a vague or
-subjective word ("vui", "chill", "đẹp"), a group word that does not say who ("gia đình"), a place name that could be
-two places. Ask about the words they used, nothing around them. Never ask for a fact they did not bring up (days, start
-date or month, who goes, how they move, budget, pace, where they stay): the screen asks all of those next on option cards,
-so asking them yourself repeats them. If nothing they wrote needs clarifying, ask nothing: record what you can and
-reply in one short sentence. CURRENT CONTEXT's still_needed lists what those cards will ask; it is not a to-do list for
-you. Never ask what the user or CURRENT CONTEXT already says, and never ask again a question listed in declined_questions
-(the user skipped it or was unsure). If the user does not want to go on, answer kindly in text and ask nothing. A skip or
-"không chắc" leaves a field unknown: unknown is not "dislike", a place visited is not a place liked, and the stored taste
-(source profile) is only a default that this trip's words override.
+In chat mode (CURRENT CONTEXT phase is "chat") you have no question tools: every question goes into your plain
+text, one per turn, in the user's own words. Ask open first ("kể mình nghe..."); offer short options in text only
+when they are stuck. Ask to clarify what the user just wrote: a vague or subjective word ("vui", "chill", "đẹp"),
+a group word that does not say who ("gia đình"), a place name that could be two places. Ask about the words they
+used, nothing around them. If nothing they wrote needs clarifying, ask nothing: record what you can and reply in
+one short sentence. A guess they can correct often beats a question: say what you understood as your guess
+("mình đoán là... đúng không?"), never as their words. CURRENT CONTEXT's still_needed lists what the quiz cards
+will ask; it is not a to-do list for you. Never ask what the user or CURRENT CONTEXT already says, and never ask
+again a question listed in declined_questions (the user skipped it or was unsure). If the user does not want to
+go on, answer kindly in text and ask nothing. A skip or "không chắc" leaves a field unknown: unknown is not
+"dislike", a place visited is not a place liked, and the stored taste (source profile) is only a default that
+this trip's words override.
+CURRENT CONTEXT may carry stuck: true (the last turns added nothing: skips, unsure, or short replies). Then stop
+asking open questions: propose one concrete reading to correct, or point at the quick quiz in words ("bạn bấm
+Trắc nghiệm nhanh ở trên, chọn vài cái là xong").
 CURRENT CONTEXT may carry resolving_other (a typed quiz answer the system could not read: qid and text): focus on
 clarifying exactly that and record its field, nothing else. It may also say foundation_complete: the trip foundation is
-known, so do not open new question threads; write one short handover line and stop asking (the screen offers the quiz next).
+known, so do not open new question threads; write one short handover line and stop asking (the user picks chat or
+quiz on the mode bar).
 
 Health, body or diet hints (knee, elderly, kids, wheelchair, pregnant, motion sickness, height, vegetarian, vegan, "không đi bộ
 xa"): record the signal (or a hard limit), then ask how it limits the trip.
@@ -182,10 +188,12 @@ def summarize(state: TripState) -> str:
 
 
 def build_messages(state: TripState, text: str, transcript: list[dict], last_question: str | None, today: date,
-                   hints: list[dict], compared=(), may_ask: bool = True, still_needed: dict | None = None) -> list[dict]:
+                   hints: list[dict], compared=(), may_ask: bool = True, still_needed: dict | None = None,
+                   stuck: bool = False) -> list[dict]:
     """transcript: the conversation before this message. hints: what the keyword rules read from the message (a
     shortcut for you to confirm, not a fact). A hint with suggested=true is agent-only: read the user's words
-    (negations, corrections) before recording anything for it."""
+    (negations, corrections) before recording anything for it. stuck: the last turns added nothing, so ask
+    differently (a concrete guess to correct, or the quick quiz)."""
     history = [{"role": "user" if t["role"] == "user" else "assistant", "content": t["text"]}
                for t in transcript if t["role"] in ("user", "agent") and t["text"]]
     context = {
@@ -198,6 +206,7 @@ def build_messages(state: TripState, text: str, transcript: list[dict], last_que
         "still_needed": still_needed or {},
         "declined_questions": list(state.meta.declined),
         "phase": state.meta.phase,
+        "stuck": stuck,
         "foundation_complete": foundation_ok(state),
         "resolving_other": ({"qid": state.meta.other_qid, "text": state.meta.other_text}
                             if state.meta.other_qid else None),

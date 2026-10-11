@@ -72,7 +72,7 @@ APPLIED_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights
 
 
 class TurnInput(Frozen):
-    kind: Literal["text", "answer", "edit", "show", "more", "theme"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"
+    kind: Literal["text", "answer", "edit", "show", "more", "theme", "to_chat", "to_quiz"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"; to_chat / to_quiz: the mode bar
     text: str = ""
     qid: str = ""
     chips: tuple[str, ...] = ()
@@ -292,7 +292,8 @@ class Engine:
         if exit_ is not None and not picked:
             turn = self._open_turn(s, EXIT_LABEL[exit_], "exit")
             s.state = with_meta(s.state, asked=s.state.meta.asked + (q.qid,),
-                                declined=s.state.meta.declined + (q.text,))
+                                declined=s.state.meta.declined + (q.text,),
+                                unsure_streak=s.state.meta.unsure_streak + 1)
             s.transcript.append({"role": "agent", "text": DECLINE_SAY, "turn": turn, "kind": "say"})
             emit("say", {"replace": DECLINE_SAY})
             emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
@@ -397,9 +398,11 @@ class Engine:
         answer: the text is an option the user pressed on the open card (it answers that card; Clef is not asked)."""
         before = st = s.state
         prev = s.card
-        # Only the turn that reads the user's own telling of the trip may ask in words; after it every question is a
-        # chip card of the quiz.
-        clarify = may_ask and not s.state.meta.told
+        # Chat mode is plain words, never cards: the agent asks in text and the user types. Quiz and review
+        # keep cards; the quiz detour (_quiz_typed) only borrows the chat to resolve a typed answer.
+        chat = s.state.meta.phase == "chat"
+        clarify = may_ask and (not s.state.meta.told or chat)
+        stuck = s.state.meta.unsure_streak >= 2 or s.state.meta.idle_streak >= 2
         turn = st.meta.turn + 1
         closed_at = len(s.transcript)
         self._close_card(s)
@@ -413,7 +416,8 @@ class Engine:
             emit("state", {"understanding": understanding(st, self.catalog, self.cfg)})
         compared = compared_places(text, self.catalog)
         heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
-        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, clarify, self.judge)
+        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared,
+                          may_ask and not chat, self.judge)
         tools.transcript = s.transcript  # so tools can check if questions were recently asked
         hints = [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote} for p in pre.proposals]
         hints += [{"ambiguous": q, "may_mean": list(k)} for q, k in pre.ambiguous]
@@ -422,7 +426,7 @@ class Engine:
         log = tools.log
         needed = missing(st, self.cfg.required)
         messages = build_messages(st, text, s.transcript[:-1], prev.text if prev else None, self.today(), hints, compared,
-                                  clarify, dict(needed))
+                                   clarify, dict(needed), stuck)
         said: list[str] = []
         failed = False
         shown = False  # the Agent starts at once, next to Clef; what it says stays unseen until Clef has let the turn through
@@ -492,7 +496,7 @@ class Engine:
             emit("say", {"replace": say})
         card = tools.card
         if not quiet:
-            if card is None and clarify and say.endswith("?") and not (fixed or tools.unmapped or failed):
+            if card is None and clarify and not chat and say.endswith("?") and not (fixed or tools.unmapped or failed):
                 asked = [x.strip() for x in re.split(r"(?<=[.!?…])\s+", say) if x.rstrip().endswith("?")]
                 if asked and not tools.repeated(asked[-1]):
                     # asked in plain text instead of through a tool (Gemma often does): it becomes a card like ask_text's
@@ -515,9 +519,14 @@ class Engine:
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
         s.transcript.append({"role": "system", "text": "; ".join(log) or "no tools", "turn": turn})
         s.state = tools.state
+        if _learned(before, tools.state, tools.recorded):
+            s.state = with_meta(s.state, unsure_streak=0, idle_streak=0)
+        elif may_ask and not fixed:
+            # an adaptive turn that added nothing: the user may be stuck (surfaced as `stuck` next turn)
+            s.state = with_meta(s.state, idle_streak=s.state.meta.idle_streak + 1)
         if clarify and not fixed and (card is not None or s.state.model_copy(update={"meta": before.meta}) != before):
             # the trip was told (something was read or asked; a greeting or "không đi nữa" is not a telling). An agent
-            # that failed still leaves the keyword reads: the cards ask the rest.
+            # that failed still leaves the keyword reads: the quiz asks the rest when the user switches to it.
             s.state = with_meta(s.state, told=True)
         if quiet:
             return
@@ -531,10 +540,8 @@ class Engine:
                 resumed = True
             elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg)) is not None:
                 card = qq  # not resolved yet: the chat clarifies, the chips stay available
-        if not resumed and may_ask and fixed is None and card is None and s.state.meta.phase == "chat" \
-                and s.state.meta.told:
-            # the opening telling is read and nothing is left to clarify in words: the rest is chip cards
-            resumed = True
+        # No auto-advance: the mode bar belongs to the user. Chat stays chat until they switch; the quiz
+        # detour above is the only automatic hop.
         s.card = card or conversation_card()
         if not resumed:
             emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
@@ -562,7 +569,8 @@ class Engine:
     def _decline(self, s: Session, q: Question, exit_: str, emit: Emit) -> None:
         """"Bỏ qua" / "Chưa chắc": the field stays unknown and the question is never asked again. No model call."""
         turn = self._open_turn(s, EXIT_LABEL[exit_], "exit")
-        s.state = with_meta(s.state, declined=s.state.meta.declined + (q.text,))
+        s.state = with_meta(s.state, declined=s.state.meta.declined + (q.text,),
+                            unsure_streak=s.state.meta.unsure_streak + 1)
         self._close_turn(s, DECLINE_SAY, turn, emit)
 
     def _pick_date(self, s: Session, raw: str, emit: Emit) -> None:
@@ -603,7 +611,7 @@ class Engine:
         for g in th.get("groups", ()):
             st = apply(st, Update(field="liked_groups", op="add", value=g, source="user", confidence="medium",
                                   evidence=ev))
-        s.state = with_meta(settle(st), told=True)  # the theme is the telling: the rest is chip cards
+        s.state = with_meta(settle(st), told=True)  # the theme is the telling; the user picks chat or quiz next
         self._close_turn(s, THEME_SAY.format(title=th["title"], what=th["say"]), turn, emit)
 
     def _open_turn(self, s: Session, shown: str, kind: str) -> int:
@@ -614,9 +622,9 @@ class Engine:
         return turn
 
     def _close_turn(self, s: Session, say: str, turn: int, emit: Emit) -> None:
-        """Ends a turn the agent did not run. Before the trip is told, the reply says what the user can do next and the
-        chat box is open; after it, the next chip card follows."""
-        if s.state.meta.phase == "chat" and s.state.meta.told:
+        """Ends a turn the agent did not run. The session stays in its phase: the quiz moves to its next
+        card, chat keeps the text box open."""
+        if s.state.meta.phase == "quiz":
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
             emit("say", {"replace": say})
             return self._quiz_next(s, emit)
@@ -665,14 +673,50 @@ class Engine:
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
 
     def _more(self, s: Session, inp: TurnInput, emit: Emit) -> None:
-        """"Hỏi tiếp": the user leaves the agent's own question unanswered and goes on with the chip cards. Nothing is
-        declined: what the question was after is still unknown, so the quiz asks it again in its own card."""
-        if s.state.meta.phase != "chat":  # the quiz or the review is already under way: its card stays
+        """"Hỏi tiếp": kept as an alias of the mode bar's to_quiz (an unanswered open card counts as declined)."""
+        return self._to_quiz(s, inp, emit)
+
+    def _to_chat(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        """The mode bar: free chat from here on (plain words, no cards). An open card left unanswered counts
+        as declined: it is never asked again in either mode."""
+        if s.state.meta.phase == "chat":
             emit("card", self._card(s.state, s.card))
             return
         self._close_card(s)
-        s.state = with_meta(s.state, told=True)
+        self._decline_open_card(s)
+        turn = s.state.meta.turn + 1
+        s.transcript.append({"role": "user", "text": "Trò chuyện tự do", "turn": turn, "kind": "answer"})
+        s.state = with_meta(s.state, turn=turn, phase="chat")
+        s.card = conversation_card()
+        emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+        emit("card", self._card(s.state, s.card))
+
+    def _to_quiz(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        """The mode bar: quick chip cards from here on. An open card left unanswered counts as declined:
+        it is never asked again in either mode."""
+        if s.state.meta.phase == "quiz":
+            emit("card", self._card(s.state, s.card))
+            return
+        was_review = s.card is not None and s.card.qid == REVIEW_QID
+        self._close_card(s)
+        self._decline_open_card(s)
+        turn = s.state.meta.turn + 1
+        s.transcript.append({"role": "user", "text": "Làm trắc nghiệm nhanh", "turn": turn, "kind": "answer"})
+        s.state = with_meta(s.state, turn=turn, phase="quiz")
+        if was_review and not quiz_queue(s.state, self.catalog, self.cfg):
+            s.card = review_card()
+            emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+            emit("card", self._card(s.state, s.card))
+            return
         self._quiz_next(s, emit)
+
+    def _decline_open_card(self, s: Session) -> None:
+        """An open question left unanswered on a mode switch: never asked again in either mode."""
+        q = s.card
+        if q is None or q.qid in ("conversation", "frame"):
+            return
+        s.state = with_meta(s.state, asked=s.state.meta.asked + (q.qid,),
+                            declined=s.state.meta.declined + (q.text,))
 
     def _show(self, s: Session, inp: TurnInput | None, emit: Emit) -> None:
         # Next is always open: unknown fields ride along as unknowns. An open health / body / diet hint gets the
@@ -738,5 +782,5 @@ class Engine:
         return card(q, chip_effects(state, q, self.catalog))
 
     def _close_card(self, s: Session) -> None:
-        if s.card:
+        if s.card and s.card.text.strip():  # an empty text box closing leaves no trace
             s.transcript.append({"role": "agent", "text": s.card.text, "turn": s.state.meta.turn, "kind": "card"})

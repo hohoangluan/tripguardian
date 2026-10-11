@@ -6,6 +6,7 @@ from trip_fixtures import ScriptedChat, ask, call, fact, reply, say
 from trip.agent import AgentError
 from trip.api.engine import (BUSY_SAY, DECLINE_SAY, FALLBACK_SAY, NODATA_SAY, NOTED_TEXT_SAY, PAST_DATE, REJECT_SAY, UNSURE_SAY, Engine,
                              TurnInput)
+from trip.domain.card import OPENING
 from trip.infrastructure.clef import ClefRoute
 from trip.infrastructure.sessions import SessionStore
 
@@ -33,67 +34,68 @@ def test_create_opens_with_an_open_frame_question(make):
     assert v["card"]["qid"] == "frame" and v["card"]["chips"] == [] and v["card"]["input"] == "text"
 
 
-def test_a_turn_records_facts_then_shows_the_card_the_agent_asked(make):
+def test_a_turn_records_facts_then_asks_in_words_with_no_card(make):
     chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), fact("mobility", "car", "ô tô"),
-                              ask("Bạn đi cùng ai?", "Một mình", "Người yêu", "Bạn bè"), text="Mình ghi lại rồi."))
+                              text="Mình ghi lại rồi. Bạn đi cùng ai?"), say(""))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="3 ngày đi một mình bằng ô tô")
     assert names(ev) == ["preview", "state", "say", "state", "card"]  # what the keywords read shows before the agent
-    card = ev[-1][1]
-    assert card["text"] == "Bạn đi cùng ai?" and [c["label"] for c in card["chips"]] == ["Một mình", "Người yêu", "Bạn bè"]
+    assert ("say", {"delta": "Mình ghi lại rồi. Bạn đi cùng ai?"}) in ev
+    assert ev[-1][1]["qid"] == "conversation"  # chat asks in words, never cards
     st = e.store.get(sid).state
     assert st.days.value == 3 and st.mobility.value == "car"
-    assert chat.calls == 1
+    assert chat.calls == 2  # facts, then an empty reply ends the turn
 
 
 def test_the_agent_sees_the_state_and_the_tools_it_may_call(make):
-    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Đi cùng ai?", "Một mình", "Bạn bè")),
-                        reply(ask("Đi bằng gì?", "Xe máy", "Ô tô")))
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), text="Rõ rồi, bạn đi cùng ai?"), say(""),
+                        reply(fact("companions", "friends", "bạn bè", op="add"), text="Ghi nhận nhé."), say(""))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
     run(e, sid, kind="text", text="bạn bè")
-    messages, tool_names = chat.seen[1]
+    messages, tool_names = chat.seen[2]
     assert tool_names == ["record_fact", "resolve_relative_date", "search_places", "search_features", "drop_refusal"]
     context = next(m["content"] for m in messages if m["content"].startswith("CURRENT CONTEXT"))
-    assert '"days"' in context and "Đi cùng ai?" in context
+    assert '"still_needed": {"companions": "đi cùng ai", "mobility": "đi lại bằng gì", "when": "ngày hoặc tháng đi"}' in context
+    assert '"phase": "chat"' in context and '"stuck": false' in context
     assert [m["role"] for m in messages[1:-2]] == ["assistant", "assistant", "user", "assistant"]
+    assert e.store.get(sid).state.companions.value == frozenset({"friends"})
 
 
 def test_a_wish_no_feature_expresses_ends_the_turn_with_a_fixed_reply_and_no_more_model_calls(make):
     chat = ScriptedChat(reply(fact("unmapped", "chó", "muốn có chó", op="add"),
-                              text="Đà Lạt có nhiều nông trại cún!"),
-                        reply(ask("Bạn đi mấy ngày?", "1-2", "3-4")))
+                              text="Đà Lạt có nhiều nông trại cún!"))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="mình muốn có chó")
     fixed = next(d["replace"] for n, d in ev if n == "say" and "replace" in d)
     assert "“muốn có chó”" in fixed and "chưa dùng được" in fixed and "nông trại" not in fixed
-    assert chat.calls == 1 and ev[-1][1]["qid"] == "days"
+    assert chat.calls == 1 and ev[-1][1]["qid"] == "conversation"  # chat stays chat: no auto-quiz
     assert [u.phrase for u in e.store.get(sid).state.unmapped] == ["chó"]
 
 
-def test_a_card_text_is_only_the_question_the_rest_goes_to_the_chat(make):
-    e = make(ScriptedChat(reply(ask("Tháng 12 Đà Lạt khá lạnh. Bạn đi mấy ngày?", "1-2", "3-4"), text="Mình hiểu rồi.")))
+def test_a_lead_in_front_of_a_question_stays_in_the_chat(make):
+    e = make(ScriptedChat(say("Tháng 12 Đà Lạt khá lạnh. Bạn đi mấy ngày?")))
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="tháng 12 lạnh không?")
-    assert ev[-1][1]["text"] == "Bạn đi mấy ngày?"
-    assert ("say", {"replace": "Mình hiểu rồi. Tháng 12 Đà Lạt khá lạnh."}) in ev
+    assert ("say", {"delta": "Tháng 12 Đà Lạt khá lạnh. Bạn đi mấy ngày?"}) in ev
+    assert ev[-1][1]["qid"] == "conversation"  # chat asks in words, never cards
 
 
-def test_when_nothing_new_is_asked_the_open_question_stays_instead_of_an_empty_box(make):
-    chat = ScriptedChat(reply(ask("Bạn đi mấy ngày?", "1-2", "3-4")),
+def test_chat_has_no_open_question_only_a_free_text_box(make):
+    chat = ScriptedChat(say("Bạn đi mấy ngày nè?"),
                         reply(fact("unmapped", "bồn tắm", "bồn tắm", op="add")),  # an unmapped wish: fixed reply, no ask
                         say("Đà Lạt tháng 12 khá lạnh."))                              # a plain reply: no ask either
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     first = run(e, sid, kind="text", text="đi Đà Lạt")[-1][1]
+    assert first["qid"] == "conversation"
     for text in ("tôi muốn có bồn tắm", "tháng 12 lạnh không?"):
         card = run(e, sid, kind="text", text=text)[-1][1]
-        assert card["qid"] == "days", text
-    texts = [t["text"] for t in e.store.get(sid).transcript if t.get("kind") == "card"]
-    assert texts.count("Bạn đi mấy ngày?") == 1  # the chat card closes before the deterministic quiz takes over
+        assert card["qid"] == "conversation", text
+    assert not [t for t in e.store.get(sid).transcript if t.get("kind") == "card" and t["text"] != OPENING.text]
 
 
 def test_a_reply_the_guard_refuses_becomes_an_honest_line_not_silence(make):
@@ -116,11 +118,11 @@ def test_clef_answers_off_topic_and_figure_questions_with_a_fixed_reply_and_the_
 
 
 def test_a_clue_the_keyword_rules_read_is_never_rejected_and_a_failing_clef_is_ignored(make):
-    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Đi cùng ai?", "Một mình", "Bạn bè")))
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), text="Rõ rồi, bạn đi cùng ai?"), say(""))
     e = make(chat, route=lambda text, card: ClefRoute(reject="off_topic", asks_data=True))
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")  # "3 ngày" is a trip clue: the Agent still answers
-    assert chat.calls == 1 and e.store.get(sid).state.days.value == 3
+    assert chat.calls == 2 and e.store.get(sid).state.days.value == 3
 
 
 def test_a_date_that_frames_a_figure_question_does_not_stop_clef_from_answering_it(make):
@@ -132,77 +134,76 @@ def test_a_date_that_frames_a_figure_question_does_not_stop_clef_from_answering_
     assert e.store.get(sid).state.month.value == 12  # the keyword rules already wrote the month
 
 
-def test_an_open_question_is_a_card_with_the_question_as_its_title_and_a_free_text_box(make):
-    e = make(ScriptedChat(reply(ask("Bạn hình dung chuyến này thế nào?"), text="Mình ghi lại rồi.")))
+def test_an_open_question_in_words_stays_in_the_chat_with_a_free_text_box(make):
+    e = make(ScriptedChat(say("Mình ghi lại rồi. Bạn hình dung chuyến này thế nào?")))
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="đi Đà Lạt")
-    card = ev[-1][1]
-    assert card["text"] == "Bạn hình dung chuyến này thế nào?" and card["chips"] == [] and card["input"] == "text"
-    assert card["qid"].startswith("ask:")  # not `conversation`: the web draws that one as an untitled box
-    assert e.store.get(sid).transcript[-2]["text"] == "Mình ghi lại rồi."  # the model's own words stay a chat message
+    assert ev[-1][1]["qid"] == "conversation"  # not `ask:*`: chat never deals cards
+    assert e.store.get(sid).transcript[-2]["text"] == "Mình ghi lại rồi. Bạn hình dung chuyến này thế nào?"
 
 
-def test_an_answer_from_a_card_goes_to_the_agent_as_text(make):
-    chat = ScriptedChat(reply(ask("Đi cùng ai?", "Một mình", "Bạn bè")),
-                        reply(fact("companions", "friends", "Bạn bè", op="add")))
-    e = make(chat)
+def test_a_quiz_chip_answer_writes_its_drafts_without_the_agent(make):
+    e = make(ScriptedChat(error=AgentError("down")))
     sid = e.create("first", "nothing")["id"]
-    card = run(e, sid, kind="text", text="đi 3 ngày")[-1][1]
-    run(e, sid, kind="answer", qid=card["qid"], chips=("c1",))
-    assert chat.seen[1][0][-1] == {"role": "user", "content": "Bạn bè"}
+    run(e, sid, kind="text", text="đi 3 ngày")
+    run(e, sid, kind="to_quiz")
+    assert e.load(sid)["card"]["qid"] == "nights"  # days is known: the quiz skips it
+    run(e, sid, kind="answer", qid="nights", chips=("nights:2",))
+    assert e.load(sid)["card"]["qid"] == "companions"
+    ev = run(e, sid, kind="answer", qid="companions", chips=("who:friends",))
     assert e.store.get(sid).state.companions.value == frozenset({"friends"})
+    assert ev[-1][1]["qid"] != "companions"  # the answered card closes
 
 
-def test_skipping_a_card_leaves_the_field_unknown_without_the_agent_and_it_is_never_asked_again(make):
-    chat = ScriptedChat(reply(ask("Đi cùng ai?", "Một mình", "Bạn bè")),
-                        reply(ask("Đi cùng ai?", "Một mình", "Bạn bè")),  # asked again: refused, the agent asks another
-                        reply(ask("Đi bằng gì?", "Xe máy", "Ô tô")))
-    e = make(chat)
+def test_skipping_a_quiz_card_leaves_the_field_unknown_and_it_is_never_asked_again(make):
+    e = make()
     sid = e.create("first", "nothing")["id"]
-    card = run(e, sid, kind="text", text="đi Đà Lạt")[-1][1]
-    ev = run(e, sid, kind="answer", qid=card["qid"], chips=("skip",))
+    run(e, sid, kind="to_quiz")
+    assert e.load(sid)["card"]["qid"] == "days"
+    ev = run(e, sid, kind="answer", qid="days", chips=("skip",))
     say = next(d["replace"] for n, d in ev if n == "say")
-    assert chat.calls == 1 and say == DECLINE_SAY  # the quiz supplies the remaining fields
-    assert ev[-1][1]["qid"] == "days" and FALLBACK_SAY not in say
+    assert say == DECLINE_SAY
+    assert ev[-1][1]["qid"] == "companions"  # the quiz moves on (nights needs days)
     st = e.store.get(sid).state
-    assert not st.companions.known and st.meta.declined == ("Đi cùng ai?",)
+    assert not st.days.known and "days" in st.meta.asked and "Chuyến này bạn đi mấy ngày?" in st.meta.declined
     assert [t["text"] for t in e.store.get(sid).transcript if t["role"] == "user"][-1] == "Bỏ qua"
-    ev = run(e, sid, kind="text", text="đi 3 ngày")
-    assert ev[-1][1]["text"] == "Chuyến 3 ngày này bạn ngủ lại mấy đêm?"
+    run(e, sid, kind="to_chat")
+    assert "Bạn đi cùng ai?" in e.store.get(sid).state.meta.declined  # the open card counts as declined on switch
+    run(e, sid, kind="to_quiz")
+    assert e.load(sid)["card"]["qid"] == "arrival"  # days and companions are never asked again
 
 
-def test_an_answered_card_closes_and_is_not_asked_again_when_the_agent_asks_nothing(make):
-    # T-3: the agent recorded the answer but asked nothing new; the old question must not come back
-    chat = ScriptedChat(reply(ask("Ngày cuối bạn rời Đà Lạt lúc mấy giờ?", "Buổi sáng", "Buổi chiều (12h - 17h)")),
-                        reply(fact("checkout_at", "14:30", "Buổi chiều (12h - 17h)", how="inferred")), say("Mình ghi rồi."))
-    e = make(chat)
+def test_an_answered_quiz_card_closes_and_moves_on_without_the_agent(make):
+    e = make()
     sid = e.create("first", "nothing")["id"]
-    card = run(e, sid, kind="text", text="đi 3 ngày")[-1][1]
-    ev = run(e, sid, kind="answer", qid=card["qid"], chips=("c1",))
-    assert ev[-1][1]["qid"] == "nights" and e.store.get(sid).state.checkout_at.value == "14:30"
+    run(e, sid, kind="text", text="đi 3 ngày")
+    run(e, sid, kind="to_quiz")
+    run(e, sid, kind="answer", qid="nights", chips=("nights:2",))
+    ev = run(e, sid, kind="answer", qid="companions", chips=("who:friends",))
+    st = e.store.get(sid).state
+    assert st.nights.value == 2 and st.companions.value == frozenset({"friends"})
+    assert ev[-1][1]["qid"] == "arrival"
     cards = [t["text"] for t in e.store.get(sid).transcript if t.get("kind") == "card"]
-    assert cards.count("Ngày cuối bạn rời Đà Lạt lúc mấy giờ?") == 1
+    assert cards.count("Bạn đi cùng ai?") == 1
 
 
-def test_a_typed_answer_the_agent_records_closes_the_open_card(make):
-    chat = ScriptedChat(reply(ask("Ngày cuối bạn rời Đà Lạt lúc mấy giờ?", "Sáng", "Chiều")),
+def test_a_typed_answer_the_agent_records_keeps_the_chat_card_free(make):
+    chat = ScriptedChat(say("Mấy giờ cũng được, bạn rời lúc mấy giờ?"),
                         reply(fact("checkout_at", "16:00", "4 giờ chiều")))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
     ev = run(e, sid, kind="text", text="khoảng 4 giờ chiều")
-    assert ev[-1][1]["qid"] == "nights"
+    assert e.store.get(sid).state.checkout_at.value == "16:00"
+    assert ev[-1][1]["qid"] == "conversation"  # chat asks in words, never cards
 
 
-def test_a_pressed_option_the_agent_could_not_read_keeps_the_card_and_never_blames_the_typing(make):
-    chat = ScriptedChat(reply(ask("Đi cùng ai?", "Một mình", "Bạn bè")))  # then the script ends: AgentError
-    routes = []
-    e = make(chat, route=lambda text, card: routes.append(text) or ClefRoute())
+def test_a_pressed_quiz_option_needs_no_agent_at_all(make):
+    e = make(ScriptedChat(error=AgentError("down")))  # the quiz is deterministic: a dead agent changes nothing
     sid = e.create("first", "nothing")["id"]
-    card = run(e, sid, kind="text", text="đi Đà Lạt")[-1][1]
-    ev = run(e, sid, kind="answer", qid=card["qid"], chips=("c1",))
-    assert ("say", {"replace": BUSY_SAY}) in ev and ev[-1][1]["text"] == "Đi cùng ai?"
-    assert routes == ["đi Đà Lạt"]  # a pressed option is never sent to Clef
+    run(e, sid, kind="to_quiz")
+    ev = run(e, sid, kind="answer", qid="days", chips=("days:3",))
+    assert e.store.get(sid).state.days.value == 3 and ev[-1][1]["qid"] == "nights"
 
 
 def test_the_user_declining_gets_a_plain_text_reply_and_no_forced_question(make):
@@ -245,11 +246,11 @@ def test_next_is_refused_until_the_minimum_is_known_then_it_compiles(make):
 
 def test_a_refused_tool_call_is_corrected_inside_the_same_turn(make):
     chat = ScriptedChat(reply(fact("days", "9", "9 ngày")),  # not in the message: refused, the agent reads the error
-                        reply(fact("days", "3", "3 ngày"), ask("Đi cùng ai?", "Một mình", "Bạn bè")))
+                        reply(fact("days", "3", "3 ngày")), say(""))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
-    assert chat.calls == 2 and e.store.get(sid).state.days.value == 3
+    assert chat.calls == 3 and e.store.get(sid).state.days.value == 3
     tool_result = next(m for m in chat.seen[1][0] if m["role"] == "tool")
     assert "error" in tool_result["content"]
 
@@ -258,14 +259,14 @@ def test_a_plain_reply_leaves_a_free_text_card(make):
     e = make(ScriptedChat(say("Đà Lạt tháng 12 khá lạnh, khoảng 14 độ.")))
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="tháng 12 lạnh không?")
-    assert ev[-1][1]["qid"] == "days"
+    assert ev[-1][1]["qid"] == "conversation"
 
 
 def test_agent_failure_keeps_what_was_written_and_says_so(make):
     e = make(ScriptedChat(reply(fact("days", "3", "3 ngày"))))  # the second call finds the script empty
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="đi 3 ngày")
-    assert ("say", {"replace": FALLBACK_SAY}) in ev and ev[-1][1]["qid"] == "nights"
+    assert ("say", {"replace": FALLBACK_SAY}) in ev and ev[-1][1]["qid"] == "conversation"
     assert e.store.get(sid).state.days.value == 3
 
 
@@ -305,11 +306,12 @@ def test_stale_answer_is_rejected(make):
 
 
 def test_session_survives_restart(make, tmp_path):
-    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Đi cùng ai?", "Một mình", "Bạn bè")))
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), text="Rõ rồi, bạn đi cùng ai?"), say(""))
     sid = make().create("returning", "saved")["id"]
     run(make(chat), sid, kind="text", text="đi 3 ngày")
     v = make().load(sid)
-    assert v["card"]["text"] == "Đi cùng ai?" and v["understanding"]["trip"][0]["value"] == 3
+    assert v["card"]["qid"] == "conversation" and v["understanding"]["trip"][0]["value"] == 3
+    assert v["transcript"][-1]["text"] == "Rõ rồi, bạn đi cùng ai?"
 
 
 def test_unknown_session_raises(make):
@@ -406,15 +408,22 @@ def test_a_fact_whose_quote_does_not_say_it_is_refused_so_the_agent_can_correct_
 
 
 def test_a_question_the_state_already_answers_is_sent_back_to_the_agent(make):
-    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Bạn đi mấy ngày?", "1-2", "3-4")),
-                        reply(ask("Bạn đi với ai?", "Một mình", "Bạn bè")))
+    # Quiz detour: the typed answer was unclear, so the agent runs with asking tools and Clef watches repeats.
+    chat = ScriptedChat(reply(ask("Đi bao nhiêu hôm?", "1-2", "3-4")),
+                        reply(ask("Ai đi cùng?", "Một mình", "Bạn bè")), say(""))
     once = iter([True, False])
     judge = FakeJudge()
     judge.repeats = lambda question, known: next(once)
+    judge.clear_for_field = lambda text, label: False
     e = judged(make, chat, judge)
     sid = e.create("first", "nothing")["id"]
-    ev = run(e, sid, kind="text", text="đi 3 ngày")
-    assert chat.calls == 2 and ev[-1][1]["text"] == "Bạn đi với ai?"
+    run(e, sid, kind="to_quiz")
+    run(e, sid, kind="answer", qid="days", chips=("days:3",))
+    run(e, sid, kind="answer", qid="nights", chips=("nights:2",))
+    ev = run(e, sid, kind="text", text="đi với gia đình")
+    assert chat.calls == 2 and ev[-1][1]["qid"] == "companions"  # unresolved: the chips stay available
+    log = [t["text"] for t in e.store.get(sid).transcript if t["role"] == "system"][-1]
+    assert "clef_repeat" in log
 
 
 def test_a_reply_clef_finds_promising_results_is_replaced(make):
@@ -434,38 +443,48 @@ def test_search_features_falls_back_to_clef_when_the_keywords_find_nothing(make)
     assert "scenic_view" in tool_msg["content"]
 
 
-def test_a_question_asked_right_after_a_refused_fact_is_sent_back_once_so_the_fact_gets_fixed(make):
-    chat = ScriptedChat(reply(fact("companions", "family", "gia đình"), ask("Đi cùng ai?", "Bố mẹ", "Con nhỏ")),
-                        reply(fact("companions", "parents", "gia đình")), reply(ask("Đi bằng gì?", "Xe máy", "Ô tô")))
+def test_a_question_asked_right_after_a_refused_fact_is_fixed_in_words(make):
+    chat = ScriptedChat(reply(fact("companions", "family", "gia đình"), text="Đi cùng ai nè?"),
+                        reply(fact("companions", "parents", "gia đình", op="add")), say(""))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="đi với gia đình")
     s = e.store.get(sid)
     assert chat.calls == 3 and "parents" in str(s.state.companions.value)
-    assert ev[-1][1]["text"] == "Đi bằng gì?" and "resolve_refusal ['companions']" in [t["text"] for t in s.transcript if t["role"] == "system"][-1]
+    assert ev[-1][1]["qid"] == "conversation"  # chat asks in words, never cards
+    assert "resolve_refusal ['companions']" in [t["text"] for t in s.transcript if t["role"] == "system"][-1]
 
 
 def test_a_refusal_can_be_resolved_by_clarifying_its_exact_field(make):
-    chat = ScriptedChat(reply(fact("companions", "family", "gia đình"), ask("Bạn đi tháng mấy?", "11", "12")),
-                        reply(call("ask_choice", text="Bạn đi cùng ai?", options=["Bố mẹ", "Bạn bè"], multi=False,
-                                   reason="để hiểu nhóm đi", placeholder="", clarifies="companions")))
+    # Quiz detour: asking tools only exist where cards do.
+    chat = ScriptedChat(reply(fact("companions", "family", "gia đình")),
+                        reply(call("ask_choice", text="Nhà mình gồm những ai?", options=["Bố mẹ", "Bạn bè"], multi=False,
+                                   reason="để hiểu nhóm đi", placeholder="", clarifies="companions")), say(""))
     e = make(chat)
+    e.judge = FakeJudge()
+    e.judge.clear_for_field = lambda text, label: False
     sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="to_quiz")
+    run(e, sid, kind="answer", qid="days", chips=("days:3",))
+    run(e, sid, kind="answer", qid="nights", chips=("nights:2",))
     ev = run(e, sid, kind="text", text="đi với gia đình")
-    assert chat.calls == 2 and ev[-1][1]["text"] == "Bạn đi cùng ai?"
+    assert chat.calls == 2 and ev[-1][1]["qid"] == "companions"  # unresolved: the chips stay available
+    log = [t["text"] for t in e.store.get(sid).transcript if t["role"] == "system"][-1]
+    assert "clarify_refusal companions" in log
 
 
 def test_the_start_date_question_is_a_calendar_and_a_picked_day_is_written_without_the_agent(make):
     chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), fact("companions", "friends", "bạn bè", op="add"),
-                              fact("mobility", "motorbike", "xe máy")))
+                              fact("mobility", "motorbike", "xe máy")), say(""))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
-    first = run(e, sid, kind="text", text="đi 3 ngày với bạn bè bằng xe máy")[-1][1]
-    assert first["qid"] == "nights"
-    arrival = run(e, sid, kind="answer", qid="nights", chips=("nights:2",))[-1][1]
-    assert arrival["qid"] == "arrival"
-    card = run(e, sid, kind="answer", qid="arrival", chips=("self",))[-1][1]
-    assert card["input"] == "date" and card["exits"] is True  # "Chưa chắc" is offered next to the calendar
+    run(e, sid, kind="text", text="đi 3 ngày với bạn bè bằng xe máy")
+    run(e, sid, kind="to_quiz")
+    assert e.load(sid)["card"]["qid"] == "nights"  # days is known: the quiz skips it
+    run(e, sid, kind="answer", qid="nights", chips=("nights:2",))
+    run(e, sid, kind="answer", qid="arrival", chips=("self",))
+    card = e.load(sid)["card"]
+    assert card["qid"] == "dates" and card["input"] == "date" and card["exits"] is True  # "Chưa chắc" is offered next to the calendar
     calls_before_picker = chat.calls
     assert names(run(e, sid, kind="answer", qid=card["qid"], value="2026-10-01")) == ["error"]  # before today
     assert ("error", {"message": PAST_DATE}) in run(e, sid, kind="answer", qid=card["qid"], value="2026-10-01")
@@ -486,7 +505,7 @@ def test_a_theme_card_writes_its_fixed_tastes_without_reading_a_sentence(make, c
     st = e.store.get(sid).state
     assert {k: f.value for k, f in st.soft.items()} == {"setting=indoor": "love", "weather_exposed=sheltered": "love"}
     assert st.liked_groups.value == ("chill", "sights") and chat.calls == 0
-    assert "Chỗ trong nhà khi mưa" in next(d["replace"] for n, d in ev if n == "say") and ev[-1][1]["qid"] == "days"
+    assert "Chỗ trong nhà khi mưa" in next(d["replace"] for n, d in ev if n == "say") and ev[-1][1]["qid"] == "conversation"
     assert e.load(sid)["transcript"][-2] == {"role": "user", "text": "Chỗ trong nhà khi mưa", "turn": 1, "kind": "theme"}
     assert names(run(e, sid, kind="theme", value="nope")) == ["error"]
 
@@ -507,20 +526,21 @@ def test_a_correction_in_a_later_turn_updates_the_budget_scope_even_if_the_agent
     assert e.load(sid)["understanding"]["budget_vnd"]["value"]["guessed"] is False
 
 
-def test_a_correction_of_something_known_leaves_the_open_question_open(make):
-    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), ask("Bạn muốn đi thong thả hay đi nhiều?", "Thong thả", "Đi nhiều")),
-                        reply(fact("days", "3", "3 ngày")))  # recorded again, nothing new
+def test_a_correction_of_something_known_records_nothing_new_and_stays_in_chat(make):
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày"), text="Rõ rồi."), say(""),
+                        reply(fact("days", "3", "3 ngày")), say(""))  # recorded again, nothing new
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
     ev = run(e, sid, kind="text", text="đúng rồi 3 ngày nha")
-    assert ev[-1][1]["text"] == "Bạn muốn đi thong thả hay đi nhiều?"
+    assert ev[-1][1]["qid"] == "conversation"  # no open question to keep: chat never deals cards
+    assert e.store.get(sid).state.meta.idle_streak == 1  # an adaptive turn that added nothing
 
 
-def test_a_question_the_model_writes_as_plain_text_becomes_the_open_card(make):
+def test_a_question_the_model_writes_as_plain_text_stays_in_the_chat(make):
     chat = ScriptedChat(say("Mình ghi rồi. Bạn muốn đi thong thả hay đi nhiều?"))
     e = make(chat)
     sid = e.create("first", "nothing")["id"]
     ev = run(e, sid, kind="text", text="đi 3 ngày")
-    assert ev[-1][1]["text"] == "Bạn muốn đi thong thả hay đi nhiều?" and ev[-1][1]["qid"] == "ask:1"
-    assert e.store.get(sid).transcript[-2]["text"] == "Mình ghi rồi."  # the chat keeps only the lead
+    assert ev[-1][1]["qid"] == "conversation"  # chat asks in words: no card is made from the text
+    assert e.store.get(sid).transcript[-2]["text"] == "Mình ghi rồi. Bạn muốn đi thong thả hay đi nhiều?"

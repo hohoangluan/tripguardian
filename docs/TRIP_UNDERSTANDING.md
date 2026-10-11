@@ -113,16 +113,21 @@ Tài khoản và User Profile được xin sau khi user đã thấy kết quả 
 
 ## 4. Luồng xử lý
 
-Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự. **Agent quyết định hỏi gì và hỏi bằng gì; người dùng quyết định khi nào sang bước sau (nút Next)**; code chỉ kiểm bằng chứng trước khi ghi Trip State và giữ điều kiện tối thiểu của Next.
+Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự. **Agent quyết định hỏi gì; người dùng quyết định hỏi bằng cách nào (thanh chuyển mode: Trò chuyện / Trắc nghiệm nhanh) và khi nào sang bước sau (nút Next)**; code chỉ kiểm bằng chứng trước khi ghi Trip State và giữ điều kiện tối thiểu của Next.
 
 ```text
 ① NẠP PRIOR        Mẫu dài hạn đã lưu (nếu có user id, §17) + anchor/link đã có → Trip State nháp
 ② MỞ ĐẦU           Một câu hỏi mở, không chip: kể về chuyến đi mơ ước sắp tới
-③ MỖI LƯỢT         Agent đọc câu user + CURRENT CONTEXT, gọi tool (ghi fact, tra cứu), rồi dừng bằng
-                   hỏi một thẻ hoặc trả lời chữ. Câu trả lời chip quay lại agent dưới dạng chữ
+③ MỖI LƯỢT         Theo mode user chọn (thanh riêng, luôn hiện từ lượt đầu):
+                    chat  — Agent đọc câu user + CURRENT CONTEXT, gọi tool (ghi fact, tra cứu),
+                            hỏi và làm rõ bằng chữ, không bao giờ phát thẻ
+                    quiz  — thẻ chip tất định, không gọi model (gõ tự do đi qua other-gate,
+                            khó quá thì nhờ chat giải quyết, chip vẫn giữ)
 ④ BẢN HIỂU NHU CẦU User xem và sửa trực tiếp (§8); bấm Next khi `ready` (§6)
 ⑤ BIÊN DỊCH        Trip State → Search Input (§9)
 ```
+
+Hai mode chung một Trip State: chat học được gì thì quiz bỏ qua (không hỏi lại field đã biết), quiz bấm được gì thì chat thấy ngay trong CURRENT CONTEXT. Thẻ đang dở khi chuyển mode tính là bỏ qua vĩnh viễn (`declined`, không hỏi lại ở cả hai mode). Quiz hết câu thì sang thẻ review; review vẫn gõ thêm và chuyển mode được. Không còn tự đổ sang quiz: chat kể xong thì ở yên chat cho tới khi user bấm thanh.
 
 Phân vai:
 
@@ -139,12 +144,14 @@ Tool của agent (`agent/tools.py`, function calling gốc trên role Agent, `do
 | `record_fact(field, op, value, quote, how)` | Ghi một fact (cả `budget_scope`, `month_part`, `liked_groups`) | `quote` phải có nguyên văn trong tin nhắn; `values.parse` hợp lệ. Bị từ chối (kể cả feature sai hoặc sai định dạng) thì trả lỗi kèm định dạng đúng lại cho agent để sửa trong cùng lượt. Mong muốn không feature nào diễn đạt được thì **agent chủ động** ghi `field = unmapped` |
 | `resolve_relative_date`, `search_places` | Tra cứu chỉ đọc | argument phải là span trong câu user; chỉ đọc catalog |
 | `search_features(query)` | Tra feature ontology khớp một mong muốn ("thú cưng" → `animals`), tối đa 5 | chỉ đọc ontology; bỏ qua từ quá chung chung |
-| `ask_choice(text, options, multi, reason)` | Thẻ multiple choice 2–6 lựa chọn ≤ 40 ký tự | Dừng lượt |
-| `ask_text(text, placeholder, kind?)` | Câu hỏi mở: thẻ có câu hỏi làm tiêu đề và ô gõ, không chip. `kind = "date"` khi hỏi ngày khởi hành: thẻ `input = "date"` (lịch chọn ngày + "Chưa chắc") | Dừng lượt; câu user đã `declined` hoặc vừa hỏi bị trả lỗi |
+| `ask_choice(text, options, multi, reason)` | Thẻ multiple choice 2–6 lựa chọn ≤ 40 ký tự. Chỉ tồn tại nơi có thẻ (lượt chat nhờ của quiz, §luồng quiz); ở chat mode specs không chứa tool này nên agent hỏi bằng chữ | Dừng lượt |
+| `ask_text(text, placeholder, kind?)` | Câu hỏi mở: thẻ có câu hỏi làm tiêu đề và ô gõ, không chip. `kind = "date"` khi hỏi ngày khởi hành: thẻ `input = "date"` (lịch chọn ngày + "Chưa chắc"). Như trên: chỉ nơi có thẻ | Dừng lượt; câu user đã `declined` hoặc vừa hỏi bị trả lỗi |
 
 Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một tool dừng thành công, khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Khối suy nghĩ model viết vào nội dung (`<|channel>…<channel|>` của Gemma, trước hoặc sau câu trả lời) bị bỏ ngay khi stream (`loop.Visible`), không bao giờ hiện cho user. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
 
-Kết quả của lượt thành thẻ cho web (`api/engine.py`): `ask_choice` / `ask_text` → thẻ `custom` (qid `ask:<lượt>`; `ask_text` không có chip). Model hỏi bằng chữ mà không gọi tool (Gemma hay làm vậy) thì câu hỏi cuối lời trả lời thành thẻ như của `ask_text` (log `text_question`), trừ khi user đã bỏ qua hoặc vừa được hỏi câu đó. Khi có thẻ, các câu hỏi trong lời chat bị bỏ (thẻ đã hỏi); phần agent viết trước câu hỏi trong `text` của thẻ được tách ra thành chữ trong chat (`guard.split_lead`). Lượt chỉ trả lời chữ → ô gõ tự do không tiêu đề (`conversation`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent.
+Kết quả của lượt thành thẻ cho web (`api/engine.py`): ở quiz/review, `ask_choice` / `ask_text` (lượt chat nhờ) → thẻ `custom` (qid `ask:<lượt>`; `ask_text` không có chip). Ở chat mode agent không có tool hỏi nên không bao giờ phát thẻ: hỏi bằng chữ thì ở yên trong chữ, lượt chỉ còn ô gõ tự do (`conversation`). Khi có thẻ, các câu hỏi trong lời chat bị bỏ (thẻ đã hỏi); phần agent viết trước câu hỏi trong `text` của thẻ được tách ra thành chữ trong chat (`guard.split_lead`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent.
+
+Thẻ quiz mở **đóng** khi đã được trả lời (bấm chip ghi drafts thẳng vào state, không qua model). `Bỏ qua` / `Chưa chắc` giữ field `unknown` và không hỏi lại ở cả hai mode. Lượt gõ tự do trong quiz mà other-gate không đọc được thì nhờ chat giải quyết (`resolving_other` trong CURRENT CONTEXT) trong khi chip vẫn giữ; giải quyết xong thì quay lại quiz đúng một thẻ tiếp theo.
 
 Trả lời một thẻ:
 
@@ -155,7 +162,7 @@ Trả lời một thẻ:
 | Bấm một lựa chọn agent viết | Nhãn đi lại agent như chữ; không hỏi Clef (một lựa chọn không lạc đề); agent lỗi → `BUSY_SAY` ("chưa ghi được lựa chọn này, bấm lại") và thẻ giữ nguyên, hoặc `NOTED_SAY` nếu agent đã ghi được | Có |
 | Gõ chữ | Như một lượt gõ | Có |
 
-Thẻ đang mở **đóng** khi đã được trả lời: user bấm lựa chọn (agent đọc được), hoặc agent ghi được giá trị **mới** cho một field (`_learned`: field khác trước lượt). Lượt không trả lời nó (chỉ trả lời chữ, một lời sửa điều đã biết, mong muốn `unmapped`, agent lỗi) thì thẻ giữ nguyên. Lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng `UNSURE_SAY`, không để trống. Agent lỗi trên lượt gõ (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận `FALLBACK_SAY` ("trợ lý đang bận…"); `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent.
+Lượt chat không có khái niệm "thẻ đang mở" (chat không phát thẻ). Lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng `UNSURE_SAY`, không để trống. Agent lỗi trên lượt gõ (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận `FALLBACK_SAY` ("trợ lý đang bận…"); `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent. Lượt không học được gì (`unsure` vì bỏ qua, `idle` vì không ghi mới) tăng streak trong `meta`; hai lượt liền thì lượt sau mang cờ `stuck` trong CURRENT CONTEXT để agent đổi cách hỏi (đoán một đáp án cụ thể cho khách sửa, hoặc chỉ lên thanh trắc nghiệm), xem §12.
 
 **Thẻ chủ đề** (trang Khám phá, `{kind: "theme", value: <id>}`): ghi nguyên danh sách soft và `liked_groups` cố định của chủ đề (`config/trip.yaml` `themes`, `source = user`, độ tin `medium` nên lời nói sau ghi đè được), trả `THEME_SAY`, không đọc câu nào, không gọi model.
 
@@ -308,6 +315,8 @@ Chỉ dùng thông tin user đã cung cấp hoặc thể hiện trong hội tho�
 ## 12. Nguyên tắc đặt câu hỏi
 
 Không có ngân hàng câu hỏi: agent viết câu hỏi và lựa chọn mỗi lượt (`agent/prompt.py`). Nguyên tắc căn cứ nghiên cứu ở `Project_Context.md` §12.1 mà prompt áp: hỏi cách dùng ("chuyến này để làm gì"), không hỏi thuộc tính; chỉ hỏi điều đổi kết quả; một câu mỗi lượt; luôn có thể bỏ qua; không hỏi lại điều đã biết (từ user, anchor hay profile); từ chủ quan thì hỏi nghĩa; câu nhạy cảm nói rõ vì sao hỏi. Lựa chọn của thẻ chỉ là dữ liệu trả lại agent, không ghi thẳng vào Trip State.
+
+Riêng chat mode (không thẻ): hỏi mở bằng chữ trước, chỉ đưa lựa chọn trong chữ khi khách stuck (hai lượt liền không học được gì: `stuck: true` trong CURRENT CONTEXT). Đoán một đáp án cụ thể để khách sửa còn hơn câu hỏi hay; đoán thì nói là đoán. Trỏ lên thanh trắc nghiệm khi chữ đã đuối.
 
 ## 13. Giọng điệu
 
