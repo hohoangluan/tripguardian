@@ -1,4 +1,4 @@
-"""Deterministic first read of a user message (docs/P2_TRIP_UNDERSTANDING.md §4).
+"""Deterministic first read of a user message (docs/TRIP_UNDERSTANDING.md §4).
 
 Numbers, dates, who, transport, health hints, money and keyword features. Runs before the agent, so the screen reacts at
 once and a failed agent call still records something. Every proposal quotes the user's own words.
@@ -47,7 +47,8 @@ SIGNALS = [
     (r"\b(co bau|mang thai|dang bau|bau bi)\b", "pregnant"),
     (r"\bsay (xe|deo)\b", "motion_sick"),
     (r"\bso (do cao|cao)\b", "height"),
-    (r"\b(an chay|chay truong|thuan chay)\b", "vegetarian"),
+    (r"\b(an chay|chay truong)\b", "vegetarian"),
+    (r"\b(thuan chay|vegan)\b", "vegan"),
 ]
 MOBILITY = [
     (r"\b(xe may|xe so|xe tay ga)\b", "motorbike"),
@@ -83,7 +84,7 @@ GROUPS = [
     (r"\b(thien nhien|rung thong|thac nuoc|cam trai|glamping|vuon hoa|doi hoa)\b", "nature"),
     (r"\b(tham quan|bao tang|di tich|nha tho|kien truc)\b", "sights"),
 ]
-# Minimal lexicon until the span lexicon exists (docs/P2_TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
+# Minimal lexicon until the span lexicon exists (docs/TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
 # several = a subjective word to clarify.
 LEXICON = [
     (r"\b(chill|thu gian|thu thai)\b", ("long_stay_chill=present", "noise=quiet", "crowd=low", "scenic_view=present",
@@ -206,6 +207,8 @@ def prepass(text: str, today: date) -> Prepass:
     for pattern, kind in SIGNALS:
         for m in re.finditer(pattern, low):
             if negated(m):
+                continue
+            if kind in {"vegetarian", "vegan"} and re.search(r"\b(thich|muon thu|thu)\s+(?:\w+\s+){0,2}$", low[max(0, m.start() - 30):m.start()]):
                 continue
             add("signal", kind, m, op="add")
     for table, field in ((MOBILITY, "mobility"), (PACE, "pace"), (NOVELTY, "novelty")):

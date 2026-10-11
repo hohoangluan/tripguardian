@@ -1,5 +1,5 @@
 import pytest
-from plan_fixtures import CFG, FakeLive, fake_matrix, no_geocode
+from plan_fixtures import CFG, FakeLive, fake_matrix, no_geocode, rec
 from fixtures import srec
 
 from trip import Catalog, Engine as TripEngine, SessionStore, Settings
@@ -45,6 +45,30 @@ def test_planning_tools_reject_chat_without_invoking_the_agent():
     tools = Tools(Engine([]))
     with pytest.raises(ValueError, match="turn"):
         tools.apply("000000000001", "turn", {"text": "change everything"}, lambda *a: None)
+
+
+def test_real_planning_suggestion_read_preserves_snapshot_and_tags_journey_revision(tmp_path):
+    from decision import Data, Engine as DecisionEngine, Store as DecisionStore, Tools as DecisionTools, load_settings
+    from planning import Engine as PlanningEngine, Tools as PlanningTools
+    from harness import Harness, Store
+    from test_dispatch import Tools as FakeTools, decision, run
+    records = [srec("place-1", name="Synthetic Place")]
+    decision_tools = DecisionTools(DecisionEngine(Data(records), load_settings(), DecisionStore(None)))
+    planning_tools = PlanningTools(PlanningEngine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
+        matrix_fn=fake_matrix, sun_fn=lambda *a: None, lodging_fn=lambda *a: [], background=False))
+    harness = Harness(FakeTools("trip"), decision_tools, planning_tools, Store(tmp_path))
+    view = decision(harness)
+    view = run(harness, view, "act", "select", {"type": "select", "place_id": "place-1"})
+    view = run(harness, view, "advance", "to-planning")
+    variant = view["result"]["view"]["variants"][0]["id"]
+    view = run(harness, view, "act", "pick", {"type": "pick_variant", "id": variant})
+    sid = view["sessions"]["planning"]
+    before = planning_tools.snapshot(sid)
+    result = harness.read(view["id"], "planning", "suggestions")
+    assert result["revision"] == view["revision"] and result["session_id"] == sid
+    assert result["token"] == view["result"]["view"]["suggestions"]["token"]
+    assert result["status"] == "ready"
+    assert planning_tools.snapshot(sid) == before
 
 
 def test_missing_module_session_is_a_public_404_error():

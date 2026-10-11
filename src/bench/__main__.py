@@ -1,4 +1,4 @@
-"""python -m bench generate | run (docs/P2_TRIP_UNDERSTANDING.md §16)."""
+"""python -m bench generate | run (docs/plans/BENCH.md)."""
 
 import argparse
 import os

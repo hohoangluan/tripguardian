@@ -1,5 +1,3 @@
-import type { Blocker } from '../lib'
-
 // Shapes of the Planning API (src/planning/engine.py, session.py, output.py, robustness.py, objectives.py).
 
 // A warning is {code, text} (src/planning/build.py _warn); text is the Vietnamese sentence to show.
@@ -22,18 +20,6 @@ export interface ItineraryItem {
   to?: string
   mode?: string
   note?: string
-  options?: { place_id: string; name: string; km: number }[] // meal_free: served restaurants open then, nearby (never added)
-}
-
-// The evening after a day that a night really follows (src/planning/build.py night_slots): a suggestion block, never part
-// of the plan. No place fits -> options [] and empty: the night stays empty and `text` says so.
-export interface Night {
-  night: number // 1-based
-  start: string
-  end: string
-  options: { place_id: string; name: string; km: number }[]
-  empty: boolean
-  text: string | null
 }
 
 export interface ItineraryDay {
@@ -43,7 +29,6 @@ export interface ItineraryDay {
   window: [string, string]
   method: string
   items: ItineraryItem[]
-  night?: Night | null // null: no night follows this day (the last day of 3N2Đ, a day trip)
 }
 
 export interface TravelLoadDay {
@@ -51,6 +36,27 @@ export interface TravelLoadDay {
   travel_min: number
   wait_min: number
   longest_leg_min: number
+}
+
+export interface TimeSuitabilityDay {
+  day: number
+  penalty: number
+  estimated: boolean
+  overload_min: number
+  places: { place_id: string; activity: string | null; visit: [string, string]; penalty: number;
+    shortened_min: number; reasons: { reason: string; text: string; source: string;
+      windows: [string, string][]; fit: number | null }[] }[]
+}
+
+export interface TimeRecommendation {
+  kind: 'gap' | 'overload'
+  day: number
+  optional: boolean
+  text: string
+  period?: string
+  windows?: [string, string][]
+  alternatives: { id: string; name: string; activity: string | null; trial_visit: [string, string];
+    requires_relayout: boolean; cost_unknown: boolean }[]
 }
 
 export interface Robustness {
@@ -82,6 +88,8 @@ export interface Variant {
     exposure_unknown: number; repeats: number; pref_risk: number }
   itinerary: ItineraryDay[]
   travel_load: TravelLoadDay[]
+  time_suitability?: TimeSuitabilityDay[]
+  recommendations?: TimeRecommendation[]
   robustness: Robustness
   backups: Backups
   warnings: Warning[]
@@ -92,7 +100,7 @@ export interface LodgingCandidate {
   id: string
   name: string
   price_vnd: number | null
-  // Taste ranking (docs/P4_PLANNING.md ⓐ): absent on an older view, then the screen shows only what is here.
+  // Taste ranking (docs/PLANNING.md ⓐ): absent on an older view, then the screen shows only what is here.
   source?: 'corpus' | 'live'
   rating?: number | null
   reviews?: number | null
@@ -116,8 +124,6 @@ export interface SessionState {
   assignment: Record<string, number>
   order_override: Record<string, string[]>
   dropped: { place_id: string; reason: DropReason | null }[]
-  visit_overrides?: Record<string, { start: number | null; duration_min: number | null }>
-  locked_visits?: Record<string, { start: number | null; duration_min: number | null }>
   locked: string[]
   pace_override: Pace | null
   objective_override: string | null
@@ -152,28 +158,35 @@ export interface View {
   variants: Variant[]
   comparison: Record<string, unknown>[]
   warnings: Warning[]
-  back_to_decision: { reason: string; places: string[]; reasons?: Blocker[] } | null
+  back_to_decision: { reason: string; places: string[] } | null
   lodging: Lodging
   itinerary: ItineraryDay[] | null
   travel_load: TravelLoadDay[] | null
+  time_suitability?: TimeSuitabilityDay[] | null
+  recommendations?: TimeRecommendation[] | null
+  suggestions?: Suggestions
+  metrics?: Variant['metrics'] | null
+  robustness?: Robustness | null
+  backups?: Backups | null
+  violations?: { kind: string; day: number | null; place_id: string | null; detail: string }[]
   day_conditions?: DayConditions[]
   crowd_tips?: CrowdTip[]
   state: SessionState
-  confirmed?: { edited: boolean } | null // after a confirm: whether this version differs from the confirmed plan
-  slots?: Record<string, { options: Slot[]; current: Slot }> // stops with a time-of-day choice (act set_slot)
 }
 
-export type Slot = 'dawn' | 'sunset' | 'evening' | 'any'
+export interface Suggestions {
+  status: 'pending' | 'ready' | 'unavailable'
+  token: string
+  session_id: string
+  items: TimeRecommendation[]
+}
 
 export type Action =
   | { type: 'pick_variant'; id: string }
   | { type: 'pick_lodging'; id: string }
   | { type: 'clear_lodging' }
-  | { type: 'set_lodging'; text: string; lat?: number; lng?: number } // lat / lng: the point picked from the suggestions
+  | { type: 'set_lodging'; text: string }
   | { type: 'set_lodging_budget'; max_per_night: number | null }
-  | { type: 'set_slot'; place_id: string; slot: Slot } // hold a stop to dawn / sunset / evening, or to no time of day
-  | { type: 'set_visit'; place: string; start?: string | null; duration_min?: number | null }
-  | { type: 'clear_visit'; place: string }
   | { type: 'move_place'; place: string; day: number }
   | { type: 'reorder'; day: number; order: string[] }
   | { type: 'drop_place'; place: string; reason?: DropReason | null }
@@ -218,6 +231,8 @@ export interface PlanOutput {
   lodging: { chosen: VariantLodging; candidates: LodgingCandidate[] }
   cost: Record<string, unknown>
   travel_load: TravelLoadDay[]
+  time_suitability?: TimeSuitabilityDay[]
+  recommendations?: TimeRecommendation[]
   reasons: string[]
   tradeoffs: Record<string, unknown>[]
   warnings: Warning[]

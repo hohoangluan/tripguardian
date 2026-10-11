@@ -1,4 +1,4 @@
-"""HTTP API for the web (docs/P4_PLANNING.md §CLI và API). Local only: binds 127.0.0.1."""
+"""HTTP API for the web (docs/PLANNING.md §API và web). Local only: binds 127.0.0.1."""
 
 import json
 import re
@@ -13,7 +13,7 @@ from .session import ActionError
 
 BASE = "/api/planning/sessions"
 SESSION = re.compile(BASE + r"/([0-9a-f]{12})")
-SUB = re.compile(BASE + r"/([0-9a-f]{12})/(act|confirm|variants|lodging|turn)")
+SUB = re.compile(BASE + r"/([0-9a-f]{12})/(act|confirm|variants|lodging|turn|suggestions)")
 MAX_TEXT = 1000
 EVENTS = re.compile(BASE + r"/([0-9a-f]{12})/lodging/events")
 
@@ -57,6 +57,8 @@ def handler(engine: Engine):
                     return self._call(lambda: engine.variants(m[1]))
                 if m[2] == "lodging":
                     return self._call(lambda: engine.lodging(m[1]))
+                if m[2] == "suggestions":
+                    return self._call(lambda: engine.suggestions(m[1]))
             if m := EVENTS.fullmatch(path):
                 try:
                     engine.store.get(m[1])

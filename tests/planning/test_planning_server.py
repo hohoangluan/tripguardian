@@ -43,6 +43,22 @@ def test_create_then_load(client):
     assert out2["id"] == sid
 
 
+def test_suggestions_read_returns_a_context_token_and_current_session(client):
+    conn, d = client
+    conn.request("POST", "/api/planning/sessions", json.dumps({"decision_output": d}), {"Content-Type": "application/json"})
+    created = json.loads(conn.getresponse().read())
+    sid, variant = created["id"], created["view"]["variants"][0]["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_variant", "id": variant}),
+                 {"Content-Type": "application/json"})
+    picked = json.loads(conn.getresponse().read())
+    conn.request("GET", f"/api/planning/sessions/{sid}/suggestions")
+    response = conn.getresponse()
+    suggestions = json.loads(response.read())
+    assert response.status == 200 and suggestions["status"] == "ready"
+    assert suggestions["token"] == picked["view"]["suggestions"]["token"]
+    assert suggestions["session_id"] == sid
+
+
 def test_act_then_confirm_round_trip(client):
     conn, d = client
     conn.request("POST", "/api/planning/sessions", json.dumps({"decision_output": d}), {"Content-Type": "application/json"})

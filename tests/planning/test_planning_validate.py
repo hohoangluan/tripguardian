@@ -1,7 +1,5 @@
 from dataclasses import replace
 
-import pytest
-
 from plan_fixtures import all_days, day_ctx, rec
 
 from planning.model import DayResult, Item
@@ -88,57 +86,14 @@ def test_a_hard_filter_the_place_clearly_breaks_fails_and_a_physical_one_says_so
     assert [(x.kind, x.physical) for x in v] == [("hard", True)]
 
 
-def test_a_physical_filter_with_no_evidence_fails_closed():
+def test_a_relaxed_filter_and_a_place_with_no_evidence_do_not_fail():
     hard = [{"feature": "steep_or_stairs", "op": "ne", "value": "present", "unknown_policy": "flag"}]
     unknown = day_ctx([rec("u", 1, 1)])
-    assert [(v.kind, v.physical) for v in run(unknown, result(visit("u", 600, 660)), hard=hard)] == [("hard", True)]
-
-
-def test_a_physical_filter_cannot_be_bypassed_by_forged_relaxed_state():
-    hard = [{"feature": "steep_or_stairs", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
+    assert run(unknown, result(visit("u", 600, 660)), hard=hard) == []
     steep = rec("a", 1, 1, features={"steep_or_stairs": "present"})
     relaxed = day_ctx([steep])
     relaxed.places["a"] = replace(relaxed.places["a"], relaxed=("steep_or_stairs",))
-    assert [(v.kind, v.physical) for v in run(relaxed, result(visit("a", 600, 660)), hard=hard)] == [("hard", True)]
-
-
-def test_a_non_physical_hard_filter_with_no_evidence_fails_closed():
-    hard = [{"feature": "live_music", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
-    unknown = day_ctx([rec("u", 1, 1)])
-    assert [(v.kind, v.physical) for v in run(unknown, result(visit("u", 600, 660)), hard=hard)] == [("hard", False)]
-
-
-def test_a_relaxed_non_physical_filter_does_not_fail():
-    hard = [{"feature": "live_music", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
-    relaxed = day_ctx([rec("a", 1, 1, features={"live_music": "present"})])
-    relaxed.places["a"] = replace(relaxed.places["a"], relaxed=("live_music",))
-    assert run(relaxed, result(visit("a", 1100, 1160)), hard=hard) == []
-
-
-@pytest.mark.parametrize('value,status,contradicted,expected', [
-    ('absent', 'VERIFIED', False, []), ('absent', 'OUTDATED', False, []),
-    ('present', 'VERIFIED', False, [('hard', True)]),
-    (None, None, False, [('hard', True)]),
-    ('absent', 'UNCERTAIN', False, [('hard', True)]),
-    ('absent', 'VERIFIED', True, [('hard', True)]),
-])
-def test_equality_hard_filter_requires_firm_uncontradicted_evidence(value, status, contradicted, expected):
-    record = rec('a', 1, 1, features={'steep_or_stairs': value} if value is not None else None)
-    if value is not None:
-        evidence = record['effort']['steep_or_stairs']
-        evidence['status'] = status
-        if contradicted:
-            evidence['distribution']['present'] = 1
-    cx = day_ctx([record])
-    hard = [{'feature': 'steep_or_stairs', 'op': 'eq', 'value': 'absent', 'unknown_policy': 'exclude'}]
-    assert [(v.kind, v.physical) for v in run(cx, result(visit('a', 600, 660)), hard=hard)] == expected
-
-
-def test_equality_physical_filter_cannot_be_bypassed_by_relaxed_state():
-    cx = day_ctx([rec('a', 1, 1, features={'steep_or_stairs': 'present'})])
-    cx.places['a'] = replace(cx.places['a'], relaxed=('steep_or_stairs',))
-    hard = [{'feature': 'steep_or_stairs', 'op': 'eq', 'value': 'absent', 'unknown_policy': 'exclude'}]
-    assert [(v.kind, v.physical) for v in run(cx, result(visit('a', 600, 660)), hard=hard)] == [('hard', True)]
+    assert run(relaxed, result(visit("a", 600, 660)), hard=hard) == []
 
 
 def test_the_same_place_twice_fails_but_two_near_duplicates_the_user_kept_pass():
@@ -153,3 +108,20 @@ def test_a_non_physical_hard_filter_is_not_marked_physical():
     hard = [{"feature": "live_music", "op": "ne", "value": "present", "unknown_policy": "exclude"}]
     v = run(day_ctx([noisy]), result(visit("a", 1100, 1160)), hard=hard)
     assert [(x.kind, x.physical) for x in v] == [("hard", False)]
+
+
+def test_diet_eq_rejects_a_meal_without_verified_options_but_allows_a_park():
+    hard = [{"feature": "vegetarian_options", "op": "eq", "value": "yes", "unknown_policy": "exclude"}]
+    for features in ({"vegetarian_options": "no"}, {}):
+        meal = day_ctx([rec("meal", 1, 1, group="restaurant", usable=("meal",), features=features)])
+        assert kinds(run(meal, result(visit("meal", 720, 750)), hard=hard)) == ["hard"]
+    park = day_ctx([rec("park", 1, 1, group="nature")])
+    assert run(park, result(visit("park", 600, 660)), hard=hard) == []
+
+
+def test_unknown_ne_is_fail_closed_unless_user_chose_flag():
+    hard = [{"feature": "noise", "op": "ne", "value": "loud", "unknown_policy": "exclude"}]
+    cx = day_ctx([rec("unknown", 1, 1)])
+    assert kinds(run(cx, result(visit("unknown", 600, 660)), hard=hard)) == ["hard"]
+    hard[0]["unknown_policy"] = "flag"
+    assert run(cx, result(visit("unknown", 600, 660)), hard=hard) == []

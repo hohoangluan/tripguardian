@@ -1,0 +1,133 @@
+{
+  "_note": "Preset library for the svg-character-animator skill. All durations in ms. Easing names map to easeFns in MorphAnimator.jsx.",
+
+  "morph": {
+    "easing": {
+      "snappy": {
+        "ease": "easeOutCubic",
+        "duration": 400,
+        "description": "UI feedback, button toggles. Front-loaded speed, soft landing."
+      },
+      "gentle": {
+        "ease": "easeInOutQuad",
+        "duration": 1200,
+        "description": "Default. Symmetric, smooth, suitable for most content transitions."
+      },
+      "bouncy": {
+        "ease": "easeOutBack",
+        "duration": 800,
+        "description": "Playful overshoot. Pairs with playful aesthetic."
+      },
+      "dreamy": {
+        "ease": "easeInOutSine",
+        "duration": 2500,
+        "description": "Ambient, slow, no perceived boundary. Pairs with floating aesthetic."
+      }
+    },
+    "scenario": {
+      "icon-toggle": {
+        "stagger": 0,
+        "description": "Short, sub-paths morph in unison. For two-state UI icons."
+      },
+      "page-transition": {
+        "stagger": 30,
+        "staggerOrigin": "center",
+        "description": "Center-out stagger, medium speed."
+      },
+      "character-emotion-shift": {
+        "stagger": 50,
+        "staggerOrigin": "anatomical",
+        "anatomicalOrder": ["eye", "nose", "mouth", "button", "head", "body", "hand"],
+        "description": "Stagger by anatomical priority. Eyes lead, body follows."
+      },
+      "ambient-loop": {
+        "stagger": 100,
+        "staggerOrigin": "random",
+        "description": "Slow, heavy stagger, no clear arrival moment."
+      }
+    },
+    "aesthetic": {
+      "none": {
+        "description": "No aesthetic overlay."
+      },
+      "playful": {
+        "easeOverride": "easeOutBack",
+        "scaleMidpoint": 1.04,
+        "description": "Slight overshoot at midpoint. Adds bounce and weight."
+      },
+      "vintage": {
+        "durationMultiplier": 1.5,
+        "description": "Slower than base. Subtle wobble."
+      },
+      "floating": {
+        "description": "Reserved for vertical drift and slight blur during morph."
+      }
+    }
+  },
+
+  "idle": {
+    "_blend": {
+      "rampDurationFraction": 0.4,
+      "minAmplitude": 0.1,
+      "rampEase": "easeInOutSine",
+      "description": "During morph, idle amplitude ramps to minAmplitude over rampDurationFraction × morph duration, then back to 1.0 after morph. These specific numbers (0.4 / 0.1 / sine in/out) were tuned through iteration."
+    },
+    "_pivot": {
+      "default": "50% 100%",
+      "description": "Bottom-center pivot for all rotation/scale idle animations. Characters stand on ground; rotating around feet feels right."
+    },
+    "sway": {
+      "transform": "rotation",
+      "amplitude": 2,
+      "duration": 1.5,
+      "ease": "sine.inOut",
+      "transformOrigin": "50% 100%",
+      "description": "Gentle horizontal rotation. Pairs well with tree-like or grounded characters."
+    },
+    "breathe": {
+      "transform": "scale",
+      "amplitudeOffset": 0.02,
+      "duration": 2.0,
+      "ease": "sine.inOut",
+      "transformOrigin": "50% 100%",
+      "description": "Uniform scale on slow loop. Calm, ambient. Always scales above 1.0 (never shrinks)."
+    },
+    "bob": {
+      "transform": "translateY",
+      "amplitude": 3,
+      "duration": 1.0,
+      "ease": "sine.inOut",
+      "description": "Vertical translation upward only. For floating objects."
+    },
+    "shake": {
+      "transform": "rotation",
+      "amplitude": 1,
+      "duration": 0.3,
+      "ease": "sine.inOut",
+      "transformOrigin": "50% 100%",
+      "description": "Quick high-frequency wobble. Subtle by default (±1°); increase to ±3° for stronger reaction."
+    },
+    "twinkle": {
+      "transform": "opacity+scale",
+      "targetSelector": "[data-twinkle='true']",
+      "amplitudeRange": [0.75, 1.0],
+      "scaleRange": [0.92, 1.0],
+      "duration": [0.6, 1.0],
+      "randomized": true,
+      "description": "Opacity + scale flicker on children with data-twinkle. Each child gets own random phase and slightly different period."
+    },
+    "sway-twinkle": {
+      "transform": "rotation+twinkle-children",
+      "swayAmplitude": 1.5,
+      "swayDuration": 1.8,
+      "transformOrigin": "50% 100%",
+      "description": "Combo: sway the whole character + twinkle decoration children. Used for stars/sparkles surrounding a swaying figure."
+    },
+    "drift": {
+      "transform": "translate-noncommensurate",
+      "amplitude": 5,
+      "durations": [6.0, 7.3],
+      "description": "Two-axis sine drift with incommensurate periods, so motion never exactly repeats. Reads as floating/dreamcore."
+    }
+  }
+}

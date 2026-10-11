@@ -1,4 +1,4 @@
-"""Runs ③–⑨ on a session (docs/P3_PLACE_DECISION.md §3) and builds the view the web shows. Everything re-runs on each
+"""Runs ③–⑨ on a session (docs/PLACE_DECISION.md §3) and builds the view the web shows. Everything re-runs on each
 change (~1.4k records are cheap); the session state (chosen / locked / dropped) is what keeps the invariants."""
 
 from collections import Counter
@@ -12,9 +12,9 @@ from .diversify import display_group, pick, sizes
 from .feasibility import evaluate
 from .fit import centers, fit
 from .model import Cand, role_of
-from .rank import liked_groups, score
+from .rank import score
 from .screen import screen
-from .trip_days import month_of, trip_days
+from .trip_days import trip_days
 from .window import merge
 
 MISSING_NAME = "Địa điểm chưa có trong dữ liệu"
@@ -87,6 +87,10 @@ def run(s, data: Data, cfg) -> Result:
         if r["id"] in stay:
             continue
         role = role_of(r)
+        if role and si.activities.get(r["id"]) == "eating":
+            role = "meal"
+        elif role and si.activities.get(r["id"]):
+            role = "experience"
         if role or r["id"] in keep:
             cands[r["id"]] = Cand(r, role or "experience", keep=r["id"] in keep)
     for pid in sorted(keep - cands.keys()):
@@ -105,18 +109,13 @@ def run(s, data: Data, cfg) -> Result:
 
     visited = set(si.novelty.visited) | set(st.profile.visited)
     pool = [c for c in live if not c.keep and c.status == "main" and c.id not in dropped and c.id not in wish
-            and c.fit >= cfg.min_context_fit and not (si.novelty.level == "new" and c.id in visited)
-            and not (st.profile.hide_crowded and c.crowd_warn)]
+            and c.fit >= cfg.min_context_fit and not (si.novelty.level == "new" and c.id in visited)]
     chosen = [cands[i] for i in st.selected if i in cands]
     size = sizes(si, len(days), sum(1 for a in anchors if cands[a].role == "experience"), cfg)
-    avoid = (st.profile.crowd_tolerance or si.pace.crowd_tolerance) == "avoid"
-    want = wanted(si, st.profile)
-    # "Hợp nhất" only for a place that matches a wish of the trip and carries no crowd warning the user avoids
-    best = [c for c in pool if not (avoid and c.crowd_warn) and (not want or c.parts["pref"] >= cfg.top_min_pref)]
     reps, alts = [], {}
     for role in ("experience", "meal"):
         k = size[role] - sum(1 for c in chosen if c.role == role and c.id not in anchors)
-        r_, a_ = pick([c for c in best if c.role == role], k, cfg)
+        r_, a_ = pick([c for c in pool if c.role == role], k, cfg)
         reps += r_
         alts.update(a_)
     for c in chosen:
@@ -132,8 +131,8 @@ def run(s, data: Data, cfg) -> Result:
     for c in [*(x for x in chosen if x.id not in anchors), *reps, *rest]:
         ranked.setdefault(group_of.get(c.id, "sights"), []).append(c.id)
 
-    suggested = next((c.id for c in [*reps, *rest] if group_of[c.id] == st.suggest_group), None) \
-        if st.suggest_group else None
+    suggested = next((c.id for c in reps if group_of[c.id] == st.suggest_group), None) if st.suggest_group else None
+    want = wanted(si, st.profile)
     labels = cfg.labels["group"]
 
     def mk(c: Cand) -> dict:
@@ -161,11 +160,6 @@ def run(s, data: Data, cfg) -> Result:
                     {f for f in want if f in cfg.timed_features}, cfg)
     pend = pending(st, data.by_id, si, feas, s.first_shortlist, group_of, cfg)
 
-    shown_groups = [g["id"] for g in groups if g["id"] != "anchors"]
-    liked = [g for g in liked_groups(si) if g in shown_groups]
-    tops = Counter(group_of[c.id] for c in reps)
-    focus = liked[0] if liked else max(shown_groups, key=lambda g: tops[g], default=None)  # ties: display order
-
     def name(pid: str) -> str:
         c = cands.get(pid)
         return c.name if c else (data.by_id.get(pid) or stub(pid))["identity"]["name"]
@@ -176,16 +170,9 @@ def run(s, data: Data, cfg) -> Result:
             return "Đóng cửa mọi ngày của chuyến"
         return "Bạn để dành cho dịp khác"
 
-    shown_cards = [c for g in groups for c in g["cards"]]
-    notes = [{"code": "rain", "text": f"Tháng {month_of(si.context)} hay mưa: các nơi ghi “Ngoài trời” nên có sẵn một "
-                                      "chỗ trong nhà để dự phòng"}] if any(c["outdoor"] for c in shown_cards) else []
-
     view = {
         "version": len(s.history),
-        "notes": notes,  # trip-wide warnings, said once above the list instead of on every card
-        "budget_vnd": si.context.budget_vnd,  # per person per day, shown next to the prices
         "groups": groups,
-        "focus": focus,  # the tab to open first: the trip's main interest
         "change": change,
         "shortlist": [x["id"] for g in groups for x in g["cards"]],
         "selected": list(st.selected), "locked": list(st.locked),
@@ -207,7 +194,7 @@ def run(s, data: Data, cfg) -> Result:
 
 
 def why_not(res: Result, pid: str, si, cfg) -> dict:
-    """Why a place is not in the shortlist (tool explain_exclusion, docs/P3_PLACE_DECISION.md §6.4)."""
+    """Why a place is not in the shortlist (tool explain_exclusion, docs/PLACE_DECISION.md §6.4)."""
     c = res.cands.get(pid)
     if c is None:
         return {"id": pid, "name": None, "known": False, "listed": False, "status": None, "score": None, "parts": {},
@@ -229,9 +216,7 @@ def why_not(res: Result, pid: str, si, cfg) -> dict:
         reasons += [f"Bị loại: {t}" for t in info["failed"]]
         reasons += [f"{t} (bạn có thể xem trong mục chưa xác minh)" for t in info["unverified"]]
         if not reasons:
-            if v["profile"].get("hide_crowded") and c.crowd_warn:
-                reasons.append("Nhiều người nói nơi này đông, mà bạn muốn bỏ các chỗ đông")
-            elif c.fit < cfg.min_context_fit:
+            if c.fit < cfg.min_context_fit:
                 reasons.append(f"Xa so với {c.center}" + (f" (≈{c.minutes} phút)" if c.minutes else ""))
             elif si.novelty.level == "new" and pid in si.novelty.visited:
                 reasons.append("Bạn đã đi nơi này và muốn thử nơi mới")

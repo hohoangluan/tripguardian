@@ -1,4 +1,4 @@
-"""Evidence checks between the agent and the Trip State (docs/P2_TRIP_UNDERSTANDING.md §4).
+"""Evidence checks between the agent and the Trip State (docs/TRIP_UNDERSTANDING.md §4).
 
 The agent proposes; nothing is written unless the quote is the user's own words and the value parses. A refusal is
 returned as text so the agent can correct itself in the same turn.
@@ -8,6 +8,7 @@ import re
 from typing import Literal
 
 from pydantic import ValidationError
+from requirements import Requirement, RequirementIntent
 
 from . import values
 from ..infrastructure.catalog import Catalog
@@ -16,13 +17,13 @@ from .text import contains, squash
 
 FieldName = Literal["start_date", "month", "month_part", "days", "nights", "companions", "people", "base", "entry_point", "exit_point", "mobility",
                     "checkin_at", "checkout_at", "day_end", "purpose", "anchor", "signal", "soft", "hard", "pace", "max_leg_min", "crowd_tolerance",
-                    "novelty", "budget_vnd", "budget_scope", "liked_groups", "unmapped"]
+                    "novelty", "budget_vnd", "budget_scope", "liked_groups", "activity", "time_preference", "unmapped"]
 GENERIC = {"du", "lich", "da", "lat", "dalat", "viet", "nam", "thanh", "pho", "tour"}  # a place name made only of these is a phrase
-LIST_FIELDS = {"companions", "liked_groups", "anchor", "signal", "soft", "hard", "unmapped"}
+LIST_FIELDS = {"companions", "liked_groups", "anchor", "signal", "soft", "hard", "activity", "time_preference", "unmapped"}
 
 
 def record_fact(state: TripState, field: str, op: str, value: str, quote: str, how: str, text: str, turn: int,
-                catalog: Catalog, compared: list[dict] | None = None) -> tuple[TripState, str]:
+                catalog: Catalog, compared: list[dict] | None = None, requirement: dict | None = None) -> tuple[TripState, str]:
     """-> (state, note). note is "" when the fact was written, else why it was refused (the agent reads it and corrects).
     text: this turn's message (the quote must come from it); compared: places the message compares the trip to,
     with their traits (trip.domain.traits)."""
@@ -42,8 +43,22 @@ def record_fact(state: TripState, field: str, op: str, value: str, quote: str, h
             parsed = None if field in SCALARS else values.parse_remove(field, value)
         else:
             parsed = values.parse(field, value, catalog)
+        intent = RequirementIntent.model_validate(requirement) if requirement is not None else None
+        if intent and field not in ("hard", "soft"):
+            raise ValueError("requirement metadata is only accepted for hard or soft")
+        if intent and op != "remove":
+            if field == "soft":
+                key = parsed[0].split("@")[0]
+                fid, val = key.split("=")
+                Requirement(feature=fid, op="eq", value=val, strength="preference", **intent.model_dump())
+            elif field == "hard":
+                Requirement(**parsed, **intent.model_dump())
+        if field == "activity" and op != "remove" and not contains(quote, catalog.by_id[parsed["place_id"]].name):
+            raise ValueError("the activity quote must name the selected place")
+        if field == "time_preference" and parsed.get("place_id") and not contains(quote, catalog.by_id[parsed["place_id"]].name):
+            raise ValueError("the time preference quote must name the selected place")
         state = apply(state, Update(field=field, op=op, value=parsed, source="user" if said else "inferred",
-                                    confidence="high" if said else "medium", evidence=ev))
+                                    confidence="high" if said else "medium", evidence=ev, requirement=intent))
     except (ValueError, ValidationError) as e:
         hint = " (soft: feature=value:love|avoid with ids from FEATURES; if none fits, use field unmapped)" \
             if field in ("soft", "hard") else ""

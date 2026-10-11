@@ -1,0 +1,51 @@
+{
+  "skill_name": "svg-character-animator",
+  "evals": [
+    {
+      "id": 1,
+      "name": "icon-toggle-pasted-svgs",
+      "prompt": "I have two SVG icons — a hamburger menu and a close X. Both have three sub-paths with matching ids `#bar-1`, `#bar-2`, `#bar-3`. Can you make me a React component that morphs between them when clicked? I want it snappy, like real UI feedback.\n\nMenu state:\n```svg\n<svg viewBox=\"0 0 24 24\" width=\"40\" height=\"40\">\n  <path id=\"bar-1\" d=\"M3 6 L21 6\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" />\n  <path id=\"bar-2\" d=\"M3 12 L21 12\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" />\n  <path id=\"bar-3\" d=\"M3 18 L21 18\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" />\n</svg>\n```\n\nClose state:\n```svg\n<svg viewBox=\"0 0 24 24\" width=\"40\" height=\"40\">\n  <path id=\"bar-1\" d=\"M5 5 L19 19\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" />\n  <path id=\"bar-2\" d=\"M12 12 L12 12\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" />\n  <path id=\"bar-3\" d=\"M5 19 L19 5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" />\n</svg>\n```",
+      "expected_output": "A runnable React component that morphs between the two states on click. Should default to the snappy preset (easeOutCubic / ~400ms) since the user explicitly asked for snappy. Should use flubber as the morph library (MIT-licensed default per SKILL.md). Strategy detection should run on the three shared ids; bar-1 and bar-3 are likely MORPH (different angle structure), bar-2 may be MORPH or TRANSFORM depending on normalization. Should include a runnable demo wrapper. Probably no idle animation since this is a UI icon, but acceptable to omit or include a very subtle one.",
+      "assertions": [
+        { "name": "uses flubber", "check": "output references 'flubber' (the MIT-licensed default morph library)" },
+        { "name": "snappy easing default", "check": "output uses easeOutCubic or duration ~400ms for the morph" },
+        { "name": "renders strategy detection", "check": "output computes a per-id strategy (TRANSFORM or MORPH) for the three bars" },
+        { "name": "runnable demo wrapper present", "check": "output exports or renders an App-style component with click-to-toggle interaction" },
+        { "name": "no paid plugin dependency", "check": "output runs on MIT-licensed libraries only; no paid or proprietary morph plugin is required or recommended as primary" }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "snowman-5-states-real-svgs",
+      "prompt": "I have 5 SVG files representing different states of a snowman character (labeled state-1 through state-5). They share core ids for the snowman parts: `body`, `head`, `eyel`, `eyer`, `nose`, `handl`, `handr`, `button1`, `button2`. But each state also has its own decorative orphan paths — state-1 has an ice cube background, state-3 has a bird companion with `wing1`/`wing2`/`foot`/etc, state-5 has decorative flowers (`flower1`-`flower4`). Some states like state-2 have just the snowman alone.\n\nI want this to feel playful — bouncy and alive. Each state should have its own idle animation:\n- state-1: gentle sway (encased feel)\n- state-2: slow breathing\n- state-3: bob up and down\n- state-4: subtle shake\n- state-5: sway + flowers twinkle\n\nThe morph between any two states should feel playful, with a bouncy overshoot. Orphan decorations (ice cube, bird, flowers) should fade in/out gracefully rather than trying to morph.\n\nBuild me a complete React component that handles all of this — I should be able to click a button to go to any state from any other state.\n\nThe SVGs are at these paths:\n- inputs/0.svg (state-1)\n- inputs/1.svg (state-2)\n- inputs/2.svg (state-3)\n- inputs/3.svg (state-4)\n- inputs/4.svg (state-5)",
+      "expected_output": "A full N=5 state machine with any-to-any transitions. Should: (1) parse the 5 SVGs, extract paths by id, build the states object; (2) detect shared vs orphan ids and route shared ids to TRANSFORM (same structure) or MORPH (different structure), and orphans to opacity fade-in/out; (3) use the 'bouncy' easing preset (easeOutBack overshoot) — all shared paths morph in unison; the skill has no stagger/scenario or aesthetic preset layer, so none should be invented; (4) implement different idle preset per state (sway, breathe, bob, shake, sway-twinkle) with the listed nuances; (5) implement idle×morph blending — idle amplitude ramps to 0.1 (not 0.3) over 40% of morph duration using easeInOutSine, then back to 1.0 after; (6) include buttons in demo to trigger each transition. Complete, runnable file. Should preserve gradient defs and other SVG metadata so visuals render correctly. Should use flubber for the MORPH strategy (MIT-licensed default).",
+      "assertions": [
+        { "name": "parses all 5 SVGs", "check": "output includes logic or data for all 5 states with shared id matching" },
+        { "name": "shared vs orphan separation", "check": "output computes a SHARED_IDS list and treats decorative paths (ice cube / bird / flowers) as orphans with opacity fade" },
+        { "name": "two-strategy detection (TRANSFORM/MORPH)", "check": "output runs detectStrategy per shared id, returning TRANSFORM or MORPH; no crossfade strategies" },
+        { "name": "bouncy easing, unison morph", "check": "output uses the bouncy preset (easeOutBack overshoot) and morphs all shared paths in unison — no stagger/scenario or aesthetic preset layer is invented" },
+        { "name": "per-state idle presets", "check": "output assigns sway, breathe, bob, shake, sway-twinkle to states 1-5 respectively" },
+        { "name": "idle floor is 0.1 not 0.3", "check": "during morph, idle amplitude ramps to 0.1 (the calibrated value); 0.3 is wrong and should not appear as the floor" },
+        { "name": "ramp duration is 40% of morph", "check": "idle ramp uses durationMs * 0.4 (not 0.2)" },
+        { "name": "uses flubber for MORPH", "check": "output references flubber.interpolate for the MORPH strategy" },
+        { "name": "preserves gradient defs", "check": "output renders all states' <defs> upfront so gradient references resolve across states" }
+      ],
+      "files": ["inputs/0.svg", "inputs/1.svg", "inputs/2.svg", "inputs/3.svg", "inputs/4.svg"]
+    },
+    {
+      "id": 3,
+      "name": "point-mismatch-organic-morph",
+      "prompt": "ok so i have these two illustrations i drew in figma — a rough ocean wave and a calm ocean wave. they're like organic shapes, not geometric. i pulled them out as svgs but the wave path on the rough one has way more points than the calm one (i counted, rough has like 47 nodes, calm has 12). they share the same id `#wave-surface` though.\n\ncan you make this morph smoothly between them? i want it to feel dreamy and slow, like watching the ocean shift moods. and maybe add some subtle drifting motion when its sitting on either state so it doesnt feel frozen.\n\nrough wave (47 points):\n```svg\n<svg viewBox=\"0 0 400 200\">\n  <path id=\"wave-surface\" d=\"M0,100 Q15,80 30,95 Q45,110 60,85 Q75,70 90,100 Q105,115 120,90 Q135,75 150,105 Q165,120 180,95 Q195,80 210,110 Q225,125 240,100 Q255,85 270,115 Q285,130 300,105 Q315,90 330,120 Q345,135 360,110 Q375,95 390,125 L400,200 L0,200 Z\" fill=\"#4a90e2\"/>\n</svg>\n```\n\ncalm wave (12 points):\n```svg\n<svg viewBox=\"0 0 400 200\">\n  <path id=\"wave-surface\" d=\"M0,120 Q100,115 200,120 Q300,125 400,120 L400,200 L0,200 Z\" fill=\"#4a90e2\"/>\n</svg>\n```",
+      "expected_output": "A morphing component that handles the point-count mismatch (47 vs 12) without errors. Should use flubber.interpolate (MIT-licensed default) — flubber handles point-count mismatch internally via polygon resampling; explicit shapeIndex isn't needed. The wave-surface id has different command structure across states, so strategy detection should route it to MORPH. Should use 'dreamy' easing (easeInOutSine, ~2500ms) per the user's request for 'dreamy and slow'. Should add an idle drift animation — either the 'drift' preset or a custom slow translate — so it doesn't feel frozen. Complete, runnable React component with both states cycling on a button or auto-loop.",
+      "assertions": [
+        { "name": "uses flubber", "check": "output references flubber.interpolate as the primary morph engine" },
+        { "name": "handles point-count mismatch", "check": "output runs without errors on the 47-vs-12 point mismatch (flubber's resampling is sufficient)" },
+        { "name": "dreamy easing applied", "check": "output uses easeInOutSine with ~2500ms duration for the morph" },
+        { "name": "idle drift present", "check": "output includes a drift or floating idle on both states so the wave doesn't appear frozen" },
+        { "name": "strategy is MORPH for wave-surface", "check": "structure fingerprint differs between rough and calm waves; strategy resolves to MORPH" }
+      ],
+      "files": []
+    }
+  ]
+}

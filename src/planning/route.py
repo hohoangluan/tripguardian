@@ -10,8 +10,7 @@ from .model import DayResult
 from .schedule import DayCtx, simulate
 
 
-def order_day(ids: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
-    ctx = replace(ctx, allow_shrink=ctx.allow_shrink and shrink)
+def order_day(ids: list[str], ctx: DayCtx) -> DayResult:
     ids = sorted(ids)
     if len(ids) <= 1:
         return simulate(ids, ctx)

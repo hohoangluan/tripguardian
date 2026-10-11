@@ -51,7 +51,7 @@
  "trip_context": {
   "anchors": [],
   "context": {
-   "checkin_at": null,
+   "arrive_at": null,
    "base": null,
    "budget_vnd": 2000000,
    "companions": [],
@@ -59,7 +59,7 @@
    "days": 3,
    "entry_point": null,
    "exit_point": null,
-   "checkout_at": null,
+   "leave_at": null,
    "mobility": "motorbike",
    "month": null,
    "people": 2,
@@ -168,20 +168,6 @@
        "name": "c2",
        "place_id": "c2",
        "start": "11:00"
-      },
-      {
-       "end": "13:00",
-       "kind": "meal_free",
-       "name": "lunch",
-       "note": "free",
-       "start": "12:00"
-      },
-      {
-       "end": "19:00",
-       "kind": "meal_free",
-       "name": "dinner",
-       "note": "free",
-       "start": "18:00"
       }
      ],
      "method": "exact",
@@ -246,20 +232,6 @@
        "name": "s2",
        "place_id": "s2",
        "start": "11:03"
-      },
-      {
-       "end": "13:03",
-       "kind": "meal_free",
-       "name": "lunch",
-       "note": "free",
-       "start": "12:03"
-      },
-      {
-       "end": "19:00",
-       "kind": "meal_free",
-       "name": "dinner",
-       "note": "free",
-       "start": "18:00"
       }
      ],
      "method": "exact",
@@ -329,16 +301,131 @@
     "pref_risk": 0.0,
     "rain_exposed": 0.0,
     "repeats": 5,
+    "time_penalty": 0.0,
     "travel_min": 15
    },
    "objective": "least_travel",
+   "recommendations": [
+    {
+     "alternatives": [],
+     "day": 1,
+     "kind": "gap",
+     "optional": true,
+     "period": "midday",
+     "text": "Còn khoảng trống giữa trưa; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "12:00",
+       "14:30"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 1,
+     "kind": "gap",
+     "optional": true,
+     "period": "afternoon",
+     "text": "Còn khoảng trống buổi chiều; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "14:30",
+       "17:30"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 1,
+     "kind": "gap",
+     "optional": true,
+     "period": "evening",
+     "text": "Còn khoảng trống buổi tối; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "18:00",
+       "21:00"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 2,
+     "kind": "gap",
+     "optional": true,
+     "period": "midday",
+     "text": "Còn khoảng trống giữa trưa; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "12:03",
+       "14:30"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 2,
+     "kind": "gap",
+     "optional": true,
+     "period": "afternoon",
+     "text": "Còn khoảng trống buổi chiều; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "14:30",
+       "17:30"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 2,
+     "kind": "gap",
+     "optional": true,
+     "period": "evening",
+     "text": "Còn khoảng trống buổi tối; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "18:00",
+       "21:00"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 3,
+     "kind": "gap",
+     "optional": true,
+     "period": "morning",
+     "text": "Còn khoảng trống buổi sáng; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "09:22",
+       "11:00"
+      ]
+     ]
+    },
+    {
+     "alternatives": [],
+     "day": 3,
+     "kind": "gap",
+     "optional": true,
+     "period": "midday",
+     "text": "Còn khoảng trống giữa trưa; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
+     "windows": [
+      [
+       "12:30",
+       "14:30"
+      ]
+     ]
+    }
+   ],
    "robustness": {
     "breaking": [],
-    "label": "Dư giờ",
+    "label": "Vững",
     "level": "solid",
     "reasons": [
-     "Xuất phát trễ, ở lâu hơn hay đi chậm hơn một chút vẫn kịp mọi nơi.",
-     "Chưa có dự báo thời tiết nên mình chưa tính trường hợp mưa."
+     "Chịu được mọi kịch bản nhiễu đã thử.",
+     "Chưa biết thời tiết: chưa thử kịch bản mưa."
     ],
     "scenarios": [
      {
@@ -372,7 +459,129 @@
    },
    "score": [
     15,
-    15
+    15.0
+   ],
+   "time_suitability": [
+    {
+     "day": 1,
+     "estimated": true,
+     "overload_min": 0,
+     "penalty": 0.0,
+     "places": [
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "c1",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "08:00",
+        "09:00"
+       ]
+      },
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "c4",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "09:23",
+        "10:23"
+       ]
+      },
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "c2",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "11:00",
+        "12:00"
+       ]
+      }
+     ]
+    },
+    {
+     "day": 2,
+     "estimated": true,
+     "overload_min": 0,
+     "penalty": 0.0,
+     "places": [
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "s1",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "08:00",
+        "09:00"
+       ]
+      },
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "s3",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "09:22",
+        "10:22"
+       ]
+      },
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "s2",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "11:03",
+        "12:03"
+       ]
+      }
+     ]
+    },
+    {
+     "day": 3,
+     "estimated": true,
+     "overload_min": 0,
+     "penalty": 0.0,
+     "places": [
+      {
+       "activity": "sightseeing",
+       "penalty": 0.0,
+       "place_id": "c3",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "08:00",
+        "09:00"
+       ]
+      },
+      {
+       "activity": "eating",
+       "penalty": 0.0,
+       "place_id": "r1",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "11:30",
+        "12:30"
+       ]
+      }
+     ]
+    }
    ],
    "travel_load": [
     {
@@ -401,11 +610,11 @@
  "warnings": [
   {
    "code": "base_unknown",
-   "text": "Chưa có chỗ ở: mỗi ngày tính từ nơi đầu tiên đến nơi cuối cùng. Chọn chỗ ở để giờ đi lại sát hơn."
+   "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
   },
   {
    "code": "entry_exit_unknown",
-   "text": "Chưa biết bạn đến và rời Đà Lạt ở đâu, nên ngày đầu và ngày cuối chỉ tính theo giờ đến và giờ về."
+   "text": "Chưa biết điểm vào / ra thành phố: ngày đầu và ngày cuối chỉ cắt theo giờ đến / giờ rời, kém chắc hơn."
   },
   {
    "code": "weather_unknown",

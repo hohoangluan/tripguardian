@@ -1,8 +1,10 @@
-"""Day conditions: weather beyond rain probability, crowds, shop closures, hazard notices (docs/P4_PLANNING.md §Điều kiện từng ngày)."""
+"""Day conditions: weather beyond rain probability, crowds, shop closures, hazard notices (docs/PLANNING.md §Điều kiện từng ngày)."""
 
 from datetime import date
 
-from plan_fixtures import (CFG, CENTRE, SOUTH, FakeLive, fake_matrix, fixed_sun, no_geocode, sample_trip, spot)
+import pytest
+from plan_fixtures import (CFG, CENTRE, SOUTH, FakeLive, decision, fake_matrix, fixed_sun, no_geocode, rec,
+                           sample_trip, spot)
 
 import live
 from planning import conditions

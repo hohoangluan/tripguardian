@@ -1,8 +1,9 @@
-"""Trip State -> the understanding panel (docs/P2_TRIP_UNDERSTANDING.md §10). Data only; the web writes the words."""
+"""Trip State -> the understanding panel (docs/TRIP_UNDERSTANDING.md §10). Data only; the web writes the words."""
 
 from dataclasses import asdict
 
 from pydantic import ValidationError
+from requirements import applicable
 
 from ..infrastructure.catalog import Catalog
 from ..infrastructure.settings import Settings
@@ -26,15 +27,22 @@ def to_taste(state: TripState):
     for key, f in state.soft.items():
         if f.known and WEIGHT_SIGN.get(f.value):
             k = SoftKey.parse(key)
-            (love if WEIGHT_SIGN[f.value] > 0 else avoid).append((k.feature, k.value, k.context))
-    return lambda c: ((not love or any(c.value(fe, cx) == v for fe, v, cx in love))
-                      and not any(c.value(fe, cx) == v for fe, v, cx in avoid))
+            intent = {"feature": k.feature, "scope": f.requirement.scope if f.requirement else None}
+            (love if WEIGHT_SIGN[f.value] > 0 else avoid).append((k.feature, k.value, k.context, intent))
+    def fits(c):
+        rec, activity = c.requirement_record(), state.activities.get(c.id)
+        likes = [(fe, v, cx) for fe, v, cx, intent in love if applicable(rec, intent, activity)]
+        avoids = [(fe, v, cx) for fe, v, cx, intent in avoid if applicable(rec, intent, activity)]
+        return ((not likes or any(c.value(fe, cx) == v for fe, v, cx in likes))
+                and not any(c.value(fe, cx) == v for fe, v, cx in avoids))
+    return fits
 
 
 def matching(state: TripState, catalog: Catalog | None) -> int:
     """Places past the hard limits and to the taste so far: the "Đang hợp với bạn" count."""
     fits = to_taste(state)
-    return sum(1 for c in (catalog.places if catalog is not None else ()) if admissible(c, state.hard) and fits(c))
+    return sum(1 for c in (catalog.places if catalog is not None else ())
+               if admissible(c, state.hard, state.activities.get(c.id)) and fits(c))
 
 
 def chip_effects(state: TripState, q: Question | None, catalog: Catalog | None) -> dict[str, int]:
@@ -79,10 +87,11 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
     hard = []
     open_policy = False
     for h in state.hard:
-        cov = coverage(h, catalog.places, cfg.enough)
+        cov = coverage(h, catalog.places, cfg.enough, state.activities)
         open_policy |= h.unknown_policy is None and cov.level != "enough"
         hard.append({"target": f"hard:{h.feature}", "feature": h.feature, "op": h.op, "value": h.value,
-                     "unknown_policy": h.unknown_policy, "coverage": asdict(cov)})
+                     "unknown_policy": h.unknown_policy, "coverage": asdict(cov),
+                     "requirement": {k: getattr(h, k) for k in ("meaning", "scope", "subject", "subject_count", "ambiguity")}})
     soft = []
     for key, f in sorted(state.soft.items()):
         if f.known:
@@ -90,7 +99,8 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
             like = next((e.tool[6:] for e in reversed(f.evidence) if e.tool and e.tool.startswith("place:")), None)
             soft.append({"target": f"soft:{key}", "key": key, "feature": k.feature, "value": k.value,
                          "context": dict(k.context), "weight": f.value, "mark": f.source in MARKED,
-                         "like": catalog.by_id[like].name if like in catalog.by_id else None})
+                         "like": catalog.by_id[like].name if like in catalog.by_id else None,
+                         "requirement": f.requirement.model_dump() if f.requirement else None})
     return {
         "purpose": row("purpose"),
         "trip": [r for r in map(row, TRIP_ROWS) if r],
@@ -99,6 +109,7 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
                      "state": a.state, "priority": a.priority} for i, a in enumerate(state.anchors)],
         "hard": hard,
         "soft": soft,
+        "activities": state.activities,
         "pace": row("pace"), "max_leg_min": row("max_leg_min"), "crowd_tolerance": row("crowd_tolerance"),
         "novelty": row("novelty"), "budget_vnd": budget(), "liked_groups": row("liked_groups"),
         "rental": rental_hint(state),
