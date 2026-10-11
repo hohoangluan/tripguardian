@@ -64,6 +64,12 @@ NEXT_READY = " Bạn kể thêm điều mình nên biết, hoặc bấm Xem gợ
 THEME_UNKNOWN = "Chủ đề này không còn nữa, bạn chọn chủ đề khác nhé."
 PAST_DATE = "Ngày này đã qua, bạn chọn ngày khác giúp mình nhé."
 
+# Prepass proposals allowed straight into the Trip State: high-precision slots only (dates, counts,
+# money, explicit body signals, effort hard filters, single-meaning soft). Everything else arrives as
+# agent-only suggestions and is recorded via record_fact.
+APPLIED_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights", "people", "budget_vnd",
+                            "budget_scope", "signal", "hard", "soft"})
+
 
 class TurnInput(Frozen):
     kind: Literal["text", "answer", "edit", "show", "more", "theme"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"
@@ -411,6 +417,8 @@ class Engine:
         tools.transcript = s.transcript  # so tools can check if questions were recently asked
         hints = [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote} for p in pre.proposals]
         hints += [{"ambiguous": q, "may_mean": list(k)} for q, k in pre.ambiguous]
+        hints += [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote, "suggested": True}
+                  for p in pre.suggestions]
         log = tools.log
         needed = missing(st, self.cfg.required)
         messages = build_messages(st, text, s.transcript[:-1], prev.text if prev else None, self.today(), hints, compared,
@@ -541,7 +549,7 @@ class Engine:
         if self.route is None:
             return None, ClefRoute()
         r = self.route(text, prev.text if prev else None)
-        if r.reject and not (pre.proposals or pre.ambiguous):
+        if r.reject and not (pre.proposals or pre.ambiguous or pre.suggestions):
             log.append(f"clef_reject:{r.reject}")
             return REJECT_SAY, r
         if r.asks_data and {p.field for p in pre.proposals} <= {"month", "start_date"}:  # a date only frames the question
@@ -687,7 +695,12 @@ class Engine:
     # ---------- helpers ----------
 
     def _deterministic(self, st: TripState, text: str, pre: Prepass, turn: int) -> TripState:
-        """Links, pasted place lists, keyword matches: written before the agent so nothing depends on it."""
+        """Links, pasted place lists, keyword matches: written before the agent so nothing depends on it.
+
+        Only high-precision prepass proposals reach the state (dates, counts, money, explicit body
+        signals, effort hard filters). Suggestions (who goes, transport, pace, novelty, kinds of place)
+        are agent-only hints: the agent reads the user's words and records them via record_fact.
+        """
         lines = [x.strip() for x in text.splitlines() if x.strip()]
         names = [x for x in lines if not URL.match(x)] if len(lines) >= 2 else []
         for raw in URL.findall(text) + names:
@@ -697,6 +710,8 @@ class Engine:
             st = apply(st, Update(field="anchor", op="add", value=a, source="user", confidence="high",
                                   evidence=Evidence(turn=turn, quote=raw)))
         for p in pre.proposals:
+            if p.field not in APPLIED_FIELDS:
+                continue
             try:
                 # keyword guesses: shown with ✎ until the user or the agent confirms them
                 st = apply(st, Update(field=p.field, op=p.op, value=p.value, source="inferred",

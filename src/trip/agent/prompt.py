@@ -38,8 +38,12 @@ and call record_fact once for each, all in the same response. A message with sev
 normal); one call for a whole message is almost always missing something. Look for: days, a date or month, who goes
 and how many, how they move, why they go (purpose), pace, budget, tastes (soft), limits (hard), body or health hints
 (signal), places they must visit (anchor), where they stay, arrival and departure times. When the user answers a
-question you asked, record what their answer means in the same turn, for example a chosen option "Chill lãng mạn,
-ngắm cảnh" is a taste and a purpose, not just an answer to your question.
+ question you asked, record what their answer means in the same turn, for example a chosen option "Chill lãng mạn,
+ ngắm cảnh" is a taste and a purpose, not just an answer to your question.
+ CURRENT CONTEXT's keyword_hints are unconfirmed reads: confirm a hint against the user's latest message
+ before recording it. A hint marked suggested (who goes, transport, pace, novelty, kinds of place) needs
+ conversational context: a negation ("k muốn đi với người yêu", "không đi xe máy được") records nothing,
+ unless it removes something the state already holds.
 
 You never end the conversation and never say what happens next. The user presses Next when they want results. So do
 not promise suggestions, an itinerary or a search ("mình sẽ gợi ý ngay"), and do not wrap up.
@@ -180,7 +184,8 @@ def summarize(state: TripState) -> str:
 def build_messages(state: TripState, text: str, transcript: list[dict], last_question: str | None, today: date,
                    hints: list[dict], compared=(), may_ask: bool = True, still_needed: dict | None = None) -> list[dict]:
     """transcript: the conversation before this message. hints: what the keyword rules read from the message (a
-    shortcut for you to confirm, not a fact)."""
+    shortcut for you to confirm, not a fact). A hint with suggested=true is agent-only: read the user's words
+    (negations, corrections) before recording anything for it."""
     history = [{"role": "user" if t["role"] == "user" else "assistant", "content": t["text"]}
                for t in transcript if t["role"] in ("user", "agent") and t["text"]]
     context = {

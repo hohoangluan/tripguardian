@@ -491,17 +491,19 @@ def test_a_theme_card_writes_its_fixed_tastes_without_reading_a_sentence(make, c
     assert names(run(e, sid, kind="theme", value="nope")) == ["error"]
 
 
-def test_a_correction_in_a_later_turn_updates_the_budget_scope_and_the_liked_kinds_even_if_the_agent_fails(make):
-    # T-2: the user's correction is read by the keyword rules before the agent, so it is never lost
+def test_a_correction_in_a_later_turn_updates_the_budget_scope_even_if_the_agent_fails(make):
+    # T-2: the user's correction is read by the keyword rules before the agent, so it is never lost.
+    # Who goes and kinds of place are agent-only suggestions now: without the agent, people stays
+    # unknown (no per-person split yet) and liked_groups stays empty.
     e = make()
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="Đi Đà Lạt 3 ngày với bạn gái, ngân sách khoảng 5 triệu")
     u = e.load(sid)["understanding"]
     assert u["budget_vnd"]["value"] == {"amount": 5_000_000, "scope": "trip_total", "guessed": True,
-                                        "per_person_day": 833_333} and u["budget_vnd"]["mark"]
+                                        "per_person_day": None} and u["budget_vnd"]["mark"]
     run(e, sid, kind="text", text="5 triệu là tổng cả chuyến cho 2 người nha… Mình cũng rất thích cà phê.")
     st = e.store.get(sid).state
-    assert st.budget_scope.value == "trip_total" and st.liked_groups.value == ("chill",)
+    assert st.budget_scope.value == "trip_total" and st.people.value == 2 and not st.liked_groups.value
     assert e.load(sid)["understanding"]["budget_vnd"]["value"]["guessed"] is False
 
 

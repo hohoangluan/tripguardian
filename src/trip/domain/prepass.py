@@ -1,7 +1,10 @@
 """Deterministic first read of a user message (docs/TRIP_UNDERSTANDING.md §4).
 
-Numbers, dates, who, transport, health hints, money and keyword features. Runs before the agent, so the screen reacts at
-once and a failed agent call still records something. Every proposal quotes the user's own words.
+Only high-precision slots are proposed as facts: numbers, dates, people, money and explicit body/health
+hints plus effort hard filters. Anything needing conversational context (who goes, transport, pace,
+novelty, kinds of place) is a suggestion for the agent, never a fact: the agent reads the user's words
+(negations, corrections, removals) and decides via record_fact. Runs before the agent, so the screen
+reacts at once and a failed agent call still records something. Every proposal quotes the user's own words.
 """
 
 import re
@@ -25,13 +28,15 @@ class Proposal:
 class Prepass:
     proposals: tuple[Proposal, ...]
     ambiguous: tuple[tuple[str, tuple[str, ...]], ...]  # (quote, soft keys it may mean)
+    suggestions: tuple[Proposal, ...] = ()  # agent-only hints: read, never applied to the state
 
 
 # "một ngày" (one day of it) and "từ ngày" (from) are not trip lengths; "bay / sau ngày 12" (fly / after) is
 # excluded by the no-digit-after rule in prepass()
 NUMBER = {"hai": 2, "ba": 3, "bon": 4, "nam": 5, "sau": 6, "bay": 7}
 # a negation up to four words before a match ("không đi với bố mẹ", "không thích chỗ có view")
-NEGATION = re.compile(r"\b(khong|chang|ko|tranh|ghet|ngai|so)\s+(\w+\s+){0,4}$")
+# "k" is the common shorthand for "không"
+NEGATION = re.compile(r"\b(khong|chang|k|ko|tranh|ghet|ngai|so)\s+(\w+\s+){0,4}$")
 
 COMPANIONS = [
     (r"\b(bo me|ba me|ba ma|cha me|ong ba|phu huynh|nguoi lon tuoi)\b", "parents"),
@@ -195,15 +200,17 @@ def prepass(text: str, today: date) -> Prepass:
     def negated(m) -> bool:
         return bool(NEGATION.search(low[max(0, m.start() - 32):m.start()]))
 
+    suggest: list[Proposal] = []
+
+    def propose(field, value, m, op="set", inferred=False, group=0):
+        suggest.append(Proposal(field, op, value, raw[m.start(group):m.end(group)], inferred))
+
     for pattern, who in COMPANIONS:
         for m in re.finditer(pattern, low):
             if negated(m):
                 continue
-            add("companions", who, m, op="add")
-            if who == "parents":
-                add("signal", "elderly", m, op="add", inferred=True)
-            if who == "kids":
-                add("signal", "kids", m, op="add", inferred=True)
+            # who goes needs conversational context (negations, corrections): a suggestion only
+            propose("companions", who, m, op="add")
     for pattern, kind in SIGNALS:
         for m in re.finditer(pattern, low):
             if negated(m):
@@ -215,12 +222,12 @@ def prepass(text: str, today: date) -> Prepass:
         for pattern, value in table:
             m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
             if m:
-                add(field, value, m)
+                propose(field, value, m)
                 break
     for pattern, group in GROUPS:
         m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
         if m:
-            add("liked_groups", group, m, op="add")
+            propose("liked_groups", group, m, op="add")
     for pattern, feature in HARD:
         for m in re.finditer(pattern, low):
             add("hard", {"feature": feature, "op": "ne", "value": "present"}, m, op="add")
@@ -239,4 +246,10 @@ def prepass(text: str, today: date) -> Prepass:
         if key not in seen:
             seen.add(key)
             unique.append(p)
-    return Prepass(tuple(unique), tuple(dict.fromkeys(ambiguous)))
+    seen_s, unique_s = set(), []
+    for p in suggest:
+        key = (p.field, p.op, repr(p.value))
+        if key not in seen_s:
+            seen_s.add(key)
+            unique_s.append(p)
+    return Prepass(tuple(unique), tuple(dict.fromkeys(ambiguous)), tuple(unique_s))
