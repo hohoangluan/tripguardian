@@ -5,7 +5,7 @@ from corpus.ontology import load, parse
 
 def test_shipped_ontology_loads():
     ont = load()
-    assert ont.version == 10
+    assert isinstance(ont.version, int) and ont.version >= 10  # a bump must not break this contract test
     for fid in ("steep_or_stairs", "long_walk"):
         assert ont.features[fid].values == ("present", "absent") and ont.features[fid].span_check
     assert ont.valid("weather_exposed", "sheltered") and ont.features["weather_exposed"].span_check
@@ -89,3 +89,34 @@ def test_stay_features_must_exist():
            "features": [{"id": "view", "group": "experience", "values": ["present"], "hint": "h"}]}
     with pytest.raises(ValueError, match="stay_features"):
         parse(raw)
+
+
+def test_place_details_ontology():
+    ont = load()
+    assert ont.version >= 12
+    for fid in ("car_access", "coach_access", "stroller_access", "pets", "scam_stage", "fog_blocks_view", "cold",
+                "rest_benches", "toilet_available", "kids_play_area", "night_road_risk", "heater", "hot_water", "breakfast"):
+        assert fid in ont.features
+    assert ont.features["pets"].verify == "always" and ont.features["pets"].caution_values == ("not_allowed",)
+    assert set(ont.features["scam_stage"].caution_values) == set(ont.features["scam_stage"].values)
+    assert ont.valid_detail("detail.fee") and not ont.valid_detail("detail.wifi") and not ont.valid_detail("fee")
+    assert ont.details["fee"].needs == ("amount_vnd",) and ont.details["fit"].needs == ("who", "verdict")
+    assert ont.details["fit"].audit == "full" and "{text}" in ont.details["known_for"].claim
+    assert ont.as_feature("detail.order").group == "detail" and ont.as_feature("crowd").group == "environment"
+    assert ont.who("chó") == "pet" and ont.who("đi với con chó nhà mình") == "pet"
+    assert ont.who("Bà bầu") == "pregnant" and ont.who("hàng xóm") == "hàng xóm"
+    assert ont.sensitive == {"baby", "parents", "pregnant", "wheelchair"}
+    assert ont.companions["parents"].suitability == "elderly" and ont.companions["pet"].suitability == "pets"
+    text = ont.prompt_text()
+    assert "- detail fee:" in text and "who = solo | partner" in text
+    assert {"heater", "hot_water", "breakfast", "cold", "toilet_available", "pets"} <= ont.stay
+
+
+def test_detail_kind_errors():
+    raw = {**BASE, "features": [A]}
+    with pytest.raises(ValueError, match="needs"):
+        parse({**raw, "details": [{"id": "x", "hint": "h", "claim": "{text}", "needs": ["colour"]}]})
+    with pytest.raises(ValueError, match="claim"):
+        parse({**raw, "details": [{"id": "x", "hint": "h", "claim": "no placeholder"}]})
+    with pytest.raises(ValueError, match="duplicate"):
+        parse({**raw, "details": [{"id": "x", "hint": "h", "claim": "{text}"}] * 2})

@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Iterable
+from typing import Iterable
+
+from corpus import category_group, load_ontology
 
 from ..domain.text import squash
 
@@ -27,6 +29,21 @@ class Candidate:
     hours: dict[str, tuple[tuple[str, str], ...]] | None
     known: dict[str, Known]  # served features only (enough reviews, not uncertain, not waiting for review)
     weight: int  # total evidence behind the record; ranking tie-break
+    category_group: str | None = None
+    usable_as: tuple[str, ...] = ()
+    evidence_record: dict | None = None
+
+    def requirement_record(self) -> dict:
+        if self.evidence_record is not None:
+            return self.evidence_record
+        ont = load_ontology()
+        rec = {"identity": {"category": self.category, "category_group": self.category_group},
+               "usable_as": list(self.usable_as)}
+        for fid, k in self.known.items():
+            if fid in ont.features:
+                rec.setdefault(ont.features[fid].group, {})[fid] = {
+                    "value": k.value, "status": "VERIFIED", "distribution": {k.value: k.n}, "n": k.n}
+        return rec
 
     def value(self, feature: str, context: tuple[tuple[str, str], ...] = ()) -> str | None:
         k = self.known.get(feature)
@@ -61,6 +78,7 @@ class Catalog:
     @classmethod
     def from_records(cls, records: Iterable[dict], n_min: int, videos: dict[str, str] | None = None) -> Catalog:
         out = []
+        ont = load_ontology()
         for r in records:
             known, total = {}, 0
             for fid, sig in (r.get("features") or {}).items():
@@ -70,12 +88,30 @@ class Catalog:
                     ctx = {k: max(d, key=d.get) for k, d in (sig.get("by_context") or {}).items() if d}
                     known[fid] = Known(sig["top_value"], sig["n"], ctx)
             ident = r.get("identity") or {}
+            estimates = r.get("estimates") or {}
+            group = category_group(ident.get("category"))
+            evidence = {"identity": {"category": ident.get("category"),
+                                     "category_group": estimates.get("category_group") or group["id"]},
+                        "usable_as": estimates.get("usable_as_default", group["usable_as"])}
+            for fid, sig in (r.get("features") or {}).items():
+                if fid not in ont.features or sig.get("needs_review") or sig.get("status") == "disabled":
+                    continue
+                # Full corpus records use the same serving status/precision policy as Decision.
+                if "confidence" in sig and "observation_ids" in sig:
+                    from corpus.serving import build
+                    evidence = build(r)
+                    break
+                if fid in known:
+                    evidence.setdefault(ont.features[fid].group, {})[fid] = {
+                        "value": sig["top_value"], "status": "VERIFIED", "n": sig["n"],
+                        "distribution": sig.get("distribution") or {sig["top_value"]: sig["n"]}}
             hours = (r.get("operation") or {}).get("hours")
             out.append(Candidate(
                 id=r["place_fid"], name=r["place_name"], category=ident.get("category"),
                 lat=ident.get("lat"), lng=ident.get("lng"),
                 hours={d: tuple(tuple(w) for w in ws) for d, ws in hours.items()} if hours else None,
-                known=known, weight=total))
+                known=known, weight=total, category_group=evidence["identity"].get("category_group"),
+                usable_as=tuple(evidence.get("usable_as") or []), evidence_record=evidence))
         return cls(tuple(out), dict(videos or {}))
 
     @classmethod

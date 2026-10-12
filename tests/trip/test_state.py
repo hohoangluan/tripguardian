@@ -39,14 +39,15 @@ def test_keyword_value_can_be_replaced_by_the_agent():
     assert apply(s, up("days", 4, source="inferred", confidence="medium")).days.value == 4
 
 
-def test_ranges_clock_and_literals_are_checked():
+@pytest.mark.parametrize("clock_field", ("checkin_at", "checkout_at", "day_end"))
+def test_ranges_clock_and_literals_are_checked(clock_field):
     with pytest.raises(ValueError):
-        apply(TripState(), up("days", 12))
+        apply(TripState(), up("days", 31))
     with pytest.raises(ValueError):
-        apply(TripState(), up("checkin_at", "9h"))
+        apply(TripState(), up(clock_field, "9h"))
     with pytest.raises(ValueError):
         apply(TripState(), up("mobility", "bus"))
-    assert apply(TripState(), up("checkin_at", "09:30")).checkin_at.value == "09:30"
+    assert getattr(apply(TripState(), up(clock_field, "09:30")), clock_field).value == "09:30"
 
 
 def test_companions_add_and_remove():

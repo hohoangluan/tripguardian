@@ -23,10 +23,9 @@ class SoftAdd(BaseModel):
 
 
 class Profile(BaseModel):
-    """Session Profile (docs/PROJECT_CONTEXT.md §8): this trip only, never the long-term profile."""
+    """Session Profile (docs/Project_Context.md §8): this trip only, never the long-term profile."""
     travel_mult: float = 1.0
     crowd_tolerance: Literal["avoid", "ok_if_worth", "fine"] | None = None
-    hide_crowded: bool = False  # "bỏ mấy chỗ đông đi": places whose authors settled on crowded leave the list
     price_sensitivity: float = 0.0
     soft: list[SoftAdd] = Field(default_factory=list)
     visited: list[str] = Field(default_factory=list)
@@ -62,6 +61,8 @@ class State(BaseModel):
     suggest_group: str | None = None  # "Gợi ý nơi tương tự" was answered for this display group
     last: str | None = None  # type of the last action
     shown: dict[str, list[str]] = Field(default_factory=dict)  # display group -> ids on screen, in screen order
+    chunk_assignments: dict[str, int] = Field(default_factory=dict)
+    free_time: bool = False
 
 
 class Session(BaseModel):

@@ -1,4 +1,4 @@
-"""Observe (docs/P1_CORPUS.md §4): each source's evidence -> observations in one shared format.
+"""Observe (docs/CORPUS.md §4): each source's evidence -> observations in one shared format.
 
 One sub-package per source (gmaps now, tiktok later); all write data/<source>/observations/<fid_dir>.json with
 records built by observation(), which corpus.aggregate reads without knowing the source.
@@ -12,14 +12,15 @@ CONTEXT_KEYS = ("time_of_day", "day_type", "weather")
 TARGETED = {"extremes", "keywords"}
 TARGETED_GROUPS = {"effort", "operation"}  # effort and visit_duration
 TARGETED_FEATURES = {"entry_fee", "booking_needed", "cash_only", "vegetarian_options", "setting", "weather_exposed",
-                     "wheelchair"}  # condition_change stays out of aggregate; judge status still reads its reports
+                     "wheelchair", "toilet_available", "pets", "heater", "breakfast"}  # condition_change stays out of
+# aggregate; judge status still reads its reports. car_access, coach_access, stroller_access: effort group already.
 
 
 def keep_stale() -> bool:
     """OBSERVE_KEEP_STALE=1 (environment or .env): a changed prompt or ontology version does NOT make a place be
     observed again -- only a place whose sources changed is. The new rules then apply to new data only, which is what
     the user asked for when re-extracting the whole city would cost hours for a gain measured as small
-    (docs/plans/OPEN_TASKS.md). Observations keep the prompt_hash and ontology_version they were made with, so a
+    (docs/plans/CORPUS_HANDOFF.md). Observations keep the prompt_hash and ontology_version they were made with, so a
     file still says which rules produced it."""
     import os
 
@@ -39,7 +40,7 @@ def targeted_ok(feature) -> bool:
 def observation(*, id: str, place_fid: str, feature: str, value: str, context: dict, source_type: str, source_id: str,
                 author: str | None, observed_at: str | None, quote: str, field: str, extractor: str,
                 ontology_version: int, start_s: float | None = None, end_s: float | None = None,
-                sample: str | None = None) -> dict:
+                sample: str | None = None, detail: dict | None = None) -> dict:
     out = {"id": id, "place_fid": place_fid, "feature": feature, "value": value,
            "context": {k: context[k] for k in CONTEXT_KEYS}, "source_type": source_type, "source_id": source_id,
            "author": author, "observed_at": observed_at,
@@ -47,4 +48,6 @@ def observation(*, id: str, place_fid: str, feature: str, value: str, context: d
            "extractor": extractor, "ontology_version": ontology_version}
     if sample:
         out["sample"] = sample
+    if detail is not None:
+        out["detail"] = detail
     return out

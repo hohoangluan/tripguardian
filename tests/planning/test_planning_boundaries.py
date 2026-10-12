@@ -1,5 +1,5 @@
 """Planning reads other packages only through their public API and writes nothing of the corpus
-(docs/P4_PLANNING.md §Ranh giới module; RULE.md §2)."""
+(docs/PLANNING.md §Ranh giới module; RULE.md §2)."""
 
 import ast
 from pathlib import Path
@@ -7,9 +7,7 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "planning"
-# corpus.llm: the agent call sits at the module edge (RULE §2); corpus.crawl: its public read of the crawled lodging
-# list, for a lodging the user names (logistics.py)
-ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm", "corpus.crawl"}
+ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm"}  # corpus.llm: the agent call sits at the module edge (RULE §2)
 WRITTEN_BY_CORPUS = ("data/intel", "data/serving", "data/gmaps", "data/tiktok", "data/review")
 
 
@@ -33,7 +31,7 @@ def test_there_is_something_to_check():
 def test_no_deep_import_into_live_or_corpus_and_none_into_decision_or_trip(path):
     for name in imports(path):
         top = name.split(".")[0]
-        # decision: only evaluate.py, offline, in process, through decision's public __init__ (docs/P4_PLANNING.md
+        # decision: only evaluate.py, offline, in process, through decision's public __init__ (docs/PLANNING.md
         # §Ranh giới module lists decision as a one-way dependency; P9 ruling). Everywhere else it stays forbidden.
         assert top != "decision" or (path.name in {"evaluate.py", "tools.py"} and name == "decision"), f"{path.name} imports {name}"
         # trip: only its public text helpers (trip/__init__.py), the same import decision/guard.py makes (P7 ruling)
@@ -56,3 +54,16 @@ def test_the_public_api_is_the_plan_builder_and_its_settings():
                                      "run_server", "PlanningProposal", "Tools", "create_engine", "run_proposal"}
     for name in planning.__all__:
         assert hasattr(planning, name)
+
+
+def test_stated_nights_are_what_planning_counts_and_the_time_budget_is_less_than_whole_days():
+    from planning.engine import _nights
+    from planning.model import Day
+    from planning.output import time_budget
+    assert _nights({"days": 3, "nights": 3}) == 3 and _nights({"days": 3}) == 2 and _nights({"days": 1, "nights": 0}) == 0
+    days = [Day(0, None, None, 14 * 60, 21 * 60, None, None), Day(1, None, None, 8 * 60, 21 * 60, None, None),
+            Day(2, None, None, 8 * 60, 12 * 60, None, None)]
+    budget = time_budget(days, 2)
+    assert (budget["days"], budget["nights"]) == (3, 2)
+    assert [p["from"] for p in budget["per_day"]] == ["14:00", "08:00", "08:00"]
+    assert budget["total_minutes"] == 7 * 60 + 13 * 60 + 4 * 60 < 3 * 13 * 60

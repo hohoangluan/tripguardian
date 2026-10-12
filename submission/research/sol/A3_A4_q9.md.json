@@ -1,0 +1,305 @@
+{
+ "id": "resp_0c62faaf22691151016aca05c0333887d090b3d550fe48885b",
+ "object": "response",
+ "created_at": 1791624640,
+ "status": "completed",
+ "output": [
+  {
+   "id": "ws_0c62faaf22691151016aca05c22dd487d081661553a2c952f4",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "PhoWhisper Automatic speech recognition Vietnamese ICLR 2024 WER",
+     "ChunkFormer Masked chunking conformer long form speech transcription",
+     "Careless Whisper speech to text hallucination harms 1.4%",
+     "Robust speech recognition large scale weak supervision low resource languages"
+    ],
+    "query": "PhoWhisper Automatic speech recognition Vietnamese ICLR 2024 WER"
+   }
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05c9f9d887d087d39315a344a908",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "open_page",
+    "url": "https://github.com/VinAIResearch/PhoWhisper"
+   }
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05cca43887d0ad42391678e3b32a",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "ASR short videos background music WER benchmark social media speech recognition paper",
+     "site.github.com/openai/whisper model-card low-resource hallucinations",
+     "site.openreview.net PhoWhisper qsif2awK2L"
+    ],
+    "query": "ASR short videos background music WER benchmark social media speech recognition paper"
+   }
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05dae62c87d0943b71e5410d5618",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "open_page",
+    "url": "https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md"
+   }
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05dd8a0087d0b0ae5a12f4042d3d",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "open_page",
+    "url": "https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md"
+   }
+  },
+  {
+   "id": "rs_0c62faaf22691151016aca05e07b2887d09f3d32d2391348bc",
+   "type": "reasoning",
+   "content": [],
+   "encrypted_content": "gAAAAABqygXgWVptp3_b32tYtWNf8CS8JchgQSiCp99d8_jy_3PGdRYHB7Jv6vKAUFwS1dwP9iUYvphO3RisLbuaEgEJsLJln_jdlaGUx-rX8eYC0nhfnGWtsy00CTHxCV6CHdKq_ksAurVJGPEBeUcNKdvc7QF3YY7t0Kt5SBFUTPvmIJq1bQLv77bD_yIHc0nsczjnyk7J4NT9cyBqZmUzpbEQe2nGADbI4clGmLcQAxk8q5FvhwFD_QzgwYqUpK0zt-kLEqEGEh64QF0ROj-XuwjOHFzrCg5S2eJKaTqhO60cz2eCUZjSA62OXhM-BXIJ0PVD8E7-YVkgmXyVEwwrx9r_8S4w3h_4S3TU4tSRUiGUoTCnMpB5xko0YVWCayG_A-pFJF8tbvh0843om1UhGFMaCXuXQ5-IxlUEVFZexs3PWouPgOQf1o3WI5f8kWektBKgNTpLkLKHnRYSP53DYg0QmvG3K06EwOq3cnE5a4c-mgz9LV0QIibzOHxlJ6uRgKK9NRbyuc7svyWW04eLnVOebom-_pTgcDXs_YU7IspJk475mUWWO1RPY7kXyBeZo2rBq2B2fhgojMxZyDR7XAeXuItiK96SAPAB-kn_8U_XEW9ok5uw-qMMofl_FmbwpUmrIQjL84tHW5O8NglUoSF8YV6anju9KzH_reHO1IbZuVHQzCVZQrvbamSvIq5dty_1x6HZUEig3H5PZxWRYLfr_go6RDu49PHg8p-UYSLaAN6YvKnwTZvde-JfX4FkhT6ctXeo-ABqoW5j2k97iASfJKqGlSgUv2PSFSR2TejmaHnywUJlE9iI50wiQDgpUqJgVaIfxbyxoqkQ13_77sxZVu649Qma4YffNcU8z0fE0nBW_PyXQh7u9Rg6eWJZdkpQ7RYEcKaez2xgs7bhunIdL5ILOH8kf1FhXUbxQPP77pj2bH0ZWV8XI3pulg4C7sOGbhhKQQt1ik5dRPFuWoS-WUQOm0nDaBbKV6Z59MXeooA5-YzU4bFFsy8tgVRmB6ynZF48xOazQ14z2GprD-qJmkj9sA48-2bDtLcWypEWREfqLpbFGIw68jV94Mvn6ImXjFRT1BhUXYZ3V1Oj1i--fZ7SyQT7L9Wd_IYRYggrQY0QSf5-BoYDo41Psr9Adqkuf-K_yEsnWx1ikULu-jfS3Id86IsA5LfU4GTzQD__Sozp-BUCuxCdKDyUsi7ZqNrkzyGlm_eNws0-vftRA7bJrKY64_Vf-k0JF2vqdYXcI_B8LvUB7yvPEO0P-fZHfjkRPprIVGkFJzNs6FUN1HBsOQ1nHSs9xTy5V_rk1DIPNbdhh1hadNDYseL_aArLDMMXwDXJjIzj_3xTav7GqYbAFAtOCwclc66LMA_KqbctHGNUmJ5R9e-jkwCGHj24h4IZp90JzKcNrZYc1EGPoh9mwScAxfHB83KA6xCo5ajVTcQLDX4x66VJxbV5ytdsSpdGvJ_2mqFcEvkh1jhQkbtuw_y1OqbfLYeH7MWxftBjIzoh0pdPaWjz7uaqiqWR_AxyESucI50ROys8pywKl3QctLWElyjoLc4icYC1EEPbXPeccdt5k28M6E4ADr0Hxbmxbpn8bzmBs8Emsqrj8dzWubPBKg==",
+   "summary": []
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05e0f3a887d09b046e58d428907c",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "PhoWhisper Whisper large 8.14 4.67 13.75 WER",
+     "PhoWhisper arxiv automatic speech recognition Vietnamese"
+    ],
+    "query": "PhoWhisper Whisper large 8.14 4.67 13.75 WER"
+   }
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05e8dea487d0b73c8db93ec7634a",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "open_page",
+    "url": "https://research.vinai.io/wp-content/uploads/2024/05/239_phowhisper_automatic_speech_re.pdf"
+   }
+  },
+  {
+   "id": "ws_0c62faaf22691151016aca05ec4cf887d0b4e3471fc0e10aaa",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "open_page",
+    "url": "https://arxiv.org/pdf/2406.02555"
+   }
+  },
+  {
+   "id": "msg_0c62faaf22691151016aca05ef886487d09f5d23a70312525c",
+   "type": "message",
+   "status": "completed",
+   "content": [
+    {
+     "type": "output_text",
+     "annotations": [
+      {
+       "type": "url_citation",
+       "end_index": 674,
+       "start_index": 627,
+       "title": "",
+       "url": "https://arxiv.org/pdf/2406.02555"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1280,
+       "start_index": 1176,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1580,
+       "start_index": 1476,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 2023,
+       "start_index": 1919,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 2457,
+       "start_index": 2410,
+       "title": "",
+       "url": "https://arxiv.org/pdf/2406.02555"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 2825,
+       "start_index": 2778,
+       "title": "",
+       "url": "https://arxiv.org/pdf/2406.02555"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 3631,
+       "start_index": 3500,
+       "title": "ChunkFormer: Masked Chunking Conformer For Long-Form Speech Transcription",
+       "url": "https://huggingface.co/khanhld/chunkformer-ctc-large-vie/resolve/main/paper.pdf?download=true&utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 3836,
+       "start_index": 3783,
+       "title": "GitHub - khanld/chunkformer: ChunkFormer: Masked Chunking Conformer For Long-Form Speech Transcription · GitHub",
+       "url": "https://github.com/khanld/chunkformer"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 4177,
+       "start_index": 4124,
+       "title": "GitHub - khanld/chunkformer: ChunkFormer: Masked Chunking Conformer For Long-Form Speech Transcription · GitHub",
+       "url": "https://github.com/khanld/chunkformer"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 4958,
+       "start_index": 4879,
+       "title": "Careless Whisper: Speech-to-Text Hallucination Harms",
+       "url": "https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 5162,
+       "start_index": 5083,
+       "title": "Careless Whisper: Speech-to-Text Hallucination Harms",
+       "url": "https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 5589,
+       "start_index": 5510,
+       "title": "Careless Whisper: Speech-to-Text Hallucination Harms",
+       "url": "https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 6078,
+       "start_index": 5980,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/openai/whisper/main/model-card.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 6332,
+       "start_index": 6234,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/openai/whisper/main/model-card.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 6716,
+       "start_index": 6618,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/openai/whisper/main/model-card.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 7268,
+       "start_index": 7191,
+       "title": "Robust Speech Recognition via Large-Scale Weak Supervision",
+       "url": "https://proceedings.mlr.press/v202/radford23a.html"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 7450,
+       "start_index": 7363,
+       "title": "",
+       "url": "https://proceedings.mlr.press/v202/radford23a/radford23a.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 7834,
+       "start_index": 7747,
+       "title": "",
+       "url": "https://proceedings.mlr.press/v202/radford23a/radford23a.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 8196,
+       "start_index": 8098,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/openai/whisper/main/model-card.md"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 8769,
+       "start_index": 8692,
+       "title": "Robust Speech Recognition via Large-Scale Weak Supervision",
+       "url": "https://proceedings.mlr.press/v202/radford23a.html"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 8950,
+       "start_index": 8863,
+       "title": "",
+       "url": "https://proceedings.mlr.press/v202/radford23a/radford23a.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 9406,
+       "start_index": 9319,
+       "title": "",
+       "url": "https://proceedings.mlr.press/v202/radford23a/radford23a.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 10130,
+       "start_index": 10004,
+       "title": "ASR - Video Analysis Toolkit",
+       "url": "https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 10387,
+       "start_index": 10261,
+       "title": "ASR - Video Analysis Toolkit",
+       "url": "https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 10799,
+       "start_index": 10673,
+       "title": "ASR - Video Analysis Toolkit",
+       "url": "https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 11490,
+       "start_index": 11392,
+       "title": "",
+       "url": "https://raw.githubusercontent.com/openai/whisper/main/model-card.md"
+      }
+     ],
+     "logprobs": [],
+     "text": "Verified using live web searches and source-page retrievals. **Access date for all sources: October 10, 2026.** I distinguish current official documentation from historical research results; a 2023 measurement is not an October 2026 error-rate estimate.\n\nTwo important qualifications:\n- **PhoWhisper’s paper compares against wav2vec2 baselines, not unmodified Whisper.**\n- **The specific claim about music-overlaid short social-media videos is only partially supported:** I found relevant documentation and quantitative domain-shift evidence, but not a controlled Vietnamese clean-versus-music-overlaid short-video comparison. ([arxiv.org](https://arxiv.org/pdf/2406.02555))\n\n## 1. PhoWhisper — Vietnamese benchmark WER\n\n- **Owner/organisation:** VinAI Research; authors Thanh-Thien Le, Linh The Nguyen, and Dat Quoc Nguyen.\n- **Exact documentation title:** “PhoWhisper: Automatic Speech Recognition for Vietnamese”\n- **Official documentation URL:** https://github.com/VinAIResearch/PhoWhisper\n- **Publication/access:** ICLR 2024 Tiny Papers; README publication/update date not displayed; accessed October 10, 2026. The official README supplies the paper’s authors and venue. ([raw.githubusercontent.com](https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md))\n\n**Verbatim official-documentation excerpt**, from the README’s WER table, with Markdown formatting removed:\n\n> “vinai/PhoWhisper-large”  \n> “1.55B”  \n> “8.14”  \n> “4.67”  \n> “13.75”  \n> “26.68” ([raw.githubusercontent.com](https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md))\n\nThe table maps those values as follows:\n\n| Benchmark | PhoWhisper-large WER |\n|---|---:|\n| CMV–Vi | 8.14% |\n| VIVOS | 4.67% |\n| VLSP 2020 Task-1 | 13.75% |\n| VLSP 2020 Task-2 | 26.68% |\n\nThese remain the results displayed in the retrieved official README. They are benchmark results, not a guarantee for arbitrary Vietnamese recordings. ([raw.githubusercontent.com](https://raw.githubusercontent.com/VinAIResearch/PhoWhisper/main/README.md))\n\n**Comparison with unmodified Whisper: NOT FOUND in the cited paper or official README.** The paper identifies Whisper as the initialization architecture, including **Whisper-large-v2** for PhoWhisper-large, but its experimental comparison table contains wav2vec2 baselines. For example, wav2vec2-large-vi-vlsp2020 scores 101.41%, 8.61%, 15.18%, and 36.75% on the same four benchmarks. ([arxiv.org](https://arxiv.org/pdf/2406.02555))\n\n- **Exact paper title:** “PhoWhisper: Automatic Speech Recognition for Vietnamese”\n- **Paper URL:** https://arxiv.org/pdf/2406.02555\n- **Date:** PDF marked March 27, 2024; ICLR 2024 Tiny Papers.\n- **Verbatim paper quote:** “Table 2 presents our Word Error Rate (WER) results obtained for PhoWhisper and the baselines.” ([arxiv.org](https://arxiv.org/pdf/2406.02555))\n\n## 2. ChunkFormer — what it is\n\n- **Owner/organisation:** Author-maintained repository `khanld/chunkformer`; authors Khanh Le, Tuan Vu Ho, Dung Tran, and Duc Thanh Chau. Paper affiliations include ZaloAI, independent research, and Vietnam National University/Ho Chi Minh City University of Science.\n- **Exact documentation title:** “ChunkFormer: Masked Chunking Conformer For Long-Form Speech Transcription”\n- **Official documentation URL:** https://github.com/khanld/chunkformer\n- **Publication/access:** ICASSP 2025; arXiv submission February 20, 2025; README update date not established; accessed October 10, 2026. **The verified bibliographic year is 2025, not 2024.** ([huggingface.co](https://huggingface.co/khanhld/chunkformer-ctc-large-vie/resolve/main/paper.pdf?download=true&utm_source=openai))\n\n**Verbatim official-documentation quote:**\n\n> “ChunkFormer is an ASR model designed for processing long audio inputs effectively on low-memory GPUs.” ([github.com](https://github.com/khanld/chunkformer))\n\nThe README describes chunk-wise processing with relative right context and a Masked Batch technique to reduce padding-related memory waste. Its documented focus is efficient long-form processing; this is **not evidence that every transcript is verbatim-correct or hallucination-free**. ([github.com](https://github.com/khanld/chunkformer))\n\n## 3. Whisper hallucinations and low-resource weaknesses\n\n### 3A. Koenecke et al. — measured hallucination percentage\n\n- **Owner/organisation:** Research authors Allison Koenecke, Anna Seo Gyeong Choi, Katelyn X. Mei, Hilke Schellmann, and Mona Sloane; published by ACM; retrieved copy hosted by TalkBank.\n- **Exact paper title:** “Careless Whisper: Speech-to-Text Hallucination Harms”\n- **URL:** https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf\n- **Publication/access:** FAccT 2024, June 3–6, 2024; accessed October 10, 2026.\n- **Official product/help page documenting this study’s percentage:** **NOT FOUND.** The percentage is a research finding, not an OpenAI product specification. ([talkbank.org](https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf))\n\n**Verbatim primary-paper excerpt:**\n\n> “1.4% of audio segments yielded a hallucination sequence in Whisper transcriptions” ([talkbank.org](https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf))\n\n**Scope:** The researchers processed 13,140 English AphasiaBank audio segments and manually confirmed 187 hallucination-producing segments. The quoted 1.4% pertains to experiments in **April and May 2023**, including speakers with aphasia and controls. It is **not** a universal rate, a Vietnamese rate, or a current Whisper-large-v3/turbo rate. ([talkbank.org](https://talkbank.org/aphasia/publications/2024/Koenecke24.pdf))\n\n### 3B. Current official Whisper documentation — hallucination warning\n\n- **Owner/organisation:** OpenAI.\n- **Exact page title:** “Model Card: Whisper”\n- **URL:** https://github.com/openai/whisper/blob/main/model-card.md\n- **Publication/access:** Page update date not displayed in the retrieved text; it lists releases through September 2024 (`large-v3-turbo`); accessed October 10, 2026. ([raw.githubusercontent.com](https://raw.githubusercontent.com/openai/whisper/main/model-card.md))\n\n**Verbatim official-documentation excerpt:**\n\n> “the predictions may include texts that are not actually spoken in the audio input (i.e. hallucination).” ([raw.githubusercontent.com](https://raw.githubusercontent.com/openai/whisper/main/model-card.md))\n\nThe currently retrieved model card also documents uneven performance across languages, lower accuracy where training data is scarce, and potentially worse hallucinations in lower-resource/lower-discoverability languages. **No current numerical hallucination rate is provided there.** ([raw.githubusercontent.com](https://raw.githubusercontent.com/openai/whisper/main/model-card.md))\n\n### 3C. Radford et al. — training resources and language accuracy\n\n- **Owner/organisation:** OpenAI researchers; official conference publication hosted by PMLR.\n- **Exact paper title:** “Robust Speech Recognition via Large-Scale Weak Supervision”\n- **URL:** https://proceedings.mlr.press/v202/radford23a.html\n- **Full-text URL:** https://proceedings.mlr.press/v202/radford23a/radford23a.pdf\n- **Publication/access:** ICML 2023, July 23–29, 2023; accessed October 10, 2026. ([proceedings.mlr.press](https://proceedings.mlr.press/v202/radford23a.html))\n\n**Verbatim primary-paper excerpt:**\n\n> “WER halves for every 16× increase in training data.” ([proceedings.mlr.press](https://proceedings.mlr.press/v202/radford23a/radford23a.pdf))\n\nSection 3.4 reports a squared correlation coefficient of **0.83** between log WER and log training-data quantity across languages. This supports a resource-dependent accuracy limitation; it does not establish a current Vietnamese error rate or imply poor performance on every low-resource task. ([proceedings.mlr.press](https://proceedings.mlr.press/v202/radford23a/radford23a.pdf))\n\n**Official product-documentation quote specifically reproducing that numerical relationship: NOT FOUND.** The official model card nevertheless documents the qualitative relationship between language-specific training-data quantity and transcription performance. ([raw.githubusercontent.com](https://raw.githubusercontent.com/openai/whisper/main/model-card.md))\n\n## 4. Noisy/social-media audio versus clean read speech\n\n### 4A. Quantitative general domain-shift evidence\n\n- **Owner/organisation:** OpenAI researchers; PMLR.\n- **Exact title:** “Robust Speech Recognition via Large-Scale Weak Supervision”\n- **URL:** https://proceedings.mlr.press/v202/radford23a/radford23a.pdf\n- **Publication/access:** ICML 2023; accessed October 10, 2026.\n- **Official product/help page giving these cross-dataset numbers:** **NOT FOUND.** These are primary-paper results. ([proceedings.mlr.press](https://proceedings.mlr.press/v202/radford23a.html))\n\n**Verbatim table excerpts:**\n\n> “LibriSpeech Clean 2.7 2.7 0.0”  \n> “CHiME6 65.8 25.5 61.2” ([proceedings.mlr.press](https://proceedings.mlr.press/v202/radford23a/radford23a.pdf))\n\nIn Table 1, the first two numeric columns are WER for wav2vec 2.0 Large and Whisper Large V2, respectively. Thus Whisper Large V2 scores **2.7% on LibriSpeech Clean versus 25.5% on CHiME6**; wav2vec 2.0 scores **2.7% versus 65.8%**. This demonstrates a substantial cross-domain gap, but **does not isolate background music or short social-media video as the cause**. ([proceedings.mlr.press](https://proceedings.mlr.press/v202/radford23a/radford23a.pdf))\n\n### 4B. Official project documentation addressing social-media audio\n\n- **Owner/organisation:** Video Analysis Toolkit project; copyright names `agueguen-LR`, `fchapoul-LR`, and `mhorpync-LR`; hosted on a Université de La Rochelle domain. Formal institutional ownership is **NOT FOUND** on the retrieved page.\n- **Exact page title:** “ASR - Video Analysis Toolkit” — visible page heading “ASR”.\n- **URL:** https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html\n- **Publication/access:** Publication/update date **NOT FOUND**; footer copyright 2026; accessed October 10, 2026. ([videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr](https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html))\n\n**Verbatim project-documentation excerpt:**\n\n> “background music and overlapping speech cause significant transcription errors.” ([videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr](https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html))\n\nThe page specifically discusses social-media video benchmarks and difficulty for smaller Whisper models. However, I did **not** verify a controlled clean-read-versus-music-overlaid comparison there, so it cannot establish the requested quantitative “much higher WER” claim by itself. ([videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr](https://videoanalysistoolkit-9a0e9f.pagelab.univ-lr.fr/benchmarks/asr.html))\n\n**Exact requested evidence — controlled Vietnamese/noisy music-overlaid short-social-video WER versus clean read speech: NOT FOUND in the sources verified here.**\n\n## Defensible conclusion\n\nMy synthesis: **“Treat ASR output as a draft, not as a verified verbatim record. Check consequential wording against the original audio.”** That follows from the official hallucination warning, measured fabricated sequences, nonzero Vietnamese benchmark WER, and substantial cross-domain error variation. It does **not** mean every transcript is wrong, or that the historical 1.4% rate applies today. ([raw.githubusercontent.com](https://raw.githubusercontent.com/openai/whisper/main/model-card.md))\n\nThe search established the named papers, current author/vendor documentation, and general domain-shift evidence. It did not establish an unmodified-Whisper comparison in PhoWhisper’s paper, a current numerical hallucination rate, or the exact controlled music-overlaid Vietnamese short-video comparison."
+    }
+   ],
+   "phase": "final_answer",
+   "role": "assistant"
+  }
+ ],
+ "usage": {
+  "input_tokens": 61958,
+  "output_tokens": 3297,
+  "total_tokens": 65255
+ }
+}

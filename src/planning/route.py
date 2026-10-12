@@ -7,22 +7,22 @@ from dataclasses import replace
 from itertools import permutations
 
 from .model import DayResult
-from .schedule import DayCtx, simulate
+from .schedule import DayCtx, _SimulationCache, simulate
 
 
-def order_day(ids: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
-    ctx = replace(ctx, allow_shrink=ctx.allow_shrink and shrink)
+def order_day(ids: list[str], ctx: DayCtx) -> DayResult:
     ids = sorted(ids)
     if len(ids) <= 1:
         return simulate(ids, ctx)
+    cache = _SimulationCache(ids, ctx)
     if len(ids) <= ctx.cfg.exact_n:
         best = None
         for perm in permutations(ids):
-            r = simulate(list(perm), ctx)
+            r = simulate(list(perm), ctx, _cache=cache)
             if best is None or r.key < best.key:
                 best = r
         return replace(best, method="exact")
-    return replace(_heuristic(ids, ctx), method="heuristic")
+    return replace(_heuristic(ids, ctx, cache), method="heuristic")
 
 
 def _nearest_neighbour(ids: list[str], ctx: DayCtx) -> list[str]:
@@ -35,16 +35,16 @@ def _nearest_neighbour(ids: list[str], ctx: DayCtx) -> list[str]:
     return order
 
 
-def _heuristic(ids: list[str], ctx: DayCtx) -> DayResult:
+def _heuristic(ids: list[str], ctx: DayCtx, cache: _SimulationCache) -> DayResult:
     order = _nearest_neighbour(ids, ctx)
-    best = simulate(order, ctx)
+    best = simulate(order, ctx, _cache=cache)
     n = len(order)
     for _ in range(ctx.cfg.improve_passes):
         improved = False
         for i in range(n - 1):                      # 2-opt: reverse a stretch
             for j in range(i + 1, n):
                 cand = order[:i] + order[i:j + 1][::-1] + order[j + 1:]
-                r = simulate(cand, ctx)
+                r = simulate(cand, ctx, _cache=cache)
                 if r.key < best.key:
                     order, best, improved = cand, r, True
         for i in range(n):                          # or-opt: move one stop elsewhere
@@ -53,7 +53,7 @@ def _heuristic(ids: list[str], ctx: DayCtx) -> DayResult:
                     continue
                 cand = order[:]
                 cand.insert(j, cand.pop(i))
-                r = simulate(cand, ctx)
+                r = simulate(cand, ctx, _cache=cache)
                 if r.key < best.key:
                     order, best, improved = cand, r, True
         if not improved:

@@ -1,7 +1,10 @@
-"""Deterministic first read of a user message (docs/P2_TRIP_UNDERSTANDING.md §4).
+"""Deterministic first read of a user message (docs/TRIP_UNDERSTANDING.md §4).
 
-Numbers, dates, who, transport, health hints, money and keyword features. Runs before the agent, so the screen reacts at
-once and a failed agent call still records something. Every proposal quotes the user's own words.
+Only high-precision slots are proposed as facts: numbers, dates, people, money and explicit body/health
+hints plus effort hard filters. Anything needing conversational context (who goes, transport, pace,
+novelty, kinds of place) is a suggestion for the agent, never a fact: the agent reads the user's words
+(negations, corrections, removals) and decides via record_fact. Runs before the agent, so the screen
+reacts at once and a failed agent call still records something. Every proposal quotes the user's own words.
 """
 
 import re
@@ -9,6 +12,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
+from .state import MAX_TRIP_DAYS
 from .text import fold
 
 
@@ -25,19 +29,24 @@ class Proposal:
 class Prepass:
     proposals: tuple[Proposal, ...]
     ambiguous: tuple[tuple[str, tuple[str, ...]], ...]  # (quote, soft keys it may mean)
+    suggestions: tuple[Proposal, ...] = ()  # agent-only hints: read, never applied to the state
 
 
 # "một ngày" (one day of it) and "từ ngày" (from) are not trip lengths; "bay / sau ngày 12" (fly / after) is
 # excluded by the no-digit-after rule in prepass()
 NUMBER = {"hai": 2, "ba": 3, "bon": 4, "nam": 5, "sau": 6, "bay": 7}
 # a negation up to four words before a match ("không đi với bố mẹ", "không thích chỗ có view")
-NEGATION = re.compile(r"\b(khong|chang|ko|tranh|ghet|ngai|so)\s+(\w+\s+){0,4}$")
+# "k" is the common shorthand for "không"
+NEGATION = re.compile(r"\b(khong|chang|k|ko|tranh|ghet|ngai|so)\s+(\w+\s+){0,4}$")
 
 COMPANIONS = [
     (r"\b(bo me|ba me|ba ma|cha me|ong ba|phu huynh|nguoi lon tuoi)\b", "parents"),
     (r"\b(nguoi yeu|ban gai|ban trai|vo chong|hai vo chong|cap doi|honeymoon|trang mat)\b", "partner"),
-    (r"\b(ban be|nhom ban|hoi ban|dong nghiep|team)\b", "friends"),
+    (r"\b(ban be|nhom ban|hoi ban)\b", "friends"),
+    (r"\b(dong nghiep|team building|team|cong ty)\b", "coworkers"),
     (r"\b(con nho|tre nho|tre em|em be|be nho|cac be)\b", "kids"),
+    (r"\b(so sinh|xe day|con moi sinh)\b", "baby"),
+    (r"\b(thu cung|con cho|con meo|cun cung|pet)\b", "pet"),
     (r"\b(mot minh|solo)\b", "solo"),
 ]
 SIGNALS = [
@@ -47,7 +56,8 @@ SIGNALS = [
     (r"\b(co bau|mang thai|dang bau|bau bi)\b", "pregnant"),
     (r"\bsay (xe|deo)\b", "motion_sick"),
     (r"\bso (do cao|cao)\b", "height"),
-    (r"\b(an chay|chay truong|thuan chay)\b", "vegetarian"),
+    (r"\b(an chay|chay truong)\b", "vegetarian"),
+    (r"\b(thuan chay|vegan)\b", "vegan"),
 ]
 MOBILITY = [
     (r"\b(xe may|xe so|xe tay ga)\b", "motorbike"),
@@ -83,7 +93,7 @@ GROUPS = [
     (r"\b(thien nhien|rung thong|thac nuoc|cam trai|glamping|vuon hoa|doi hoa)\b", "nature"),
     (r"\b(tham quan|bao tang|di tich|nha tho|kien truc)\b", "sights"),
 ]
-# Minimal lexicon until the span lexicon exists (docs/P2_TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
+# Minimal lexicon until the span lexicon exists (docs/TRIP_UNDERSTANDING.md §5.2): one key = a clear wish,
 # several = a subjective word to clarify.
 LEXICON = [
     (r"\b(chill|thu gian|thu thai)\b", ("long_stay_chill=present", "noise=quiet", "crowd=low", "scenic_view=present",
@@ -155,22 +165,44 @@ def prepass(text: str, today: date) -> Prepass:
             add("month", int(m[2]), m)
             if m[1]:  # "cuối tháng 10" is more than "tháng 10"
                 add("month_part", MONTH_PART[m[1]], m)
+    def duration_negated(m) -> bool:
+        return bool(NEGATION.search(low[max(0, m.start() - 32):m.start()]))
+
     if not any(p.field == "days" for p in out):
-        m = re.search(r"\b(\d)\s*n\s*(\d)\s*d\b", low)
+        m = re.search(r"\b(\d{1,2})\s*n\s*(\d{1,2})\s*d\b", low)
         if m:
-            add("days", int(m[1]), m)
-            add("nights", int(m[2]), m)
+            if not duration_negated(m) and 1 <= int(m[1]) <= MAX_TRIP_DAYS and 0 <= int(m[2]) <= MAX_TRIP_DAYS:
+                add("days", int(m[1]), m)
+                add("nights", int(m[2]), m)
         else:
             for m in re.finditer(r"(?<!/)\b(\d{1,2})\s*(?:ngay|n)\b|\b(hai|ba|bon|nam|sau|bay)\s+ngay\b(?!\s*\d)", low):
                 n = int(m[1]) if m[1] else NUMBER[m[2]]
-                if 1 <= n <= 7:
+                if not duration_negated(m) and 1 <= n <= MAX_TRIP_DAYS:
                     add("days", n, m)
                     break
-    for m in re.finditer(r"\b(\d)\s*dem\b|\b(hai|ba|bon|nam|sau|bay)\s+dem\b", low):
-        if not any(p.field == "nights" for p in out):  # "3N2Đ" already said it
+            if not any(p.field == "days" for p in out):
+                for m in re.finditer(r"\b(\d{1,2}|mot|hai)\s+(?:tuan|weeks?)\b", low):
+                    before = low[max(0, m.start() - 40):m.start()]
+                    relative = re.search(r"\bsau(?:\s+(?:khoang|tam|chung|hon|gan))*\s*$", before) or re.match(
+                        r"\s+nua\b", low[m.end():])
+                    if relative or duration_negated(m) or re.search(r"\b(?:moi|tren|ngan sach)\s*$|/\s*$|\b(?:trieu|tr|nghin|ngan|k)\s*$", before):
+                        continue
+                    n = int(m[1]) if m[1].isdigit() else {"mot": 1, "hai": 2}[m[1]]
+                    if 1 <= n * 7 <= MAX_TRIP_DAYS:
+                        add("days", n * 7, m)
+                        break
+    for m in re.finditer(r"\b(\d{1,2})\s*dem\b|\b(hai|ba|bon|nam|sau|bay)\s+dem\b", low):
+        if not any(p.field == "nights" for p in out):
             n = int(m[1]) if m[1] else NUMBER[m[2]]
-            if 0 <= n <= 7:
+            if not duration_negated(m) and 0 <= n <= MAX_TRIP_DAYS:
                 add("nights", n, m)
+                if not any(p.field == "days" for p in out) and n < MAX_TRIP_DAYS:
+                    add("days", n + 1, m, inferred=True)
+    if not any(p.field == "days" for p in out):
+        m = re.search(r"\b(di|ve|choi)\s+(ve\s+)?trong\s+ngay\b|\bday trip\b", low)
+        if m:  # a day trip: one day, no night in the city
+            add("days", 1, m)
+            add("nights", 0, m)
     for m in re.finditer(r"\b(\d{1,2})\s*(?:nguoi|ng)\b", low):
         add("people", int(m[1]), m)
         break
@@ -194,30 +226,34 @@ def prepass(text: str, today: date) -> Prepass:
     def negated(m) -> bool:
         return bool(NEGATION.search(low[max(0, m.start() - 32):m.start()]))
 
+    suggest: list[Proposal] = []
+
+    def propose(field, value, m, op="set", inferred=False, group=0):
+        suggest.append(Proposal(field, op, value, raw[m.start(group):m.end(group)], inferred))
+
     for pattern, who in COMPANIONS:
         for m in re.finditer(pattern, low):
             if negated(m):
                 continue
-            add("companions", who, m, op="add")
-            if who == "parents":
-                add("signal", "elderly", m, op="add", inferred=True)
-            if who == "kids":
-                add("signal", "kids", m, op="add", inferred=True)
+            # who goes needs conversational context (negations, corrections): a suggestion only
+            propose("companions", who, m, op="add")
     for pattern, kind in SIGNALS:
         for m in re.finditer(pattern, low):
             if negated(m):
+                continue
+            if kind in {"vegetarian", "vegan"} and re.search(r"\b(thich|muon thu|thu)\s+(?:\w+\s+){0,2}$", low[max(0, m.start() - 30):m.start()]):
                 continue
             add("signal", kind, m, op="add")
     for table, field in ((MOBILITY, "mobility"), (PACE, "pace"), (NOVELTY, "novelty")):
         for pattern, value in table:
             m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
             if m:
-                add(field, value, m)
+                propose(field, value, m)
                 break
     for pattern, group in GROUPS:
         m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
         if m:
-            add("liked_groups", group, m, op="add")
+            propose("liked_groups", group, m, op="add")
     for pattern, feature in HARD:
         for m in re.finditer(pattern, low):
             add("hard", {"feature": feature, "op": "ne", "value": "present"}, m, op="add")
@@ -236,4 +272,10 @@ def prepass(text: str, today: date) -> Prepass:
         if key not in seen:
             seen.add(key)
             unique.append(p)
-    return Prepass(tuple(unique), tuple(dict.fromkeys(ambiguous)))
+    seen_s, unique_s = set(), []
+    for p in suggest:
+        key = (p.field, p.op, repr(p.value))
+        if key not in seen_s:
+            seen_s.add(key)
+            unique_s.append(p)
+    return Prepass(tuple(unique), tuple(dict.fromkeys(ambiguous)), tuple(unique_s))

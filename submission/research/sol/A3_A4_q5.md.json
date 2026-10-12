@@ -1,0 +1,269 @@
+{
+ "id": "resp_0bd2195903f668f9016aca03dd40cc87d091ecf85fcdb654f3",
+ "object": "response",
+ "created_at": 1791624157,
+ "status": "completed",
+ "output": [
+  {
+   "id": "ws_0bd2195903f668f9016aca03df7b0487d09df6560941abf858",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "Wilson 1927 Probable inference law succession statistical inference doi",
+     "Agresti Coull 1998 approximate better exact Wilson small sample score",
+     "Brown Cai DasGupta 2001 recommend Wilson small n",
+     "Newcombe 1998 two sided confidence intervals single proportion seven methods doi"
+    ],
+    "query": "Wilson 1927 Probable inference law succession statistical inference doi"
+   }
+  },
+  {
+   "id": "ws_0bd2195903f668f9016aca03e473e487d0a4969510b3c34f52",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "\"Interval estimation for a binomial proportion\" \"10.1214\"",
+     "\"Wilson\" \"ranking\" \"confidence\" recommender paper",
+     "Luca Zervas 2016 Fake it till you make it 16% doi",
+     "Mayzlin Dover Chevalier 2014 promotional reviews doi"
+    ],
+    "query": "\"Interval estimation for a binomial proportion\" \"10.1214\""
+   }
+  },
+  {
+   "id": "ws_0bd2195903f668f9016aca03eaa87087d0bb0d3bf859aea631",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "site.openstax.org introductory statistics central limit theorem 30 sample size",
+     "Lorenz Rauhut Schweitzer Helbing 2011 social influence undermine wisdom crowd 108 9020",
+     "site.aeaweb.org 10.1257/aer.104.8.2421"
+    ],
+    "query": "site.openstax.org introductory statistics central limit theorem 30 sample size"
+   }
+  },
+  {
+   "id": "ws_0bd2195903f668f9016aca03f2d04087d0b8fc96c34670dcbc",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "open_page",
+    "url": "https://goldberg.berkeley.edu/pubs/Zhou-M-CAFE-1.0-SIGITE-2015-v29.pdf"
+   }
+  },
+  {
+   "id": "rs_0bd2195903f668f9016aca03f68d0c87d0945b122513dd9be7",
+   "type": "reasoning",
+   "content": [],
+   "encrypted_content": "gAAAAABqygP3mmWt_rfzdPwv7zyuGAa8LsDThGAeeA_klv3C_zTx3guH3e1UZIb2SLePROVQ07GMjGnGlb_LfdIHjIU7UurLprWwltSBSP9gYJ5HIMQOjSo2oOtP7A7k0t_6HYP0lvSTw0xkPi7sm8YP_aIbdosbM1c3xvfUICNinpeVDt61NwAo1zJV_0lErOlzfoJvZluQcK4pVDPITj8_OhrY1IbwT2TIRDVF0K2w_6qulBTwlcEU8Jk2TQe0pb4dA5K7C95xvSwNL-2mrx4dW3zd91ZnGXVOEBJf0yYzsIJdqPf39X_vnHvPk1nTeiW6tEtzg9TUUKx_wtn9Av8MWvOMPqnmpuKCUPqlvpcNMrxCQWh-hlO2m7MB3p3EMa-AfPCWuqNHzbH7JmhmRsZuKmNQPBqtPw5f5kKct4yJTVXE1CCm5lQUzqG-oqEoTdMto8MbRrbpKBaROaYfa2wdWHybdtJCY2LFBr5oxalJbPyBOa1JgN7n2EMwE3-kTG1Zc1waUKeWhgO8jGXTfrML1nytEsBPTucEhQ8mo-jaL5jG5MtXfS0HPAxcyhIbHYN_i0e8q5-dbZjeeZXIotzPURd3BMD_Ag8_OVVRS2trUqh4v5Vr7n0h1iLzTB-zzWP-jtTWFSjsiWo3q8VLGtdHtAs_usUy4Xda_KhMm1vuo6-YAvUIKrttp4VhlrMFemx0uje-p2TsNpKU6llFa7jJxqF75ePA5KFvhy-nF8M__lR_zAcIohC_VDsdw8SISJGGvXm9LwgY2gxzxUp1KFwPMTQSp4bMoTaWySP2MjcP3f4Z2l9-tA4Tt_v2OoNxL40MvJx8ixsQHbqiHsQyyyxG4NTDOJwtXjPwYAHKOqiKVocLb4Qn9nUyXnhgPJqLV487fcmM98vRdqdNnZMOSGGkv5LBtHCnwCx3J-VBsbZoPjQbw5kiBEfNP7-JPItnj6R99Tg_4RGzq-vd0VwsXSFjcHp7HdQa6RsMkvjowj1Tjdy748KkHpJ3ZzlmBSTGNAoJh-fpjASppjSA_NOZI4wANvtrDJGsx7w3YINgzkALgv4FAI90oZ7F60urXF0VprSoRyvRbVbJgDgmfx0FCEHIaWajtjnzwlcPIqIRkduv905SQFsE8efOZ3LhfGMVKdvykwvEzkAuzmxwjmRUmOnQ6dgWzPTyfoPqQo7Uscsocg24BjFox0jpbbwPDMiWG6-efcDi1lCUgo58na04INwBZR7y8eRKTyRoOhxxi0WTseYjbR66Zk23eMCLGrudA45uvu_FUEsiXhzuM4BRky0gJU0njXR8tjbuCGAFHnIkkBOCQRUs9dpEj5EgMdTyeljIpOMvHZwnh9CX_h-6BdjCZ9KOwDgObh8Y38J42z1ZVR5Ps8X1lmtVkKBkoJbDUlTf6ng9EhNxQIKaZ_U0gIAIj1kK2bq69q4jp6mRhhltmdwUT5bKkCptyC8DtanjyKTs76uBj0pMoTE0DStfn0UKe5Esv5tPwwAGcHSioejoPNE890Urv7nZNX2Wkpm7QFu5TfK4jwmkTLXYaM3vXSd_s6Vm20pgqHVA89j1lXF3RkHIXn2tRz8esV9jYoxEhEHcpudPMC6nc0rVJ6Um3JpYtm0bTNjASOnqAN3pSG8OIAtecU4SLto=",
+   "summary": []
+  },
+  {
+   "id": "ws_0bd2195903f668f9016aca03f7045487d089d700ee93dba730",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "\"M-CAFE 1.0\" \"2015\" \"pages\"",
+     "\"Brown\" \"We recommend\" \"Wilson\" \"2001\"",
+     "site.openstax.org \"Introductory Statistics 2e\" \"30\" \"rule\"",
+     "\"Introductory Business Statistics\" \"2017\" \"Alexander\" \"Illowsky\""
+    ],
+    "query": "\"M-CAFE 1.0\" \"2015\" \"pages\""
+   }
+  },
+  {
+   "id": "ws_0bd2195903f668f9016aca03ffb77087d0a1250e46defc86ef",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "\"M-CAFE 1.0\" \"165\"",
+     "\"Promotional Reviews\" \"2421–2455\""
+    ],
+    "query": "\"M-CAFE 1.0\" \"165\""
+   }
+  },
+  {
+   "id": "rs_0bd2195903f668f9016aca04052e5887d0bcc28ec1895764ba",
+   "type": "reasoning",
+   "content": [],
+   "encrypted_content": "gAAAAABqygQFBm10hmH0Ujb3VX85c1_6zj6wwUCQqs7kYLTQKPrnv5u6oUtGZR_rVczLwfXMPT7N7I_7WYIG9wEC0zXd9BT-0Hxu_5n_1BT7fsPBWIPR1SpW3mVTZlE3t-_4oSUqI1GJda3aF5aZ1NM93a4RY7CxkhVbltHeVA2cZ5MUm6iy2RXwKoQFdTfu873eYymLHYIonJ631DWcPzhRJi3aik8DMOT4aN6Lu-DJvFO-z0h6etv-TPecPWzfrDh_RBRlUJze_6j7IOPhm9CkUEKgdXaiMx4lWgf6bNnm6nQs-TMJZzU44xKrRqWzE9ZUp5PDoaxk4LaQBxk4sdJh-S98uL1xadH88UO8oKG-Te0Cqm4UmbGgMm2VIGURQl8m2yeFcLC_ZV91joAXqaq-67PR7s43FF4XrfmsT8VKM3TGg94Vo8xCLI1y1fHOqG393Yk5m81inZibS5dyOLKECaeEtA3A55jn6DZEvPI56ZIO9lXOKgfO161SZBW5ozdhaMNB0j4iIqdVEXMC3E_kMMEAbLFqOgodmt-ZaEB5UruQckA7tHna2auDVLny3JP7JJ7aGWMdXF0gFOZPkMMWulW8LtpQeivuJ1NyNoV9tDEVVASeXiDZ9qUgesFkqN_3TyxBgmcD6ktIsvNsIcS55Ez1VoMy9L6J2-YxEmdZs4pJQPp5lNrtw4u4N0ZZlBkUAYF_omYwLQpk8UX2GN6gJHUwtrGU9-d6dvLz5MrNhQUdm0a1fmhKPP4tepXUNk5wlNFFhD4b6Hz0hdfiIElMW1UYyAItuNVbVCSM6iWgfQHappLIKwnCNd79bvgH5MlNyHGFAHdPcyM9tpOhtiPd_bKcy4nqg1LVQjlnzmiwCbfpCAmdpDkyG1Apeb3kvIDj0x9XOASedcq6rN6mNiaQ54wQGxiG_fP_khfIJZcLZV8cJ_E5c6NLuSlidyrxvOTrm6rPy168GISWB1D56AlfDDR_eC9rzmvXn386FrzVUj1NIBpqgSmuWNkXP7Hs4YYpRpnhRJn0_LlKYQB8r3AEPIUn5mlzMNWWHqUTCraBHOw9PujmtDEuUJR5lHDXtJaZ2yv7AY8XtMg465fNX2jaLhPHVw2VVgZXN5WPe6oJF1376mXcY8HeReMoNvYTlzd2ST6seU0nnL5jt6Gn3Q6_hCnwjJ_EJBPPzd0ee4_nftG7o3RVOmNxM3EhFevRyoZB37f6Ns6zFZeQlaEh4Pt-kG3BNJEutx49JNgwqOG9qAoMERqxhxqWLzpJMZa9k4gS8lXHQ94FQxNo4I8TGC-_7ivhbSlAQZxxsJNcliLNAm78WXpXs8SKmVwZBku59NqGh4vJsdK3ihiFnn59KK930LtxIbvtiWcJA_YzVo_pLj9_fPIpw-vlp0N8gP3SY30pAWiEFtDjkILAtg0Sji252XSzn22QgzmN2rD6Ha22g-46N56dIfQAfFQxiNgstuymg-QBgiCx2aXjHwjcuoULfUwcby6CCj696h3lcjo6I27dnYYYbapqpbEiTh6S-xwFhm3sA_19WoPktyw-BBZkOudY54OeAoRiQfuxjZWk9TTHa23HR_RdTlCM9iTmBE_0ELKObleC2uUb6qxwm-Yu-JvusytWeEWDth3VQuSBeKdNCAq1hyM=",
+   "summary": []
+  },
+  {
+   "id": "ws_0bd2195903f668f9016aca0405531487d0aade7f8ab941a671",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "\"M-CAFE 1.0\" \"2015\" \"doi\""
+    ],
+    "query": "\"M-CAFE 1.0\" \"2015\" \"doi\""
+   }
+  },
+  {
+   "id": "msg_0bd2195903f668f9016aca040a2a7087d0b27f36016cb7c5a9",
+   "type": "message",
+   "status": "completed",
+   "content": [
+    {
+     "type": "output_text",
+     "annotations": [
+      {
+       "type": "url_citation",
+       "end_index": 928,
+       "start_index": 773,
+       "title": "Probable Inference, the Law of Succession, and Statistical Inference",
+       "url": "https://oamonitor.ireland.openaire.eu/national/search/publication?pid=10.1080%2F01621459.1927.10502953&utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1340,
+       "start_index": 1245,
+       "title": "",
+       "url": "https://jhanley.biostat.mcgill.ca/c607/ch08/wilson_jasa_1927.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1723,
+       "start_index": 1618,
+       "title": "Approximate is Better than “Exact” for Interval Estimation of Binomial Proportions: The American Statistician: Vol 52, No 2",
+       "url": "https://www.tandfonline.com/doi/abs/10.1080/00031305.1998.10480550?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 2235,
+       "start_index": 2130,
+       "title": "Approximate is Better than “Exact” for Interval Estimation of Binomial Proportions: The American Statistician: Vol 52, No 2",
+       "url": "https://www.tandfonline.com/doi/abs/10.1080/00031305.1998.10480550?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 2729,
+       "start_index": 2600,
+       "title": "Statistical Science",
+       "url": "https://repository.upenn.edu/bitstreams/c3690c8b-efaf-485b-a984-39cfc22aae13/download?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 3059,
+       "start_index": 2930,
+       "title": "Statistical Science",
+       "url": "https://repository.upenn.edu/bitstreams/c3690c8b-efaf-485b-a984-39cfc22aae13/download?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 3518,
+       "start_index": 3347,
+       "title": "Two‐sided confidence intervals for the single proportion: comparison of seven methods - Newcombe - 1998 - Statistics in Medicine - Wiley Online Library",
+       "url": "https://onlinelibrary.wiley.com/doi/abs/10.1002/%28SICI%291097-0258%2819980430%2917%3A8%3C857%3A%3AAID-SIM777%3E3.0.CO%3B2-E?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 3930,
+       "start_index": 3759,
+       "title": "Two‐sided confidence intervals for the single proportion: comparison of seven methods - Newcombe - 1998 - Statistics in Medicine - Wiley Online Library",
+       "url": "https://onlinelibrary.wiley.com/doi/abs/10.1002/%28SICI%291097-0258%2819980430%2917%3A8%3C857%3A%3AAID-SIM777%3E3.0.CO%3B2-E?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 4722,
+       "start_index": 4625,
+       "title": "Microsoft Word - Zhou-M-CAFE-1.0-SIGITE-2015-v29.docx",
+       "url": "https://goldberg.berkeley.edu/pubs/Zhou-M-CAFE-1.0-SIGITE-2015-v29.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 5464,
+       "start_index": 5367,
+       "title": "Microsoft Word - Zhou-M-CAFE-1.0-SIGITE-2015-v29.docx",
+       "url": "https://goldberg.berkeley.edu/pubs/Zhou-M-CAFE-1.0-SIGITE-2015-v29.pdf"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 6424,
+       "start_index": 6285,
+       "title": "7.1 The Central Limit Theorem for Sample Means - Introductory Business Statistics | OpenStax",
+       "url": "https://openstax.org/books/introductory-business-statistics/pages/7-1-the-central-limit-theorem-for-sample-means?modal=KS"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 7156,
+       "start_index": 7023,
+       "title": "7.1 The Central Limit Theorem for Sample Means (Averages) - Introductory Statistics 2e | OpenStax",
+       "url": "https://openstax.org/books/introductory-statistics-2e/pages/7-1-the-central-limit-theorem-for-sample-means-averages"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 7548,
+       "start_index": 7443,
+       "title": "Approximate is Better than “Exact” for Interval Estimation of Binomial Proportions: The American Statistician: Vol 52, No 2",
+       "url": "https://www.tandfonline.com/doi/abs/10.1080/00031305.1998.10480550?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 7969,
+       "start_index": 7862,
+       "title": "Fake It Till You Make It: Reputation, Competition, and Yelp Review Fraud | Management Science",
+       "url": "https://pubsonline.informs.org/doi/pdf/10.1287/mnsc.2015.2304?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 8447,
+       "start_index": 8340,
+       "title": "Fake It Till You Make It: Reputation, Competition, and Yelp Review Fraud | Management Science",
+       "url": "https://pubsonline.informs.org/doi/pdf/10.1287/mnsc.2015.2304?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 8871,
+       "start_index": 8740,
+       "title": "Promotional Reviews: An Empirical Investigation of Online Review Manipulation",
+       "url": "https://moodle.epfl.ch/pluginfile.php/2835201/mod_resource/content/1/mayzlin14promotional.pdf?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 9435,
+       "start_index": 9304,
+       "title": "Promotional Reviews: An Empirical Investigation of Online Review Manipulation",
+       "url": "https://moodle.epfl.ch/pluginfile.php/2835201/mod_resource/content/1/mayzlin14promotional.pdf?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 9879,
+       "start_index": 9786,
+       "title": "How social influence can undermine the wisdom of crowd effect - PMC",
+       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3107299/?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 10397,
+       "start_index": 10322,
+       "title": "How social influence can undermine the wisdom of crowd effect - PMC",
+       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3107299/"
+      }
+     ],
+     "logprobs": [],
+     "text": "I used real web searches and checked publisher records and available article text. The named papers are verified. Some broader claims need qualification: notably, **n = 30 is not a universal theorem**, **filtered reviews are not the same as confirmed fake reviews**, and **“one vote per author” is not directly established by the cited fraud studies**.\n\nQuotes below are short, verbatim excerpts; where an excerpt supports only part of a claim, I say so.\n\n## 1. Wilson (1927)\n\n**Verified reference:** Edwin B. Wilson (1927). “Probable Inference, the Law of Succession, and Statistical Inference.” *Journal of the American Statistical Association*, **22**(158), 209–212.  \n**DOI:** `10.1080/01621459.1927.10502953`. The bibliographic record and original article scan agree. ([oamonitor.ireland.openaire.eu](https://oamonitor.ireland.openaire.eu/national/search/publication?pid=10.1080%2F01621459.1927.10502953&utm_source=openai))\n\n**Verbatim quote — body, p. 210:**\n> “Moreover, the interval on either side of the mean is”\n\nThis sentence immediately precedes Wilson’s interval-radius formula in the original scan. Thus the original derivation is verified, although this short prose excerpt alone does not reproduce the mathematical construction. ([jhanley.biostat.mcgill.ca](https://jhanley.biostat.mcgill.ca/c607/ch08/wilson_jasa_1927.pdf))\n\n## 2. Agresti and Coull (1998)\n\n**Verified reference:** Alan Agresti and Brent A. Coull (1998). “Approximate is Better than ‘Exact’ for Interval Estimation of Binomial Proportions.” *The American Statistician*, **52**(2), 119–126.  \n**DOI:** `10.1080/00031305.1998.10480550`. ([tandfonline.com](https://www.tandfonline.com/doi/abs/10.1080/00031305.1998.10480550?utm_source=openai))\n\n**Verbatim quote — abstract:**\n> “yields coverage probabilities close to nominal confidence levels, even for very small sample sizes.”\n\nThe subject of this clause is Wilson’s suggestion of inverting the score test using the null rather than estimated standard error. This directly supports good **coverage performance** at small sample sizes—not a guarantee of narrow intervals or stable point estimates. ([tandfonline.com](https://www.tandfonline.com/doi/abs/10.1080/00031305.1998.10480550?utm_source=openai))\n\n## 3. Brown, Cai, and DasGupta; Newcombe\n\n### Brown, Cai, and DasGupta (2001)\n\n**Verified reference:** Lawrence D. Brown, T. Tony Cai, and Anirban DasGupta (2001). “Interval Estimation for a Binomial Proportion.” *Statistical Science*, **16**(2), 101–133.  \n**DOI:** `10.1214/ss/1009213286`. The available article’s header gives the requested 101–133 pagination. ([repository.upenn.edu](https://repository.upenn.edu/bitstreams/c3690c8b-efaf-485b-a984-39cfc22aae13/download?utm_source=openai))\n\n**Verbatim quote — abstract, p. 101:**\n> “we recommend the Wilson interval or the equal-tailed Jeffreys prior interval for small n”\n\nThis directly verifies the requested small-sample recommendation. ([repository.upenn.edu](https://repository.upenn.edu/bitstreams/c3690c8b-efaf-485b-a984-39cfc22aae13/download?utm_source=openai))\n\n### Newcombe (1998)\n\n**Verified reference:** Robert G. Newcombe (1998). “Two-sided confidence intervals for the single proportion: comparison of seven methods.” *Statistics in Medicine*, **17**(8), 857–872.  \n**DOI:** `10.1002/(SICI)1097-0258(19980430)17:8<857::AID-SIM777>3.0.CO;2-E`. ([onlinelibrary.wiley.com](https://onlinelibrary.wiley.com/doi/abs/10.1002/%28SICI%291097-0258%2819980430%2917%3A8%3C857%3A%3AAID-SIM777%3E3.0.CO%3B2-E?utm_source=openai))\n\n**Verbatim quote — abstract:**\n> “Intervals based on tail areas and the simpler score methods are recommended for use.”\n\nThis supports score-method interval estimation. It does not establish a minimum-observation gate or a ranking policy. ([onlinelibrary.wiley.com](https://onlinelibrary.wiley.com/doi/abs/10.1002/%28SICI%291097-0258%2819980430%2917%3A8%3C857%3A%3AAID-SIM777%3E3.0.CO%3B2-E?utm_source=openai))\n\n## 4. Lower-confidence-bound ranking with few observations\n\n**Found a peer-reviewed conference example, but with an important methodological caveat.**\n\n**Reference:** Mo Zhou, Alison Cliff, Sanjay Krishnan, Brandie Nonnecke, Camille Crittenden, Kanji Uchino, and Ken Goldberg (2015). “M-CAFE 1.0: Motivating and Prioritizing Ongoing Student Feedback During MOOCs and Large on-Campus Courses using Collaborative Filtering.” *Proceedings of the 16th Annual Conference on Information Technology Education* (SIGITE ’15), 153–158.  \n**DOI:** `10.1145/2808006.2808020`. Authors and conference/DOI are verified in the authors’ manuscript; pagination is corroborated by a published literature survey. ([goldberg.berkeley.edu](https://goldberg.berkeley.edu/pubs/Zhou-M-CAFE-1.0-SIGITE-2015-v29.pdf))\n\n**Verbatim quote — §4.2.2, manuscript p. 4:**\n> “Instead, we compute the Wilson score for each idea using the lower bound of the binomial proportion confidence interval.”\n\nThe preceding discussion explicitly identifies small numbers of peer ratings as a reason not to rank by mean or median alone. **However**, the subsequent implementation describes a ten-point rating scale and ranking by a mean-minus-standard-error expression. That is not the usual Wilson binomial lower bound. Therefore, this is evidence of published **lower-bound ranking practice**, but it is not a clean methodological validation of Wilson ranking for binary reviews. ([goldberg.berkeley.edu](https://goldberg.berkeley.edu/pubs/Zhou-M-CAFE-1.0-SIGITE-2015-v29.pdf))\n\n**NOT FOUND:** In this search, a clean peer-reviewed or textbook source validating the specific rule “use the Wilson lower bound to quality-gate binary review items with few observations.” The interval-estimation papers in items 1–3 should not be represented as ranking-policy studies.\n\n## 5. The n ≈ 30 guideline\n\n**Verified textbook example:** Alexander Holmes, Barbara Illowsky, and Susan Dean (2017). *Introductory Business Statistics*. OpenStax, §7.1, “The Central Limit Theorem for Sample Means.” This is a textbook, not a journal/conference; volume is not applicable, and the verified HTML section has no page numbering.  \n**URL:** https://openstax.org/books/introductory-business-statistics/pages/7-1-the-central-limit-theorem-for-sample-means  \nThe textbook page verifies authors, title, and publication date. ([openstax.org](https://openstax.org/books/introductory-business-statistics/pages/7-1-the-central-limit-theorem-for-sample-means?modal=KS))\n\n**Verbatim quote — §7.1:**\n> “which has been shown to be only 30 observations or more.”\n\n**Qualification:** This verifies that the textbook teaches the 30-observation convention; its surrounding wording is overly categorical. The CLT concerns convergence as sample size increases, not a universal switch at 30. OpenStax’s statistics text states that asymptotic formulation, and Brown et al. warn that common textbook prescriptions for Wald-interval safety can be misleading. Thus **n = 30 is a convention, not a theorem guaranteeing adequate normal approximation or stable proportion estimates**. ([openstax.org](https://openstax.org/books/introductory-statistics-2e/pages/7-1-the-central-limit-theorem-for-sample-means-averages))\n\n**NOT FOUND:** An authoritative justification that **30 observations universally suffice for stable proportion estimates**, or that Wilson intervals require at least 30 observations. Indeed, Agresti and Coull explicitly report favorable score-interval coverage for very small samples. ([tandfonline.com](https://www.tandfonline.com/doi/abs/10.1080/00031305.1998.10480550?utm_source=openai))\n\n## 6. Independence, review fraud, and “one vote per author”\n\n### Luca and Zervas (2016)\n\n**Verified reference:** Michael Luca and Georgios Zervas (2016). “Fake It Till You Make It: Reputation, Competition, and Yelp Review Fraud.” *Management Science*, **62**(12), 3412–3427.  \n**DOI:** `10.1287/mnsc.2015.2304`. ([pubsonline.informs.org](https://pubsonline.informs.org/doi/pdf/10.1287/mnsc.2015.2304?utm_source=openai))\n\n**Verbatim quote — abstract:**\n> “First, roughly 16% of restaurant reviews on Yelp are filtered.”\n\n**Important correction:** The authors treat reviews flagged by Yelp’s filtering algorithm as a **proxy** for fraud. “16% were filtered” is verified; “16% were proven fake” is not. This is also a finding from their study, not a verified current platform-wide fraud rate. ([pubsonline.informs.org](https://pubsonline.informs.org/doi/pdf/10.1287/mnsc.2015.2304?utm_source=openai))\n\n### Mayzlin, Dover, and Chevalier (2014)\n\n**Verified reference:** Dina Mayzlin, Yaniv Dover, and Judith Chevalier (2014). “Promotional Reviews: An Empirical Investigation of Online Review Manipulation.” *American Economic Review*, **104**(8), 2421–2455.  \n**DOI:** `10.1257/aer.104.8.2421`. ([moodle.epfl.ch](https://moodle.epfl.ch/pluginfile.php/2835201/mod_resource/content/1/mayzlin14promotional.pdf?utm_source=openai))\n\n**Verbatim quote — abstract, p. 2421:**\n> “Firms’ incentives to manufacture biased user reviews impede review usefulness.”\n\nThe study compares a customer-restricted reviewing platform with one allowing anyone to post and finds patterns consistent with promotional manipulation. That supports concern about review authenticity and participation restrictions, not specifically an experimentally validated one-author-one-vote policy. ([moodle.epfl.ch](https://moodle.epfl.ch/pluginfile.php/2835201/mod_resource/content/1/mayzlin14promotional.pdf?utm_source=openai))\n\n### Lorenz et al. (2011): peer-reviewed support for the independence concern\n\n**Verified reference:** Jan Lorenz, Heiko Rauhut, Frank Schweitzer, and Dirk Helbing (2011). “How social influence can undermine the wisdom of crowd effect.” *Proceedings of the National Academy of Sciences*, **108**(22), 9020–9025.  \n**DOI:** `10.1073/pnas.1008636108`. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC3107299/?utm_source=openai))\n\n**Verbatim quote — abstract:**\n> “even mild social influence can undermine the wisdom of crowd effect in simple estimation tasks.”\n\nThis provides peer-reviewed experimental support for the Surowiecki-type concern about preserving independent judgments and diversity. It supports **“social influence can undermine aggregation,”** not the stronger universal claim that every beneficial aggregation mathematically requires strict independence. ([pmc.ncbi.nlm.nih.gov](https://pmc.ncbi.nlm.nih.gov/articles/PMC3107299/))\n\n**NOT FOUND:** Direct evidence in these sources that **“one vote per author” specifically reduces review spam**, or that this rule ensures independent observations. Treat that rule as a proposed design safeguard rather than an established conclusion of Luca–Zervas, Mayzlin–Dover–Chevalier, or Lorenz et al.\n\n**Overall:** The interval references strongly support Wilson/score intervals for small-sample proportion inference. The evidence for lower-bound ranking is more limited and the located example has an implementation inconsistency. The searched sources do not establish a universal 30-observation gate or directly validate one-vote-per-author spam prevention."
+    }
+   ],
+   "phase": "final_answer",
+   "role": "assistant"
+  }
+ ],
+ "usage": {
+  "input_tokens": 60140,
+  "output_tokens": 3010,
+  "total_tokens": 63150
+ }
+}

@@ -7,30 +7,17 @@ scheduler cannot also hide from the check. Fail-closed: a violation is reported,
 from dataclasses import replace
 
 from corpus.ontology import load as load_ontology
-from corpus.serving import check, feature
+from requirements import allowed, hard_result
 
 from .conditions import hazard
 from .model import DayResult, Violation
 from .schedule import DayCtx, intervals_for, pin_window
+from .cache import day_key, fingerprint, put
 
 
 def _is_physical(feature: str) -> bool:
     f = load_ontology().features.get(feature)
     return f is not None and f.group == "effort"
-
-
-def blockers(violations, per_day: list[list[str]]) -> dict:
-    """What stopped every variant, for the screen that sends the user back: the places involved (a violation without a
-    place names its day's places) and one reason per kind / place / day, so "stuck at X" always says why."""
-    places = sorted({v.place_id for v in violations if v.place_id})
-    if not places:
-        places = sorted({i for v in violations if v.day is not None and v.day < len(per_day) for i in per_day[v.day]})
-    seen, reasons = set(), []
-    for v in violations:
-        if (v.kind, v.place_id, v.day) not in seen:
-            seen.add((v.kind, v.place_id, v.day))
-            reasons.append({"kind": v.kind, "place_id": v.place_id, "day": v.day, "minutes": v.minutes})
-    return {"reason": "no_valid_variant", "places": places, "reasons": reasons}
 
 
 def _released(cx: DayCtx, r: DayResult) -> DayCtx:
@@ -42,8 +29,23 @@ def _released(cx: DayCtx, r: DayResult) -> DayCtx:
 
 
 def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, anchors: set,
-             budget_vnd: int | None, max_leg_min: int | None, *,
-             required_visits: set[str] | None = None) -> list[Violation]:
+             budget_vnd: int | None, max_leg_min: int | None, *, day_cache: dict | None = None,
+             cache_limit: int = 128) -> list[Violation]:
+    if day_cache is not None:
+        out, visited = [], {}
+        for cx, result in zip(ctxs, results):
+            key = fingerprint((day_key(cx, result.order), result, hard_filters, budget_vnd, max_leg_min))
+            if key not in day_cache:
+                put(day_cache, key, validate([cx], [result], hard_filters, set(), budget_vnd, max_leg_min), cache_limit)
+            out.extend(day_cache[key])
+            day_visited = {i.place_id for i in result.items if i.kind == "visit"}
+            for pid in day_visited:
+                if pid in visited:
+                    out.append(Violation("duplicate", cx.day.index, pid, 0, False, "the place is scheduled twice"))
+                visited[pid] = cx.day.index
+        for pid in sorted(anchors - set(visited)):
+            out.append(Violation("anchor", None, pid, 0, False, "an anchor is not in the plan"))
+        return out
     out: list[Violation] = []
     visited: dict = {}
     for cx, r in zip(ctxs, results):
@@ -71,13 +73,6 @@ def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, a
             if it.kind != "visit":
                 continue
             p = cx.places[it.place_id]
-            if p.requested_start is not None and it.start != p.requested_start:
-                out.append(Violation("requested_start", d.index, p.id, abs(it.start - p.requested_start), False,
-                                     "visit does not match the requested start"))
-            if p.requested_duration is not None and it.end - it.start != p.requested_duration:
-                out.append(Violation("requested_duration", d.index, p.id,
-                                     abs(it.end - it.start - p.requested_duration), False,
-                                     "visit does not match the requested duration"))
             if not any(o <= it.start and it.end <= c for o, c in intervals_for(p, cx)):
                 out.append(Violation("hours", d.index, p.id, 0, False, "visit outside the opening hours"))
             if why := hazard(p, cx.cond):
@@ -90,27 +85,14 @@ def validate(ctxs: list[DayCtx], results: list[DayResult], hard_filters: list, a
             visited[p.id] = d.index
             spend += p.cost_vnd or 0
             for hf in hard_filters:
-                physical = _is_physical(hf["feature"])
-                if physical or hf["feature"] not in p.relaxed:
-                    status = "unknown"
-                    if hf["op"] == "ne":
-                        status = check(p.rec, hf["feature"], hf["value"])
-                    elif hf["op"] == "eq":
-                        evidence = feature(p.rec, hf["feature"])
-                        if evidence and evidence["status"] in ("VERIFIED", "OUTDATED"):
-                            if evidence["value"] != hf["value"]:
-                                status = "fail"
-                            elif set(evidence["distribution"]) <= {hf["value"]}:
-                                status = "pass"
-                    if status != "pass":
-                        operator = "!=" if hf["op"] == "ne" else "=="
-                        out.append(Violation("hard", d.index, p.id, 0, physical,
-                                             f'{hf["feature"]} {operator} {hf["value"]}: {status}'))
+                if hf["feature"] not in p.relaxed \
+                        and not allowed(p.rec, hf, p.activity, p.kind):
+                    verdict = hard_result(p.rec, hf, p.activity, p.kind)[0]
+                    out.append(Violation("hard", d.index, p.id, 0, _is_physical(hf["feature"]),
+                                         f'{hf["feature"]} {"==" if hf["op"] == "eq" else "!="} {hf["value"]}: {verdict}'))
         if budget_vnd and spend > budget_vnd:
             out.append(Violation("budget", d.index, None, spend - budget_vnd, False,
                                  f"{spend} VND per person against {budget_vnd}"))
     for pid in sorted(anchors - set(visited)):
         out.append(Violation("anchor", None, pid, 0, False, "an anchor is not in the plan"))
-    for pid in sorted((required_visits or set()) - set(visited)):
-        out.append(Violation("requested_visit", None, pid, 0, False, "a requested visit is not in the plan"))
     return out

@@ -1,4 +1,4 @@
-"""Cloudflare Clef: a small zero-shot classifier asked before the Agent (docs/P2_TRIP_UNDERSTANDING.md §4).
+"""Cloudflare Clef: a small zero-shot classifier asked before the Agent (docs/TRIP_UNDERSTANDING.md §4).
 
 It answers natural-language questions with a probability per option. Here it only decides whether a message can be
 answered with a fixed reply, so the Agent is not called. A slow or failing Clef decides nothing (fail open).
@@ -21,12 +21,11 @@ SUPPORT = "fact.supported_by_quote"
 CLARITY = "other.states_value"  # quiz other-gate: a typed answer clearly states a value for the field
 PROMISE = "reply.promises_results"
 INVENT = "reply.states_unsaid_fact"
-REPEAT = "question.already_answered"
-# What the Agent can answer in this step (keep in line with agent/tools/specs.py and agent/prompts.py): anything else is a
+# What the Agent can answer in this step (keep in line with agent/tools.py and agent/prompt.py): anything else is a
 # figure the later steps own, and Clef lets the fixed reply answer it before the Agent is called.
 HAVE = ("số ngày, ngày hoặc tháng đi, số người, đi với ai, phương tiện, mục đích, nhịp độ, ngân sách, sở thích và giới hạn đã nói, "
         "địa điểm phải đến, nơi ở, điểm vào và ra thành phố, giờ đến và đi, ngày hôm nay")
-# One line per lookup tool the Agent has (agent/tools/specs.py SPECS minus record_fact and the asking tools). A test fails when
+# One line per lookup tool the Agent has (agent/tools.py SPECS minus record_fact and the asking tools). A test fails when
 # the two drift apart.
 LOOKUPS = {
     "resolve_relative_date": "đổi cách nói ngày tương đối thành ngày cụ thể",
@@ -160,9 +159,3 @@ class Judge:
             return "states a fact nobody gave"
         return None
 
-    def repeats(self, question: str, known: str) -> bool:
-        """True only when Clef is sure the answer to `question` is already in `known` (the Trip State as JSON)."""
-        answers = ask({"question": question, "known": known}, {REPEAT: {
-            "type": "choice", "instructions": "Thông tin trong known đã trả lời câu question chưa?",
-            "criteria": {"A": "đã trả lời", "B": "chưa", "C": "chưa rõ"}}}, self.cfg)
-        return prob(answers, REPEAT, "A") >= self.cfg.clef_repeat_min

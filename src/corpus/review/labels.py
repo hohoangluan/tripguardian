@@ -1,7 +1,7 @@
 """Gold labels for review observations: data/review/labels.jsonl, append-only; the latest label per observation wins.
 
 A person reads the review text next to what the Extractor claimed and says correct / wrong / unsure. The labels give
-the precision per (feature, value) that docs/P1_CORPUS.md §Đo chất lượng asks for; a value whose measured
+the precision per (feature, value) that docs/CORPUS.md §Đo chất lượng asks for; a value whose measured
 precision is below the gate is not served by itself. They never edit observations.
 
 A label judges what a person can read: this review, this feature and value, these quoted words. It is keyed by that
@@ -21,7 +21,7 @@ import unicodedata
 from pathlib import Path
 
 from ..crawl.common.files import append_jsonl, data_dir, now
-from ..ontology import load as load_ontology
+from ..ontology import DETAIL_PREFIX, load as load_ontology
 
 LABELS = ("correct", "wrong", "unsure")
 GATE_MIN_N = 30  # labelled (correct + wrong) before a value can pass
@@ -52,6 +52,11 @@ def _all() -> list[dict]:
     return _read(_judge_file()) + _read(_file())  # people last: the latest label per claim wins
 
 
+def fv(feature: str, value: str) -> tuple[str, str]:
+    """The statistics stratum of an observation: (feature, value); a detail's value is free text, so its kind is one."""
+    return (feature, "*" if feature.startswith(DETAIL_PREFIX) else value)
+
+
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFC", text or "")).strip().casefold()
 
@@ -79,8 +84,8 @@ def stand_in(rec: dict) -> bool:
 
 
 def _rows() -> list[tuple]:
-    """(file stem, observation id, feature, value, key, source folder) of every model-made observation whose value
-    the ontology still has; each file is read again only when it changed."""
+    """(file stem, observation id, feature, value, key, source folder) of every model-made observation (and detail)
+    whose value the ontology still has; each file is read again only when it changed."""
     ont, rows, seen = load_ontology(), [], set()
     for source, types in SOURCES.items():
         root = data_dir().joinpath(*FOLDERS[source])
@@ -91,8 +96,9 @@ def _rows() -> list[tuple]:
                 doc = json.loads(f.read_text(encoding="utf-8"))
                 _files[f] = (mtime, [(f.stem, o["id"], o["feature"], o["value"],
                                       key(o["source_id"], o["feature"], o["value"], o["span"]["quote"]), source)
-                                     for o in doc["observations"] if o["source_type"] in types])
-            rows += [r for r in _files[f][1] if ont.valid(r[2], r[3])]
+                                     for o in doc["observations"] + (doc.get("details") or [])
+                                     if o["source_type"] in types])
+            rows += [r for r in _files[f][1] if ont.valid(r[2], r[3]) or ont.valid_detail(r[2])]
     for f in set(_files) - seen:
         del _files[f]
     return rows
@@ -196,7 +202,8 @@ def frame_path(video_id: str, n: int) -> Path | None:
 
 def _item(stem: str, obs_id: str, source: str = "gmaps") -> dict | None:
     doc = json.loads((data_dir().joinpath(*FOLDERS[source]) / f"{stem}.json").read_text(encoding="utf-8"))
-    o = next((o for o in doc["observations"] if o["id"] == obs_id), None)
+    pool = doc["observations"] + (doc.get("details") or [])
+    o = next((o for o in pool if o["id"] == obs_id), None)
     if o is None:
         return None
     reviews = _reviews(stem)
@@ -211,9 +218,11 @@ def _item(stem: str, obs_id: str, source: str = "gmaps") -> dict | None:
         vf = data_dir() / "tiktok" / "videos" / o["source_id"] / "video.json"
         if vf.exists():
             text, card = _video_card(json.loads(vf.read_text(encoding="utf-8")), o)
-    f = load_ontology().features.get(o["feature"])
+    ont = load_ontology()
+    f = ont.features.get(o["feature"])
+    kind = ont.detail_kind(o["feature"])
     others = []  # what the rest of this place's evidence says on the same feature: agree, other value, rule-made
-    for x in doc["observations"]:
+    for x in pool:
         if x["feature"] != o["feature"] or x["id"] == obs_id or len(others) >= OTHERS_MAX:
             continue
         r = reviews.get(x["source_id"]) or {}
@@ -224,26 +233,29 @@ def _item(stem: str, obs_id: str, source: str = "gmaps") -> dict | None:
     return {"id": obs_id, "place": doc["place_fid"], "placeName": doc.get("place_name"), "feature": o["feature"],
             "value": o["value"], "quote": o["span"]["quote"], "context": o["context"],
             "observedAt": o["observed_at"], "text": text, "source": source,
-            "definition": {"hint": f.hint if f else "", "claim": (f.claims.get(o["value"]) if f else None),
+            "definition": {"hint": f.hint if f else kind.hint if kind else "",
+                           "claim": f.claims.get(o["value"]) if f else kind.claim.format_map(
+                               collections.defaultdict(str, text=o["value"], **(o.get("detail") or {})))
+                           if kind else None,
                            "values": list(f.values) if f else []},
             "review": card,
             "placeInfo": {k: place.get(k) for k in ("category", "address", "url", "rating", "review_count", "price",
                                                      "status", "description")}
                          | {"attributes": [str(a) for a in _as_list(place.get("attributes"))]},
             "others": others,
-            "othersCount": {v: sum(1 for x in doc["observations"] if x["feature"] == o["feature"] and x["value"] == v)
+            "othersCount": {v: sum(1 for x in pool if x["feature"] == o["feature"] and x["value"] == v)
                             for v in (f.values if f else ())}}
 
 
 def sample(n: int = 1, feature: str | None = None, seed: int | None = None) -> list[dict]:
     """Unlabelled observations, the least-labelled (feature, value) first so every value gets its sample."""
     done = latest()
-    counts = collections.Counter((r["feature"], r["value"]) for r in done.values())
+    counts = collections.Counter(fv(r["feature"], r["value"]) for r in done.values())
     pool, seen = collections.defaultdict(list), set()
     for stem, obs_id, feat, value, k, source in _rows():
         if k not in done and k not in seen and (feature is None or feat == feature):
             seen.add(k)  # the same claim twice in one review is one item
-            pool[(feat, value)].append((stem, obs_id, source))
+            pool[fv(feat, value)].append((stem, obs_id, source))
     rng, out = random.Random(seed), []
     for _ in range(n):
         live = [k for k, v in pool.items() if v]
@@ -329,16 +341,16 @@ def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:
 
 
 def stats() -> dict:
-    """Per (feature, value): labels, precision, Wilson lower bound and whether the value passes the gate; by_source
+    """Per (feature, value) -- (detail.<kind>, "*") for a detail: labels, precision, Wilson lower bound and whether the value passes the gate; by_source
     splits the correct / wrong counts per source folder (a new source has to earn its own precision).
 
     The precision is measured on the accurate labels (a person's, the Codex Judge's) once they reach GATE_MIN_N, and on
     every label only below that. The Gemma Judge's labels are a filter, not a measure: it calls ~30% of correct claims
-    wrong (docs/P1_CORPUS.md §6), so mixing them in pulled values whose accurate labels pass well below the gate --
+    wrong (docs/CORPUS.md §6), so mixing them in pulled values whose accurate labels pass well below the gate --
     food_quality=good measured 0.95 on 73 accurate labels and 0.83 once Gemma's were added (2026-10-06, 12 values and
     84.6k claims held back this way). Which labels decide is reported as `measured_by`."""
     rows = _rows()
-    pool = collections.Counter((r[2], r[3]) for r in rows)
+    pool = collections.Counter(fv(r[2], r[3]) for r in rows)
     current = {r[4]: r[5] for r in rows}
     got = collections.defaultdict(collections.Counter)
     per_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
@@ -346,16 +358,16 @@ def stats() -> dict:
     strong_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     for k, rec in latest().items():
         if k in current:  # a label on a claim the current observations no longer make says nothing about them
-            fv = (rec["feature"], rec["value"])
-            got[fv][rec["label"]] += 1
-            per_source[fv][current[k]][rec["label"]] += 1
+            stratum = fv(rec["feature"], rec["value"])
+            got[stratum][rec["label"]] += 1
+            per_source[stratum][current[k]][rec["label"]] += 1
             if not stand_in(rec):
-                strong[fv][rec["label"]] += 1
-                strong_source[fv][current[k]][rec["label"]] += 1
+                strong[stratum][rec["label"]] += 1
+                strong_source[stratum][current[k]][rec["label"]] += 1
     measured_by = {}
-    for fv, c in strong.items():
+    for stratum, c in strong.items():
         if c["correct"] + c["wrong"] >= GATE_MIN_N:
-            got[fv], per_source[fv], measured_by[fv] = c, strong_source[fv], "strong"
+            got[stratum], per_source[stratum], measured_by[stratum] = c, strong_source[stratum], "strong"
     rows = []
     for key in sorted(set(pool) | set(got)):
         c = got[key]

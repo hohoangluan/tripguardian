@@ -4,6 +4,7 @@ No evidence -> None or 0, never a guess: a place with no weather evidence is not
 """
 
 from corpus.serving import feature
+from requirements import applicable
 
 from .model import Place
 
@@ -33,7 +34,8 @@ def preference(place: Place, soft_weights: list) -> float:
     """Sum of the positive soft weights whose feature value the place has. Context of a weight is ignored: Planning
     does not know it per visit."""
     return float(sum(w["weight"] for w in soft_weights
-                     if w.get("weight", 0) > 0 and _value(place, w["feature"]) == w["value"]))
+                     if w.get("weight", 0) > 0 and applicable(place.rec, w, place.activity, place.kind)
+                     and _value(place, w["feature"]) == w["value"]))
 
 
 def kind_group(place: Place) -> str | None:

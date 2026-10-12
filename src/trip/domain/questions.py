@@ -1,4 +1,4 @@
-"""Deterministic quiz bank for the quiz phase (docs/P2_TRIP_UNDERSTANDING.md §5).
+"""Deterministic quiz bank for the quiz phase (docs/TRIP_UNDERSTANDING.md §5).
 
 Every chip carries the updates it writes (Draft), so answering a chip never needs
 the model: the engine applies the drafts and moves to the next question. The chat
@@ -38,7 +38,7 @@ QUIZ_FIELD: dict[str, str | None] = {
     "purpose": "purpose", "vibe": "soft", "crowd": "crowd_tolerance", "pace": "pace",
     "budget": "budget_vnd", "novelty": "novelty", "arrival": "arrival_mode", "stay_times": "checkin_at",
     "origin": None, "inbound": None, "outbound": None, "lodging": None,  # picked from a search: typed text goes to the chat
-    "c_effort": None, "c_other": None, "anchor_priority": None,
+    "c_effort": None, "c_other": None, "anchor_priority": None, "care": None,
 }
 
 FIELD_LABEL = {"days": "số ngày", "nights": "số đêm", "companions": "người đi cùng", "mobility": "phương tiện di chuyển",
@@ -59,7 +59,7 @@ def pending_fields(qid: str) -> list[str]:
         if qid == "dates":
             return ["start_date", "month", "month_part"]
         return [QUIZ_FIELD[qid]] if QUIZ_FIELD[qid] else []
-    if qid in ("c_effort", "c_other"):
+    if qid in ("c_effort", "c_other", "care"):
         return ["signal", "hard", "unmapped"]
     if qid.startswith("policy:"):
         return ["hard"]
@@ -77,7 +77,7 @@ SAFETY_PREFIXES = ("policy:", "anchor:", "closed:")
 
 def is_quiz(qid: str) -> bool:
     """Whether this card id belongs to the quiz phase (offer/review excluded)."""
-    return qid in QUIZ_FIELD or qid in ("c_effort", "c_other", "anchor_priority") \
+    return qid in QUIZ_FIELD or qid in ("c_effort", "c_other", "anchor_priority", "care") \
         or qid.startswith(SAFETY_PREFIXES)
 
 
@@ -113,7 +113,12 @@ WHO = {
     "friends": ("Bạn bè", (d("companions", "friends", "add"), soft("groups=suitable"))),
     "kids": ("Có trẻ nhỏ", (d("companions", "kids", "add"), d("signal", "kids", "add", True), soft("kids=suitable"))),
     "parents": ("Bố mẹ, người lớn tuổi",
-                (d("companions", "parents", "add"), d("signal", "elderly", "add", True), soft("elderly=suitable"))),
+                (d("companions", "parents", "add"), d("signal", "elderly", "add", True), soft("elderly=suitable"),
+                 d("hard", {"feature": "fit.parents", "op": "ne", "value": "bad"}, "add"))),
+    # a companion with a limit of its own: the place must not be known to be bad for them (hard, unknown stays unverified)
+    "baby": ("Có em bé", (d("companions", "baby", "add"), d("hard", {"feature": "fit.baby", "op": "ne", "value": "bad"}, "add"))),
+    "pet": ("Có thú cưng", (d("companions", "pet", "add"), d("hard", {"feature": "pets", "op": "ne", "value": "not_allowed"}, "add"))),
+    "coworkers": ("Đồng nghiệp", (d("companions", "coworkers", "add"),)),
 }
 VEHICLE = {"motorbike": "Xe máy", "car": "Ô tô riêng"}
 # A trip that arrives by coach or plane has no vehicle of its own: it rents one in the city, or walks around the area.
@@ -181,6 +186,10 @@ def c_other(state: TripState) -> Question:
         chips.append(Chip(id="veg", label="Cần quán có món chay", drafts=(
             d("hard", {"feature": "vegetarian_options", "op": "eq", "value": "yes"}, "add"),
             d("signal_handled", ("vegetarian",)))))
+    if "vegan" in kinds:
+        chips.append(Chip(id="vegan", label="Cần món thuần chay", drafts=(
+            d("hard", {"feature": "vegan_options", "op": "eq", "value": "yes", "scope": "eating"}, "add"),
+            d("signal_handled", ("vegan",)))))
     if "motion_sick" in kinds:
         chips.append(Chip(id="pass", label="Tránh đường đèo dài", drafts=(
             d("unmapped", "tránh đường đèo dài (say xe)", "add"), d("signal_handled", ("motion_sick",)))))
@@ -206,8 +215,8 @@ def strictest(state: TripState) -> list[Draft]:
     return [dr.model_copy(update={"inferred": True}) for dr in out]
 
 
-def policy_q(h: Hard, catalog: Catalog, cfg: Settings) -> Question:
-    cov = coverage(h, catalog.places, cfg.enough)
+def policy_q(h: Hard, catalog: Catalog, cfg: Settings, activities=None) -> Question:
+    cov = coverage(h, catalog.places, cfg.enough, activities)
     label = HARD_LABEL.get(h.feature, h.feature)
     known = f"chỉ {cov.passed} nơi xác minh được" if cov.passed else "chưa nơi nào xác minh được"
     exclude, flag = d("hard_policy", (h.feature, "exclude")), d("hard_policy", (h.feature, "flag"))
@@ -262,9 +271,9 @@ def safety_queue(state: TripState, catalog: Catalog, cfg: Settings) -> list[Ques
         out.append(c_other(state))
     for h in state.hard:
         if h.unknown_policy is None and f"policy:{h.feature}" not in done:
-            cov = coverage(h, catalog.places, cfg.enough)
+            cov = coverage(h, catalog.places, cfg.enough, state.activities)
             if cov.level != "enough":
-                out.append(policy_q(h, catalog, cfg))
+                out.append(policy_q(h, catalog, cfg, state.activities))
     for i, a in enumerate(state.anchors):
         if a.state == "choose" and f"anchor:{i}" not in done:
             out.append(anchor_pick(i, a, catalog))
@@ -276,24 +285,54 @@ def safety_queue(state: TripState, catalog: Catalog, cfg: Settings) -> list[Ques
 # ---------- foundation ----------
 
 def days_q() -> Question:
-    return with_other(Question(qid="days", group="A", tier=1, text="Chuyến này bạn đi mấy ngày?",
-                               reason="Số ngày quyết định đi được bao nhiêu nơi.",
-                               chips=tuple(Chip(id=f"days:{n}", label=f"{n} ngày", drafts=(d("days", n),))
-                                           for n in (1, 2, 3, 4, 5))))
+    def chip(n: int) -> Chip:
+        label = "Đi về trong ngày" if n == 1 else f"{n} ngày {n - 1} đêm"
+        return Chip(id=f"days:{n}", label=label, drafts=(d("days", n), d("nights", n - 1)))
+    return with_other(Question(
+        qid="days", group="A", tier=1, text="Bạn định đi mấy ngày mấy đêm?",
+        reason="Ngày đầu tính từ lúc bạn tới, ngày cuối đến lúc bạn về: “3 ngày 2 đêm” là 3 buổi đi chơi và 2 đêm ngủ lại. "
+               "Mình chia số nơi mỗi ngày và tính tiền phòng theo đó.",
+        chips=tuple(chip(n) for n in (1, 2, 3, 4, 5, 7, 14))))
 
 
-def nights_q(days: int) -> Question:
-    """Asked once days are known: the nights slept in the city, from days - 1 (the usual trip) up to days. A one-day
-    trip may have no night at all. The first chip is the suggestion; nothing is written until the user picks."""
-    return with_other(Question(qid="nights", group="A", tier=1, text=f"Chuyến {days} ngày này bạn ngủ lại mấy đêm?",
-                               reason="Số đêm quyết định chỗ ở và có buổi tối nào để đi chơi đêm.",
-                               chips=tuple(Chip(id=f"nights:{n}", label=f"{n} đêm", drafts=(d("nights", n),))
-                                           for n in (days - 1, days))))
+def care_q() -> Question:
+    """Asked once, right after "who goes": anything about health, injury, diet or allergy that should shape the trip.
+    One open card instead of a follow-up card per hint: each chip carries its own limit (the same drafts the
+    c_effort / c_other cards write) and marks its signal handled, so a chosen chip needs no second question. Allergy has
+    no verified feature in the data: it is kept as a note the user is reminded of, never as a filter. "Không có" writes
+    nothing; a hint typed in the box goes through the same rules as in chat."""
+    steep = d("hard", {"feature": "steep_or_stairs", "op": "ne", "value": "present"}, "add")
+    walk = d("hard", {"feature": "long_walk", "op": "ne", "value": "present"}, "add")
+    veg = d("hard", {"feature": "vegetarian_options", "op": "eq", "value": "yes"}, "add")
+    vegan = d("hard", {"feature": "vegan_options", "op": "eq", "value": "yes", "scope": "eating"}, "add")
+    chips = (
+        Chip(id="none", label="Không có gì cần lưu ý"),
+        Chip(id="knee", label="Đau chân, khó đi bộ hoặc leo bậc",
+             drafts=(d("signal", "knee", "add"), steep, walk, d("signal_handled", ("knee",)))),
+        Chip(id="wheelchair", label="Có người dùng xe lăn",
+             drafts=(d("signal", "wheelchair", "add"), d("hard", {"feature": "fit.wheelchair", "op": "ne", "value": "bad"}, "add"))),
+        Chip(id="pregnant", label="Có người đang mang thai",
+             drafts=(d("signal", "pregnant", "add"), steep, walk, d("hard", {"feature": "fit.pregnant", "op": "ne", "value": "bad"}, "add"),
+                     d("signal_handled", ("pregnant",)))),
+        Chip(id="veg", label="Ăn chay", drafts=(d("signal", "vegetarian", "add"), veg, d("signal_handled", ("vegetarian",)))),
+        Chip(id="vegan", label="Ăn thuần chay", drafts=(d("signal", "vegan", "add"), vegan, d("signal_handled", ("vegan",)))),
+        Chip(id="allergy", label="Dị ứng hoặc kiêng một số món",
+             drafts=(d("unmapped", "dị ứng hoặc kiêng món: dữ liệu chưa kiểm được từng chất, bạn hỏi quán trước khi gọi", "add"),)),
+        Chip(id="motion", label="Say xe, ngại đường đèo dài",
+             drafts=(d("signal", "motion_sick", "add"), d("unmapped", "tránh đường đèo dài (say xe)", "add"),
+                     d("signal_handled", ("motion_sick",)))),
+        Chip(id="height", label="Sợ độ cao",
+             drafts=(d("signal", "height", "add"), d("unmapped", "tránh chỗ cao, cầu kính", "add"),
+                     d("signal_handled", ("height",)))))
+    return Question(qid="care", group="C", tier=1, multi=True,
+                    text="Trong nhóm có ai cần mình lưu ý gì không? Ví dụ sức khỏe, chấn thương, ăn chay hay dị ứng.",
+                    reason="Chọn một lần là đủ. Mình sẽ tránh xếp vào chỗ không hợp ngay từ đầu và không hỏi lại từng mục.",
+                    chips=chips + (other_chip(),))
 
 
 def companions_q() -> Question:
     return with_other(Question(qid="companions", group="B", tier=1, multi=True, text="Bạn đi cùng ai?",
-                               reason="Đi cùng ai đổi mạnh nơi nào hợp.",
+                               reason="Đi với trẻ nhỏ, bố mẹ hay người yêu cần những chỗ rất khác nhau.",
                                chips=tuple(Chip(id=f"who:{k}", label=label, drafts=dr)
                                            for k, (label, dr) in WHO.items())))
 
@@ -304,7 +343,7 @@ def mobility_q(arrival: str | None = None, entry: Base | None = None) -> Questio
     point), and the chips say whether to rent a motorbike, rent a car, or not rent and only walk the area."""
     if arrival not in ("bus", "plane"):
         return with_other(Question(qid="mobility", group="A", tier=1, text="Bạn đi lại trong Đà Lạt bằng gì?",
-                                   reason="Để ước lượng thời gian giữa các nơi.",
+                                   reason="Xe máy và ô tô đi được những đường khác nhau; mình dùng để ước lượng thời gian giữa các nơi.",
                                    chips=tuple(Chip(id=f"mobility:{k}", label=label, drafts=(d("mobility", k),))
                                                for k, label in VEHICLE.items())))
     return with_other(Question(
@@ -315,10 +354,8 @@ def mobility_q(arrival: str | None = None, entry: Base | None = None) -> Questio
 
 
 def dates_q() -> Question:
-    # No exits: "Chưa chốt ngày" is the single way past this card (it explicitly unfixes the date); the date
-    # picker and the free text box answer it, so a skip / unsure button would only duplicate that chip.
-    return with_other(Question(qid="dates", group="A", tier=1, input="date", input_field="start_date", exits=False,
-                               text="Bạn đi từ ngày nào?", reason="Để kiểm tra giờ mở cửa đúng ngày bạn đi.",
+    return with_other(Question(qid="dates", group="A", tier=1, input="date", input_field="start_date",
+                               text="Bạn dự định đi từ ngày nào?", reason="Mình kiểm tra giờ mở cửa và thời tiết đúng những ngày bạn đi. Chưa chốt cũng được.",
                                chips=(Chip(id="undecided", label="Chưa chốt ngày", drafts=(d("start_date", op="remove"),)),)))
 
 
@@ -326,8 +363,8 @@ def dates_q() -> Question:
 
 def purpose_q() -> Question:
     return with_other(Question(qid="purpose", group="G", tier=2, multi=True,
-                               text="Chuyến này chủ yếu để làm gì? Chọn bao nhiêu cũng được.",
-                               reason="Biết mục đích, mình chọn đúng kiểu nơi hơn.",
+                               text="Chuyến này bạn muốn gì nhất? Chọn bao nhiêu cũng được.",
+                               reason="Biết mục đích, mình chọn đúng kiểu nơi: nghỉ ngơi thì ít nơi và thong thả, khám phá thì nhiều nơi hơn.",
                                chips=tuple(Chip(id=k, label=label, drafts=(d("purpose", k),) + dr)
                                            for k, (label, dr) in PURPOSE.items())))
 
@@ -338,13 +375,13 @@ def vibe_q(catalog: Catalog, cfg: Settings) -> Question | None:
     if len(chips) < 2:
         return None
     return with_other(Question(qid="vibe", group="G", multi=True, chips=chips,
-                               text="Bạn muốn có những khoảnh khắc nào? Chọn bao nhiêu cũng được.",
+                               text="Bạn thích những khoảnh khắc nào? Chọn bao nhiêu cũng được.",
                                reason="Chỉ hiện những kiểu mình có đủ đánh giá để kiểm."))
 
 
 def crowd_q() -> Question:
-    return with_other(Question(qid="crowd", group="F", text="Chỗ đông người thì sao?",
-                               reason="Nhiều nơi đẹp nhưng rất đông vào giờ cao điểm.", chips=(
+    return with_other(Question(qid="crowd", group="F", text="Bạn thấy chỗ đông người thế nào?",
+                               reason="Nhiều nơi đẹp rất đông vào giờ cao điểm; nếu bạn ngại, mình tránh hoặc xếp vào giờ vắng hơn.", chips=(
         Chip(id="avoid", label="Tránh chỗ đông", drafts=(d("crowd_tolerance", "avoid"),
                                                          d("soft", ("crowd=low", "love"), "add"))),
         Chip(id="ok", label="Chấp nhận nếu đáng", drafts=(d("crowd_tolerance", "ok_if_worth"),)),
@@ -352,8 +389,8 @@ def crowd_q() -> Question:
 
 
 def pace_q() -> Question:
-    return with_other(Question(qid="pace", group="F", text="Mỗi ngày bạn muốn đi thế nào?",
-                               reason="Để xếp số nơi mỗi ngày vừa sức.", chips=(
+    return with_other(Question(qid="pace", group="F", text="Mỗi ngày bạn muốn đi thư thả hay đi được nhiều nơi?",
+                               reason="Mình xếp số nơi mỗi ngày vừa sức theo lựa chọn này.", chips=(
         Chip(id="slow", label="Thong thả, ít nơi", drafts=(d("pace", "slow"),)),
         Chip(id="normal", label="Vừa phải", drafts=(d("pace", "normal"),)),
         Chip(id="packed", label="Đi được nhiều", drafts=(d("pace", "packed"),)))))
@@ -361,35 +398,32 @@ def pace_q() -> Question:
 
 def budget_q() -> Question:
     return with_other(Question(qid="budget", group="D",
-                               text="Mức chi cho ăn uống và vé, mỗi người mỗi ngày khoảng bao nhiêu? Bạn có thể bỏ qua.",
-                               reason="Để tránh nơi vượt mức bạn muốn chi.", chips=(
+                               text="Mỗi người mỗi ngày bạn dự chi khoảng bao nhiêu cho ăn uống và vé? Bỏ qua cũng được.",
+                               reason="Để tránh gợi ý nơi vượt mức bạn muốn chi. Tiền phòng mình tính riêng.", chips=(
         Chip(id="low", label="Dưới 300 nghìn", drafts=(d("budget_vnd", 300_000),)),
         Chip(id="mid", label="300–700 nghìn", drafts=(d("budget_vnd", 700_000),)),
         Chip(id="high", label="Trên 700 nghìn", drafts=(d("budget_vnd", 1_500_000),)))))
 
 
 def novelty_q() -> Question:
-    return with_other(Question(qid="novelty", group="H", text="Lần này bạn muốn quay lại chỗ quen hay thử cái mới?",
-                               reason="Để bớt những nơi bạn đã đi.", chips=(
+    return with_other(Question(qid="novelty", group="H", text="Lần này bạn muốn quay lại chỗ quen hay thử chỗ mới?",
+                               reason="Nếu muốn thử mới, mình bớt những nơi bạn đã đi.", chips=(
         Chip(id="familiar", label="Theo gu quen", drafts=(d("novelty", "familiar"),)),
         Chip(id="new", label="Thử cái mới", drafts=(d("novelty", "new"),)),
         Chip(id="mix", label="Trộn cả hai", drafts=(d("novelty", "mix"),)))))
 
 
-def stay_times_q(no_lodging: bool = False) -> Question:
+def stay_times_q() -> Question:
     """The hours the user wants the trip to start and end: lodging check-in on the first day, check-out on the last.
-    Asked whether or not a lodging is booked; a skipped answer leaves the planner to suggest the hours. Without a
-    lodging the question speaks of the days, not of a room, but fills the same checkin_at / checkout_at."""
-    first, last = ("Ngày đầu bắt đầu lúc", "Ngày cuối kết thúc lúc") if no_lodging else ("Nhận phòng lúc", "Trả phòng lúc")
+    Asked whether or not a lodging is booked; a skipped answer leaves the planner to suggest the hours."""
     return with_other(Question(
-        qid="stay_times", group="A", multi=True, single_rows=(first, last),
-        text=("Ngày đầu bạn muốn bắt đầu đi lúc mấy giờ, và ngày cuối kết thúc lúc mấy giờ?" if no_lodging
-              else "Bạn muốn nhận phòng lúc mấy giờ và trả phòng lúc mấy giờ?"),
-        reason=("Giờ bắt đầu là lúc ngày đầu mở lịch, giờ kết thúc là lúc ngày cuối đóng lịch." if no_lodging
-                else "Giờ nhận phòng là lúc ngày đầu bắt đầu, giờ trả phòng là lúc ngày cuối kết thúc. Chưa đặt khách sạn cũng chọn được."),
-        chips=tuple(Chip(id=f"checkin:{h}", label=f"{h}h", row=first, drafts=(d("checkin_at", f"{h:02d}:00"),))
+        qid="stay_times", group="A", multi=True, single_rows=("Ngày đầu bắt đầu đi lúc", "Ngày cuối phải xong lúc"),
+        text="Ngày đầu bạn bắt đầu đi được từ mấy giờ, và ngày cuối cần xong lúc mấy giờ?",
+        reason="Hai mốc này là quỹ thời gian thật của chuyến: giờ bạn tới hoặc nhận phòng, giờ trả phòng hoặc ra bến xe, sân bay. "
+               "Chưa đặt chỗ ở cũng chọn được.",
+        chips=tuple(Chip(id=f"checkin:{h}", label=f"{h}h", row="Ngày đầu bắt đầu đi lúc", drafts=(d("checkin_at", f"{h:02d}:00"),))
                     for h in (7, 9, 12, 14))
-        + tuple(Chip(id=f"checkout:{h}", label=f"{h}h", row=last, drafts=(d("checkout_at", f"{h:02d}:00"),))
+        + tuple(Chip(id=f"checkout:{h}", label=f"{h}h", row="Ngày cuối phải xong lúc", drafts=(d("checkout_at", f"{h:02d}:00"),))
                 for h in (11, 12, 15, 18))))
 
 
@@ -430,7 +464,7 @@ def transit_q(way: str, state: TripState, cfg: Settings) -> Question | None:
 
 
 def lodging_q() -> Question:
-    return Question(qid="lodging", group="A", tier=1, input="lodging", text="Bạn ở khách sạn nào?",
+    return Question(qid="lodging", group="A", tier=1, input="lodging", text="Bạn đã có chỗ ở chưa? Gõ tên khách sạn hoặc homestay.",
                     reason="Mình lấy chỗ ở làm điểm bắt đầu mỗi ngày và đo quãng đường từ đó.",
                     chips=(Chip(id="none", label="Chưa đặt chỗ ở", drafts=(d("lodging_booked", "no"),)),))
 
@@ -447,64 +481,60 @@ def anchor_priority_q(state: TripState, catalog: Catalog) -> Question | None:
                                                 drafts=(d("anchor_priority", (i, "want")),)) for i, a in matched)))
 
 
-def quiz_queue(state: TripState, catalog: Catalog, cfg: Settings, redo: bool = False) -> list[Question]:
-    """Fixed order, safety first; known or already-asked questions are left out.
-    A redo pass (meta.requiz) shows the cards again even where answers exist, so
-    answers can change; only the structural conditions stay (a coach trip still
-    asks its ways, nights still need days). Cards answered in this pass drop out
-    as usual: the redo starts with asked cleared, so each card shows exactly once."""
+def quiz_queue(state: TripState, catalog: Catalog, cfg: Settings) -> list[Question]:
+    """Fixed order, safety first; known or already-asked questions are left out."""
     done = set(state.meta.asked)
     out = list(safety_queue(state, catalog, cfg))
 
     def want(qid: str, cond: bool) -> bool:
         return cond and qid not in done
 
-    if want("days", redo or not state.days.known):
+    if want("days", not state.days.known):
         out.append(days_q())
-    if want("nights", state.days.known and (redo or not state.nights.known)):
-        out.append(nights_q(state.days.value))
-    if want("companions", redo or not state.companions.known):
+    if want("companions", not state.companions.known):
         out.append(companions_q())
-    if want("arrival", redo or not state.arrival_mode.known):
+    if want("care", state.companions.known):
+        out.append(care_q())
+    if want("arrival", not state.arrival_mode.known):
         out.append(arrival_q(state.mobility.known))
     by_transit = state.arrival_mode.value in ARRIVES_WITHOUT_A_VEHICLE
-    if want("origin", by_transit and (redo or not state.origin.known)):
+    if want("origin", by_transit and not state.origin.known):
         out.append(origin_q())
-    if want("mobility", redo or not state.mobility.known):
+    if want("mobility", not state.mobility.known):
         out.append(mobility_q(state.arrival_mode.value, state.entry_point.value))
-    if want("dates", redo or not (state.start_date.known or state.month.known)):
+    if want("dates", not (state.start_date.known or state.month.known)):
         out.append(dates_q())
     for way in ("inbound", "outbound"):
-        if want(way, by_transit and (redo or not getattr(state, way).known)) and (q := transit_q(way, state, cfg)):
+        if want(way, by_transit and not getattr(state, way).known) and (q := transit_q(way, state, cfg)):
             out.append(q)
-    if want("lodging", (redo or not state.lodging.known) and state.lodging_booked.value != "no"):
+    if want("lodging", not state.lodging.known and state.lodging_booked.value != "no"):
         out.append(lodging_q())
-    if want("stay_times", state.days.known and (redo or not (state.checkin_at.known or state.checkout_at.known))):
-        out.append(stay_times_q(state.lodging_booked.value == "no"))
-    if want("purpose", redo or not state.purpose.known):
+    if want("stay_times", state.days.known and not (state.checkin_at.known or state.checkout_at.known)):
+        out.append(stay_times_q())
+    if want("purpose", not state.purpose.known):
         out.append(purpose_q())
     experience = ontology().features
     has_wish = any(f.value == "love" and experience[SoftKey.parse(k).feature].group == "experience"
                    for k, f in state.soft.items())
-    if want("vibe", redo or not has_wish) and (q := vibe_q(catalog, cfg)):
+    if want("vibe", not has_wish) and (q := vibe_q(catalog, cfg)):
         out.append(q)
-    if want("crowd", redo or not state.crowd_tolerance.known):
+    if want("crowd", not state.crowd_tolerance.known):
         out.append(crowd_q())
-    if want("pace", redo or not state.pace.known):
+    if want("pace", not state.pace.known):
         out.append(pace_q())
-    if want("budget", redo or not state.budget_vnd.known):
+    if want("budget", not state.budget_vnd.known):
         out.append(budget_q())
-    if want("novelty", state.meta.experience == "returning" and (redo or not state.novelty.known)):
+    if want("novelty", state.meta.experience == "returning" and not state.novelty.known):
         out.append(novelty_q())
     if "anchor_priority" not in done and (q := anchor_priority_q(state, catalog)):
         out.append(q)
     return out
 
 
-def find_quiz(qid: str, state: TripState, catalog: Catalog, cfg: Settings, redo: bool = False) -> Question | None:
+def find_quiz(qid: str, state: TripState, catalog: Catalog, cfg: Settings) -> Question | None:
     """Rebuild the quiz card with this id from the current state (cards are not
     stored across turns; the id is stable)."""
-    return next((q for q in quiz_queue(state, catalog, cfg, redo) if q.qid == qid), None)
+    return next((q for q in quiz_queue(state, catalog, cfg) if q.qid == qid), None)
 
 
 def apply_chip(state: TripState, q: Question, ids: tuple[str, ...], turn: int) -> TripState:

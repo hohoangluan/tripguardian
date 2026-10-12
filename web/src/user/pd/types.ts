@@ -1,5 +1,3 @@
-import type { Blocker } from '../lib'
-
 // Shapes of the Place Decision API (src/decision/engine.py, pipeline.py, cards.py, feasibility.py).
 
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
@@ -19,13 +17,9 @@ export interface Card {
   status: 'main' | 'unverified' | 'excluded'
   score: number
   parts: Record<string, number>
-  // fit to this trip, 0..5, fractional (src/decision/rank.py stars); null when the trip names no taste
-  fit: { stars: number; level: string } | null
   why: Claim[]
   tradeoffs: Claim[]
-  outdoor: boolean
-  // a day-trip visit; `stay` is the served range when that was a stay (a night at a camping ground)
-  visit: { short: number; typical: number; long: number; source: string; stay?: { short: number; long: number } } | null
+  visit: { short: number; typical: number; long: number; source: string } | null
   location: { center: string; km: number | null; minutes: number | null }
   price: string | null
   confidence: { level: 'high' | 'medium' | 'low'; reason: string }
@@ -59,6 +53,8 @@ export type Action =
   | { type: 'relax'; place_id: string; feature: string }
   | { type: 'answer'; qid: string; chip: string }
   | { type: 'undo' }
+  | { type: 'move_chunk'; place_id: string; chunk: number }
+  | { type: 'keep_free_time' }
 
 export interface Fix {
   label: string
@@ -80,8 +76,6 @@ export interface Feasibility {
   status: 'feasible' | 'partial' | 'infeasible' | 'unknown'
   known_days: boolean
   totals: { places: number; visit: number; buffer: number; travel: number; needed: number; available: number }
-  // free time the picks leave in the trip's real usable hours (null without a number of days): a hint, not a rule
-  room: { usable: number; free: number; more: number; filled: boolean } | null
   slack: number | null
   conflicts: Conflict[]
   warnings: string[]
@@ -98,12 +92,12 @@ export interface Pending {
 export interface View {
   version: number
   groups: Group[]
-  focus: string | null // the tab to open first: the trip's main interest
-  notes: { code: string; text: string }[] // trip-wide warnings, shown once above the list
-  budget_vnd: number | null // per person per day
   change: Record<string, Change>
   shortlist: string[]
   selected: string[]
+  chunk_assignments?: Record<string, number>
+  chunks?: { id: number; start_day: number; end_day: number; places: string[]; type_counts: Record<string, number> }[]
+  coverage?: { status: 'sparse' | 'enough' | 'unknown'; selected_experiences: number; target_experiences: number; free_minutes_estimate: number | null; free_time_accepted: boolean }
   locked: string[]
   unverified: { count: number; open: boolean; cards: Card[] }
   excluded: { by_rule: { rule: string; label: string; count: number }[] }
@@ -158,6 +152,7 @@ export interface WhyNot {
 }
 
 export interface DecisionOutput {
+  chunk_assignments?: Record<string, number>
   confirmed: { id: string; name: string; role: 'anchor' | 'locked' | 'selected'; flags: string[]; relaxed: string[] }[]
   backup_pool: { id: string; name: string; for: string | null; reason: string }[]
   wishlist: { id: string; name: string; reason: string }[]
@@ -183,7 +178,7 @@ export interface PreviewVariant {
 export interface PlanPreview {
   revision: number
   status: 'ready' | 'failed' | 'blocked' | 'empty'
-  plan: { ok: boolean; days: number; warnings: { code: string; text: string }[]; back_to_decision: { reason: string; places: string[]; reasons?: Blocker[] } | null; variants: PreviewVariant[] } | null
+  plan: { ok: boolean; days: number; warnings: { code: string; text: string }[]; back_to_decision: { reason: string; places: string[] } | null; variants: PreviewVariant[] } | null
 }
 
 // GET /api/harness/trips: one line per journey of the signed-in account, newest first.
@@ -193,7 +188,6 @@ export interface TripSummary {
   revision: number
   start_date: string | null
   days: number | null
-  nights: number | null
   people: number | null
   places: string[]
   confirmed: boolean

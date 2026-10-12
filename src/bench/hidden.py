@@ -1,4 +1,4 @@
-"""Hidden trips: the whole truth of one simulated traveller, in Trip State terms (docs/P2_TRIP_UNDERSTANDING.md §16)."""
+"""Hidden trips: the whole truth of one simulated traveller, in Trip State terms (docs/plans/BENCH.md)."""
 
 from datetime import date
 from pathlib import Path

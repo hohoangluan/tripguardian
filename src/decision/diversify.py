@@ -1,4 +1,4 @@
-"""⑥ Diversity and shortlist size (docs/P3_PLACE_DECISION.md §9): one representative per near-duplicate group, picked by
+"""⑥ Diversity and shortlist size (docs/PLACE_DECISION.md §9): one representative per near-duplicate group, picked by
 MMR; the group's other places become its alternatives."""
 
 import math
@@ -16,6 +16,7 @@ def display_group(c: Cand, cfg) -> str:
 
 
 def sizes(si, days_n: int, n_anchor_exp: int, cfg) -> dict[str, int]:
+    days_n = min(days_n, cfg.shortlist_days)
     pace = si.pace.level or "normal"
     exp = max(1, days_n * cfg.per_day[pace] - n_anchor_exp)
     return {"experience": math.ceil(exp * cfg.spare_factor),

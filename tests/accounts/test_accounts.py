@@ -178,58 +178,59 @@ def test_delete_account_removes_personal_data_and_keeps_anonymous_rows(accounts)
     assert fresh != uid  # signing in again starts a new account
 
 
-def test_saved_places_belong_to_the_account_newest_first_and_merge_once(accounts):
-    a = accounts.user_for(login(accounts, "g-a")["token"])[0]["id"]
-    b = accounts.user_for(login(accounts, "g-b")["token"])[0]["id"]
-    assert accounts.saved(a) == []
-    p1, p2, p3 = "0x1:0xa", "0x2:0xb", "0x3:0xc"
-    assert accounts.save_places(a, [p1]) == [p1]
-    assert accounts.save_places(a, [p2]) == [p2, p1]  # a new heart is the newest
-    assert accounts.save_places(a, [p3, p1]) == [p3, p2, p1]  # a browser's local list merged: p1 kept once
-    assert accounts.saved(b) == []  # another account sees nothing
-    assert accounts.unsave_place(a, p2) == [p3, p1]
-    assert accounts.unsave_place(a, "0x9:0xz") == [p3, p1]  # not saved: nothing to do
-    for bad in ([], ["../x"], [1], "0x1:0xa", ["x" * 200]):
-        with pytest.raises(ValueError):
-            accounts.save_places(a, bad)
-    with pytest.raises(ValueError):
-        accounts.unsave_place(a, "a b")
-    accounts.delete(a)
-    assert accounts.saved(a) == []  # personal: goes with the account
-
-
-# --- guests (docs/ACCOUNTS.md §Khách) -------------------------------------------------------------------------------
-
-def test_guest_is_a_role_with_no_identity_and_a_one_day_session(accounts):
-    token = accounts.guest("agent")
-    user, refreshed = accounts.user_for(token)
-    assert user["role"] == "guest" and not refreshed
-    me = accounts.me(user["id"])
-    assert me["role"] == "guest" and me["email"] is None and me["needs_consent"] is False
+def _rows(accounts, sql, *args):
     with accounts.pool.connection() as conn:
-        left = conn.execute("SELECT extract(epoch FROM expires_at - now()) AS s FROM auth_sessions").fetchone()["s"]
-        assert 0 < left <= 86400
+        return conn.execute(sql, args).fetchall()
 
 
-def test_guest_session_does_not_slide(accounts):
+def test_guest_is_an_anonymous_user_with_a_short_session(accounts):
+    token = accounts.guest("Mozilla")
+    user, refreshed = accounts.user_for(token)
+    assert user["guest"] is True and user["role"] == "user" and not refreshed
+    me = accounts.me(user["id"])
+    assert me["guest"] is True and me["email"] is None and me["name"] == "" and me["needs_consent"] is False
+    left = _rows(accounts, "SELECT expires_at - now() AS left FROM auth_sessions")[0]["left"]
+    assert left.days == 0 and left.seconds > 23 * 3600
+    assert accounts.user_for(login(accounts)["token"])[0]["guest"] is False
+
+
+def test_guest_session_slides_by_hours_not_days(accounts):
     token = accounts.guest()
     with accounts.pool.connection() as conn:
-        conn.execute("UPDATE auth_sessions SET last_seen_at = now() - interval '2 hours'")
-    assert accounts.user_for(token)[1] is False
+        conn.execute("UPDATE auth_sessions SET last_seen_at = now() - interval '2 hours', "
+                     "expires_at = now() + interval '1 hour'")
+    assert accounts.user_for(token)[1] is True
+    left = _rows(accounts, "SELECT expires_at - now() AS left FROM auth_sessions")[0]["left"]
+    assert left.days == 0 and left.seconds > 23 * 3600
+
+
+def test_expired_guests_are_deleted_with_their_trips_but_journeys_stay_anonymous(accounts):
+    gone, kept = accounts.guest(), accounts.guest()
+    gone_id, kept_id = (accounts.user_for(t)[0]["id"] for t in (gone, kept))
+    member = accounts.user_for(login(accounts)["token"])[0]["id"]
     with accounts.pool.connection() as conn:
-        left = conn.execute("SELECT extract(epoch FROM expires_at - now()) AS s FROM auth_sessions").fetchone()["s"]
-        assert left <= 86400
+        conn.execute("INSERT INTO journeys (id, user_id, stage, revision, envelope) VALUES ('j-gone', %s, 'trip', 0, '{}')",
+                     (gone_id,))
+        conn.execute("INSERT INTO events (user_id, source, name) VALUES (%s, 'server', 'trip.turn')", (gone_id,))
+        conn.execute("INSERT INTO trips (journey_id, user_id, plan_hash) VALUES ('j-gone', %s, 'h')", (gone_id,))
+        conn.execute("UPDATE auth_sessions SET expires_at = now() - interval '1 minute' "
+                     "WHERE user_id = %s", (gone_id,))
+    assert accounts.purge_guests() == 1
+    assert accounts.user_for(gone) == (None, False) and accounts.user_for(kept)[0]["id"] == kept_id
+    assert _rows(accounts, "SELECT user_id FROM journeys")[0]["user_id"] is None
+    assert _rows(accounts, "SELECT count(*) AS n FROM trips")[0]["n"] == 0
+    assert _rows(accounts, "SELECT count(*) AS n FROM events WHERE user_id IS NULL")[0]["n"] == 1
+    assert {r["id"].hex for r in _rows(accounts, "SELECT id FROM users")} == {kept_id, member}
 
 
-def test_each_guest_is_its_own_user(accounts):
-    a, b = accounts.user_for(accounts.guest())[0], accounts.user_for(accounts.guest())[0]
-    assert a["id"] != b["id"]
-
-
-def test_remembering_choices_is_its_own_consent_and_can_be_withdrawn(accounts):
-    uid = accounts.user_for(login(accounts)["token"])[0]["id"]
-    assert accounts.me(uid)["consents"].get("patterns") is None
-    assert accounts.set_patterns(uid, True)["consents"]["patterns"] is True
-    assert accounts.set_patterns(uid, False)["consents"]["patterns"] is False
-    with pytest.raises(ValueError):
-        accounts.set_patterns(uid, "yes")
+def test_a_guest_who_signs_out_or_ends_the_visit_is_deleted_an_account_is_not(accounts):
+    a, b = accounts.guest(), accounts.guest()
+    accounts.logout(a)
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'guest'")[0]["n"] == 1
+    assert accounts.drop_guest(accounts.user_for(b)[0]["id"]) is True
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'guest'")[0]["n"] == 0
+    token = login(accounts)["token"]
+    user = accounts.user_for(token)[0]["id"]
+    assert accounts.drop_guest(user) is False
+    accounts.logout(token)
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'user'")[0]["n"] == 1

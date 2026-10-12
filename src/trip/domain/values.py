@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any
 
 from pydantic import BaseModel
+from requirements import valid_condition
 
 from ..infrastructure.catalog import Catalog
 from .resolve import anchor_for
@@ -16,13 +17,13 @@ MONEY = re.compile(r"(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)?")
 LITERALS = ("companions", "mobility", "purpose", "pace", "novelty", "crowd_tolerance", "signal", "arrival_mode",
             "lodging_booked", "budget_scope", "month_part", "liked_groups")
 ENUM_VALUES = {
-    "companions": ("solo", "partner", "friends", "kids", "parents"),
+    "companions": ("solo", "partner", "friends", "kids", "parents", "baby", "pet", "coworkers"),
     "mobility": ("motorbike", "car", "walk"),
     "purpose": ("relax", "bond", "photo", "food_culture", "nature", "explore", "adventure"),
     "pace": ("slow", "normal", "packed"),
     "novelty": ("familiar", "new", "mix"),
     "crowd_tolerance": ("avoid", "ok_if_worth", "fine"),
-    "signal": ("knee", "elderly", "kids", "wheelchair", "pregnant", "motion_sick", "height", "vegetarian"),
+    "signal": ("knee", "elderly", "kids", "wheelchair", "pregnant", "motion_sick", "height", "vegetarian", "vegan"),
     "arrival_mode": ("self", "bus", "plane"),
     "lodging_booked": ("yes", "no"),
     "budget_scope": ("trip_total", "per_day", "per_person", "per_person_day"),
@@ -86,10 +87,22 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
         key, weight = split_weight(raw)
         return str(SoftKey.parse(key)), weight
     if field == "hard":
-        m = re.fullmatch(r"\s*([a-z_]+)\s*(!=|=)\s*([a-z_0-9]+)\s*", raw)
-        if not m or not ontology().valid(m[1], m[3]):
+        m = re.fullmatch(r"\s*([a-z_.]+)\s*(!=|=)\s*([a-z_0-9]+)\s*", raw)  # "fit.baby != bad" has a dot
+        if not m or not valid_condition(m[1], m[3]):
             raise ValueError(f"hard filter {raw!r} is not feature!=value from the ontology")
         return {"feature": m[1], "op": "ne" if m[2] == "!=" else "eq", "value": m[3]}
+    if field == "activity":
+        v = json.loads(raw)
+        if set(v) != {"place_id", "activity"} or v["place_id"] not in catalog.by_id:
+            raise ValueError("activity needs a catalog place_id and activity")
+        return v
+    if field == "time_preference":
+        v = json.loads(raw)
+        if not isinstance(v, dict) or set(v) - {"place_id", "activity", "period", "weight"}:
+            raise ValueError("time_preference needs period, optional place_id/activity/weight")
+        if v.get("place_id") is not None and v["place_id"] not in catalog.by_id:
+            raise ValueError("time_preference needs a catalog place_id")
+        return v
     if field in LITERALS:
         lower = raw.lower()
         if field in ENUM_VALUES and lower not in ENUM_VALUES[field]:
@@ -108,6 +121,13 @@ def parse_remove(field: str, raw: str) -> Any:
         return str(SoftKey.parse(split_weight(raw)[0]))
     if field == "hard":
         return re.split(r"!=|=", raw)[0].strip()
+    if field == "activity":
+        return {"place_id": raw}
+    if field == "time_preference":
+        v = json.loads(raw)
+        if not isinstance(v, dict) or set(v) - {"place_id", "activity", "period", "weight"}:
+            raise ValueError("invalid time_preference removal")
+        return v
     if field in ("companions", "signal", "liked_groups"):
         return raw.lower()
     raise ValueError(f"{field}: the agent cannot remove by name")

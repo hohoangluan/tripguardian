@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useReducer, type ReactNode } from
 import type { Vehicle } from '../data/store'
 import type { SearchInput } from './tu/types'
 
-export type Who = 'partner' | 'friends' | 'kids' | 'parents' | 'solo'
+export type Who = 'partner' | 'friends' | 'kids' | 'parents' | 'solo' | 'baby' | 'pet' | 'coworkers'
 export type Weight = 'love' | 'avoid'
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
 
@@ -22,8 +22,8 @@ export interface TripState {
   vehicle: Vehicle | null
   lodging: string | null // place id or free text address
   mustVisit: string[]
-  checkinAt: string // first day starts, HH:MM (lodging check-in)
-  checkoutAt: string // last day ends, HH:MM (lodging check-out)
+  arriveAt: string // first day, HH:MM
+  leaveAt: string // last day, HH:MM (hard rule)
   rules: { maxLegMin: number | null; avoidSteep: boolean; dayEnd: string }
   prefs: Record<string, Pref>
   pace: 'slow' | 'normal' | 'packed' | null
@@ -57,8 +57,8 @@ export const initialTrip: TripState = {
   vehicle: null,
   lodging: null,
   mustVisit: [],
-  checkinAt: '09:00',
-  checkoutAt: '15:00',
+  arriveAt: '09:00',
+  leaveAt: '15:00',
   rules: { maxLegMin: null, avoidSteep: false, dayEnd: '21:30' },
   prefs: {},
   pace: null,
@@ -182,6 +182,9 @@ export const WHO_LABEL: Record<Who, string> = {
   kids: 'Có trẻ em',
   parents: 'Bố mẹ',
   solo: 'Một mình',
+  baby: 'Có em bé',
+  pet: 'Có thú cưng',
+  coworkers: 'Đồng nghiệp',
 }
 
 export const DROP_LABEL: Record<DropReason, string> = {

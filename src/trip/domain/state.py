@@ -1,4 +1,4 @@
-"""Trip State and Search Input (docs/P2_TRIP_UNDERSTANDING.md §3, §9).
+"""Trip State and Search Input (docs/TRIP_UNDERSTANDING.md §3, §9).
 
 Every value carries where it came from. apply() is the only way a state changes; settle() closes physical signals that
 a hard filter already answers.
@@ -11,9 +11,10 @@ import re
 from datetime import date
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field as PydanticField, model_validator
 
 from corpus.ontology import Ontology, load as load_ontology
+from requirements import Activity, Requirement, RequirementIntent, valid_condition
 
 from .legacy import upgrade
 
@@ -21,7 +22,8 @@ T = TypeVar("T")
 Source = Literal["user", "anchor", "profile", "inferred", "default"]
 Confidence = Literal["high", "medium", "low"]
 Status = Literal["unknown", "asked", "confirmed", "skipped"]
-Who = Literal["solo", "partner", "friends", "kids", "parents"]
+# ids of config/companions.yaml the trip can hold (pregnant / wheelchair are signals, a big party is counted from people)
+Who = Literal["solo", "partner", "friends", "kids", "parents", "baby", "pet", "coworkers"]
 Vehicle = Literal["motorbike", "car", "walk"]  # walk: a trip that arrives by coach / plane and rents nothing
 ArrivalMode = Literal["self", "bus", "plane"]  # how the trip reaches the city: own motorbike / car, coach, flight
 YesNo = Literal["yes", "no"]
@@ -36,16 +38,18 @@ MonthPart = Literal["early", "mid", "late"]  # "đầu / giữa / cuối tháng 
 # interest such as "thích cà phê", which no feature expresses
 Group = Literal["nature", "sights", "chill", "meal"]
 Weight = Literal["love", "avoid", "off"]
-SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "pregnant", "motion_sick", "height", "vegetarian"]
+SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "pregnant", "motion_sick", "height", "vegetarian", "vegan"]
 
 EFFORT_SIGNALS = frozenset({"knee", "elderly", "kids", "wheelchair", "pregnant"})  # answered by question c_effort
-OTHER_SIGNALS = frozenset({"motion_sick", "height", "vegetarian"})  # answered by question c_other
+OTHER_SIGNALS = frozenset({"motion_sick", "height", "vegetarian", "vegan"})  # answered by question c_other
 EFFORT_FEATURES = frozenset({"steep_or_stairs", "long_walk"})
 EFFORT_CLASH = frozenset({"hiking", "adventure_activity"})  # what a stored taste may not push once the trip has an effort limit
 SCALARS = ("start_date", "month", "month_part", "days", "nights", "people", "base", "entry_point", "exit_point", "mobility", "checkin_at",
            "checkout_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd",
            "budget_scope", "origin", "arrival_mode", "inbound", "outbound", "lodging_booked", "lodging")
-RANGES = {"month": (1, 12), "days": (1, 7), "nights": (0, 7), "people": (1, 20), "max_leg_min": (5, 180),
+RECOMMENDED_TRIP_DAYS = 14
+MAX_TRIP_DAYS = 30
+RANGES = {"month": (1, 12), "days": (1, MAX_TRIP_DAYS), "nights": (0, MAX_TRIP_DAYS), "people": (1, 20), "max_leg_min": (5, 180),
           "budget_vnd": (10_000, 50_000_000)}
 CLOCKS = ("checkin_at", "checkout_at", "day_end")
 CLOCK = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
@@ -79,6 +83,7 @@ class Field(Frozen, Generic[T]):
     confidence: Confidence = "low"
     status: Status = "unknown"
     evidence: tuple[Evidence, ...] = ()
+    requirement: RequirementIntent | None = None
 
     @model_validator(mode="after")
     def _evidenced(self):
@@ -92,8 +97,23 @@ class Field(Frozen, Generic[T]):
 
     @property
     def locked(self) -> bool:
-        """Said or chosen by the user: only the user changes it."""
-        return self.source == "user" and self.status == "confirmed"
+        """Said or chosen by the user: only the user changes it. A value the user took away (known is False) locks
+        nothing: a later statement of the trip writes it again."""
+        return self.known and self.source == "user" and self.status == "confirmed"
+
+
+class TimePreference(Frozen):
+    place_id: str | None = None
+    activity: Activity | None = None
+    period: Literal["morning", "midday", "afternoon", "evening", "daytime", "sunrise", "sunset"]
+    weight: Literal[1, 2, 3] = 1
+    evidence: tuple[Evidence, ...]
+
+    @model_validator(mode="after")
+    def _evidenced(self):
+        if not self.evidence:
+            raise ValueError("a time preference needs evidence")
+        return self
 
 
 class SoftKey(Frozen):
@@ -130,16 +150,14 @@ class SoftKey(Frozen):
         return cls(feature=feature.strip(), value=value.strip(), context=tuple(sorted(pairs)))
 
 
-class Hard(Frozen):
-    feature: str
-    op: Literal["ne", "eq"]
-    value: str
+class Hard(Requirement):
+    strength: Literal["mandatory"] = "mandatory"
     unknown_policy: Literal["exclude", "flag"] | None = None
     evidence: tuple[Evidence, ...]
 
     @model_validator(mode="after")
     def _valid(self):
-        if not ontology().valid(self.feature, self.value):
+        if not valid_condition(self.feature, self.value):
             raise ValueError(f"hard filter {self.feature}={self.value} is not in the ontology")
         if not self.evidence:
             raise ValueError("a hard filter needs evidence")
@@ -194,6 +212,7 @@ class Signal(Frozen):
 class Unmapped(Frozen):
     phrase: str
     turn: int
+    group: bool = False  # a companions group no value holds: dropped once companions is recorded
 
 
 class Ambiguous(Frozen):
@@ -215,10 +234,9 @@ class Meta(Frozen):
     held: str | None = None  # the card a typed message did not answer; it stays open for one such message
     user_id: str | None = None  # opaque id whose stored patterns seeded this session
     remember: bool = False  # the user agreed that this session may add to those patterns
-    prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/P2_TRIP_UNDERSTANDING.md §17)
+    prior: tuple[str, ...] = ()  # vote keys a stored pattern put in the state or offered (docs/TRIP_UNDERSTANDING.md §17)
     declined: tuple[str, ...] = ()  # questions the user skipped or was unsure about: never asked again
-    phase: Literal["chat", "quiz", "review", "paused"] = "chat"  # chat: free talk; quiz: deterministic bank; review: after the quiz; paused: quiz on hold, chatting with its progress kept
-    requiz: bool = False  # a redo pass is under way: answered cards show again so answers can change
+    phase: Literal["chat", "quiz", "review"] = "chat"  # chat: free talk; quiz: deterministic bank; review: after the quiz
     offered_quiz: bool = False  # unused: the F transition card is gone; kept so sessions saved with it still load
     told: bool = False  # the agent has read the user's own telling of the trip; every later question is a chip card
     other_qid: str | None = None  # quiz card a typed answer left unclear: the chat is resolving it
@@ -237,6 +255,7 @@ class TripState(Frozen):
     days: Field[int] = Field[int]()
     nights: Field[int] = Field[int]()  # nights slept in the city; unknown is not days - 1 here (nights() falls back)
     companions: Field[frozenset[Who]] = Field[frozenset[Who]]()
+    companions_other: tuple[str, ...] = ()  # who goes that the vocabulary has no id for, in the user's words
     people: Field[int] = Field[int]()
     base: Field[Base] = Field[Base]()
     entry_point: Field[Base] = Field[Base]()  # where the trip enters the city: station, airport, own vehicle
@@ -262,6 +281,8 @@ class TripState(Frozen):
     anchors: tuple[Anchor, ...] = ()
     signals: tuple[Signal, ...] = ()
     hard: tuple[Hard, ...] = ()
+    activities: dict[str, Activity] = {}
+    time_preferences: tuple[TimePreference, ...] = ()
     soft: dict[str, Field[Weight]] = {}
     visited: tuple[str, ...] = ()
     unmapped: tuple[Unmapped, ...] = ()
@@ -283,6 +304,7 @@ class Update(Frozen):
     source: Source
     confidence: Confidence
     evidence: Evidence
+    requirement: RequirementIntent | None = None
 
 
 def with_meta(state: TripState, **changes) -> TripState:
@@ -335,6 +357,15 @@ def apply(state: TripState, u: Update) -> TripState:
         new = _kind(f)(value=new_val, source=u.source, confidence=u.confidence, status=status,
                        evidence=cur.evidence + (u.evidence,))
         return state.model_copy(update={f: new})
+    if f == "companions_other":
+        word = " ".join(str(u.value).split())
+        have = [w for w in state.companions_other if w.casefold() != word.casefold()]
+        return state.model_copy(update={"companions_other": tuple(have if u.op == "remove" else [*have, word])})
+    if f == "time_preference":
+        value = TimePreference(**u.value, evidence=(u.evidence,))
+        key = (value.place_id, value.activity, value.period)
+        kept = tuple(p for p in state.time_preferences if (p.place_id, p.activity, p.period) != key)
+        return state.model_copy(update={"time_preferences": kept + (() if u.op == "remove" else (value,))})
     if f == "soft":
         if u.op == "remove":
             key = str(SoftKey.parse(u.value))
@@ -347,19 +378,32 @@ def apply(state: TripState, u: Update) -> TripState:
         cur = state.soft.get(key)
         if cur is not None and cur.locked and u.source != "user":
             return state
-        new = Field[Weight](value=weight, source=u.source, confidence=u.confidence, status=status, evidence=(u.evidence,))
+        new = Field[Weight](value=weight, source=u.source, confidence=u.confidence, status=status, evidence=(u.evidence,),
+                            requirement=u.requirement or (cur.requirement if cur else None))
         return state.model_copy(update={"soft": {**state.soft, key: new}})
     if f == "hard":
         if u.op == "remove":
             return state.model_copy(update={"hard": tuple(h for h in state.hard if h.feature != u.value)})
         v = dict(u.value)
         h = Hard(feature=v["feature"], op=v["op"], value=v["value"], unknown_policy=v.get("unknown_policy"),
-                 evidence=(u.evidence,))
+                 evidence=(u.evidence,), **(u.requirement.model_dump() if u.requirement else
+                                           {k: v[k] for k in RequirementIntent.model_fields if k in v}))
         old = next((x for x in state.hard if (x.feature, x.op, x.value) == (h.feature, h.op, h.value)), None)
         if old is not None:
-            h = h.model_copy(update={"unknown_policy": old.unknown_policy or h.unknown_policy,
+            metadata = ({k: getattr(old, k) for k in RequirementIntent.model_fields}
+                        if u.requirement is None and not any(k in v for k in RequirementIntent.model_fields) else {})
+            h = h.model_copy(update={**metadata, "unknown_policy": old.unknown_policy or h.unknown_policy,
                                      "evidence": old.evidence + h.evidence})
         return state.model_copy(update={"hard": tuple(x for x in state.hard if x is not old) + (h,)})
+    if f == "activity":
+        pid = u.value["place_id"]
+        activities = dict(state.activities)
+        if u.op == "remove":
+            activities.pop(pid, None)
+        else:
+            from pydantic import TypeAdapter
+            activities[pid] = TypeAdapter(Activity).validate_python(u.value["activity"])
+        return state.model_copy(update={"activities": activities})
     if f == "hard_policy":
         feature, policy = u.value
         if policy not in ("exclude", "flag"):
@@ -440,6 +484,8 @@ def settle(state: TripState) -> TripState:
         done |= EFFORT_SIGNALS
     if "vegetarian_options" in feats:
         done.add("vegetarian")
+    if "vegan_options" in feats:
+        done.add("vegan")
     if not any(s.kind in done and not s.handled for s in state.signals):
         return state
     return state.model_copy(update={"signals": tuple(
@@ -476,13 +522,14 @@ class Context(Frozen):
     start_date: date | None
     month: int | None
     month_part: MonthPart | None = None
-    days: int | None
-    nights: int | None = None
+    days: int | None = PydanticField(ge=1, le=MAX_TRIP_DAYS)
+    nights: int | None = PydanticField(default=None, ge=0, le=MAX_TRIP_DAYS)
     base: Base | None
     entry_point: Base | None = None
     exit_point: Base | None = None
     mobility: Vehicle | None
     companions: tuple[Who, ...]
+    companions_other: tuple[str, ...] = ()
     people: int | None
     checkin_at: str | None
     checkout_at: str | None
@@ -495,13 +542,13 @@ class Context(Frozen):
     outbound: Transit | None = None
     lodging_booked: YesNo | None = None
     lodging: Base | None = None
+    purpose: Purpose | None = None
 
 
-class HardFilter(Frozen):
-    feature: str
-    op: Literal["ne", "eq"]
-    value: str
+class HardFilter(Requirement):
+    strength: Literal["mandatory"] = "mandatory"
     unknown_policy: Literal["exclude", "flag"]
+    evidence: tuple[Evidence, ...] = ()
 
 
 class AnchorRef(Frozen):
@@ -509,12 +556,20 @@ class AnchorRef(Frozen):
     priority: Literal["must", "want"]
 
 
-class SoftWeight(Frozen):
+class SoftWeight(RequirementIntent):
     feature: str
     value: str
     context: dict[str, str] | None
     weight: Literal[1, -1, 0]
     source: Source
+    strength: Literal["preference"] = "preference"
+    evidence: tuple[Evidence, ...] = ()
+
+    @model_validator(mode="after")
+    def _valid_requirement(self):
+        Requirement(feature=self.feature, op="eq", value=self.value, strength="preference",
+                    **{k: getattr(self, k) for k in RequirementIntent.model_fields})
+        return self
 
 
 class PaceSpec(Frozen):
@@ -539,3 +594,5 @@ class SearchInput(Frozen):
     unknowns: tuple[str, ...]
     unmapped: tuple[str, ...]
     liked_groups: tuple[Group, ...] = ()  # kinds of place the user asked for, first said first (Place Decision's tabs)
+    activities: dict[str, Activity] = {}
+    time_preferences: tuple[TimePreference, ...] = ()

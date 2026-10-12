@@ -1,7 +1,6 @@
 """Typed journey requests and persisted envelopes; modules own business payload validation."""
 
-from typing import Literal, Protocol
-from collections.abc import Callable
+from typing import Literal, Protocol, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -12,10 +11,6 @@ Emit = Callable[[str, dict], None]
 
 class Conflict(ValueError):
     """A stale revision, a reused request_id, or a journey another writer changed first (HTTP 409)."""
-
-
-class Missing(KeyError):
-    """No such journey, or another account's journey (HTTP 404). Any other KeyError is a server bug (HTTP 500)."""
 
 
 class Request(BaseModel):

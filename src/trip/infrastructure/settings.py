@@ -6,13 +6,14 @@ from pathlib import Path
 import yaml
 
 ARRIVAL_BUFFER_MIN = 45  # the default of Settings.arrival_buffer_min (config/trip.yaml)
+COACH_MIN_PEOPLE = 9  # the default of Settings.coach_min_people
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 @dataclass(frozen=True)
 class PatternSettings:
-    """Long-term pattern learning (docs/P2_TRIP_UNDERSTANDING.md §17). Off until a user id and consent are given."""
+    """Long-term pattern learning (docs/TRIP_UNDERSTANDING.md §17). Off until a user id and consent are given."""
     enabled: bool = False
     min_sessions: int = 3     # sessions that must make the same choice before it counts as a pattern
     window: int = 8           # only the latest votes on a key are read
@@ -36,10 +37,10 @@ class Settings:
     clef_verify_min: float = 0.75  # D-gate (chat): sure the quote does not say the fact: a low fact is refused
     clef_clarity_min: float = 0.75  # quiz other-gate: sure a free-typed answer is clear for the field: fill it, else to chatbot
     clef_reply_min: float = 0.9    # sure a reply promises results or states an unsaid fact: it is replaced
-    clef_repeat_min: float = 0.9   # sure the question is already answered by the state: the Agent must ask another
     tool_steps: int = 6
     required: tuple = ("days", "companions", "mobility", "when")  # known before the user may press Next
     max_tokens: int = 1500
+    coach_min_people: int = COACH_MIN_PEOPLE  # a party this big in its own car needs places a coach or 16-seater reaches
     arrival_buffer_min: int = ARRIVAL_BUFFER_MIN  # from a coach / flight's arrival to the first stop, and from the last stop to departure
     entry_roads: tuple = ()  # ({from_deg, to_deg, text}, …): the road into the city by the bearing toward the origin
     airports: tuple = ()  # ({iata, name, lat, lng}, …) with direct flights to the city (config/airports.yaml)

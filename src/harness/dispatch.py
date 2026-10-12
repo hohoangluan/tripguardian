@@ -5,11 +5,11 @@ import json
 import sys
 import time
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 from trip import SearchInput
 
-from .contracts import Conflict, Emit, Journey, JourneyView, Missing, ModuleTools, Request, Stage
+from .contracts import Conflict, Emit, Journey, JourneyView, ModuleTools, Request, Stage
 from .router import route, route_companion
 from .session import Store
 
@@ -50,7 +50,7 @@ class Harness:
         and another account's journey is reported as missing."""
         session = self.store.get(jid)
         if owner is not None and session.user_id != owner:
-            raise Missing(jid)
+            raise KeyError(jid)
         if jid not in self._loaded:
             for stage, snapshot in session.snapshots.items():
                 self.tools[stage].restore(snapshot)
@@ -91,6 +91,8 @@ class Harness:
             if stage not in session.sessions:
                 raise Conflict(f"no {stage} session")
             out = self.tools[stage].read(session.sessions[stage], operation, payload or {})
+            if operation in {"suggestions", "preview-act"} and stage == "planning":
+                out = {**out, "revision": session.revision}
         if operation == "why-not":
             self._event("why_not", owner, jid, place_id=(payload or {}).get("place"))
         elif operation == "page":
@@ -111,15 +113,14 @@ class Harness:
         elif not draft["confirmed"]:
             out = {"revision": revision, "status": "empty", "plan": None}
         else:
-            plan = self.tools["planning"].preview({"decision_output": draft}, namespace=jid)
+            plan = self.tools["planning"].preview({"decision_output": draft})
             out = {"revision": revision, "status": "ready" if plan["ok"] else "failed", "plan": plan}
         self._event(f"preview.{out['status']}", owner, jid, revision=revision)
         return out
 
-    def trips(self, owner: str, guest: bool = False) -> list[dict]:
-        """One line per journey of the signed-in account, newest first. A guest has no history: the journey stays
-        stored for the Admin, but it is never listed to the guest."""
-        return [] if guest else self.summaries(self.store.list_for(owner))
+    def trips(self, owner: str) -> list[dict]:
+        """One line per journey of the signed-in account, newest first."""
+        return self.summaries(self.store.list_for(owner))
 
     def summaries(self, ids: list[str]) -> list[dict]:
         """One line per asked journey; unknown IDs are skipped."""
@@ -136,10 +137,10 @@ class Harness:
                         places = list(view.get("selected") or [])
                     else:
                         places = []
-            except Missing:
+            except KeyError:
                 continue
             out.append({"id": session.id, "stage": session.stage, "revision": session.revision,
-                        "start_date": context.get("start_date"), "days": context.get("days"), "nights": context.get("nights"),
+                        "start_date": context.get("start_date"), "days": context.get("days"),
                         "people": context.get("people"), "places": places,
                         "confirmed": "planning" in session.outputs})
         return out
@@ -159,7 +160,7 @@ class Harness:
             raise ValueError("note must be at most 1000 characters")
         with self.store.lock(jid):
             self._get(jid, owner)
-        record = {"journey": jid, "user_id": owner, "at": datetime.now(UTC).isoformat(timespec="seconds"), "scores": scores,
+        record = {"journey": jid, "user_id": owner, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "scores": scores,
                   "more_search": more, "note": note.strip()}
         self.store.append_feedback(record)
         self._event("feedback.submit", owner, jid, scores=",".join(f"{k}:{v}" for k, v in sorted(scores.items())),
@@ -176,7 +177,7 @@ class Harness:
         return hits
 
     def geo(self, q: str) -> list[dict]:
-        """Search-as-you-type for a starting point; Planning owns Live Context (docs/P4_PLANNING.md §Live Context)."""
+        """Search-as-you-type for a starting point; Planning owns Live Context (docs/PLANNING.md §Live Context)."""
         return self.tools["planning"].geo(q)
 
     def lodging_suggest(self, q: str) -> list[dict]:
@@ -185,11 +186,19 @@ class Harness:
     def transit(self, params: dict) -> dict:
         return self.tools["planning"].transit(params)
 
-    def rentals(self, params: dict) -> dict:
-        return self.tools["planning"].rentals(params)
-
     def forget_profile(self, user_id: str) -> bool:
         return self.tools["trip"].forget(user_id)
+
+    def adopt(self, from_id: str, to_id: str) -> int:
+        """A guest signed in with Google: their journeys now belong to the account. Returns how many moved."""
+        moved = 0
+        for jid in self.store.list_for(from_id):
+            with self.store.lock(jid):
+                session = self.store.get(jid)
+                session.user_id = to_id
+                self.store.save(session)
+            moved += 1
+        return moved
 
     def request(self, jid: str, request: Request, emit: Emit | None = None, owner: str | None = None) -> dict:
         started = time.monotonic()
@@ -200,7 +209,7 @@ class Harness:
         try:
             response = self._request(jid, request, emit, owner, trace)
         except Exception as exc:
-            if not isinstance(exc, Missing):
+            if not isinstance(exc, KeyError):
                 self._event(name, trace.get("user_id"), jid, revision=request.expected_revision, error=type(exc).__name__,
                             latency_ms=round((time.monotonic() - started) * 1000), path=trace.get("path"))
             raise
@@ -373,8 +382,8 @@ class Harness:
                 if request.operation == "advance":
                     result = self._advance(session)
                 elif request.operation == "back":
-                    # outputs.planning stays: the trip runs on the confirmed plan until a new one is confirmed
                     session.stage = "decision" if stage == "planning" else "trip"
+                    session.outputs.pop("planning", None)
                     session.outputs.pop("decision", None)
                     session.sessions.pop("planning", None)
                     session.snapshots.pop("planning", None)
@@ -392,6 +401,7 @@ class Harness:
                     if stage == "trip" and request.operation == "turn" and not any(e["event"] == "done" for e in events):
                         session.outputs.pop("trip", None)
                     if request.operation in ("act", "turn", "recommend") and stage != "trip":
+                        session.outputs.pop("planning", None)
                         if stage == "decision":
                             session.outputs.pop("decision", None)
                             session.sessions.pop("planning", None)
@@ -404,7 +414,7 @@ class Harness:
                     session.snapshots[name] = self.tools[name].snapshot(sid)
                 response = self._view(session, result)
                 session.receipts[request.request_id] = {"fingerprint": fingerprint, "response": response, "events": events,
-                                                        "at": datetime.now(UTC).isoformat(timespec="seconds")}
+                                                        "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 self.store.save(session)
             except Exception:
                 for name, snapshot in before.snapshots.items():
@@ -458,7 +468,7 @@ class Harness:
         else:
             output = self.tools["decision"].apply(session.sessions["decision"], "confirm", {}, lambda *args: None)
             session.outputs["decision"] = output
-            result = self.tools["planning"].create({"decision_output": output}, namespace=session.id)
+            result = self.tools["planning"].create({"decision_output": output})
             session.stage = "planning"
         session.sessions[session.stage] = result["id"]
         return result

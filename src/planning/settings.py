@@ -25,11 +25,7 @@ class Settings:
     road_factor: float
     rough_speed_kmh: dict
     walk_km: float
-    car_walk_km: float
     walk_kmh: float
-    park_min: dict
-    park_hard_extra_min: int
-    rental: dict
     default_days: int
     day_start: int          # minutes after midnight
     day_end: int
@@ -45,15 +41,6 @@ class Settings:
     meals_per_day: int
     meal_min: int
     meal_windows: dict      # name -> (earliest start, latest start) in minutes
-    meal_options: int
-    meal_radius_km: float
-    night_end: int          # minutes after midnight
-    night_min: int
-    night_options: int
-    night_radius_km: float
-    night_groups: list
-    unknown_hours_from: int
-    unknown_hours_groups: list
     pins: dict
     cluster_max_min: int
     cluster_merge_min: int
@@ -91,13 +78,22 @@ class Settings:
     rethink_drops: int
     crowd_busy_pct: int
     conditions: dict
-    personalization: dict = field(default_factory=dict)
+    time_suitability: dict = field(default_factory=dict)
+    repair_local_additions: int = 1
+    repair_search_limit: int = 720
+    cache_entries: int = 128
+    suggestion_workers: int = 2
+    chunk_days: int = 7
+    long_trip_exact_n: int = 5
+    composer: dict = field(default_factory=lambda: {"rho": 0.9, "alpha": 0.7, "tight_ratio": 0.8,
+                                                   "per_day_max": {"slow": 4, "normal": 5, "packed": 7},
+                                                   "search_limit": 120, "transport_vnd_per_min": {}})
 
 
 @cache
 def load(path: Path = PATH) -> Settings:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    for k in ("day_start", "day_end", "leave_at", "unknown_hours_from", "night_end"):
+    for k in ("day_start", "day_end", "leave_at"):
         raw[k] = to_min(raw[k])
     raw["meal_windows"] = {name: (to_min(a), to_min(b)) for name, (a, b) in raw["meal_windows"].items()}
     raw["pins"] = {f: {**p, **({"from": to_min(p["from"]), "to": to_min(p["to"])} if p["anchor"] == "clock" else {})}

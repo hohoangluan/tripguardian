@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 // /api/auth/google/start sends the browser to Google and back with an HttpOnly session cookie.
 // undefined = still asking the server; null = signed out. Any /api/harness call answered 401 signs out here too.
 
-export type Mobility = 'motorbike' | 'car'
+export type Mobility = 'motorbike' | 'car' | 'walk'
 export type Companions = 'solo' | 'partner' | 'friends' | 'kids' | 'parents'
 
 export type Me = {
@@ -12,7 +12,8 @@ export type Me = {
   email: string | null
   name: string
   avatar: string | null
-  role: 'user' | 'admin' | 'guest'
+  guest: boolean // no Google account: plans like anyone, keeps nothing after 24 idle hours (docs/ACCOUNTS.md §Khách)
+  role: 'user' | 'admin'
   home_city: string | null
   usual_mobility: Mobility | null
   usual_companions: Companions | null
@@ -81,6 +82,13 @@ if (typeof window !== 'undefined') {
 // Only a path on this site comes back from Google (the server checks it again).
 export const signInHref = (next: string) => `/api/auth/google/start?next=${encodeURIComponent(next.startsWith('/') ? next : '/app')}`
 
+// A visitor without an account: the server makes a guest session (cookie) and /me then answers with `guest: true`.
+export async function startGuest() {
+  const res = await fetch('/api/auth/guest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+  if (!res.ok) throw new AccountError(res.status, (await res.json().catch(() => ({}))).error ?? '')
+  await refreshAccount()
+}
+
 export async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {})
   set(null)
@@ -89,14 +97,7 @@ export async function signOut() {
 const send = (method: string, path: string, body: unknown) =>
   fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(answer)
 
-// A trial visitor (docs/ACCOUNTS.md §Khách): one trip for a day, no history, no account features.
-export const startGuest = () => send('POST', '/api/auth/guest', {}).then(keep)
-export const isGuest = (a: Account | null | undefined) => a?.role === 'guest'
-
-export const acceptTerms = (version: string, patterns: boolean) => send('POST', '/api/harness/me/consent', { version, patterns }).then(keep)
-
-// Whether TripGuardian remembers the user's explicit choices across trips to ask less; turning it off also forgets them.
-export const setPatterns = (on: boolean) => send('POST', '/api/harness/me/consent', { patterns: on }).then(keep)
+export const acceptTerms = (version: string) => send('POST', '/api/harness/me/consent', { version }).then(keep)
 
 export const updateProfile = (patch: Partial<Pick<Me, 'home_city' | 'usual_mobility' | 'usual_companions'>> & { display_name?: string | null }) =>
   send('PATCH', '/api/harness/me', patch).then(keep)
@@ -110,4 +111,4 @@ export async function deleteAccount() {
   set(null)
 }
 
-export const initialOf = (a: Account | null | undefined) => (a ? ((a.name || a.email || '?').trim()[0] ?? '?').toUpperCase() : null)
+export const initialOf = (a: Account | null | undefined) => (a ? (a.guest ? 'K' : ((a.name || a.email || '?').trim()[0] ?? '?').toUpperCase()) : null)

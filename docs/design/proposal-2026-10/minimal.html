@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đề xuất giao diện tối giản</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Tokens from web/src/user/css/tokens.css. --ink-3 darkened for 4.5:1. No other colour. */
+:root {
+  --bg: #faf7f2; --surface: #fff; --ink: #1b2a2f; --ink-2: #4a5a60; --ink-3: #5c696e;
+  --line: #e7e1d6; --pine: #0f5f5a; --pine-soft: #e3f1ee; --sun: #e8590c; --sun-ink: #b8420a; --warn: #8a5a00; --danger: #b42318;
+  --display: 'Lora', Georgia, serif; --sans: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #e8ecec; color: var(--ink); font: 400 15px/1.55 var(--sans); }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.doc { max-width: 1280px; margin: 0 auto; padding: 56px 0 96px; }
+.doc h1 { font: 600 2.2rem/1.2 var(--display); max-width: 24ch; }
+.doc .lead { color: var(--ink-2); max-width: 70ch; margin-top: 12px; }
+.sec { margin-top: 64px; }
+.sec h2 { font: 600 1.5rem/1.25 var(--display); }
+.sec .lead { margin: 6px 0 20px; }
+.cut { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 28px; font-size: .9rem; color: var(--ink-2); }
+.cut b { display: block; color: var(--ink); font-weight: 600; margin-bottom: 2px; }
+
+/* ---------- Frame ---------- */
+.frame { width: 1280px; height: 800px; background: var(--bg); border-radius: 14px; overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: 0 18px 48px rgba(27,42,47,.14); }
+.top { height: 60px; flex: none; display: flex; align-items: center; padding: 0 40px; }
+.brand { display: flex; align-items: center; gap: 10px; font: 600 1.05rem var(--display); width: 220px; }
+.brand img { width: 26px; height: 26px; border-radius: 7px; }
+.steps { flex: 1; display: flex; justify-content: center; gap: 36px; list-style: none; padding: 0; font-size: .9rem; color: var(--ink-3); }
+.steps li { padding: 19px 0 17px; border-bottom: 2px solid transparent; }
+.steps .done { color: var(--ink-2); }
+.steps .now { color: var(--ink); font-weight: 600; border-color: var(--pine); }
+.top-r { width: 220px; display: flex; justify-content: flex-end; align-items: center; gap: 16px; font-size: .85rem; color: var(--ink-2); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--pine-soft); color: var(--pine); display: grid; place-items: center; font-weight: 600; font-size: .8rem; }
+
+/* One quiet status line. Colour lives only in the dot. */
+.status { padding: 14px 40px 0; display: flex; align-items: center; gap: 10px; font-size: .9rem; color: var(--ink-2); flex: none; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pine); flex: none; position: relative; }
+.status.work .dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--pine); opacity: .35; }
+.status.ask .dot { background: var(--sun); } .status.err .dot { background: var(--danger); }
+.status b { color: var(--ink); font-weight: 600; }
+.status .next { margin-left: auto; color: var(--pine); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.status.ask .next { color: var(--sun-ink); } .status.err .next { color: var(--danger); }
+.body { flex: 1; position: relative; overflow: hidden; }
+.btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 10px 22px; font: 600 .9rem var(--sans); background: var(--pine); color: #fff; white-space: nowrap; }
+.btn.line { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.mute { color: var(--ink-3); }
+
+/* ---------- Screen 1 ---------- */
+.u { display: grid; grid-template-columns: 1fr 300px; gap: 80px; padding: 56px 80px 0 80px; height: 100%; }
+.q { max-width: 600px; justify-self: center; width: 100%; }
+.q .said { color: var(--ink-3); font-size: .88rem; margin-bottom: 30px; }
+.q h3 { font: 600 2.1rem/1.2 var(--display); }
+.q .because { color: var(--ink-3); font-size: .88rem; margin: 8px 0 26px; }
+.o { display: flex; align-items: center; gap: 14px; padding: 15px 0; border-top: 1px solid var(--line); }
+.o:last-of-type { border-bottom: 1px solid var(--line); }
+.o .r { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--ink-3); flex: none; }
+.o.on .r { border-color: var(--pine); background: radial-gradient(var(--pine) 45%, transparent 50%); }
+.o b { font-weight: 500; } .o > span:not(.r) { margin-left: auto; font-size: .85rem; color: var(--ink-3); }
+.o.on b { color: var(--pine); font-weight: 600; }
+.free { margin-top: 28px; padding-bottom: 8px; border-bottom: 1px solid var(--ink-3); color: var(--ink-3); display: flex; justify-content: space-between; font-size: .9rem; }
+.foot { margin-top: 24px; display: flex; justify-content: space-between; align-items: center; font-size: .85rem; color: var(--ink-3); }
+.tk { padding-top: 6px; }
+.tk h4 { font: 600 1.05rem var(--display); margin-bottom: 14px; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: .9rem; border-top: 1px solid var(--line); }
+.kv .k { color: var(--ink-3); } .kv .v { font-weight: 500; text-align: right; }
+.kv .v small { display: block; font-weight: 400; font-size: .75rem; color: var(--ink-3); }
+.kv.new .v { color: var(--sun-ink); } .kv.ask .v { color: var(--sun-ink); font-weight: 500; }
+.count { margin-top: 36px; }
+.count b { font: 600 2.4rem/1 var(--display); color: var(--pine); }
+.count p { font-size: .85rem; color: var(--ink-3); margin-top: 6px; }
+.count i { display: block; height: 3px; background: var(--line); margin-top: 14px; } .count i::before { content: ''; display: block; width: 9.5%; height: 100%; background: var(--pine); }
+
+/* ---------- Screen 2 ---------- */
+.x { padding: 36px 40px 0; height: 100%; }
+.x h2 { font: 600 2rem/1.2 var(--display); }
+.x .sub { color: var(--ink-3); margin-top: 2px; font-size: .9rem; }
+.tabs { display: flex; gap: 28px; margin: 22px 0 22px; font-size: .92rem; color: var(--ink-3); border-bottom: 1px solid var(--line); }
+.tabs span { padding-bottom: 10px; margin-bottom: -1px; border-bottom: 2px solid transparent; }
+.tabs .on { color: var(--ink); font-weight: 600; border-color: var(--pine); }
+.tabs em { font-style: normal; font-size: .8rem; margin-left: 4px; } .tabs .new { color: var(--sun-ink); font-size: .78rem; margin-left: 6px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+.pc .ph { height: 190px; border-radius: 14px; background-size: cover; background-position: center; position: relative; }
+.pc .ph .heart { position: absolute; right: 12px; top: 12px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.pc .ph .best { position: absolute; left: 12px; top: 12px; background: rgba(255,255,255,.94); color: var(--pine); font-size: .76rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.pc h3 { font: 600 1.15rem/1.3 var(--display); margin-top: 14px; }
+.pc .meta { font-size: .82rem; color: var(--ink-3); margin-top: 1px; }
+.pc .why { font-size: .9rem; margin-top: 10px; } .pc .why::before { content: '+ '; color: var(--pine); font-weight: 600; }
+.pc .cost { font-size: .86rem; color: var(--warn); margin-top: 2px; } .pc .cost::before { content: '– '; font-weight: 600; }
+.pc .act { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; font-size: .85rem; color: var(--ink-3); }
+.pc .add { font-weight: 600; color: var(--pine); display: flex; gap: 6px; align-items: center; font-size: .9rem; }
+.pc .add.done { color: var(--ink-3); }
+.dock { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 14px 40px; display: flex; align-items: center; gap: 28px; font-size: .92rem; }
+.dock b { font-weight: 600; } .dock .sep { color: var(--line); }
+.dock .undo { color: var(--ink-3); font-size: .85rem; } .dock .undo u { color: var(--pine); font-weight: 600; text-underline-offset: 3px; }
+.dock .btn { margin-left: auto; }
+
+/* ---------- Screen 3 ---------- */
+.p { display: grid; grid-template-columns: 150px 1fr 380px; gap: 56px; padding: 36px 40px 0; height: 100%; }
+.days { display: grid; gap: 4px; align-content: start; font-size: .92rem; }
+.days div { padding: 8px 0 8px 14px; border-left: 2px solid var(--line); color: var(--ink-3); }
+.days .on { border-color: var(--pine); color: var(--ink); font-weight: 600; }
+.days small { display: block; font-weight: 400; font-size: .78rem; color: var(--ink-3); }
+.days .flag small { color: var(--warn); }
+.tl h3 { font: 600 1.7rem/1.2 var(--display); } .tl .sub { color: var(--ink-3); font-size: .88rem; margin: 2px 0 22px; }
+.st { display: grid; grid-template-columns: 52px 56px 1fr; gap: 16px; align-items: center; }
+.st .t { font-weight: 600; font-size: .9rem; } .st .im { width: 56px; height: 56px; border-radius: 12px; background-size: cover; }
+.st b { font: 600 1.05rem var(--display); display: block; } .st span { font-size: .84rem; color: var(--ink-3); display: block; } .st .warn { color: var(--warn); }
+.leg { margin-left: 68px; padding: 8px 0 8px 40px; font-size: .8rem; color: var(--ink-3); border-left: 1px dashed var(--ink-3); }
+.side .map { height: 230px; border-radius: 14px; position: relative; overflow: hidden; background: var(--pine-soft); }
+.side .map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.nums { display: flex; justify-content: space-between; margin-top: 22px; } .nums b { display: block; font: 600 1.4rem var(--display); } .nums span { font-size: .78rem; color: var(--ink-3); }
+.verdict { margin-top: 18px; font-size: .9rem; color: var(--ink-2); } .verdict b { color: var(--ink); }
+.cta { position: absolute; right: 40px; bottom: 32px; display: flex; gap: 12px; }
+
+/* ---------- Legend ---------- */
+.states { width: 1280px; background: var(--bg); border-radius: 14px; padding: 8px 0 22px; }
+.states .status { padding-top: 16px; }
+.states .lab { padding: 0 40px; font-size: .76rem; color: var(--ink-3); margin-top: 14px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+    <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  </defs>
+</svg>
+
+<div class="doc">
+  <p class="mute" style="font-size:.85rem">Bản tối giản · cùng 3 màn với bản trước · 2026-10-12</p>
+  <h1>Bớt đi cho đến khi chỉ còn việc cần làm.</h1>
+  <p class="lead">Cùng luồng, cùng token màu, cùng chữ. Khác ở chỗ: không còn thẻ viền, bóng, icon trang trí hay chip nền màu. Phân cấp đến từ cỡ chữ, khoảng trắng và một đường kẻ mảnh. Màu xanh chỉ dùng cho việc đang làm; màu cam chỉ cho việc cần bạn. Dữ liệu và tên nơi là mẫu.</p>
+  <div class="cut">
+    <div><b>Bỏ thẻ viền + bóng</b>Danh sách, vé, lựa chọn đều là hàng chữ ngăn bằng kẻ mảnh.</div>
+    <div><b>Bỏ icon và chip nền</b>Chỉ còn mũi tên, dấu tích, trái tim. Nguồn dòng là chữ xám nhỏ.</div>
+    <div><b>Dải trạng thái thành một dòng chữ</b>Không nền, không viền. Màu chỉ ở chấm tròn.</div>
+    <div><b>Đánh đổi là một dòng chữ</b>“+ lý do” và “– đánh đổi”, không hộp vàng.</div>
+  </div>
+
+<!-- ============ 1 ============ -->
+<section class="sec">
+  <h2>1 · Tìm hiểu</h2>
+  <p class="lead">Một câu hỏi ở giữa, vé là danh sách chữ bên phải. Con số còn hợp là một dòng.</p>
+  <div class="frame">
+    <div class="top"><div class="brand"><img src="img/logo.webp" alt="">TripGuardian</div>
+      <ol class="steps"><li class="now">Tìm hiểu</li><li>Lựa chọn</li><li>Lịch trình</li><li>Đánh giá</li></ol>
+      <div class="top-r"><span class="avatar">V</span></div></div>
+    <div class="status work"><span class="dot"></span><b>Đang ghi</b> “3 ngày” vào Số ngày</div>
+    <div class="body"><div class="u">
+      <div class="q">
+        <p class="said">Bạn nói: “3 ngày ở Đà Lạt cho hai người, đi xe máy, thích chill, cà phê, săn mây”</p>
+        <h3>Bạn đi từ ngày nào?</h3>
+        <p class="because">Để kiểm tra nơi nào mở cửa đúng ngày bạn đi. Bỏ qua được.</p>
+        <div class="o on"><span class="r"></span><b>Cuối tuần này</b><span>17/10 – 19/10</span></div>
+        <div class="o"><span class="r"></span><b>Cuối tuần sau</b><span>24/10 – 26/10</span></div>
+        <div class="o"><span class="r"></span><b>Chọn ngày khác</b><span>Mở lịch</span></div>
+        <div class="o"><span class="r"></span><b class="mute">Chưa chắc</b></div>
+        <div class="free"><span>Hoặc gõ tự do: “không thích chỗ đông”</span><span>Enter</span></div>
+        <div class="foot"><span>Bỏ qua câu này</span><span class="btn">Tiếp tục <svg class="i"><use href="#arrow"/></svg></span></div>
+      </div>
+      <aside class="tk">
+        <h4>Chuyến của bạn</h4>
+        <div class="kv"><span class="k">Thời gian</span><span class="v">3 ngày</span></div>
+        <div class="kv"><span class="k">Đi cùng</span><span class="v">2 người</span></div>
+        <div class="kv new"><span class="k">Phương tiện</span><span class="v">Xe máy<small>vừa ghi</small></span></div>
+        <div class="kv"><span class="k">Thích</span><span class="v">Chill, cà phê, săn mây<small>mình đoán, sửa được</small></span></div>
+        <div class="kv ask"><span class="k">Ngày đi</span><span class="v">đang hỏi</span></div>
+        <div class="count"><b>167</b><p>nơi còn hợp, trên 1.761 nơi</p><i></i></div>
+      </aside>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="sec">
+  <h2>2 · Lựa chọn</h2>
+  <p class="lead">Ảnh lớn, ba dòng chữ, một nút chữ. Chi tiết, khóa, so sánh, bỏ mở khi bấm vào thẻ hoặc “…”. Thanh đáy là một dòng.</p>
+  <div class="frame">
+    <div class="top"><div class="brand"><img src="img/logo.webp" alt="">TripGuardian</div>
+      <ol class="steps"><li class="done">Tìm hiểu</li><li class="now">Lựa chọn</li><li>Lịch trình</li><li>Đánh giá</li></ol>
+      <div class="top-r">3 ngày · 2 người · xe máy<span class="avatar">V</span></div></div>
+    <div class="status ok"><span class="dot"></span><b>1.258 nơi hợp</b> với chuyến của bạn. Đã loại 2 nơi vì “không đông”.<span class="next" style="color:var(--ink-3);font-weight:500">Xem vì sao</span></div>
+    <div class="body"><div class="x">
+      <h2>Gợi ý cho chuyến của bạn</h2>
+      <p class="sub">Xếp từ hợp nhất. Thêm vài nơi bạn thích, mình kiểm tra khả thi ngay.</p>
+      <div class="tabs"><span class="on">Thiên nhiên và view<em>117</em></span><span>Cà phê và thư giãn<em>418</em><span class="new">+24 mới</span></span><span>Ăn uống<em>537</em></span><span>Điểm tham quan<em>186</em></span></div>
+      <div class="cards">
+        <article class="pc"><div class="ph" style="background-image:url(img/cloud.webp)"><span class="best">Hợp nhất</span><svg class="i heart"><use href="#heart"/></svg></div>
+          <h3>Điểm săn mây (mẫu)</h3><p class="meta">Thiên nhiên · 9′ từ trung tâm · 1–2 giờ</p>
+          <p class="why">Săn mây đẹp, 3 người nhắc</p><p class="cost">Đường vào dốc, cẩn thận khi đi xe máy</p>
+          <div class="act"><span>Chưa có giá</span><span class="add done"><svg class="i" style="width:16px;height:16px"><use href="#check"/></svg>Đã thêm</span></div></article>
+        <article class="pc"><div class="ph" style="background-image:url(img/terrace.webp)"><svg class="i heart"><use href="#heart"/></svg></div>
+          <h3>Quán cà phê view đồi (mẫu)</h3><p class="meta">Cà phê · 12′ từ trung tâm · 45–90′</p>
+          <p class="why">Ngồi lâu, yên tĩnh, 18 người nhắc</p><p class="cost">Chưa có giờ mở cửa</p>
+          <div class="act"><span>80–120k/người</span><span class="add">+ Thêm</span></div></article>
+        <article class="pc"><div class="ph" style="background-image:url(img/pine.webp)"><svg class="i heart"><use href="#heart"/></svg></div>
+          <h3>Rừng thông dạo bộ (mẫu)</h3><p class="meta">Công viên · 6′ từ trung tâm · 1 giờ</p>
+          <p class="why">Yên tĩnh, ít đông, 8 người nhắc</p><p class="cost">Đông vào buổi tối cuối tuần</p>
+          <div class="act"><span>Miễn phí</span><span class="add">+ Thêm</span></div></article>
+      </div>
+      <div class="dock"><span><b>4 nơi</b> đã chọn</span><span class="sep">|</span><span><b>6 giờ</b> tham quan</span><span class="sep">|</span><span><b>≈ 52′</b> đi lại</span><span class="sep">|</span><span style="color:var(--warn)">1 chỗ cần xem</span><span class="undo">Vừa thêm +75′ · <u>Hoàn tác</u></span><span class="btn">Xem lịch trình <svg class="i"><use href="#arrow"/></svg></span></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="sec">
+  <h2>3 · Lịch trình</h2>
+  <p class="lead">Ngày ở trái, dòng thời gian ở giữa, bản đồ và ba con số ở phải. Chỗ cần chú ý là một dòng chữ cam ngay dưới nơi đó.</p>
+  <div class="frame">
+    <div class="top"><div class="brand"><img src="img/logo.webp" alt="">TripGuardian</div>
+      <ol class="steps"><li class="done">Tìm hiểu</li><li class="done">Lựa chọn</li><li class="now">Lịch trình</li><li>Đánh giá</li></ol>
+      <div class="top-r">3 ngày · 2 người · xe máy<span class="avatar">V</span></div></div>
+    <div class="status ok"><span class="dot"></span><b>Đã xếp xong 3 ngày.</b> 4 nơi, khả thi, 1 chỗ nên xem ở ngày 3.</div>
+    <div class="body"><div class="p">
+      <div class="days"><div class="on">Ngày 1<small>Thứ 7, 17/10</small></div><div>Ngày 2<small>Chủ nhật, 18/10</small></div><div class="flag">Ngày 3<small>1 chỗ nên xem</small></div><div style="font-size:.85rem">+ Thêm nơi</div></div>
+      <div class="tl">
+        <h3>Ngày 1 · Săn mây rồi thư giãn</h3><p class="sub">Nắng đẹp, 18°C buổi sáng. Đi lại khoảng 40 phút.</p>
+        <div class="st"><span class="t">05:30</span><span class="im" style="background-image:url(img/cloud.webp)"></span><div><b>Điểm săn mây (mẫu)</b><span>1–2 giờ · mây đẹp nhất trước 07:00</span></div></div>
+        <div class="leg">Xe máy · 25 phút</div>
+        <div class="st"><span class="t">08:30</span><span class="im" style="background-image:url(img/terrace.webp)"></span><div><b>Quán cà phê view đồi (mẫu)</b><span>45–90′ · 80–120k/người</span><span class="warn">Chưa có giờ mở cửa, nên gọi trước</span></div></div>
+        <div class="leg">Xe máy · 12 phút</div>
+        <div class="st"><span class="t">11:00</span><span class="im" style="background-image:url(img/pine.webp)"></span><div><b>Rừng thông dạo bộ (mẫu)</b><span>1 giờ · miễn phí</span></div></div>
+        <div class="leg">Xe máy · 15 phút</div>
+        <div class="st"><span class="t">18:30</span><span class="im" style="background-image:url(img/dusk.webp)"></span><div><b>Ăn tối bên hồ (mẫu)</b><span>1,5 giờ · 150–250k/người</span><span class="warn">Cuối tuần đông, nên đặt chỗ</span></div></div>
+      </div>
+      <div class="side">
+        <div class="map"><svg viewBox="0 0 380 230" preserveAspectRatio="none"><path d="M40 195 C100 140 140 180 190 130 S300 60 345 45" stroke="#0f5f5a" stroke-width="2.5" stroke-dasharray="6 7" fill="none"/><circle cx="40" cy="195" r="8" fill="#0f5f5a"/><circle cx="190" cy="130" r="8" fill="#0f5f5a"/><circle cx="345" cy="45" r="8" fill="#e8590c"/></svg></div>
+        <div class="nums"><div><b>≈ 40′</b><span>đi lại</span></div><div><b>3 nơi</b><span>hôm nay</span></div><div><b>≈ 300k</b><span>chi phí</span></div></div>
+        <p class="verdict"><b>Độ vững: khá.</b> Có thời gian nghỉ giữa các nơi. Đường đi là ước tính thô, nên kiểm lại khi xuất phát.</p>
+      </div>
+      <div class="cta"><span class="btn line">Tối ưu lịch</span><span class="btn">Chốt kế hoạch này <svg class="i"><use href="#arrow"/></svg></span></div>
+    </div></div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>Dải trạng thái: bốn trạng thái, một dòng chữ</h2>
+  <p class="lead">Màu chỉ ở chấm tròn và ở việc kế tiếp. Không nền, không viền.</p>
+  <div class="states">
+    <div class="lab">Đang làm</div><div class="status work"><span class="dot"></span><b>Đang đọc câu của bạn.</b> “3 ngày” → Số ngày, “xe máy” → Phương tiện</div>
+    <div class="lab">Cần bạn</div><div class="status ask"><span class="dot"></span><b>Mình cần biết ngày đi</b> để kiểm tra giờ mở cửa<span class="next">Trả lời bên dưới <svg class="i"><use href="#arrow"/></svg></span></div>
+    <div class="lab">Xong</div><div class="status ok"><span class="dot"></span><b>Đã xếp xong 3 ngày.</b> 4 nơi, khả thi<span class="next">Xem lịch trình <svg class="i"><use href="#arrow"/></svg></span></div>
+    <div class="lab">Lỗi</div><div class="status err"><span class="dot"></span><b>Chưa xếp được lịch.</b> Các nơi đã chọn chưa đủ cho 3 ngày. Dữ liệu của bạn vẫn còn.<span class="next">Chọn thêm nơi <svg class="i"><use href="#arrow"/></svg></span></div>
+  </div>
+</section>
+</div>
+</body>
+</html>

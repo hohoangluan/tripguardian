@@ -74,12 +74,6 @@ class Tools:
             return self.engine.why_not(sid, payload.get("place", ""))
         if operation == "page":
             return self.engine.page(sid, str(payload.get("group", "")))
-        if operation == "fit":
-            places = payload.get("places", "")  # a query string value: place ids joined by commas
-            places = [x for x in places.split(",") if x] if isinstance(places, str) else places
-            if not isinstance(places, list) or len(places) > 60 or not all(isinstance(x, str) for x in places):
-                raise ValueError("places must be at most 60 place ids")
-            return self.engine.fits(sid, places)
         if operation == "draft":
             out = self.engine.draft(sid)
             return {"output": None if out is None else
@@ -106,6 +100,10 @@ class Tools:
         before = self.load(sid)["view"]
         with self.engine.store.lock(sid):
             s = self.engine.store.get(sid)
+            if s.search_input.context != inp.search_input.context:
+                s.state = s.state.model_copy(update={"chunk_assignments": {}, "free_time": False})
+                s.history = [state.model_copy(update={"chunk_assignments": {}, "free_time": False})
+                             for state in s.history]
             s.search_input, s.trip_session, s.output = inp.search_input, inp.trip_session, None
             for anchor in inp.search_input.anchors:
                 if anchor.place_id not in s.state.selected:

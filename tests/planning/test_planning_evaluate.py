@@ -1,3 +1,4 @@
+import pytest
 
 from planning import evaluate as ev
 from plan_fixtures import rec

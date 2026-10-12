@@ -1,4 +1,4 @@
-# Serving record (src/corpus/serving, docs/P3_PLACE_DECISION.md §2.2). Thresholds here, logic in code.
+# Serving record (src/corpus/serving, docs/PLACE_DECISION.md §2.2). Thresholds here, logic in code.
 freshness_days:          # older evidence -> OUTDATED (still served, with a warning)
   hours: 90
   price: 180
@@ -11,3 +11,13 @@ near_duplicate:
   jaccard: 0.6           # share of evidenced experience/environment features two places of one group must share
   min_features: 3        # places with fewer evidenced features are never grouped (too little to compare)
 mmr_lambda: 0.7          # score vs difference when picking the next place of a shortlist
+details:                 # free-text place details (docs/CORPUS.md, serving `details`)
+  min_authors: 2         # a cluster is served from this many authors, or one authoritative source
+  max_items: 6           # per list block
+  known_for_more: 3
+  cluster_jaccard: 0.6   # token-set overlap that merges two phrasings of one thing
+  stopwords: ["rất", "khá", "hơi", "cực", "siêu", "lắm", "quá", "nha", "nhé", "thì", "là", "của", "ở", "đây", "này"]
+  night_market_fid: "0x317113ff4e41e7c3:0x21cff9ad21a7243c"   # "Chợ Đêm Đà Lạt" in the corpus
+  walk_max_min: 20
+  walk_road_factor: 1.3
+  walk_m_per_min: 80

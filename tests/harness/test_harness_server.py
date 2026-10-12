@@ -10,38 +10,31 @@ from test_dispatch import make
 
 ORIGIN = "http://app.test"
 USERS = {"tok-a": "a" * 32, "tok-b": "b" * 32}
-GUEST = {"tok-g": "9" * 32}
+GUESTS = {"tok-g": "c" * 32}
 
 
 class FakeAccounts:
     """Sessions tok-a / tok-b; the real service is covered in tests/accounts."""
     def __init__(self):
-        self.logged_out, self.deleted, self.places, self.guests, self.patterns = [], [], {}, 0, {}
+        self.logged_out, self.deleted, self.dropped, self.guests_made = [], [], [], 0
 
     def user_for(self, token):
-        if token in GUEST:
-            return {"id": GUEST[token], "role": "guest"}, False
-        return ({"id": USERS[token], "role": "user"}, False) if token in USERS else (None, False)
+        if token in USERS:
+            return {"id": USERS[token], "role": "user", "guest": False}, False
+        if token in GUESTS:
+            return {"id": GUESTS[token], "role": "user", "guest": True}, False
+        return None, False
 
     def guest(self, user_agent=""):
-        self.guests += 1
+        self.guests_made += 1
         return "tok-g"
 
-    def consent(self, uid, version):
-        if version != "v1":
-            raise ValueError("terms version is not current")
-        return self.me(uid)
-
-    def set_patterns(self, uid, on):
-        if not isinstance(on, bool):
-            raise ValueError("patterns must be true or false")
-        self.patterns[uid] = on
-        return self.me(uid)
+    def drop_guest(self, uid):
+        self.dropped.append(uid)
+        return uid in GUESTS.values()
 
     def me(self, uid):
-        return {"id": uid, "role": "guest" if uid in GUEST.values() else "user",
-                "consents": {"patterns": True} if self.patterns.get(uid) else {},
-                "usual_mobility": "motorbike", "usual_companions": None}
+        return {"id": uid, "consents": {}, "usual_mobility": "motorbike", "usual_companions": None}
 
     def update(self, uid, patch):
         if set(patch) - {"home_city"}:
@@ -50,19 +43,6 @@ class FakeAccounts:
 
     def set_avatar(self, uid, data):
         return {"id": uid, "bytes": len(data)}
-
-    def saved(self, uid):
-        return self.places.setdefault(uid, [])
-
-    def save_places(self, uid, ids):
-        if not isinstance(ids, list) or not ids:
-            raise ValueError("place_ids must be a list")
-        self.places[uid] = ids + [p for p in self.saved(uid) if p not in ids]
-        return self.places[uid]
-
-    def unsave_place(self, uid, pid):
-        self.places[uid] = [p for p in self.saved(uid) if p != pid]
-        return self.places[uid]
 
     def logout(self, token):
         self.logged_out.append(token)
@@ -117,18 +97,40 @@ def test_http_validates_input_and_routes_a_journey(client):
     assert call(client, "POST", f"/api/harness/sessions/{view['id']}/request", {})[0] == 400
 
 
-def test_only_a_missing_journey_is_404_and_a_stage_key_error_is_500(server_parts, client):
-    harness, _, _ = server_parts
-    _, view = call(client, "POST", "/api/harness/sessions", {})
-
-    def broken(*args, **kwargs):  # e.g. Planning indexing a place it never loaded
-        raise KeyError("place-9")
-    harness.load = broken
-    code, body = call(client, "GET", f"/api/harness/sessions/{view['id']}")
-    assert code == 500 and body == {"error": "server error"}
-    assert call(client, "GET", "/api/harness/sessions/000000000000")[0] == 500  # load itself is broken here
-    del harness.load
-    assert call(client, "GET", "/api/harness/sessions/000000000000")[0] == 404
+def test_real_preview_http_enforces_owner_input_and_read_only_revision(client, server_parts):
+    from urllib.parse import quote
+    from plan_fixtures import CFG, FakeLive, no_geocode, fake_matrix, spot, CENTRE
+    from planning import Engine, Tools
+    from decision import Data, Engine as DecisionEngine, Store, Tools as DecisionTools, load_settings
+    from test_dispatch import run
+    harness, tools, _ = server_parts
+    records = [spot('place-1', CENTRE, 0)]
+    records[0]['provenance'] = {'voices': 1}
+    harness.tools['decision'] = DecisionTools(DecisionEngine(Data(records), load_settings(), Store(None)))
+    pt = Tools(Engine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
+                     matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050),
+                     lodging_fn=lambda *a: [], background=False))
+    harness.tools['planning'] = pt
+    _, v = call(client, 'POST', '/api/harness/sessions', {})
+    v = run(harness, v, 'turn', 'compile', {'kind': 'show'})
+    v = run(harness, v, 'advance', 'decision')
+    v = run(harness, v, 'act', 'select', {'type': 'select', 'place_id': 'place-1'})
+    v = run(harness, v, 'advance', 'planning')
+    variant = v['result']['view']['variants'][0]['id']
+    v = run(harness, v, 'act', 'pick', {'type': 'pick_variant', 'id': variant})
+    sid = v['sessions']['planning']
+    before = pt.snapshot(sid)
+    path = f"/api/harness/sessions/{v['id']}/read/planning/preview-act?action="
+    action = quote(json.dumps({'type': 'drop_place', 'place': 'place-1'}))
+    status, preview = call(client, 'GET', path + action)
+    assert status == 200 and preview['revision'] == v['revision']
+    assert preview['token'] and pt.snapshot(sid) == before
+    assert harness.load(v['id'])['revision'] == v['revision']
+    assert call(client, 'GET', path + action, token='tok-b')[0] == 404
+    assert call(client, 'GET', path + action, token=None)[0] == 401
+    for raw in ('{', '[]', 'x' * 8193):
+        assert call(client, 'GET', path + quote(raw))[0] == 400
+    assert pt.snapshot(sid) == before
 
 
 def test_turn_sse_has_request_stage_and_committed_revision(client):
@@ -197,16 +199,6 @@ def test_decision_page_is_a_read(client):
     assert code == 200 and body == {"operation": "page", "payload": {"group": "chill"}}
 
 
-def test_decision_fit_is_a_read(client):
-    _, view = call(client, "POST", "/api/harness/sessions", {})
-    base = f"/api/harness/sessions/{view['id']}"
-    req = {"request_id": "t", "stage": "trip", "operation": "turn", "expected_revision": 0, "payload": {"kind": "show"}}
-    call(client, "POST", f"{base}/request", req)
-    call(client, "POST", f"{base}/request", {"request_id": "a", "stage": "trip", "operation": "advance", "expected_revision": 1})
-    code, body = call(client, "GET", f"{base}/read/decision/fit?places=a,b")
-    assert code == 200 and body == {"operation": "fit", "payload": {"places": "a,b"}}
-
-
 def test_logistics_lookups_need_no_journey(client):
     code, rows = call(client, "GET", "/api/harness/geo?q=B%E1%BA%BFn%20Th%C3%A0nh")
     assert code == 200 and rows[0]["text"] == "Bến Thành" and rows[0]["source"] == "photon"
@@ -215,9 +207,6 @@ def test_logistics_lookups_need_no_journey(client):
     assert call(client, "GET", "/api/harness/transit?mode=boat&from=SGN&to=DLI&date=2026-11-12")[0] == 400
     code, body = call(client, "GET", "/api/harness/transit?mode=plane&from=SGN&to=DLI&date=2026-11-12")
     assert code == 200 and body["status"] == "pending" and body["book_url"]
-    assert call(client, "GET", "/api/harness/rentals?mode=car")[0] == 400
-    code, body = call(client, "GET", "/api/harness/rentals?mode=bus")
-    assert code == 200 and body["status"] in ("ready", "none") and body["hub"]["text"] == "Bến xe Liên tỉnh Đà Lạt"
 
 
 def test_transit_events_push_one_event_when_the_crawl_lands(client, monkeypatch):
@@ -310,7 +299,7 @@ def test_new_journey_gets_the_profile_as_a_trip_prior(client, server_parts):
     _, tools, _ = server_parts
     _, view = call(client, "POST", "/api/harness/sessions", {})
     sent = tools["trip"].states[view["sessions"]["trip"]]["input"]
-    assert sent["user_id"] is None and sent["profile"] == {"usual_mobility": "motorbike"}  # nothing learned without consent
+    assert sent["user_id"] == USERS["tok-a"] and sent["profile"] == {"usual_mobility": "motorbike"}
 
 
 def test_events_route_takes_anonymous_landing_batches_but_not_cross_origin(client):
@@ -364,71 +353,73 @@ def test_notification_routes_need_a_session_and_reach_notify(client, server_part
     assert harness.notify.resumed == [USERS["tok-a"]]
 
 
-def test_saved_places_are_per_account_and_mutations_need_the_app_origin(client):
-    assert call(client, "GET", "/api/harness/me/saved") == (200, {"saved": []})
-    assert call(client, "POST", "/api/harness/me/saved", {"place_ids": ["0x1:0xa"]}, origin="http://evil.test")[0] == 403
-    assert call(client, "POST", "/api/harness/me/saved", {"place_ids": ["0x1:0xa", "0x2:0xb"]}) == \
-        (200, {"saved": ["0x1:0xa", "0x2:0xb"]})
-    assert call(client, "POST", "/api/harness/me/saved", {"ids": []})[0] == 400
-    assert call(client, "GET", "/api/harness/me/saved", token="tok-b") == (200, {"saved": []})
-    assert call(client, "DELETE", "/api/harness/me/saved/0x1%3A0xa", origin="http://evil.test")[0] == 403
-    assert call(client, "DELETE", "/api/harness/me/saved/0x1%3A0xa") == (200, {"saved": ["0x2:0xb"]})
-    assert call(client, "GET", "/api/harness/me/saved", token=None)[0] == 401
-
-
-# --- guests: one trial journey, no history, no account features -------------------------------------------------------
-
-def test_guest_start_sets_a_one_day_cookie_and_is_not_repeated_for_a_session(client, server_parts):
-    client.request("POST", "/api/auth/guest", "{}", headers(token=None))
+def start_guest(client, origin=ORIGIN, token=None):
+    client.request("POST", "/api/auth/guest", "{}", headers(token, origin))
     response = client.getresponse()
-    assert response.status == 200 and json.loads(response.read())["role"] == "guest"
-    cookie = response.getheader("Set-Cookie")
-    assert "tg_session=tok-g" in cookie and "Max-Age=86400" in cookie
-    assert call(client, "POST", "/api/auth/guest", {}, token="tok-g")[0] == 200
-    assert call(client, "POST", "/api/auth/guest", {}, token="tok-a")[0] == 200
-    assert server_parts[2].guests == 1  # a session that already exists does not make another guest
-    assert call(client, "POST", "/api/auth/guest", {}, token=None, origin="https://evil.example")[0] == 403
+    return response.status, json.loads(response.read()), response.getheader("Set-Cookie")
 
 
-def test_a_guest_gets_one_journey_and_no_history(client):
-    code, view = call(client, "POST", "/api/harness/sessions", {}, token="tok-g")
-    assert code == 200
-    assert call(client, "GET", f"/api/harness/sessions/{view['id']}", token="tok-g")[0] == 200
-    code, body = call(client, "POST", "/api/harness/sessions", {}, token="tok-g")
-    assert code == 409 and body["error"] == "guest_limit"
-    assert call(client, "GET", "/api/harness/trips", token="tok-g") == (200, [])
-    assert call(client, "POST", "/api/harness/sessions", {}, token="tok-a")[0] == 200  # accounts are not limited
-    assert call(client, "POST", "/api/harness/sessions", {}, token="tok-a")[0] == 200
-
-
-def test_a_guest_cannot_use_account_features(client):
-    for method, path, body in (("GET", "/api/harness/me/saved", None), ("POST", "/api/harness/me/saved", {"place_ids": ["p"]}),
-                               ("PATCH", "/api/harness/me", {"home_city": "Huế"}), ("DELETE", "/api/harness/me", {"confirm": True}),
-                               ("POST", "/api/harness/me/consent", {"version": "x"}),
-                               ("POST", "/api/harness/calendar/apply", {"journey": "a" * 12}),
-                               ("POST", "/api/harness/calendar/disconnect", {})):
-        code, out = call(client, method, path, body, token="tok-g")
-        assert (code, out["error"]) == (403, "sign_in_required"), path
-
-
-# --- remembering choices across trips (docs/P2_TRIP_UNDERSTANDING.md §17) --------------------------------------------------
-
-def test_the_choice_to_remember_is_set_apart_from_the_terms_and_must_be_a_boolean(client, server_parts):
+def test_guest_starts_with_a_short_cookie_and_only_from_the_own_origin(client, server_parts):
     _, _, accounts = server_parts
-    assert call(client, "POST", "/api/harness/me/consent", {"patterns": True})[0] == 200
-    assert accounts.patterns == {USERS["tok-a"]: True}
-    assert call(client, "POST", "/api/harness/me/consent", {"patterns": "yes"})[0] == 400
-    assert call(client, "POST", "/api/harness/me/consent", {})[0] == 400
-    assert call(client, "POST", "/api/harness/me/consent", {"version": "old"})[0] == 400
-    assert call(client, "POST", "/api/harness/me/consent", {"version": "v1", "patterns": False})[0] == 200
-    assert accounts.patterns[USERS["tok-a"]] is False
+    code, body, cookie = start_guest(client)
+    assert code == 200 and body == {"started": True} and accounts.guests_made == 1
+    assert cookie.startswith("tg_session=tok-g;") and "Max-Age=86400" in cookie and "HttpOnly" in cookie
+    assert start_guest(client, origin=None)[0] == 403 and accounts.guests_made == 1
+    code, body, cookie = start_guest(client, token="tok-a")  # already has a session: no second identity
+    assert (code, body, cookie) == (200, {"started": False}, None) and accounts.guests_made == 1
 
 
-def test_a_journey_learns_and_is_seeded_only_for_someone_who_agreed(client, server_parts):
-    _, tools, _ = server_parts
-    call(client, "POST", "/api/harness/sessions", {})
-    call(client, "POST", "/api/harness/me/consent", {"patterns": True})
-    call(client, "POST", "/api/harness/sessions", {})
-    inputs = [v["input"] for v in tools["trip"].states.values()]
-    assert (inputs[0]["user_id"], inputs[0]["remember"]) == (None, False)
-    assert (inputs[1]["user_id"], inputs[1]["remember"]) == (USERS["tok-a"], True)
+def test_guest_starts_are_limited_per_address(client, server_parts, monkeypatch):
+    from harness import server
+    monkeypatch.setattr(server, "GUEST_PER_IP_HOUR", 2)
+    assert [start_guest(client)[0] for _ in range(3)] == [200, 200, 429]
+
+
+def test_guest_plans_but_not_with_members_only_features(client):
+    code, view = call(client, "POST", "/api/harness/sessions", {}, token="tok-g")
+    assert code == 200 and view["stage"] == "trip"
+    assert call(client, "GET", f"/api/harness/sessions/{view['id']}", token="tok-g")[0] == 200
+    for path in ("/api/harness/notifications", "/api/harness/push/key", "/api/harness/me/notification-prefs",
+                 "/api/harness/calendar/preview?journey=x", f"/api/harness/sessions/{view['id']}/today"):
+        code, body = call(client, "GET", path, token="tok-g")
+        assert (code, body["error"]) == (403, "guest"), path
+    for path in ("/api/harness/calendar/apply", "/api/harness/push/subscribe", "/api/harness/calendar/disconnect",
+                 f"/api/harness/sessions/{view['id']}/companion"):
+        assert call(client, "POST", path, {}, token="tok-g")[0] == 403, path
+    assert call(client, "PATCH", "/api/harness/me", {"home_city": "Huế"}, token="tok-g")[0] == 403
+    assert call(client, "PATCH", "/api/harness/me", {"home_city": "Huế"}, token="tok-a")[0] == 200
+
+
+def test_guest_journey_has_no_profile_prior_and_no_learning(client, server_parts, monkeypatch):
+    harness, _, _ = server_parts
+    seen = []
+    real = harness.create
+    monkeypatch.setattr(harness, "create", lambda *args: seen.append(args) or real(*args))
+    call(client, "POST", "/api/harness/sessions", {}, token="tok-g")
+    call(client, "POST", "/api/harness/sessions", {}, token="tok-a")
+    guest_args, member_args = seen
+    assert guest_args[3] is False and guest_args[5] == {}  # remember, profile prior
+    assert member_args[5] == {"usual_mobility": "motorbike"}
+
+
+def test_guest_journeys_are_not_capped(client):
+    for _ in range(6):
+        assert call(client, "POST", "/api/harness/sessions", {}, token="tok-g")[0] == 200
+    assert len(call(client, "GET", "/api/harness/trips", token="tok-g")[1]) == 6
+
+
+def test_guest_delete_ends_the_visit_and_an_account_still_asks_for_confirm(client, server_parts):
+    _, _, accounts = server_parts
+    assert call(client, "DELETE", "/api/harness/me", {}, token="tok-g") == (200, {"deleted": True})
+    assert accounts.dropped == [GUESTS["tok-g"]] and accounts.deleted == []
+    assert call(client, "DELETE", "/api/harness/me", {}, token="tok-a")[0] == 400
+
+
+def test_sign_in_moves_the_guest_journeys_to_the_account(client, server_parts):
+    harness, _, _ = server_parts
+    _, view = call(client, "POST", "/api/harness/sessions", {}, token="tok-g")
+    assert harness.adopt(GUESTS["tok-g"], USERS["tok-a"]) == 1
+    assert [s["id"] for s in call(client, "GET", "/api/harness/trips", token="tok-a")[1]] == [view["id"]]
+    assert call(client, "GET", "/api/harness/trips", token="tok-g")[1] == []
+    assert call(client, "GET", f"/api/harness/sessions/{view['id']}", token="tok-g")[0] == 404
+    assert call(client, "GET", f"/api/harness/sessions/{view['id']}", token="tok-a")[0] == 200

@@ -1,6 +1,6 @@
 """Place Decision thresholds (config/decision.yaml)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
@@ -23,16 +23,11 @@ class Settings:
     rainy_months: tuple
     min_context_fit: float
     weights: dict
-    stars: dict
-    top_min_pref: float
     price_ref_vnd: int
     near_min: int
     per_day: dict
     per_day_max: dict
     meals_per_day: int
-    meal_at: tuple
-    meal_min: int
-    fill_share: float
     spare_factor: float
     pool_factor: int
     default_days: int
@@ -60,17 +55,19 @@ class Settings:
     page_size: int
     keep_factor: float
     replace_below: float
-    day_visit: dict
     first_token_s: float
     total_s: float
     display_groups: dict
     polarity: dict
     labels: dict
+    shortlist_days: int = 7
+    coach_min_people: int = 9  # a party this big needs a coach or a 16-seater: it counts as the companion `large_group`
+    details_fit: dict = field(default_factory=lambda: {"good_bonus": 0.1, "bad_penalty": 0.2, "feature_bonus": 0.05})
 
 
 def load(path: Path = PATH) -> Settings:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    for k in ("rainy_months", "narrow_buckets", "timed_features", "meal_at"):
+    for k in ("rainy_months", "narrow_buckets", "timed_features"):
         raw[k] = tuple(raw[k])
     return Settings(**raw)
 

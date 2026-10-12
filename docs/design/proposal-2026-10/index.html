@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đề xuất giao diện TripGuardian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<style>
+/* Tokens: copied from web/src/user/css/tokens.css. No new colour. */
+:root {
+  --bg: #faf7f2; --surface: #fff; --ink: #1b2a2f; --ink-2: #4a5a60; --ink-3: #5c696e;
+  --line: #e7e1d6; --line-2: #d6cdbb;
+  --pine: #0f5f5a; --pine-d: #0b4743; --pine-soft: #e3f1ee; --pine-line: #bcdcd6;
+  --sun: #e8590c; --sun-ink: #b8420a; --sun-soft: #fdebdd;
+  --warn: #8a5a00; --warn-bg: #fff4dc; --warn-line: #f0d9a0;
+  --danger: #b42318; --danger-bg: #fdeceb;
+  --r-s: 10px; --r-m: 16px; --r-l: 22px;
+  --sh-1: 0 1px 2px rgba(27,42,47,.06), 0 6px 20px rgba(27,42,47,.06);
+  --sh-2: 0 2px 4px rgba(27,42,47,.06), 0 18px 48px rgba(27,42,47,.14);
+  --display: 'Lora', Georgia, serif; --sans: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #e8ecec; color: var(--ink); font: 400 15px/1.5 var(--sans); }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.doc { max-width: 1360px; margin: 0 auto; padding: 56px 40px 96px; }
+.doc > header h1 { font: 600 2.4rem/1.15 var(--display); }
+.doc > header p { color: var(--ink-2); max-width: 74ch; margin-top: 10px; }
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.chip-row span { background: var(--surface); border: 1px solid var(--line-2); border-radius: 999px; padding: 4px 12px; font-size: .85rem; color: var(--ink-2); }
+.sec { margin-top: 64px; }
+.sec > h2 { font: 600 1.7rem/1.2 var(--display); }
+.sec > .lead { color: var(--ink-2); margin: 6px 0 22px; max-width: 80ch; }
+.why { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+.why div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 16px 18px; }
+.why b { display: block; font-weight: 600; margin-bottom: 4px; }
+.why p { font-size: .9rem; color: var(--ink-2); }
+.why .bad { color: var(--danger); } .why .good { color: var(--pine); }
+.notes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+.notes div { font-size: .88rem; color: var(--ink-2); padding-left: 34px; position: relative; }
+.notes div::before { content: attr(data-n); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--sun-ink); color: #fff; font: 700 .78rem/24px var(--sans); text-align: center; }
+.notes b { color: var(--ink); display: block; font-weight: 600; }
+
+/* ---------- App frame (1280 x 800 desktop) ---------- */
+.frame { width: 1280px; height: 800px; background: var(--bg); border-radius: 14px; overflow: hidden; box-shadow: var(--sh-2); border: 1px solid var(--line-2); position: relative; display: flex; flex-direction: column; margin: 0 auto; }
+.top { height: 64px; background: var(--surface); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 24px; gap: 28px; flex: none; }
+.brand { display: flex; align-items: center; gap: 10px; font: 600 1.1rem var(--display); width: 190px; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; }
+.steps { display: flex; align-items: center; flex: 1; justify-content: center; list-style: none; padding: 0; }
+.steps li { display: flex; align-items: center; gap: 8px; font-size: .9rem; font-weight: 500; color: var(--ink-3); }
+.steps li + li::before { content: ''; width: 36px; height: 2px; background: var(--line-2); margin: 0 10px; border-radius: 2px; }
+.steps li.done + li::before, .steps li.now::before { background: var(--pine); }
+.steps i { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--line-2); display: grid; place-items: center; font: 600 .75rem var(--sans); font-style: normal; }
+.steps .done { color: var(--pine); } .steps .done i { background: var(--pine-soft); border-color: var(--pine-line); }
+.steps .now { color: var(--ink); font-weight: 600; } .steps .now i { background: var(--pine); border-color: var(--pine); color: #fff; }
+.steps svg.i { width: 13px; height: 13px; stroke-width: 2.4; }
+.top-r { display: flex; align-items: center; gap: 12px; width: 300px; justify-content: flex-end; }
+.ticket-btn { display: flex; align-items: center; gap: 8px; border: 1px solid var(--sun); background: var(--sun-soft); color: var(--sun-ink); border-radius: 999px; padding: 6px 14px 6px 12px; font-size: .82rem; font-weight: 600; white-space: nowrap; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--pine-soft); color: var(--pine); display: grid; place-items: center; font-weight: 600; font-size: .85rem; border: 1px solid var(--pine-line); }
+
+/* Status strip: the one place that says what the system is doing and what comes next */
+.status { height: 46px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--surface); font-size: .9rem; }
+.status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--pine); position: relative; flex: none; }
+.status.work .dot::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--pine); opacity: .4; }
+.status.ask { background: var(--warn-bg); border-color: var(--warn-line); } .status.ask .dot { background: var(--sun); }
+.status.ok { background: var(--pine-soft); border-color: var(--pine-line); }
+.status b { font-weight: 600; }
+.status .trail { display: flex; gap: 6px; align-items: center; color: var(--ink-2); font-size: .82rem; margin-left: 4px; }
+.status .go { margin-left: auto; display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--pine); font-size: .88rem; }
+.status .bar { margin-left: auto; width: 180px; height: 6px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.status .bar i { display: block; height: 100%; background: var(--pine); border-radius: 6px; }
+
+.body { flex: 1; overflow: hidden; position: relative; }
+.btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 10px 20px; font: 600 .9rem var(--sans); border: 1px solid transparent; background: var(--pine); color: #fff; white-space: nowrap; }
+.btn.ghost { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
+.btn.sm { padding: 6px 14px; font-size: .82rem; }
+.eyebrow { font: 600 .72rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+
+/* ---------- Screen 1: Hiểu chuyến đi ---------- */
+.u { display: grid; grid-template-columns: 1fr 420px; gap: 28px; padding: 28px 40px; height: 100%; }
+.convo { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.bubble { display: flex; gap: 10px; align-items: flex-start; }
+.bubble .bot { width: 30px; height: 30px; border-radius: 50%; background: var(--pine); display: grid; place-items: center; color: #fff; flex: none; }
+.bubble p { background: var(--surface); border: 1px solid var(--line); padding: 10px 14px; border-radius: 4px 16px 16px 16px; max-width: 520px; font-size: .92rem; }
+.bubble.me { justify-content: flex-end; } .bubble.me p { background: var(--pine); color: #fff; border: 0; border-radius: 16px 4px 16px 16px; }
+.qcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 22px 24px; box-shadow: var(--sh-1); }
+.qcard h3 { font: 600 1.55rem/1.25 var(--display); margin: 6px 0 4px; }
+.qcard .because { font-size: .86rem; color: var(--pine); display: flex; gap: 6px; align-items: center; margin-bottom: 14px; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt { border: 1.5px solid var(--line); border-radius: var(--r-m); padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; }
+.opt .ic { width: 34px; height: 34px; border-radius: 10px; background: var(--pine-soft); color: var(--pine); display: grid; place-items: center; flex: none; }
+.opt b { display: block; font-weight: 600; font-size: .92rem; } .opt span { font-size: .8rem; color: var(--ink-3); }
+.opt.on { border-color: var(--pine); background: var(--pine-soft); }
+.opt.dim { border-style: dashed; background: transparent; }
+.hint { margin-top: 12px; display: flex; justify-content: space-between; font-size: .8rem; color: var(--ink-3); }
+.compose { margin-top: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: 999px; padding: 8px 8px 8px 20px; display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: .9rem; }
+.compose .btn { margin-left: auto; padding: 8px 14px; }
+.tk { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); box-shadow: var(--sh-1); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.tk-h { padding: 16px 20px 12px; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed var(--line-2); }
+.tk-h h4 { font: 600 1.15rem var(--display); }
+.row { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; padding: 11px 20px; border-bottom: 1px solid var(--line); align-items: center; }
+.row .k { font-size: .76rem; color: var(--ink-3); } .row .v { font-weight: 600; font-size: .92rem; }
+.row .src { font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--ink-2); border: 1px solid var(--line); }
+.row .src.you { background: var(--pine-soft); color: var(--pine); border-color: var(--pine-line); }
+.row.new { background: var(--sun-soft); } .row.new .src { background: var(--sun-ink); color: #fff; border-color: var(--sun); }
+.row.ask { background: var(--warn-bg); } .row .ask-t { color: var(--warn); font-weight: 600; font-size: .82rem; }
+.row svg.i { color: var(--ink-3); }
+.funnel { margin-top: auto; padding: 16px 20px 18px; background: var(--bg); border-top: 1px solid var(--line); }
+.funnel .n { font: 600 2rem/1 var(--display); color: var(--pine); } .funnel .n small { font: 400 .85rem var(--sans); color: var(--ink-3); margin-left: 6px; }
+.funnel .track { height: 8px; background: var(--line); border-radius: 8px; margin: 10px 0 8px; overflow: hidden; } .funnel .track i { display: block; width: 9.5%; height: 100%; background: var(--pine); }
+.funnel p { font-size: .8rem; color: var(--ink-2); }
+
+/* ---------- Screen 2: Lựa chọn ---------- */
+.x { padding: 22px 40px 0; height: 100%; }
+.x-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
+.x-head h2 { font: 600 2rem/1.15 var(--display); }
+.x-head p { color: var(--ink-2); font-size: .9rem; margin-top: 4px; }
+.seg { display: flex; background: var(--surface); border: 1px solid var(--line-2); border-radius: 999px; padding: 3px; font-size: .82rem; font-weight: 600; }
+.seg span { padding: 6px 14px; border-radius: 999px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; } .seg .on { background: var(--pine); color: #fff; }
+.tabs { display: flex; gap: 8px; margin: 16px 0 14px; }
+.tab { border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: .86rem; font-weight: 500; display: flex; gap: 8px; align-items: center; }
+.tab em { font-style: normal; color: var(--ink-3); font-size: .78rem; } .tab.on { background: var(--pine); color: #fff; border-color: var(--pine); } .tab.on em { color: #cfe8e4; }
+.tab .new { background: var(--sun-soft); color: var(--sun-ink); font-weight: 600; font-size: .7rem; padding: 1px 7px; border-radius: 999px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.pc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); overflow: hidden; box-shadow: var(--sh-1); display: flex; flex-direction: column; }
+.pc.picked { border: 2px solid var(--pine); }
+.pc .ph { height: 150px; position: relative; background-size: cover; background-position: center; }
+.pc .ph .tag { position: absolute; left: 10px; top: 10px; background: var(--pine); color: #fff; font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; display: flex; gap: 4px; align-items: center; }
+.pc .ph .tag svg.i { width: 12px; height: 12px; }
+.pc .ph .heart { position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.92); display: grid; place-items: center; }
+.pc .ph::after { content: ''; position: absolute; inset: auto 0 0 0; height: 44px; background: linear-gradient(transparent, rgba(11,28,31,.62)); }
+.pc .ph .cr { position: absolute; left: 10px; bottom: 8px; font-size: .72rem; color: #fff; z-index: 1; }
+.pc .in { padding: 14px 16px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.pc h3 { font: 600 1.12rem/1.25 var(--display); }
+.pc .meta { font-size: .8rem; color: var(--ink-3); display: flex; gap: 10px; flex-wrap: wrap; }
+.pc .meta span { display: inline-flex; gap: 4px; align-items: center; } .pc .meta svg.i { width: 14px; height: 14px; }
+.pc ul { list-style: none; padding: 0; display: grid; gap: 3px; font-size: .86rem; }
+.pc li { display: flex; gap: 8px; align-items: flex-start; } .pc li svg.i { width: 15px; height: 15px; color: var(--pine); margin-top: 3px; stroke-width: 2.4; }
+.pc .trade { background: var(--warn-bg); color: var(--warn); border-radius: var(--r-s); padding: 6px 10px; font-size: .8rem; display: flex; gap: 8px; align-items: center; font-weight: 500; }
+.pc .trade svg.i { width: 15px; height: 15px; }
+.pc .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+.pc .foot .price { font-size: .82rem; color: var(--ink-2); font-weight: 500; margin-right: auto; }
+.pc .more { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-2); display: grid; place-items: center; color: var(--ink-2); }
+.pc .btn.added { background: var(--pine-soft); color: var(--pine); border-color: var(--pine-line); }
+.dock { position: absolute; left: 24px; right: 24px; bottom: 16px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-l); box-shadow: var(--sh-2); padding: 12px 14px 12px 18px; display: flex; align-items: center; gap: 20px; }
+.dock .stack { display: flex; } .dock .stack i { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; background-size: cover; margin-left: -10px; } .dock .stack i:first-child { margin-left: 0; }
+.dock .stat b { display: block; font: 600 1.15rem/1.1 var(--display); } .dock .stat span { font-size: .72rem; color: var(--ink-3); }
+.dock .sep { width: 1px; height: 32px; background: var(--line); }
+.dock .feas { display: flex; gap: 8px; align-items: center; background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: .82rem; font-weight: 600; }
+.dock .delta { font-size: .8rem; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
+.dock .delta a { color: var(--pine); font-weight: 600; text-decoration: underline; }
+.dock .btn { margin-left: auto; }
+.asst { position: absolute; right: 0; top: 150px; background: var(--surface); border: 1px solid var(--line-2); border-right: 0; border-radius: 14px 0 0 14px; padding: 10px 12px; color: var(--pine); box-shadow: var(--sh-1); }
+
+/* ---------- Screen 3: Lịch trình ---------- */
+.p { display: grid; grid-template-columns: 220px 1fr 380px; gap: 24px; padding: 22px 32px; height: 100%; }
+.days { display: grid; gap: 8px; align-content: start; }
+.day { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-m); padding: 12px 14px; }
+.day b { display: block; font: 600 1rem var(--display); } .day span { font-size: .78rem; color: var(--ink-3); }
+.day.on { border: 2px solid var(--pine); background: var(--pine-soft); }
+.day .flag { display: inline-flex; gap: 4px; align-items: center; color: var(--warn); font-weight: 600; margin-top: 4px; font-size: .75rem; }
+.tl { position: relative; padding-left: 4px; }
+.tl h3 { font: 600 1.6rem var(--display); } .tl .sub { font-size: .86rem; color: var(--ink-2); margin: 2px 0 14px; }
+.stop { display: grid; grid-template-columns: 56px 12px 1fr; gap: 10px; }
+.stop .t { font: 600 .9rem var(--sans); color: var(--ink); text-align: right; padding-top: 12px; }
+.stop .rail { position: relative; } .stop .rail::before { content: ''; position: absolute; left: 5px; top: 0; bottom: -2px; width: 2px; background: var(--line-2); }
+.stop .rail i { position: absolute; left: 0; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--pine); border: 2px solid var(--bg); box-shadow: 0 0 0 1.5px var(--pine); }
+.stop .c { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 10px 14px; display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
+.stop .c .im { width: 56px; height: 56px; border-radius: 12px; background-size: cover; flex: none; }
+.stop .c b { font: 600 1rem var(--display); display: block; } .stop .c span { font-size: .78rem; color: var(--ink-3); display: block; }
+.stop .c .note { color: var(--warn); font-weight: 500; }
+.go-leg { display: grid; grid-template-columns: 56px 12px 1fr; gap: 10px; font-size: .78rem; color: var(--ink-3); }
+.go-leg .rail { position: relative; } .go-leg .rail::before { content: ''; position: absolute; left: 5px; top: -2px; bottom: -2px; width: 2px; background: repeating-linear-gradient(var(--line-2) 0 4px, transparent 4px 8px); }
+.go-leg p { padding: 6px 0 6px 6px; display: flex; gap: 6px; align-items: center; }
+.side { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.map { height: 250px; border-radius: var(--r-l); border: 1px solid var(--line); position: relative; overflow: hidden; background: linear-gradient(135deg, #eaf3ef, #f4efe4); }
+.map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sum { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px 18px; display: grid; gap: 10px; }
+.sum .g { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; } .sum .g b { display: block; font: 600 1.25rem var(--display); } .sum .g span { font-size: .72rem; color: var(--ink-3); }
+.meter { height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; } .meter i { display: block; height: 100%; width: 72%; background: var(--pine); }
+.sum .why-t { font-size: .82rem; color: var(--ink-2); } .sum .why-t b { color: var(--warn); }
+.cta { margin-top: auto; display: flex; gap: 10px; }
+
+/* ---------- Status legend ---------- */
+.legend { display: grid; gap: 0; width: 1280px; margin: 0 auto; border-radius: 14px; overflow: hidden; border: 1px solid var(--line-2); box-shadow: var(--sh-1); }
+.legend .status { border-bottom: 1px solid var(--line); }
+.legend .label { background: var(--surface); padding: 8px 24px 0; font-size: .72rem; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.cmp { width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cmp ul { list-style: none; padding: 0; display: grid; gap: 8px; font-size: .92rem; }
+.cmp li { display: flex; gap: 10px; align-items: flex-start; }
+.cmp .col { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 20px 22px; } .cmp h3 { font: 600 1.15rem var(--display); margin-bottom: 12px; }
+.cmp .bad svg.i { color: var(--danger); } .cmp .good svg.i { color: var(--pine); }
+.tbl { width: 1280px; margin: 0 auto; border-collapse: collapse; background: var(--surface); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); font-size: .9rem; }
+.tbl th, .tbl td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--line); vertical-align: top; } .tbl th { background: var(--bg); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.frame-wrap { margin-top: 18px; } .frame-wrap + .notes { width: 1280px; margin-left: auto; margin-right: auto; }
+.sec > h2, .sec > .lead { max-width: 1280px; margin-left: auto; margin-right: auto; }
+.doc > header, .why { max-width: 1280px; margin-left: auto; margin-right: auto; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.2v.1"/></symbol>
+    <symbol id="heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/></symbol>
+    <symbol id="wallet" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 10h18"/></symbol>
+    <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+    <symbol id="undo" viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -3)"/></symbol>
+    <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></symbol>
+    <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.7-6.5-11a6.5 6.5 0 0 1 13 0c0 5.3-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
+    <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.2"/><path d="M3 19c.6-3.2 3-4.8 6-4.8s5.4 1.6 6 4.8M16 6.2a3 3 0 0 1 0 5.6M18 14.6c1.8.6 2.8 2 3.2 4.4"/></symbol>
+    <symbol id="moto" viewBox="0 0 24 24"><circle cx="6" cy="16.5" r="3"/><circle cx="18" cy="16.5" r="3"/><path d="M9 16.5h5l3-6h-4M14 10.5l-2-3H9.5"/></symbol>
+    <symbol id="coffee" viewBox="0 0 24 24"><path d="M5 9h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5zM16 10h2a2.5 2.5 0 0 1 0 5h-2M8 4v2M12 4v2"/></symbol>
+    <symbol id="cloud" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.6-7.9A6 6 0 0 1 18 9.5a4.2 4.2 0 0 1 0 8.5z"/></symbol>
+    <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.8v.1"/></symbol>
+    <symbol id="compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+    <symbol id="grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+    <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></symbol>
+    <symbol id="bed" viewBox="0 0 24 24"><path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="1.6"/></symbol>
+    <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.8"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></symbol>
+  </defs>
+</svg>
+
+<div class="doc">
+<header>
+  <p class="eyebrow">Đề xuất giao diện · User Web /app · 2026-10-12</p>
+  <h1>Mọi lúc, bạn biết: đang ở đâu, hệ thống đang làm gì, và việc tiếp theo là gì.</h1>
+  <p>Giữ nguyên luồng 4 bước, màu, chữ và tinh thần “giấy ấm” đang chạy. Đề xuất đổi cách <b>sắp xếp thông tin</b>: một dải trạng thái cố định, thẻ gọn hơn, một thanh đáy duy nhất, và lời lẽ đời thường thay chữ kỹ thuật. Dữ liệu trong các khung là <b>dữ liệu mẫu</b>, ảnh là ảnh không khí, không phải địa điểm thật.</p>
+  <div class="chip-row"><span>Chỉ desktop</span><span>Chỉ dùng token màu hiện có</span><span>Lora + Be Vietnam Pro</span><span>Không thêm trang mới</span><span>Tôn trọng prefers-reduced-motion</span></div>
+</header>
+
+<section class="sec">
+  <h2>Hiện trạng: ba chỗ người dùng dễ lạc</h2>
+  <p class="lead">Rút ra từ ảnh chụp màn hình và mã nguồn của app, không phải từ ý thích.</p>
+  <div class="why">
+    <div><b class="bad">1. Không rõ máy đang làm gì</b><p>Trạng thái nằm rải rác: chấm “đang gõ”, chip “+24 mới”, toast “+1 nơi, +75 phút”, dải “Cần chú ý”. Người dùng phải tự ghép lại.</p></div>
+    <div><b class="bad">2. Quá nhiều lớp dính đáy</b><p>Ở bước Lựa chọn có tới 3 lớp chồng nhau ở đáy (dải chú ý, toast chênh lệch, thanh Đã chọn) che luôn thẻ đang xem.</p></div>
+    <div><b class="bad">3. Thẻ nơi chốn quá dày</b><p>Một thẻ có 3 lý do, 1 đánh đổi, thêm 2 dòng cảnh báo vàng, 3 dòng số liệu chữ mono, 4 nút. Quét 3 thẻ cạnh nhau rất mệt.</p></div>
+  </div>
+  <div class="why">
+    <div><b class="bad">4. Số đỏ gây hoảng</b><p>“−1.594 nơi” màu đỏ ở bước Tìm hiểu đọc như lỗi, trong khi đó là kết quả lọc bình thường.</p></div>
+    <div><b class="bad">5. Chữ kỹ thuật lộ ra</b><p>“không có OSRM”, “Cao / Trung bình” kèm icon lạ, “câu 1”. Người dùng không cần biết.</p></div>
+    <div><b class="bad">6. Vé chuyến bị giấu</b><p>Nút “Vé chuyến 4” không nói vé có gì. Người dùng không biết hệ thống đã hiểu mình ra sao.</p></div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>Ý tưởng chính: Dải trạng thái + một thanh đáy</h2>
+  <p class="lead">Dải trạng thái nằm ngay dưới thanh bước, cao 46px, có ở mọi màn trong luồng. Bốn trạng thái, mỗi trạng thái một màu và một câu. Mọi thông báo nhỏ lẻ dồn về đây.</p>
+  <div class="legend">
+    <div class="label">1 · Đang làm — hệ thống đang chạy, bạn chưa cần làm gì</div>
+    <div class="status work"><span class="dot"></span><b>Đang đọc câu của bạn</b><span class="trail">“3 ngày” → Số ngày · “xe máy” → Phương tiện</span><span class="bar"><i style="width:55%"></i></span></div>
+    <div class="label">2 · Cần bạn — một việc rõ ràng, chỉ một việc</div>
+    <div class="status ask"><span class="dot"></span><b>Mình cần biết ngày đi</b><span class="trail">để kiểm tra giờ mở cửa đúng ngày</span><span class="go">Trả lời bên dưới <svg class="i"><use href="#arrow"/></svg></span></div>
+    <div class="label">3 · Xong — kết quả và bước kế</div>
+    <div class="status ok"><span class="dot"></span><b>Đã xếp xong 3 ngày</b><span class="trail">4 nơi · khả thi · còn 1 chỗ nên xem</span><span class="go">Xem lịch trình <svg class="i"><use href="#arrow"/></svg></span></div>
+    <div class="label">4 · Lỗi — nói rõ chuyện gì, bạn làm gì</div>
+    <div class="status" style="background:var(--danger-bg);border-color:#f3c2bd"><span class="dot" style="background:var(--danger)"></span><b style="color:var(--danger)">Chưa xếp được lịch</b><span class="trail" style="color:var(--ink-2)">Các nơi đã chọn chưa đủ cho 3 ngày. Dữ liệu của bạn vẫn còn.</span><span class="go" style="color:var(--danger)">Chọn thêm nơi <svg class="i"><use href="#arrow"/></svg></span></div>
+  </div>
+</section>
+
+<!-- ============ SCREEN 1 ============ -->
+<section class="sec">
+  <h2>Bước 1 · Tìm hiểu: nói chuyện bên trái, thấy mình được hiểu thế nào bên phải</h2>
+  <p class="lead">Vé chuyến thành cột cố định bên phải, mỗi dòng có nguồn (bạn nói / mình đoán / hồ sơ), dòng vừa ghi nhấp sáng. Con số “nơi còn hợp” thành một phễu trung tính, không còn số đỏ.</p>
+  <div class="frame-wrap">
+  <div class="frame">
+    <div class="top">
+      <div class="brand"><img src="img/logo.webp" alt="">TripGuardian</div>
+      <ol class="steps"><li class="now"><i>1</i>Tìm hiểu</li><li><i>2</i>Lựa chọn</li><li><i>3</i>Lịch trình</li><li><i>4</i>Đánh giá</li></ol>
+      <div class="top-r"><div class="avatar">V</div></div>
+    </div>
+    <div class="status work"><span class="dot"></span><b>Đang ghi lại câu trả lời</b><span class="trail">“3 ngày” → Số ngày</span><span class="bar"><i style="width:40%"></i></span></div>
+    <div class="body"><div class="u">
+      <div class="convo">
+        <div class="bubble me"><p>3 ngày ở Đà Lạt cho hai người, đi xe máy, thích chill, cà phê, săn mây</p></div>
+        <div class="bubble"><span class="bot"><svg class="i" style="width:16px;height:16px"><use href="#spark"/></svg></span><p>Mình đã ghi 5 ý. Còn thiếu <b>ngày đi</b> để kiểm tra giờ mở cửa.</p></div>
+        <div class="qcard">
+          <h3>Bạn đi từ ngày nào?</h3>
+          <p class="because"><svg class="i" style="width:15px;height:15px"><use href="#info"/></svg>Để kiểm tra nơi nào mở cửa đúng ngày bạn đi. Bỏ qua được.</p>
+          <div class="opts">
+            <div class="opt on"><span class="ic"><svg class="i"><use href="#cal"/></svg></span><div><b>Cuối tuần này</b><span>Thứ 7, 17/10 → Thứ 2, 19/10</span></div></div>
+            <div class="opt"><span class="ic"><svg class="i"><use href="#cal"/></svg></span><div><b>Cuối tuần sau</b><span>Thứ 7, 24/10 → Thứ 2, 26/10</span></div></div>
+            <div class="opt"><span class="ic"><svg class="i"><use href="#cal"/></svg></span><div><b>Chọn ngày khác</b><span>Mở lịch</span></div></div>
+            <div class="opt dim"><span class="ic" style="background:var(--bg);color:var(--ink-3)"><svg class="i"><use href="#info"/></svg></span><div><b>Chưa chắc</b><span>Mình sẽ hỏi lại sau</span></div></div>
+          </div>
+          <div class="hint"><span>Chọn một ý</span><span>Mình hỏi tiếp tùy câu trả lời của bạn</span></div>
+        </div>
+        <div class="compose"><svg class="i"><use href="#spark"/></svg>Hoặc gõ tự do: “không thích chỗ đông”…<span class="btn"><svg class="i"><use href="#arrow"/></svg></span></div>
+      </div>
+      <aside class="tk">
+        <div class="tk-h"><h4>Chuyến của bạn</h4><span class="eyebrow">đã ghi 5 mục</span></div>
+        <div class="row"><svg class="i"><use href="#cal"/></svg><div><div class="k">Thời gian</div><div class="v">3 ngày</div></div><span class="src you">bạn nói</span></div>
+        <div class="row"><svg class="i"><use href="#users"/></svg><div><div class="k">Đi cùng</div><div class="v">2 người</div></div><span class="src you">bạn nói</span></div>
+        <div class="row new"><svg class="i"><use href="#moto"/></svg><div><div class="k">Phương tiện</div><div class="v">Xe máy</div></div><span class="src">vừa ghi</span></div>
+        <div class="row"><svg class="i"><use href="#coffee"/></svg><div><div class="k">Thích</div><div class="v">Chill · Cà phê · Săn mây</div></div><span class="src">mình đoán, sửa được</span></div>
+        <div class="row ask"><svg class="i"><use href="#cal"/></svg><div><div class="k">Ngày đi</div><div class="ask-t">đang hỏi</div></div><span></span></div>
+        <div class="funnel">
+          <div class="n">167<small>nơi còn hợp, trên 1.761 nơi ở Đà Lạt</small></div>
+          <div class="track"><i></i></div>
+          <p>Đã loại theo thời gian, phương tiện và sở thích của bạn. Danh sách cụ thể ở bước Lựa chọn.</p>
+        </div>
+      </aside>
+    </div></div>
+  </div>
+  </div>
+  <div class="notes">
+    <div data-n="1"><b>Dải trạng thái</b>nói đúng việc đang xảy ra, kèm “từ câu nào → ghi vào đâu”.</div>
+    <div data-n="2"><b>Vé luôn thấy</b>bỏ nút “Vé chuyến 4”. Người dùng thấy mình được hiểu ra sao ngay lúc nói.</div>
+    <div data-n="3"><b>Nguồn từng dòng</b>“bạn nói” khác “mình đoán”, đúng nguyên tắc hồ sơ chỉ là prior.</div>
+    <div data-n="4"><b>Phễu trung tính</b>“167 nơi còn hợp” màu xanh. Bỏ “−1.594 nơi” đỏ.</div>
+  </div>
+</section>
+
+<!-- ============ SCREEN 2 ============ -->
+<section class="sec">
+  <h2>Bước 2 · Lựa chọn: thẻ gọn để quét, một thanh đáy để quyết</h2>
+  <p class="lead">Thẻ chỉ giữ 4 thứ: vì sao hợp (2 dòng), một đánh đổi quan trọng nhất, thời gian + giá, nút Thêm. Khóa / So sánh / Bỏ vào menu “…”. Mọi thứ còn lại sang trang chi tiết.</p>
+  <div class="frame-wrap">
+  <div class="frame">
+    <div class="top">
+      <div class="brand"><img src="img/logo.webp" alt="">TripGuardian</div>
+      <ol class="steps"><li class="done"><i><svg class="i"><use href="#check"/></svg></i>Tìm hiểu</li><li class="now"><i>2</i>Lựa chọn</li><li><i>3</i>Lịch trình</li><li><i>4</i>Đánh giá</li></ol>
+      <div class="top-r"><span class="ticket-btn"><svg class="i" style="width:15px;height:15px"><use href="#cal"/></svg>3 ngày · 2 người · xe máy</span><div class="avatar">V</div></div>
+    </div>
+    <div class="status ok"><span class="dot"></span><b>1.258 nơi hợp với chuyến của bạn</b><span class="trail">đã loại 2 nơi vì giới hạn “không đông” · <u>xem vì sao</u></span><span class="go">Chat để thu hẹp <svg class="i"><use href="#spark"/></svg></span></div>
+    <div class="body"><div class="x">
+      <div class="x-head">
+        <div><h2>Gợi ý cho chuyến của bạn</h2><p>Xếp từ hợp nhất. Thêm vài nơi bạn thích, mình kiểm tra khả thi ngay.</p></div>
+        <div class="seg"><span class="on"><svg class="i" style="width:15px;height:15px"><use href="#grid"/></svg>Lưới</span><span><svg class="i" style="width:15px;height:15px"><use href="#compass"/></svg>Đĩa xoay</span></div>
+      </div>
+      <div class="tabs">
+        <span class="tab on">Thiên nhiên và view <em>117</em></span>
+        <span class="tab">Cà phê và thư giãn <em>418</em><span class="new">+24 mới</span></span>
+        <span class="tab">Ăn uống <em>537</em></span>
+        <span class="tab">Điểm tham quan <em>186</em></span>
+      </div>
+      <div class="cards">
+        <article class="pc picked">
+          <div class="ph" style="background-image:url(img/cloud.webp)"><span class="tag"><svg class="i"><use href="#check"/></svg>Hợp nhất</span><span class="heart"><svg class="i"><use href="#heart"/></svg></span><span class="cr">Ảnh minh họa</span></div>
+          <div class="in"><h3>Điểm săn mây (mẫu)</h3>
+            <div class="meta"><span>Thiên nhiên</span><span><svg class="i"><use href="#pin"/></svg>cách trung tâm 9′</span><span><svg class="i"><use href="#clock"/></svg>1–2 giờ</span></div>
+            <ul><li><svg class="i"><use href="#check"/></svg>Săn mây đẹp, 3 người nhắc</li><li><svg class="i"><use href="#check"/></svg>Không gian xinh, 6 người nhắc</li></ul>
+            <div class="trade"><svg class="i"><use href="#alert"/></svg>Đường vào dốc, đi xe máy cần cẩn thận</div>
+            <div class="foot"><span class="price">Chưa có giá</span><span class="more"><svg class="i"><use href="#more"/></svg></span><span class="btn sm added"><svg class="i" style="width:15px;height:15px"><use href="#check"/></svg>Đã thêm</span></div></div>
+        </article>
+        <article class="pc">
+          <div class="ph" style="background-image:url(img/terrace.webp)"><span class="heart"><svg class="i"><use href="#heart"/></svg></span><span class="cr">Ảnh minh họa</span></div>
+          <div class="in"><h3>Quán cà phê view đồi (mẫu)</h3>
+            <div class="meta"><span>Cà phê</span><span><svg class="i"><use href="#pin"/></svg>cách trung tâm 12′</span><span><svg class="i"><use href="#clock"/></svg>45–90′</span></div>
+            <ul><li><svg class="i"><use href="#check"/></svg>Ngồi lâu, chill, 18 người nhắc</li><li><svg class="i"><use href="#check"/></svg>Độ ồn: yên tĩnh, 21 người nhắc</li></ul>
+            <div class="trade"><svg class="i"><use href="#alert"/></svg>Chưa có giờ mở cửa</div>
+            <div class="foot"><span class="price">80–120k/người</span><span class="more"><svg class="i"><use href="#more"/></svg></span><span class="btn sm"><svg class="i" style="width:15px;height:15px"><use href="#arrow"/></svg>Thêm</span></div></div>
+        </article>
+        <article class="pc">
+          <div class="ph" style="background-image:url(img/pine.webp)"><span class="heart"><svg class="i"><use href="#heart"/></svg></span><span class="cr">Ảnh minh họa</span></div>
+          <div class="in"><h3>Rừng thông dạo bộ (mẫu)</h3>
+            <div class="meta"><span>Công viên</span><span><svg class="i"><use href="#pin"/></svg>cách trung tâm 6′</span><span><svg class="i"><use href="#clock"/></svg>1 giờ</span></div>
+            <ul><li><svg class="i"><use href="#check"/></svg>Yên tĩnh, ít đông, 8 người nhắc</li><li><svg class="i"><use href="#check"/></svg>Hợp đi bộ nhẹ, 6 người nhắc</li></ul>
+            <div class="trade"><svg class="i"><use href="#alert"/></svg>Đông vào buổi tối cuối tuần</div>
+            <div class="foot"><span class="price">Miễn phí</span><span class="more"><svg class="i"><use href="#more"/></svg></span><span class="btn sm"><svg class="i" style="width:15px;height:15px"><use href="#arrow"/></svg>Thêm</span></div></div>
+        </article>
+      </div>
+      <div class="asst"><svg class="i"><use href="#spark"/></svg></div>
+      <div class="dock">
+        <div class="stack"><i style="background-image:url(img/cloud.webp)"></i><i style="background-image:url(img/coffee.webp)"></i><i style="background-image:url(img/dusk.webp)"></i><i style="background-image:url(img/lake.webp)"></i></div>
+        <div class="stat"><b>4 nơi</b><span>đã chọn</span></div><span class="sep"></span>
+        <div class="stat"><b>6 giờ</b><span>tham quan</span></div>
+        <div class="stat"><b>≈ 52′</b><span>đi lại</span></div><span class="sep"></span>
+        <span class="feas"><svg class="i" style="width:16px;height:16px"><use href="#alert"/></svg>1 chỗ cần xem</span>
+        <span class="delta">Vừa thêm +75′ tham quan <a>Hoàn tác</a></span>
+        <span class="btn">Xem lịch trình <svg class="i"><use href="#arrow"/></svg></span>
+      </div>
+    </div></div>
+  </div>
+  </div>
+  <div class="notes">
+    <div data-n="1"><b>Một dải, một câu</b>“1.258 nơi hợp” thay cho tiêu đề phụ + dải đen “Giới hạn đã loại”. Xem vì sao nằm ngay đó.</div>
+    <div data-n="2"><b>Thẻ còn 4 khối</b>bỏ dòng số mono, bỏ cảnh báo lặp. Đánh đổi chỉ hiện cái quan trọng nhất, phần còn lại ở chi tiết.</div>
+    <div data-n="3"><b>Một thanh đáy duy nhất</b>gộp dải chú ý, toast chênh lệch và thanh Đã chọn. Chênh lệch + Hoàn tác nằm trong thanh, không che thẻ.</div>
+    <div data-n="4"><b>Nút chính rõ</b>“Thêm” là nút duy nhất nổi. Khóa / So sánh / Bỏ trong “…”, vẫn có phím tắt.</div>
+  </div>
+</section>
+
+<!-- ============ SCREEN 3 ============ -->
+<section class="sec">
+  <h2>Bước 3 · Lịch trình: đọc theo ngày, mỗi chỗ cần chú ý có lý do bằng lời thường</h2>
+  <p class="lead">Ba vùng: danh sách ngày (cờ vàng ở ngày có vấn đề), dòng thời gian, bản đồ + tóm tắt. Thời gian di chuyển nằm giữa các điểm dừng như đoạn đường thật. Độ vững được giải thích bằng một câu, không bằng thuật ngữ.</p>
+  <div class="frame-wrap">
+  <div class="frame">
+    <div class="top">
+      <div class="brand"><img src="img/logo.webp" alt="">TripGuardian</div>
+      <ol class="steps"><li class="done"><i><svg class="i"><use href="#check"/></svg></i>Tìm hiểu</li><li class="done"><i><svg class="i"><use href="#check"/></svg></i>Lựa chọn</li><li class="now"><i>3</i>Lịch trình</li><li><i>4</i>Đánh giá</li></ol>
+      <div class="top-r"><span class="ticket-btn"><svg class="i" style="width:15px;height:15px"><use href="#cal"/></svg>3 ngày · 2 người · xe máy</span><div class="avatar">V</div></div>
+    </div>
+    <div class="status ok"><span class="dot"></span><b>Đã xếp xong 3 ngày</b><span class="trail">4 nơi · khả thi · 1 chỗ nên xem ở ngày 3</span><span class="go">Chốt kế hoạch này <svg class="i"><use href="#arrow"/></svg></span></div>
+    <div class="body"><div class="p">
+      <div class="days">
+        <p class="eyebrow" style="margin-bottom:2px">Các ngày</p>
+        <div class="day on"><b>Ngày 1</b><span>Thứ 7, 17/10 · 3 nơi</span></div>
+        <div class="day"><b>Ngày 2</b><span>Chủ nhật, 18/10 · 3 nơi</span></div>
+        <div class="day"><b>Ngày 3</b><span>Thứ 2, 19/10 · 2 nơi</span><br><span class="flag"><svg class="i" style="width:13px;height:13px"><use href="#alert"/></svg>1 chỗ nên xem</span></div>
+        <div class="day" style="border-style:dashed;background:transparent;text-align:center;color:var(--ink-3);font-size:.85rem">+ Thêm nơi</div>
+      </div>
+      <div class="tl">
+        <h3>Ngày 1 · Săn mây rồi thư giãn</h3>
+        <p class="sub">Nắng đẹp, 18°C buổi sáng. Đi xe máy, tổng đi lại khoảng 40 phút.</p>
+        <div class="stop"><span class="t">05:30</span><span class="rail"><i></i></span><div class="c"><span class="im" style="background-image:url(img/cloud.webp)"></span><div><b>Điểm săn mây (mẫu)</b><span>1–2 giờ · mây đẹp nhất trước 07:00</span></div></div></div>
+        <div class="go-leg"><span></span><span class="rail"></span><p><svg class="i" style="width:14px;height:14px"><use href="#moto"/></svg>Xe máy · 25 phút</p></div>
+        <div class="stop"><span class="t">08:30</span><span class="rail"><i></i></span><div class="c"><span class="im" style="background-image:url(img/terrace.webp)"></span><div><b>Quán cà phê view đồi (mẫu)</b><span>45–90′ · 80–120k/người</span><span class="note">Chưa có giờ mở cửa, nên gọi trước</span></div></div></div>
+        <div class="go-leg"><span></span><span class="rail"></span><p><svg class="i" style="width:14px;height:14px"><use href="#moto"/></svg>Xe máy · 12 phút</p></div>
+        <div class="stop"><span class="t">11:00</span><span class="rail"><i></i></span><div class="c"><span class="im" style="background-image:url(img/pine.webp)"></span><div><b>Rừng thông dạo bộ (mẫu)</b><span>1 giờ · miễn phí</span></div></div></div>
+        <div class="go-leg"><span></span><span class="rail"></span><p><svg class="i" style="width:14px;height:14px"><use href="#moto"/></svg>Xe máy · 15 phút</p></div>
+        <div class="stop"><span class="t">18:30</span><span class="rail"><i></i></span><div class="c"><span class="im" style="background-image:url(img/dusk.webp)"></span><div><b>Ăn tối bên hồ (mẫu)</b><span>1,5 giờ · 150–250k/người</span><span class="note">Cuối tuần đông, nên đặt chỗ</span></div></div></div>
+        <div class="go-leg"><span></span><span class="rail"></span><p><svg class="i" style="width:14px;height:14px"><use href="#bed"/></svg>Về chỗ nghỉ · 10 phút</p></div>
+      </div>
+      <div class="side">
+        <div class="map">
+          <svg viewBox="0 0 380 250" preserveAspectRatio="none"><path d="M0 190 C60 150 90 210 150 170 S250 90 380 130" stroke="#bcdcd6" stroke-width="26" fill="none" opacity=".55"/><path d="M40 205 C100 150 140 190 190 140 S300 70 345 55" stroke="#0f5f5a" stroke-width="3" stroke-dasharray="7 7" fill="none"/><circle cx="40" cy="205" r="9" fill="#0f5f5a"/><circle cx="190" cy="140" r="9" fill="#0f5f5a"/><circle cx="345" cy="55" r="9" fill="#e8590c"/><text x="40" y="209" fill="#fff" font-size="10" font-weight="700" text-anchor="middle">1</text><text x="190" y="144" fill="#fff" font-size="10" font-weight="700" text-anchor="middle">2</text><text x="345" y="59" fill="#fff" font-size="10" font-weight="700" text-anchor="middle">3</text></svg>
+        </div>
+        <div class="sum">
+          <div class="g"><div><b>≈ 40′</b><span>đi lại</span></div><div><b>3 nơi</b><span>hôm nay</span></div><div><b>≈ 300k</b><span>chi phí</span></div></div>
+          <div><div class="meter"><i></i></div></div>
+          <p class="why-t"><b>Độ vững: khá.</b> Lịch có thời gian nghỉ giữa các nơi. Đường đi chỉ là ước tính thô, nên kiểm lại khi xuất phát.</p>
+        </div>
+        <div class="cta"><span class="btn ghost">Tối ưu lịch</span><span class="btn" style="flex:1;justify-content:center">Chốt kế hoạch này<svg class="i"><use href="#arrow"/></svg></span></div>
+      </div>
+    </div></div>
+  </div>
+  </div>
+  <div class="notes">
+    <div data-n="1"><b>Cờ vàng trên ngày</b>biết ngay ngày nào cần xem, không phải đọc hết cảnh báo cuối trang.</div>
+    <div data-n="2"><b>Đoạn đường là một phần lịch</b>giờ, phương tiện, phút nằm giữa hai điểm dừng như đường thật.</div>
+    <div data-n="3"><b>Độ vững bằng một câu</b>“khá, vì sao” thay “không có OSRM”. Thuật ngữ nằm trong chi tiết cho ai muốn xem.</div>
+    <div data-n="4"><b>Nút chốt ở hai nơi</b>dải trạng thái và cuối cột phải. Người dùng không phải tìm.</div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>So sánh nhanh</h2>
+  <div class="cmp" style="margin-top:18px">
+    <div class="col bad"><h3>Hiện tại</h3><ul>
+      <li><svg class="i"><use href="#x"/></svg>Trạng thái hệ thống rải ở 4 chỗ: chấm gõ, chip, toast, dải vàng</li>
+      <li><svg class="i"><use href="#x"/></svg>3 lớp dính đáy ở bước Lựa chọn</li>
+      <li><svg class="i"><use href="#x"/></svg>Thẻ có 8–10 thông tin, 4 nút</li>
+      <li><svg class="i"><use href="#x"/></svg>Vé chuyến ẩn sau nút “Vé chuyến 4”</li>
+      <li><svg class="i"><use href="#x"/></svg>Số “−1.594 nơi” màu đỏ, “OSRM” lộ ra</li></ul></div>
+    <div class="col good"><h3>Đề xuất</h3><ul>
+      <li><svg class="i"><use href="#check"/></svg>Một dải trạng thái, 4 trạng thái, một câu mỗi trạng thái</li>
+      <li><svg class="i"><use href="#check"/></svg>Một thanh đáy, chênh lệch và Hoàn tác nằm trong thanh</li>
+      <li><svg class="i"><use href="#check"/></svg>Thẻ 4 khối: vì sao hợp, đánh đổi, thời gian + giá, Thêm</li>
+      <li><svg class="i"><use href="#check"/></svg>Vé chuyến ở bước 1 luôn thấy, bước 2–3 tóm một dòng trên thanh trên</li>
+      <li><svg class="i"><use href="#check"/></svg>Con số trung tính, lời lẽ đời thường</li></ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>Cách làm vào code (chưa làm gì, chờ bạn gật)</h2>
+  <table class="tbl" style="margin-top:18px">
+    <tr><th>Việc</th><th>File chính</th><th>Mức</th></tr>
+    <tr><td>Dải trạng thái dùng chung <code>StatusStrip</code></td><td>web/src/user/ui/Shell.tsx, css/shell.css</td><td>Mới, nhỏ</td></tr>
+    <tr><td>Thanh trên: vé chuyến một dòng</td><td>Shell.tsx (FlowBar), ui/Ticket.tsx</td><td>Sửa nhỏ</td></tr>
+    <tr><td>Bước 1: vé thành cột phải, phễu trung tính</td><td>screens/Understand.tsx, css/understand.css</td><td>Vừa</td></tr>
+    <tr><td>Bước 2: thẻ gọn, menu “…”, một thanh đáy</td><td>ui/PlaceCard.tsx, ui/SelectedBar.tsx, css/explore.css, css/bar.css</td><td>Vừa</td></tr>
+    <tr><td>Bước 3: cờ ngày, đoạn đường, độ vững bằng lời</td><td>screens/Plan.tsx, css/plan.css, planning/planning.tsx</td><td>Vừa</td></tr>
+    <tr><td>Chuyển động: chỉ 3 loại (vào, nhấp sáng, trượt), tắt khi reduced-motion</td><td>css/base.css</td><td>Nhỏ</td></tr>
+  </table>
+</section>
+</div>
+</body>
+</html>

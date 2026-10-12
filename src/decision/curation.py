@@ -1,4 +1,4 @@
-"""⑧ Curation (docs/P3_PLACE_DECISION.md §12): typed actions on the session state, the Session Profile they teach, and
+"""⑧ Curation (docs/PLACE_DECISION.md §12): typed actions on the session state, the Session Profile they teach, and
 the one question the rules may open (pattern, gap, rethink). Pure: apply() returns a new State."""
 
 from collections import Counter
@@ -12,7 +12,7 @@ from .model import FIRM
 from .session import Chip, Drop, Pending, SoftAdd, State
 
 REASONS = ("far", "crowded", "pricey", "dislike", "visited")
-PLACE_ACTIONS = {"select", "drop", "lock", "unlock", "swap", "relax", "wishlist"}
+PLACE_ACTIONS = {"select", "drop", "lock", "unlock", "swap", "relax", "wishlist", "move_chunk"}
 
 
 class ActionError(ValueError):
@@ -32,6 +32,7 @@ def _select(s: State, pid: str) -> None:
 
 
 def _remove(s: State, pid: str) -> None:
+    s.chunk_assignments.pop(pid, None)
     s.selected = [x for x in s.selected if x != pid]
     s.locked = [x for x in s.locked if x != pid]
 
@@ -42,8 +43,6 @@ def _feedback(s: State, reason: str | None, pid: str | None, cfg) -> None:
         p.travel_mult = max(cfg.travel_mult_min, round(p.travel_mult * cfg.far_step, 3))
     elif reason == "crowded":
         p.crowd_tolerance = "avoid"
-        if pid is None:  # a wish about the whole list, not one place: the crowded ones go, not only rank lower
-            p.hide_crowded = True
     elif reason == "pricey":
         p.price_sensitivity = round(p.price_sensitivity + cfg.price_step, 3)
     elif reason == "visited" and pid and pid not in p.visited:
@@ -59,6 +58,12 @@ def apply(state: State, act: dict, known, alternatives: dict[str, list[str]], pe
         s.suggest_group = None
     if t == "select":
         _select(s, pid)
+    elif t == "move_chunk":
+        if pid not in s.selected:
+            raise ActionError("choose the place before moving it")
+        s.chunk_assignments[pid] = act["chunk"]
+    elif t == "keep_free_time":
+        s.free_time = True
     elif t == "lock":
         _select(s, pid)
         if pid not in s.locked:

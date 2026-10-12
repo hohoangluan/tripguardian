@@ -270,3 +270,48 @@ def test_gemma_never_relabels_or_hides_a_codex_label(monkeypatch):
     monkeypatch.setattr(lab, "_rows", lambda: [])
     got = lab.latest()
     assert got["k"]["by"] == "judge:cx/gpt-5.6-sol" and got["g"]["by"] == "judge:cx/gpt-6.1-sol"
+
+
+def _detail_row(i, kind, text, source="gmaps", sample=None, **detail):
+    o = {"id": f"d{i}", "place_fid": "P", "feature": f"detail.{kind}", "value": text, "source_type": "gmaps_review",
+         "source_id": f"s{i}", "span": {"quote": f"q{i}", "field": "text"}, "detail": detail}
+    if sample:
+        o["sample"] = sample
+    return (source, "P", {"place_fid": "P", "place_name": "P"}, o)
+
+
+def test_load_rows_reads_details_and_skips_targeted_samples_of_untargeted_kinds(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    d = tmp_path / "gmaps" / "observations"
+    d.mkdir(parents=True)
+    rows = [_detail_row(1, "fee", "xe điện", amount_vnd=40000)[3],
+            _detail_row(2, "fee", "gửi xe", sample="extremes", amount_vnd=10000)[3],  # targeted kind: counts
+            _detail_row(3, "known_for", "xích đu", sample="keywords")[3],  # opinion kind: a skewed sample is left out
+            _detail_row(4, "wifi", "x")[3]]  # not a kind
+    (d / "P.json").write_text(json.dumps({"place_fid": "P", "place_name": "P", "observations": [], "details": rows}),
+                              encoding="utf-8")
+    assert [r[3]["id"] for r in audit.load_rows(ONT)] == ["d1", "d2"]
+
+
+def test_detail_kinds_are_audited_by_their_own_audit_level_in_one_stratum_per_kind(monkeypatch):
+    monkeypatch.setattr(audit, "SAMPLE_STEPS", (3, 6))
+    fees = [_detail_row(i, "fee", f"khoản {i}", amount_vnd=1000) for i in range(10)]
+    orders = [_detail_row(100 + i, "order", f"món {i}") for i in range(10)]
+    picked = audit.select(fees + orders, ONT, {})
+    assert sum(r[3]["feature"] == "detail.fee" for r in picked) == 10  # audit: full
+    assert sum(r[3]["feature"] == "detail.order" for r in picked) == 3  # sampled, whatever the texts
+    assert audit.strong(ONT.as_feature("detail.fee"), "x") is False
+
+
+def test_render_gives_a_detail_its_claim_sentence(monkeypatch):
+    monkeypatch.setattr(audit, "evidence", lambda st, o, source: {"text": "t", "date": None, "rating": None, "image": None})
+    monkeypatch.setattr(audit, "place_info", lambda st: {"category": "c", "address": "a"})
+    known = _detail_row(1, "known_for", "xích đu nhìn hồ")
+    fit = _detail_row(2, "fit", "phải rọ mõm", who="pet", verdict="conditional")
+    for claim in (False, True):
+        fields, _, _ = audit.render([known, fit], ONT, claim=claim)
+        assert "nơi này nổi tiếng vì: xích đu nhìn hồ" in fields["items"]
+        assert "đi nơi này với thú cưng thì hợp có điều kiện: phải rọ mõm" in fields["items"]
+        assert "detail.known_for" in fields["features"] and "Values: *" not in fields["features"]
+    assert audit.claim_text(ONT.features["booking_needed"], "yes")  # features unchanged

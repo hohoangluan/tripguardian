@@ -54,3 +54,17 @@ def test_screen_statuses_relax_and_warnings():
     assert "uncertain_value:noise" in good.warnings and "hours_unknown" in unk.warnings
     screen(bad, s, days, {("X", "steep_or_stairs")})
     assert bad.status == "main" and [c["feature"] for c in bad.checks if c["kind"] == "hard"] == ["noise"]
+
+
+def test_diet_checks_activity_before_evidence():
+    veg = h("vegetarian_options", "yes", "eq")
+    park = srec("park", group="nature", usable=("experience",))
+    cafe = srec("cafe", group="cafe")
+    restaurant = srec("restaurant", group="restaurant", usable=("meal",))
+    assert hard_result(park, veg)[0] == "not_applicable"
+    assert hard_result(cafe, veg)[0] == "not_applicable"
+    assert hard_result(restaurant, veg)[0] == "unknown"
+    s = si(hard_filters=[hard("vegetarian_options", "yes", "eq")])
+    c = Cand(park, "experience")
+    screen(c, s, trip_days(s.context, CFG), set())
+    assert c.status == "main"

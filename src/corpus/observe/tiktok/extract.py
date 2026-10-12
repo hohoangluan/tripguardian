@@ -9,6 +9,7 @@ Features with `check: span` are read again (VIDEO_VERIFY: the segments around th
 had none). A video posted by the place's own account (owner_account: the handle spells the place's name) is the
 business talking: author = "tiktok:owner:<fid>", one voice for all its accounts, and aggregate keeps only what such a
 source can show (corpus.aggregate). observed_at = the video's upload date.
+`details` (free-text `detail.<kind>` observations, details_gate.py) come from speech and caption only, never a frame.
 A place is done again when its pairs, their transcripts, the prompts or the ontology change; a pair that fails
 leaves the place without a file this run (retried next run) and a line in data/tiktok/observe_errors.jsonl.
 """
@@ -21,7 +22,7 @@ import re
 import unicodedata
 
 import openai
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe_name, write_json
@@ -30,6 +31,7 @@ from ...crawl.tiktok.place_verify import evidence_pairs
 from ...llm import VIDEO_OBSERVE, VIDEO_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import CONTEXT_KEYS, keep_stale, observation
+from ..details_gate import gate_detail
 
 USABLE = ("ok", "fixed")  # asr_check statuses whose checked_text is speech
 FRAME_VALUES = {  # what a still picture can prove; never "absent", suitability or quality. Promo videos film empty
@@ -143,6 +145,28 @@ def gate(answer: dict, segs: list[dict], caption: str, with_frames: bool, ont: O
     return kept, dropped
 
 
+def gate_details(answer: dict, segs: list[dict], caption: str, ont: Ontology):
+    """([detail], dropped): the `details` that stand. A detail comes from speech or caption, its quote in that segment or
+    the caption (details_gate.py); the answer may lack the key."""
+    by_i = {s["i"]: s for s in segs}
+    kept, dropped = [], collections.Counter()
+    for d in answer.get("details") or []:
+        src, ref = d.get("source"), d.get("ref")
+        if src == "frame":
+            dropped["detail_frame_not_allowed"] += 1
+            continue
+        if src not in ("speech", "caption"):
+            dropped["detail_bad_source"] += 1
+            continue
+        text = caption if src == "caption" else (by_i[ref]["checked_text"] if ref in by_i else "")
+        out, why = gate_detail(d, text, ont)
+        if out is None:
+            dropped[f"detail_{why}"] += 1
+        else:
+            kept.append({**out, "source": src, "ref": ref})
+    return kept, dropped
+
+
 def passage(o: dict, segs: list[dict], caption: str) -> str:
     if o["source"] == "caption":
         return f"Caption: {caption}"
@@ -155,7 +179,7 @@ def passage(o: dict, segs: list[dict], caption: str) -> str:
 
 def upload_date(v: dict) -> str | None:
     try:
-        return datetime.fromtimestamp(int(v["created_at"]), UTC).date().isoformat()
+        return datetime.fromtimestamp(int(v["created_at"]), timezone.utc).date().isoformat()
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -182,6 +206,8 @@ async def observe_pair(client, model: str, sem: asyncio.Semaphore, city: str, v:
             desc=v.get("caption") or "", hashtags=" ".join(f"#{h}" for h in v.get("hashtags") or []),
             screen_text="; ".join(t.get("check", {}).get("screen_text") or []) or "none", segments=segments_text(segs))
     kept, dropped = gate(answer, segs, caption, bool(images), ont)
+    kept_details, detail_dropped = gate_details(answer, segs, caption, ont)
+    dropped.update(detail_dropped)
     final = []
     for o in kept:
         if ont.features[o["feature"]].span_check:
@@ -205,7 +231,17 @@ async def observe_pair(client, model: str, sem: asyncio.Semaphore, city: str, v:
             source_id=v["video_id"], author=author_of(v, place), observed_at=upload_date(v), quote=o["quote"],
             field=o["source"], extractor=f"video_observe@{VIDEO_OBSERVE.prompt_hash}", ontology_version=ont.version,
             start_s=seg["start_s"] if seg else at, end_s=seg["end_s"] if seg else at))
-    return out, dropped
+    details = []
+    for n, x in enumerate(kept_details):
+        seg = by_i.get(x["ref"]) if x["source"] == "speech" else None
+        details.append(observation(
+            id=f"tiktok:{v['video_id']}:d{n}", place_fid=place["fid"], feature=f"detail.{x['kind']}", value=x["text"],
+            context={"time_of_day": x["time_of_day"], "day_type": UNKNOWN, "weather": UNKNOWN},
+            source_type=SOURCE_TYPE[x["source"]], source_id=v["video_id"], author=author_of(v, place),
+            observed_at=upload_date(v), quote=x["quote"], field=x["source"],
+            extractor=f"video_observe@{VIDEO_OBSERVE.prompt_hash}", ontology_version=ont.version,
+            start_s=seg["start_s"] if seg else None, end_s=seg["end_s"] if seg else None, detail=x["detail"]))
+    return out, details, dropped
 
 
 def _client():
@@ -246,12 +282,13 @@ async def run(city: str, limit: int | None = None) -> dict:
             if old.get("input_hash") == h and (keep_stale()
                     or (old.get("prompt_hash"), old.get("ontology_version")) == (ph, key[1])):
                 return "cached"
-        obs, dropped = [], collections.Counter()
+        obs, details, dropped = [], [], collections.Counter()
         try:
             for vid, v in vids.items():
                 others = [places[f]["name"] for f in by_video[vid] if f != fid]
-                got, drop = await observe_pair(client, model, sem, name, v, root / "videos" / vid, places[fid], others, ont)
+                got, det, drop = await observe_pair(client, model, sem, name, v, root / "videos" / vid, places[fid], others, ont)
                 obs += got
+                details += det
                 dropped.update(drop)
         except Exception as e:
             append_jsonl(root / "observe_errors.jsonl", {"at": now(), "place": fid, "error": f"{type(e).__name__}: {e}"[:300]})
@@ -259,7 +296,7 @@ async def run(city: str, limit: int | None = None) -> dict:
         dates = [upload_date(v) for v in vids.values() if upload_date(v)]
         write_json(target, {"place_fid": fid, "place_name": places[fid].get("name"),
                             "as_of": max(v.get("fetched_at", "")[:10] for v in vids.values()) or now()[:10],
-                            "observations": obs, "proposed": [], "ratings": [], "place": {}, "place_facts": {},
+                            "observations": obs, "details": details, "proposed": [], "ratings": [], "place": {}, "place_facts": {},
                             "voices": len({author_of(v, places[fid]) for v in vids.values()}),
                             "videos": sorted(vids), "newest_video": max(dates) if dates else None,
                             "stats": {"videos": len(vids), "dropped": dict(dropped)},

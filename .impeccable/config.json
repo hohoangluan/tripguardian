@@ -1,0 +1,62 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/design/proposal-2026-10/index.html"
+        ],
+        "createdAt": "2026-10-11T17:33:41.252Z",
+        "reason": "mockup of the app: full-bleed bars (top bar, status strip, frame, legend) are fixed-height and centred, text inset 24px horizontally; false positive, assistant decision"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "docs/design/proposal-2026-10/index.html"
+        ],
+        "createdAt": "2026-10-11T17:33:41.263Z",
+        "reason": "mockup of the app: the cards are product UI shown inside a device frame, plus choice tiles the spec requires inside the question card; assistant decision"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/design/proposal-2026-10/minimal.html"
+        ],
+        "createdAt": "2026-10-11T17:36:29.144Z",
+        "reason": "mockup of an app screen: the frame is the viewport, its body fills it and the bottom bar sits flush by design; assistant decision"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/design/proposal-2026-10/home.html"
+        ],
+        "createdAt": "2026-10-11T17:40:28.757Z",
+        "reason": "mockup of an app screen: rail and page are full-bleed inside the frame by design; assistant decision"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "docs/design/proposal-2026-10/home.html"
+        ],
+        "createdAt": "2026-10-11T17:40:28.775Z",
+        "reason": "mockup of an app screen: the cards are product UI inside a device frame; assistant decision"
+      },
+      {
+        "rule": "italic-serif-display",
+        "value": "*",
+        "files": [
+          "docs/design/proposal-2026-10/home.html"
+        ],
+        "createdAt": "2026-10-11T17:40:28.807Z",
+        "reason": "keeps the existing production headline 'đúng gu của bạn' (italic Lora accent) of the current home; assistant decision, user has not asked to change it"
+      }
+    ]
+  }
+}

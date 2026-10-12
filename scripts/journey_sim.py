@@ -40,7 +40,7 @@ from harness.dispatch import Conflict  # noqa: E402
 from harness.router import RouteError  # noqa: E402
 from planning import Engine as PlanningEngine, Tools as PlanningTools  # noqa: E402
 from planning.session import Store as PlanningStore  # noqa: E402
-from trip import Tools as TripTools, create_engine as trip_engine  # noqa: E402
+from trip import MAX_TRIP_DAYS, Tools as TripTools, create_engine as trip_engine  # noqa: E402
 
 EXPECTED = (Conflict, RouteError, ToolError, ValueError, KeyError)     # a refused request, not a crash
 SAT = date(2026, 12, 12)                                               # a Saturday
@@ -569,6 +569,7 @@ def judge(sim, run: Run, c: Client, expect: dict):
     crashes = [s for s in run.steps if (s["error"] or "").startswith("CRASH")]
     run.check("no crash", not crashes, "; ".join(f'{s["stage"]}.{s["op"]}: {s["error"]}' for s in crashes[:3]))
     outs = c.view["outputs"]
+    sel = c.result["view"].get("selected") if c.view["stage"] == "decision" else None
     # revisions: every accepted request moves the journey on by exactly one
     run.check("revision moves forward once per accepted request", c.rev == c.accepted + 0, f"revision {c.rev}, accepted {c.accepted}")
     # trip: questions
@@ -679,8 +680,8 @@ EXPECT = {
     "messy": {
         "survives garbage text": lambda r, c: True,
         "the model never echoes a secret": lambda r, c: not any("key" in t["say"].lower() and "api" in t["say"].lower() for t in r.typed),
-        "no day count outside 1-7 reaches the state": lambda r, c: all(
-            not (x["target"] == "days" and not 1 <= int(x["value"]) <= 7) for x in r.final["text_state_days"]),
+        f"no day count outside 1-{MAX_TRIP_DAYS} reaches the state": lambda r, c: all(
+            not (x["target"] == "days" and not 1 <= int(x["value"]) <= MAX_TRIP_DAYS) for x in r.final["text_state_days"]),
     },
     "storyteller": {
         "the sentence fills days, companions and vehicle": lambda r, c: {x["target"] for x in r.final["after_sentence"]["trip"]} >= {"days", "companions", "mobility"},

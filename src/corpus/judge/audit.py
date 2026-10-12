@@ -1,7 +1,8 @@
-"""judge audit: the Judge model labels what the Extractor claimed, in place of a person (docs/P1_CORPUS.md §6).
+"""judge audit: the Judge model labels what the Extractor claimed, in place of a person (docs/CORPUS.md §6).
 
 Which model-made observations it reads (rule-made ones from Maps details / attributes are not labelled, nor a
-targeted sample's opinions, which aggregate leaves out):
+targeted sample's opinions, which aggregate leaves out; free-text `detail.<kind>` observations are, one stratum per kind,
+every claim of a kind whose ontology `audit` is full):
 - every observation of a risky feature: effort, suitability and every `check: span` feature (hard filters, values
   that warn or widen a choice);
 - a sample per (feature, value, source folder) of every other feature, grown step by step (SAMPLE_STEPS) while its
@@ -82,6 +83,23 @@ def risky(feat) -> bool:
     return feat.group in RISKY_GROUPS or feat.span_check
 
 
+def full_audit(ont, fid: str) -> bool:
+    """Every claim of this feature (or detail kind) is read, not a sample."""
+    kind = ont.detail_kind(fid)
+    return kind.audit == "full" if kind else risky(ont.features[fid])
+
+
+def stratum_value(ont, fid: str, value: str) -> str:
+    """A detail's value is free text: all of a kind are one stratum."""
+    return "*" if ont.valid_detail(fid) else value
+
+
+def targeted_counts(ont, o: dict) -> bool:
+    """A targeted sample (extremes / keywords) of this observation counts: facts of the place, not opinions."""
+    kind = ont.detail_kind(o["feature"])
+    return kind.targeted if kind else targeted_ok(ont.features[o["feature"]])
+
+
 def strong(feat, value: str) -> bool:
     return feat.verify == "always" and value not in feat.caution_values
 
@@ -94,9 +112,9 @@ def load_rows(ont) -> list[tuple]:
         for f in sorted(root.glob("*.json")) if root.exists() else []:
             doc = json.loads(f.read_text(encoding="utf-8"))
             head = {"place_fid": doc["place_fid"], "place_name": doc.get("place_name")}
-            rows += [(source, f.stem, head, o) for o in doc["observations"]
-                     if o["source_type"] in types and ont.valid(o["feature"], o["value"])
-                     and (o.get("sample") not in TARGETED or targeted_ok(ont.features[o["feature"]]))]
+            rows += [(source, f.stem, head, o) for o in doc["observations"] + (doc.get("details") or [])
+                     if o["source_type"] in types and (ont.valid(o["feature"], o["value"]) or ont.valid_detail(o["feature"]))
+                     and (o.get("sample") not in TARGETED or targeted_counts(ont, o))]
     return rows
 
 
@@ -159,6 +177,19 @@ def gemma() -> bool:
     return os.environ.get("JUDGE_ENGINE", "").strip().lower() == "gemma"
 
 
+VERDICT_VI = {"good": "hợp", "bad": "không hợp", "conditional": "hợp có điều kiện"}
+
+
+def detail_claim(ont, o: dict) -> str:
+    """A detail's claim sentence (the kind's pattern in the ontology); a fit names who and says the verdict in words."""
+    d = o.get("detail") or {}
+    who = d.get("who") or ""
+    companion = ont.companions.get(who)
+    return ont.detail_kind(o["feature"]).claim.format_map(collections.defaultdict(
+        str, text=o["value"], who=companion.vi.casefold() if companion else who,
+        verdict=VERDICT_VI.get(d.get("verdict") or "", d.get("verdict") or "")))
+
+
 def claim_text(feat, value: str) -> str:
     """A value's claim as one sentence: the ontology's claims, else the hint's part for this value."""
     if feat.claims and value in feat.claims:
@@ -177,15 +208,15 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: se
     rng = random.Random(seed)
     strata = collections.defaultdict(list)
     for r in rows:
-        strata[(r[3]["feature"], r[3]["value"], r[0])].append(r)
+        strata[(r[3]["feature"], stratum_value(ont, r[3]["feature"], r[3]["value"]), r[0])].append(r)
     out = []
-    for (fid, _value, _source), items in strata.items():
+    for (fid, value, source), items in strata.items():
         keyed = {label_key(o["source_id"], o["feature"], o["value"], o["span"]["quote"]): (s, st, h, o)
                  for s, st, h, o in items}
         labels = collections.Counter(done[k] for k in keyed if k in done)
         todo = [(k, r) for k, r in keyed.items() if k not in done]
         state = verdict(labels["correct"], labels["correct"] + labels["wrong"], sum(labels.values()))
-        if read_all or risky(ont.features[fid]) or state == "fail":
+        if read_all or full_audit(ont, fid) or state == "fail":
             out += [r for _, r in todo]
             continue
         forced = [r for k, r in todo if k in must]
@@ -200,7 +231,7 @@ def select(rows: list[tuple], ont, done: dict[str, str], seed: int = 7, must: se
 def pending_gemma(records: dict[str, dict], done: dict[str, str]) -> set[str]:
     """Claims the Gemma audit called wrong or unsure, off the Gemma engine. Those labels do not stand (current), and
     the Codex Judge reads every one of them, even where the stratum passes the gate: Gemma calls ~30% of correct
-    claims wrong (docs/P1_CORPUS.md §6), and in a passing stratum most of its "wrong" are such false drops, so leaving
+    claims wrong (docs/CORPUS.md §6), and in a passing stratum most of its "wrong" are such false drops, so leaving
     them unread would drop good claims on Gemma's word alone -- while a claim nobody read there is kept."""
     return {k for k, r in records.items()
             if k not in done and r["label"] != "correct" and "gemma" in r.get("by", "")}
@@ -215,7 +246,7 @@ def chunks(rows: list[tuple], ont, size: int | None = None) -> list[list[tuple]]
     strong-Judge items apart."""
     by = collections.defaultdict(list)
     for r in rows:
-        by[(strong(ont.features[r[3]["feature"]], r[3]["value"]), r[3]["feature"] if BY_FEATURE else r[1])].append(r)
+        by[(strong(ont.as_feature(r[3]["feature"]), r[3]["value"]), r[3]["feature"] if BY_FEATURE else r[1])].append(r)
     out, cur, images, kind = [], [], 0, None
     for (is_strong, _), items in sorted(by.items()):
         for r in sorted(items, key=lambda r: (r[3]["feature"], r[0])):
@@ -278,7 +309,8 @@ def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[byt
     lines, images, refs = [], [], {}
     for i, (source, st, h, o) in enumerate(chunk, 1):
         pref = places.setdefault(st, (f"P{len(places) + 1}", h["place_name"]))[0]
-        feat = ont.features[o["feature"]]
+        feat = ont.as_feature(o["feature"])
+        sentence = detail_claim(ont, o) if ont.valid_detail(feat.id) else claim_text(feat, o["value"])
         fref = feats.setdefault(feat.id, f"F{len(feats) + 1}")
         ev = evidence(st, o, source)
         ev["text"] = around(ev["text"], o["span"]["quote"], PASSAGE_GEMMA if claim else PASSAGE)
@@ -291,11 +323,12 @@ def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[byt
         meta = ", ".join(x for x in (ev["date"] and f"date {ev['date']}", ev["rating"] and f"rating {ev['rating']}") if x)
         if claim:
             lines.append(f"<{ref}> {pref} {fref}={o['value']}{f' ({meta})' if meta else ''}" + NL
-                         + f"claim: {claim_text(feat, o['value'])}" + NL
+                         + f"claim: {sentence}" + NL
                          + f"quote: \"{o['span']['quote']}\"{pic}" + NL + f"src: {ev['text']}")
             continue
         # each item a closed block with its own source, so a long call does not mix one item's words into another's
         lines.append(f"<{ref}> place {pref} | {fref} {feat.id} = {o['value']}{f' | {meta}' if meta else ''}" + NL
+                     + (f"  claim: {sentence}" + NL if ont.valid_detail(feat.id) else "")
                      + f"  quote: \"{o['span']['quote']}\"{pic}" + NL
                      + f"  source of {ref} only: {ev['text']}" + NL + f"</{ref}>")
     place_lines = []
@@ -304,7 +337,10 @@ def render(chunk: list[tuple], ont, claim: bool = False) -> tuple[dict, list[byt
         place_lines.append(f"{pref}: {pname} ({info['category']}), {info['address']}")
     feat_lines = []
     for fid, fref in feats.items():
-        f = ont.features[fid]
+        f = ont.as_feature(fid)
+        if ont.valid_detail(fid):
+            feat_lines.append(f"{fref} {fid}: free text copied from the source. It is right when the source says: {f.hint}")
+            continue
         claims = "; ".join(f"{v}: {c}" for v, c in f.claims.items()) if f.claims else ", ".join(f.values)
         feat_lines.append(f"{fref} {fid}: {f.hint}. Values: {claims}")
     return ({"places": NL.join(place_lines), "features": NL.join(feat_lines), "items": (NL + NL).join(lines)},
@@ -349,7 +385,7 @@ async def label_with(task, chunk: list[tuple], ont, city: str, clients: dict, se
 async def audit_chunk(chunk: list[tuple], ont, city: str, clients: dict, sems: dict, look: int = 1) -> collections.Counter:
     """The Judge's labels for one chunk. With a first reader (JUDGE_FIRST_MODEL) on a plain text chunk, its "correct"
     stands and the Judge reads only what it called wrong or unsure: a wrong drops evidence, so the Judge confirms it."""
-    is_strong = look > 1 or strong(ont.features[chunk[0][3]["feature"]], chunk[0][3]["value"])
+    is_strong = look > 1 or strong(ont.as_feature(chunk[0][3]["feature"]), chunk[0][3]["value"])
     if OBS_AUDIT_GEMMA.role.name in clients:  # the Gemma audit: one strict reader for every claim
         got, rest = await label_with(OBS_AUDIT_GEMMA, chunk, ont, city, clients, sems, look)
     elif is_strong:

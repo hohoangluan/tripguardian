@@ -49,6 +49,20 @@ export const FEATURE: Record<string, string> = {
   elderly: 'Người lớn tuổi',
   couples: 'Cặp đôi',
   groups: 'Nhóm bạn',
+  car_access: 'Ô tô vào được',
+  coach_access: 'Xe 16 chỗ, xe khách vào được',
+  night_road_risk: 'Đường tối nguy hiểm',
+  rest_benches: 'Có chỗ ngồi nghỉ',
+  stroller_access: 'Đẩy xe em bé được',
+  fog_blocks_view: 'Sương mù che view',
+  cold: 'Lạnh, cần áo ấm',
+  toilet_available: 'Có nhà vệ sinh',
+  heater: 'Có máy sưởi',
+  hot_water: 'Nước nóng',
+  kids_play_area: 'Khu chơi cho trẻ',
+  pets: 'Mang thú cưng',
+  scam_stage: 'Chặt chém ở khâu',
+  breakfast: 'Bữa sáng',
 }
 
 export const VALUE: Record<string, string> = {
@@ -84,6 +98,16 @@ export const VALUE: Record<string, string> = {
   declined: 'xuống cấp',
   suitable: 'hợp',
   unsuitable: 'không hợp',
+  allowed: 'được',
+  not_allowed: 'không được',
+  included: 'đã gồm',
+  not_included: 'chưa gồm',
+  parking: 'gửi xe',
+  photo: 'chụp ảnh',
+  tout: 'cò mồi',
+  forced_purchase: 'ép mua hàng',
+  menu_price: 'giá món',
+  rental: 'thuê đồ',
 }
 
 export const featureLabel = (id: string) => FEATURE[id] ?? id.replace(/_/g, ' ')
@@ -129,6 +153,19 @@ export const NEGATIVE: Record<string, string[]> = {
   kids: ['unsuitable'],
   elderly: ['unsuitable'],
   cash_only: ['present'],
+  car_access: ['no'],
+  coach_access: ['no'],
+  night_road_risk: ['present'],
+  rest_benches: ['absent'],
+  stroller_access: ['no'],
+  fog_blocks_view: ['present'],
+  cold: ['present'],
+  toilet_available: ['no'],
+  heater: ['absent'],
+  hot_water: ['poor'],
+  pets: ['not_allowed'],
+  scam_stage: ['parking', 'photo', 'tout', 'forced_purchase', 'menu_price', 'rental'],
+  breakfast: ['not_included'],
 }
 
 export const isNegative = (id: string, v: string) => NEGATIVE[id]?.includes(v) ?? false

@@ -1,4 +1,4 @@
-"""Robustness (docs/P4_PLANNING.md ⓕ, docs/ARCHITECTURE.md §12): solid / feasible / fragile.
+"""Robustness (docs/PLANNING.md ⓕ, docs/ARCHITECTURE.md §12): solid / feasible / fragile.
 
 Fixed perturbations from config, never random. Each scenario re-runs the chosen order of every day and counts the
 places that no longer fit: a visit outside its hours, or one after which the day's end point cannot be reached in
@@ -12,8 +12,9 @@ from dataclasses import replace
 from .schedule import DayCtx, simulate
 from .traits import exposure
 from .travel import Travel
+from .cache import day_key, fingerprint, put
 
-LEVEL_LABEL = {"solid": "Dư giờ", "feasible": "Vừa đủ giờ", "fragile": "Sát giờ"}
+LEVEL_LABEL = {"solid": "Vững", "feasible": "Khả thi", "fragile": "Mong manh"}
 VISIT_KEYS = ("short", "typical", "long")
 
 
@@ -61,7 +62,7 @@ def _describe(sc: dict) -> str:
     return f'di chuyển chậm hơn {sc["travel_pct"]}%'
 
 
-def robustness(ctxs: list[DayCtx], results: list, travel_source: str) -> dict:
+def robustness(ctxs: list[DayCtx], results: list, travel_source: str, *, day_cache: dict | None = None) -> dict:
     cfg = ctxs[0].cfg
     rob = cfg.robustness
     forecast = any(cx.wet is not None for cx in ctxs)
@@ -74,7 +75,15 @@ def robustness(ctxs: list[DayCtx], results: list, travel_source: str) -> dict:
             lost = [i for cx, r in zip(ctxs, results) if cx.wet is not None and cx.wet >= cfg.rain_high
                     for i in r.order if exposure(cx.places[i]) == "exposed"]
         else:
-            lost = [i for cx, r in zip(ctxs, results) for i in lost_places(r.order, _perturbed(cx, sc))]
+            lost = []
+            for cx, r in zip(ctxs, results):
+                key = fingerprint((day_key(cx, r.order), r.order, sc)) if day_cache is not None else None
+                if day_cache is None:
+                    lost.extend(lost_places(r.order, _perturbed(cx, sc)))
+                else:
+                    if key not in day_cache:
+                        put(day_cache, key, lost_places(r.order, _perturbed(cx, sc)), cfg.cache_entries)
+                    lost.extend(day_cache[key])
         scenarios.append({"id": sc["id"], "tier": sc["tier"], "text": _describe(sc), "lost": lost})
     if all(len(s["lost"]) <= rob["solid_max_lost"] for s in scenarios):
         level = "solid"
@@ -83,15 +92,15 @@ def robustness(ctxs: list[DayCtx], results: list, travel_source: str) -> dict:
     else:
         level = "fragile"
     names = {i: p.name for cx in ctxs for i, p in cx.places.items()}
-    reasons = [f'Nếu {s["text"]}: lỡ {len(s["lost"])} nơi ({", ".join(names[i] for i in s["lost"])}).'
+    reasons = [f'{s["text"]}: mất {len(s["lost"])} nơi ({", ".join(names[i] for i in s["lost"])})'
                for s in scenarios if s["lost"]]
     travels = any(i.kind == "travel" for r in results for i in r.items)
     if level == "solid" and travel_source == "rough" and travels:
         level = "feasible"
-        reasons.append("Giờ di chuyển mới ước tính theo khoảng cách nên mình chưa dám nói là dư giờ.")
+        reasons.append("Thời gian di chuyển là ước lượng thô nên không kết luận Vững.")
     if not reasons:
-        reasons.append("Xuất phát trễ, ở lâu hơn hay đi chậm hơn một chút vẫn kịp mọi nơi.")
+        reasons.append("Chịu được mọi kịch bản nhiễu đã thử.")
     if skipped:
-        reasons.append("Chưa có dự báo thời tiết nên mình chưa tính trường hợp mưa.")
+        reasons.append("Chưa biết thời tiết: chưa thử kịch bản mưa.")
     return {"level": level, "label": LEVEL_LABEL[level], "reasons": reasons, "scenarios": scenarios,
             "breaking": [s["id"] for s in scenarios if s["lost"]], "skipped": skipped}

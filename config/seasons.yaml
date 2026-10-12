@@ -1,0 +1,4 @@
+# Seasons a source names without a month ("mùa dã quỳ"). Filled by a person only, each row with the url that gives the months;
+# nothing is inferred from model knowledge. Serving maps a best_time / avoid_time phrase containing `match` to these months.
+# - {match: "<phrase>", months: [11, 12], source: "<url>"}
+seasons: []

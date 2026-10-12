@@ -500,10 +500,25 @@ _REVIEW_OBS = {
     "additionalProperties": False,
 }
 
+# `detail` observations: free text copied from the source plus the numbers it states (corpus.observe.details_gate).
+# quote last, for the same reason as above.
+_DETAIL_KEYS = ("kind", "text", "amount_vnd", "audience", "unit", "min_people", "months", "days", "hour", "who",
+                "verdict", "time_of_day", "quote")
+_DETAIL_TYPES = {"amount_vnd": {"type": "integer"}, "min_people": {"type": "integer"},
+                 "months": {"type": "array", "items": {"type": "integer"}},
+                 "days": {"type": "array", "items": {"type": "string"}}}
+
+
+def _detail_item(keys: tuple[str, ...] = _DETAIL_KEYS, **special) -> dict:
+    return {"type": "object",
+            "properties": {k: special.get(k) or _DETAIL_TYPES.get(k) or {"type": "string"} for k in keys},
+            "required": list(keys), "additionalProperties": False}
+
+
 REVIEW_OBSERVE = Task(
     name="review_observe",
     role=EXTRACTOR,
-    max_tokens=6000,
+    max_tokens=8000,
     schema={
         "type": "object",
         "properties": {"reviews": {"type": "array", "items": {
@@ -514,8 +529,9 @@ REVIEW_OBSERVE = Task(
                 "proposed": {"type": "array", "items": {
                     "type": "object", "properties": {"label": {"type": "string"}, "quote": {"type": "string"}},
                     "required": ["label", "quote"], "additionalProperties": False}},
+                "details": {"type": "array", "items": _detail_item()},
             },
-            "required": ["ref", "observations", "proposed"],
+            "required": ["ref", "observations", "proposed", "details"],
             "additionalProperties": False}}},
         "required": ["reviews"],
         "additionalProperties": False,
@@ -556,6 +572,17 @@ For each review ref return the observations it states clearly:
 - Praise without a concrete point ("tuyệt vời", "10 điểm", "sẽ quay lại") gives no observation.
 - Something useful for choosing the place that is not in the list: add it to proposed with a short English label
   and its quote.
+- Details: also copy what the review says about THIS place for each detail kind in the list above, into details.
+  kind from that list; text = the shortest words naming it, copied exactly and part of quote; quote = the words that
+  state it.
+  amount_vnd: the VND amount the quote gives ("30k" -> 30000), else 0; a fee always has one. audience: adult | child |
+  senior | all, else "". unit: person | group | vehicle | item, else "". min_people: the smallest party the quote
+  names ("tối thiểu 4 người" -> 4), else 0.
+  months: month numbers the quote names ("tháng 11" -> [11]); never from your own knowledge ("mùa dã quỳ" -> []).
+  days: mon..sun the quote names ("thứ 7" -> ["sat"]). hour: "HH:MM" the quote names ("trước 6h" -> "06:00"), else "".
+  fit: who = the companion id the review means, else its own word ("chó", "đồng nghiệp"); verdict = good | bad |
+  conditional for going here with them; going with someone and having fun is no fit.
+  Fields a kind does not use: "" / 0 / []. Praise without a concrete point is no detail.
 - Questions, ads and owner replies give nothing.
 Return every ref, with empty lists when it states nothing.
 
@@ -575,6 +602,12 @@ steep_or_stairs absent "đường bằng"; elderly suitable "ông bà đi đư�
 "nhà vệ sinh hơi bẩn".
 "Giá đúng như menu, không chặt chém khách du lịch, có chuyển khoản" -> tourist_trap absent "không chặt chém khách du
 lịch"; cash_only absent "có chuyển khoản".
+"Đi nhanh 30 phút, đi kỹ thì 2 tiếng" -> visit_duration under_1h "Đi nhanh 30 phút"; visit_duration 1_to_2h "đi kỹ thì
+2 tiếng".
+"Xe điện 40k/lượt, ai cũng gọi bánh căn trứng 30k, nổi tiếng với xích đu nhìn xuống hồ, đẩy xe em bé không được vì
+toàn bậc thang" -> details: fee "xe điện" amount_vnd 40000 unit item quote "Xe điện 40k/lượt"; order "bánh căn trứng"
+amount_vnd 30000 quote "ai cũng gọi bánh căn trứng 30k"; known_for "xích đu nhìn xuống hồ" quote "nổi tiếng với xích đu nhìn
+xuống hồ"; fit who baby verdict bad text "toàn bậc thang" quote "đẩy xe em bé không được vì toàn bậc thang".
 {note}
 Reviews:
 {reviews}""",
@@ -624,12 +657,17 @@ _VIDEO_OBS = {
     "additionalProperties": False,
 }
 
+_VIDEO_DETAIL_KEYS = (*_DETAIL_KEYS[:-1], "source", "ref", "quote")  # details come from speech or caption only
+_VIDEO_DETAIL = _detail_item(_VIDEO_DETAIL_KEYS, source={"type": "string", "enum": ["speech", "caption"]},
+                             ref={"type": "integer"})
+
 VIDEO_OBSERVE = Task(
     name="video_observe",
     role=EXTRACTOR,
     max_tokens=4000,
-    schema={"type": "object", "properties": {"observations": {"type": "array", "items": _VIDEO_OBS}},
-            "required": ["observations"], "additionalProperties": False},
+    schema={"type": "object", "properties": {"observations": {"type": "array", "items": _VIDEO_OBS},
+                                             "details": {"type": "array", "items": _VIDEO_DETAIL}},
+            "required": ["observations", "details"], "additionalProperties": False},
     # One (video, place) pair that place_verify accepted. The same ontology and rules as REVIEW_OBSERVE; frames only
     # for what a picture can prove, and only when the video is about this one place (the code sends no frames
     # otherwise). The gate (corpus.observe.tiktok) checks every quote against the numbered segment or the caption.
@@ -659,6 +697,17 @@ Return the observations the video states clearly about THIS place:
 - Going with someone is not suitability; a denied quality is never "present"; what the creator did ("mình đặt bàn
   trước", "đi xe lên") is not a fact about the place; riding a long way is not long_walk; ads, songs and greetings
   give nothing.
+- Details: also copy what the video says about THIS place for each detail kind in the list above, into details, from
+  speech or caption only (never a frame): source and ref as above; kind from that list; text = the shortest words
+  naming it, copied exactly and part of quote; quote = the words that state it.
+  amount_vnd: the VND amount the quote gives ("30k" -> 30000), else 0; a fee always has one. audience: adult | child |
+  senior | all, else "". unit: person | group | vehicle | item, else "". min_people: the smallest party the quote
+  names, else 0.
+  months: month numbers the quote names ("tháng 11" -> [11]); never from your own knowledge ("mùa dã quỳ" -> []).
+  days: mon..sun the quote names ("thứ 7" -> ["sat"]). hour: "HH:MM" the quote names ("trước 6h" -> "06:00"), else "".
+  fit: who = the companion id the video means, else its own word; verdict = good | bad | conditional for going here
+  with them; going with someone and having fun is no fit.
+  Fields a kind does not use: "" / 0 / [].
 
 Caption: {desc}
 Hashtags: {hashtags}
@@ -697,7 +746,7 @@ DECISION_OPS = ["select", "drop", "lock", "travel", "crowd", "price", "trip", "v
 DECISION_TURN = Task(
     name="decision_turn",
     role=AGENT,
-    max_tokens=900,
+    max_tokens=700,
     temperature=0.2,
     parallel=4,
     # `say` first: the server streams it before the updates arrive (src/decision/agent.py).
@@ -731,13 +780,9 @@ fact that is not in PLACES or in the user's message. If OPEN QUESTION is not "no
 `updates`: one entry per request in the message.
 - select | lock: the user wants place `place` in the trip (lock: must keep it). value "".
 - drop: the user does not want `place`; value = the reason if stated: far | crowded | pricey | dislike | visited,
-  else "". A long wait or queue counts as crowded.
+  else "".
 - visited: the user has been to `place` already. value "".
-- crowd: the user wants fewer crowded or busy places in general, no single place ("bỏ mấy chỗ đông đi", "ít người
-  thôi", "tránh chỗ phải xếp hàng"). value "".
-- travel: the user wants places closer in general, less riding ("gần hơn", "đừng đi xa quá"). value "".
-- price: the user wants cheaper places in general ("rẻ hơn chút"). value "".
-  For these three, `op` names the wish and `value` stays ""; never put the wish into `value`.
+- travel | crowd | price: the user wants places closer | less crowded | cheaper in general, no single place. value "".
 - trip: a wish about the trip or the kind of place, not one place on screen: quieter, vegetarian, no stairs, near
   the centre, a budget, who comes along, "not like <a place>", "like <a place>". value "". quote = the exact words
   of that wish. Trip Understanding reads it and the list is rebuilt; do not also turn it into select or drop,
@@ -967,7 +1012,7 @@ AUDIT_SCHEMA = {
     "additionalProperties": False,
 }
 
-# The Judge in place of a person (docs/P1_CORPUS.md §6): it reads what a small model claimed about one feature of one
+# The Judge in place of a person (docs/CORPUS.md §6): it reads what a small model claimed about one feature of one
 # place next to the source, and says whether each claim holds for this place in the ontology's sense. Its verdicts are
 # labels (corpus.review.labels, by = judge model): wrong claims leave the evidence, and they measure precision.
 _AUDIT_PROMPT = """You audit a travel database about {city}, Vietnam, built from Google Maps reviews and photos and
@@ -1131,18 +1176,20 @@ _DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 OFFICIAL_OBSERVE = Task(
     name="official_observe",
     role=EXTRACTOR,
-    max_tokens=2500,
+    max_tokens=3500,
     schema={
         "type": "object",
         "properties": {"facts": {"type": "array", "items": {"type": "object", "properties": {
-            "kind": {"type": "string", "enum": ["ticket", "free", "hours"]},
+            "kind": {"type": "string", "enum": ["ticket", "free", "hours", "fee", "last_entry"]},
             "quote": {"type": "string"},
             "amount_vnd": {"type": "integer"},
-            "audience": {"type": "string", "enum": ["adult", "child", "other", "none"]},
+            "audience": {"type": "string", "enum": ["adult", "child", "senior", "other", "none"]},
             "open": {"type": "string"},
             "close": {"type": "string"},
-            "days": {"type": "array", "items": {"type": "string", "enum": _DAYS}}},
-            "required": ["kind", "quote", "amount_vnd", "audience", "open", "close", "days"],
+            "days": {"type": "array", "items": {"type": "string", "enum": _DAYS}},
+            "item": {"type": "string"},
+            "unit": {"type": "string", "enum": ["person", "group", "vehicle", "item", "none"]}},
+            "required": ["kind", "quote", "amount_vnd", "audience", "open", "close", "days", "item", "unit"],
             "additionalProperties": False}}},
         "required": ["facts"],
         "additionalProperties": False,
@@ -1150,7 +1197,8 @@ OFFICIAL_OBSERVE = Task(
     # One chunk of a place's own website (corpus.observe.official); code checks every quote and number against the
     # page, so a fact the page does not state word for word is dropped.
     prompt="""You read part of the official website of a place in {city}, Vietnam, and list what it states about
-visiting THIS place: entry ticket prices and opening hours. Only what the text says; never guess.
+visiting THIS place: entry ticket prices, other fees, opening hours and the last admission time. Only what the text
+says; never guess.
 
 Place: {name} ({category}), {address}
 {note}
@@ -1159,16 +1207,21 @@ Page: {url}
 Facts to return (an empty list when the text states none for this place):
 - kind "ticket": an entry ticket price. amount_vnd = the amount in VND as an integer ("50.000đ", "50k",
   "50 nghìn" -> 50000). audience: "adult" for the normal entry ticket of an adult (or an entry ticket that names no
-  group), "child" for children, students or elderly prices, "other" for combos, games, rides, food, drinks, rentals,
-  photos, parking, spa or other services, tours and anything that is not the entry ticket. A price in another
-  currency is left out.
+  group), "child" for children or students, "senior" for the elderly ("người cao tuổi", "trên 60 tuổi"). Anything
+  that is not an entry ticket is kind "fee", not "ticket". A price in another currency is left out.
+- kind "fee": a price for something at this place that is not the entry ticket: rides, games, an electric cart,
+  rentals, photos, parking, a combo, a tour. item = the name of the thing copied from the text ("xe điện", "thuê áo
+  dài", "gửi ô tô"); amount_vnd as above; unit = what the price is for: person, group, vehicle, item (one piece or
+  one ride), else "none"; audience "none".
 - kind "free": the text says entry to this place is free for every visitor. Free for some people only (small
   children under a height, the elderly, locals) is not "free": leave it out.
 - kind "hours": opening hours (when the place opens and closes; a last admission time, the first / last tour or
   show time and a booking slot are not opening hours). open, close = "HH:MM" in 24 h ("7h30" -> "07:30", "5 giờ chiều" -> "17:00"); days =
   the days they apply to (all seven for "hằng ngày", "mỗi ngày", "daily" or when no day is named). Several time
   ranges -> one fact per range.
-Fields that do not apply: amount_vnd 0, audience "none", open "", close "", days [].
+- kind "last_entry": the time ticket sales stop or the last visitors are let in ("ngừng bán vé lúc 16h30", "last
+  entry 4 pm"), which is not the closing time. open = that time as "HH:MM"; close "".
+Fields that do not apply: amount_vnd 0, audience "none", open "", close "", days [], item "", unit "none".
 quote = the exact words of the text that state the fact, copied character for character (no translation, no
 rewording), at most 200 characters, containing the amount or the times.
 A page about several places or branches: only facts the text gives for {name}; a branch in another city is not
@@ -1179,10 +1232,9 @@ Text:
 )
 
 
-# Benchmark users (python -m bench, docs/P2_TRIP_UNDERSTANDING.md §16): a model plays one traveller whose trip it knows in full.
+# Benchmark users (python -m bench, docs/plans/BENCH.md): a model plays one traveller whose trip it knows in full.
 USER_SIM_CODES = (
-    "What the codes in the JSON mean: mobility motorbike = you ride your own motorbike, car = your own car; "
-    "companions solo = alone, partner = your partner, friends, kids = young children, "
+    "What the codes in the JSON mean: mobility motorbike = you ride your own motorbike, car = your own car; companions solo = alone, partner = your partner, friends, kids = young children, "
     "parents = your parents / older people; pace slow = few places a day, normal, packed = as many as possible; "
     "crowd_tolerance avoid = you avoid crowds, ok_if_worth = crowds are fine if the place is worth it, fine = you do "
     "not mind; novelty familiar = well-known places, new = places you have not seen, mix; budget_vnd = what one "

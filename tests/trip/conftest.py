@@ -1,8 +1,15 @@
 import pytest
 from trip_fixtures import MONDAY_CLOSED, rec
 
+from trip.api import engine
 from trip.infrastructure.catalog import Catalog
 from trip.infrastructure.settings import Settings
+
+
+@pytest.fixture(autouse=True)
+def no_live_turn_log(tmp_path, monkeypatch):
+    """Tests write their turns to a temp file, never to the live logs/run/trip_turns.log."""
+    monkeypatch.setattr(engine, "TURN_LOG", tmp_path / "trip_turns.log")
 
 
 @pytest.fixture

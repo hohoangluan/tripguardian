@@ -1,4 +1,4 @@
-"""Aggregate (docs/P1_CORPUS.md §5), code only: every source's observations of a place -> one intel file.
+"""Aggregate (docs/CORPUS.md §5), code only: every source's observations of a place -> one intel file.
 
 Reads data/*/observations/*.json and data/*/photo_observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
 every other file there (a place that has no observation file now): the folder is one build. Observation files of an
@@ -13,7 +13,7 @@ Targeted samples (observation `sample`: Maps' lowest / highest rated reviews, ke
 count only for effort and facts of the place (corpus.observe.targeted_ok), with their authors (`voices_targeted`)
 added to those features' mention-rate denominator; never for opinions, and their stars never for rating_trend.
 Labels (a person's, else the Judge model's, corpus.review) are applied first: an observation labelled wrong is
-left out. Measured quality (docs/P1_CORPUS.md §6): `quality` = the label precision of the top value
+left out. Measured quality (docs/CORPUS.md §6): `quality` = the label precision of the top value
 (review.label_stats); `checked` counts the top value's authors whose claims were labelled correct; `servable` = the
 value may be served by itself: declared by an authoritative source, its precision passed the label gate, every
 author of it was checked correct, or a person accepted it. Only a value that widens a choice (`verify: always`, not a
@@ -27,6 +27,8 @@ Judge found to be one place (corpus.judge.merges) are aggregated as the canonica
 `estimates` (estimates.py): category group, visit time range and entry fee in VND, each with its source.
 Place facts (popular times, price, hours, closure, tickets) pass through as `operation`; a place's own website
 (source "official") wins over Maps for hours and entry fee (merge_hours, estimates), disagreeing days kept, name / category / location as `identity`, popular times also summed up by day type x time of day. Conflicts are kept as distributions, never flattened.
+`details`: the free-text `detail.<kind>` observations clustered per kind (details.py); `operation` also carries the
+official `tickets_vnd` (adult / child / senior) and `last_entry`.
 """
 
 import collections
@@ -39,6 +41,7 @@ from ..ontology import UNKNOWN, Feature, Ontology, load as load_ontology
 from ..judge import merges
 from ..review import decisions, label_key, label_stats, label_verdicts
 from ..categories import group
+from .details import place_details
 from .estimates import estimates
 
 AGREEMENT_MIN = 0.6
@@ -342,8 +345,9 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
         "place_name": next((f["place_name"] for f in files if f.get("place_name")), None),
         "as_of": as_of.isoformat(), "ontology_version": ont.version, "identity": identity, "voices": voices,
         "voices_targeted": voices_targeted,
-        "features": features, "coverage": coverage(features, ont),
+        "features": features, "coverage": coverage(features, ont), "details": place_details(files, ont, verdicts),
         "operation": {"price_range": facts.get("price"), **hours, "closure": facts.get("closure"),
+                      "tickets_vnd": official.get("tickets_vnd"), "last_entry": official.get("last_entry"),
                       "crowd_by_time": crowd_by_time(facts.get("popular_times")),
                       "popular_times": facts.get("popular_times")},
         "estimates": estimates(identity.get("category"), features, [o for os in by_feature.values() for o in os],

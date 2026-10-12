@@ -1,23 +1,23 @@
-"""One conversation turn (docs/P2_TRIP_UNDERSTANDING.md §4).
+"""One conversation turn (docs/TRIP_UNDERSTANDING.md §4).
 
 edit / show / theme, a skipped or unsure card and a day picked on a calendar are deterministic. Typing, and choosing an
 option the agent wrote, run the agent loop (agent/loop.py): the agent records facts, then asks a card or just replies.
 """
 
 import asyncio
-import re
-import sys
+import json
+from datetime import datetime
+from pathlib import Path
 from datetime import date
-from typing import Literal
-from collections.abc import Callable
+from typing import Callable, Literal
 
 from pydantic import ValidationError, model_validator
 
 from ..agent import AgentError, Chat, TurnTools, build_messages, run_loop
 from ..domain import values
-from ..domain.card import OPENING, Chip, Question, conversation_card
+from ..domain.card import OPENING, Question, conversation_card
 from ..domain.compile import UnhandledSignal, compile_search_input
-from ..domain.guard import bad_say, drop_questions
+from ..domain.guard import GROUP_LABEL, bad_say, drop_questions, nearest_group
 from ..domain.logistics import pick_transit
 from ..domain.patterns import Summary, seed, seed_profile, votes_from_state
 from ..domain.prepass import Prepass, prepass
@@ -34,12 +34,29 @@ from ..infrastructure.catalog import Catalog
 from ..infrastructure.clef import ClefRoute
 from ..infrastructure.profile import ProfileStore
 from ..infrastructure.sessions import Session, SessionStore
-from ..infrastructure.settings import Settings
+from ..infrastructure.settings import ROOT, Settings
 
 Emit = Callable[[str, dict], None]
+TURN_LOG = ROOT / "logs" / "run" / "trip_turns.log"  # one JSON line per turn: tools called, retry, reply, card (debugging)
+
+
+def log_turn(sid: str, turn: int, text: str, log: list[str], say: str, card: str, state: dict | None = None,
+             path: Path = TURN_LOG) -> None:
+    """Append one turn's trace. Logging must never break a turn, so a failed write is ignored."""
+    line = {"at": datetime.now().isoformat(timespec="seconds"), "session": sid, "turn": turn, "user": text,
+            "tools": log, "retried": "claim_without_record" in log, "say": say, "card": card, "state": state or {}}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 Route = Callable[[str, str | None], ClefRoute]
 
 GREETING = "Chào bạn! Mình hỏi vài câu ngắn để hiểu chuyến Đà Lạt của bạn trước khi chọn chỗ."
+RECORDED_SAY = "Mình đã ghi lại ({got}). Bạn kể thêm gì về chuyến đi không?"
+PARTIAL_SAY = "Mình đã ghi lại một phần ({got}), phần còn lại chưa xử lý xong. Bạn kể lại giúp mình nhé."
+NOT_DONE_SAY = "Mình chưa xử lý xong ý này. Bạn kể lại giúp mình một lần nữa nhé."
 FALLBACK_SAY = ("Mình đã ghi lại những gì đọc được, nhưng trợ lý đang bận nên chưa hiểu hết câu này. "
                 "Bạn gửi lại giúp mình nhé.")
 BUSY_SAY = "Trợ lý đang bận nên chưa ghi được lựa chọn này. Bạn bấm lại giúp mình nhé."  # a button answer the agent missed
@@ -52,13 +69,18 @@ NOTED_TEXT_SAY = "Mình ghi lại như dưới đây, bạn xem có đúng khôn
 UNSURE_SAY = "Mình chưa chắc chắn về thông tin này nên chưa trả lời được ở bước này. Bạn cứ kể tiếp về chuyến đi nhé."
 UNMAPPED_SAY = ("Mình đã ghi lại {wish}, nhưng hiện chưa dùng được điều này để lọc địa điểm. "
                 "Bạn kể thêm về chuyến đi nhé.")
+# a group the companions field does not hold: say which groups the search does filter by
+GROUP_OTHER_SAY = ("Mình đã ghi lại {wish}, nhưng hiện mình chỉ lọc chuyến theo các nhóm: một mình, người yêu, "
+                   "bạn bè, trẻ nhỏ, bố mẹ. Bạn thấy {wish} giống nhóm nào trong đó không?")
+# a group wish close to one value: ask the user to confirm it (nothing is written from the question)
+GROUP_NEAR_SAY = ("Mình đã ghi lại {wish}, nhưng chưa lọc theo nhóm này được. Có phải bạn muốn nói “{label}” không? "
+                  "Nếu không, bạn kể rõ hơn giúp mình nhé.")
 DONE_SAY = "Xong rồi, mình đi tìm chỗ hợp với chuyến này."
 OTHER_TYPE_SAY = "Bạn gõ ý của bạn vào ô bên dưới giúp mình nhé."
 REVIEW_SAY = "Xong trắc nghiệm rồi, mình tóm tắt hiểu biết ở bảng bên cạnh. Bạn muốn chỉnh gì thêm, hay có nơi cụ thể nào phải đến không?"
 BAD_VALUE = "Giá trị này mình chưa đọc được, bạn thử lại nhé."
 EXIT_LABEL = {"skip": "Bỏ qua", "unsure": "Chưa chắc"}  # what the user pressed, as it shows in the chat
 DECLINE_SAY = "Không sao, mình để trống ý này."
-PAUSE_SAY = "Ok, mình để trắc nghiệm ở đây. Bạn cứ kể tiếp, muốn quay lại thì bấm Quay lại trắc nghiệm nhé."
 DATE_SAY = "Mình ghi ngày đi {day}."
 THEME_SAY = "Mình bắt đầu từ chủ đề “{title}”: {what}."
 # after an answer the agent did not see: what the user can do next (no question is forced)
@@ -67,9 +89,15 @@ NEXT_READY = " Bạn kể thêm điều mình nên biết, hoặc bấm Xem gợ
 THEME_UNKNOWN = "Chủ đề này không còn nữa, bạn chọn chủ đề khác nhé."
 PAST_DATE = "Ngày này đã qua, bạn chọn ngày khác giúp mình nhé."
 
+# Prepass proposals allowed straight into the Trip State: high-precision slots only (dates, counts,
+# money, explicit body signals, effort hard filters, single-meaning soft). Everything else arrives as
+# agent-only suggestions and is recorded via record_fact.
+APPLIED_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights", "people", "budget_vnd",
+                            "budget_scope", "signal", "hard", "soft"})
+
 
 class TurnInput(Frozen):
-    kind: Literal["text", "answer", "edit", "show", "more", "theme", "requiz", "pause"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"; requiz: "Làm lại trắc nghiệm"; pause: "Thoát" giữa quiz về chat
+    kind: Literal["text", "answer", "edit", "show", "more", "theme", "to_chat", "to_quiz"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"; to_chat / to_quiz: the mode bar
     text: str = ""
     qid: str = ""
     chips: tuple[str, ...] = ()
@@ -92,6 +120,10 @@ def _learned(before: TripState, after: TripState, fields: list[str]) -> bool:
             return {k: x.value for k, x in st.soft.items()}
         if f in ("anchor", "signal", "hard"):
             return getattr(st, {"anchor": "anchors", "signal": "signals"}.get(f, f))
+        if f == "activity":
+            return st.activities
+        if f == "time_preference":
+            return st.time_preferences
         return getattr(st, f).value
 
     return any(now(before, f) != now(after, f) for f in set(fields) - {"unmapped"})
@@ -185,7 +217,7 @@ class Engine:
                 self._run(s, text, emit, may_ask=False, quiet=True)
                 s.card = card_before
                 try:
-                    emit("done", {"search_input": compile_search_input(s.state, self.cfg.arrival_buffer_min).model_dump(mode="json")})
+                    emit("done", {"search_input": compile_search_input(s.state, self.cfg.arrival_buffer_min, self.cfg.coach_min_people).model_dump(mode="json")})
                 except UnhandledSignal:  # an open health hint: the user answers it on the Understand screen
                     pass
             finally:
@@ -228,9 +260,9 @@ class Engine:
         if s.state.meta.phase == "quiz":
             qq = None
             if s.state.meta.other_qid:
-                qq = find_quiz(s.state.meta.other_qid, s.state, self.catalog, self.cfg, s.state.meta.requiz)
+                qq = find_quiz(s.state.meta.other_qid, s.state, self.catalog, self.cfg)
             if qq is None and s.card is not None and is_quiz(s.card.qid):
-                qq = find_quiz(s.card.qid, s.state, self.catalog, self.cfg, s.state.meta.requiz) or s.card
+                qq = find_quiz(s.card.qid, s.state, self.catalog, self.cfg) or s.card
             if qq is not None:
                 return self._quiz_typed(s, qq, text, emit)
         self._run(s, text, emit)
@@ -285,7 +317,8 @@ class Engine:
         if exit_ is not None and not picked:
             turn = self._open_turn(s, EXIT_LABEL[exit_], "exit")
             s.state = with_meta(s.state, asked=s.state.meta.asked + (q.qid,),
-                                declined=s.state.meta.declined + (q.text,))
+                                declined=s.state.meta.declined + (q.text,),
+                                unsure_streak=s.state.meta.unsure_streak + 1)
             s.transcript.append({"role": "agent", "text": DECLINE_SAY, "turn": turn, "kind": "say"})
             emit("say", {"replace": DECLINE_SAY})
             emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
@@ -367,26 +400,12 @@ class Engine:
                 pass
         return None
 
-    def _start_requiz(self, s: Session, emit: Emit) -> None:
-        """Làm lại trắc nghiệm" core, shared by the requiz turn and the agent's open_quiz tool: answered cards come
-        back so answers can change. Known values stay until picked otherwise (scalars overwrite, lists add); declined
-        cards return too."""
-        s.state = with_meta(s.state, asked=(), declined=(), other_qid=None, other_text=None,
-                            phase="quiz", requiz=True)
-        emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
-        return self._quiz_next(s, emit)
-
-    def _requiz(self, s: Session, inp: TurnInput, emit: Emit) -> None:
-        turn = self._open_turn(s, "Làm lại trắc nghiệm", "answer")
-        s.state = with_meta(s.state, turn=turn)
-        return self._start_requiz(s, emit)
-
     def _quiz_next(self, s: Session, emit: Emit) -> None:
         """The next quiz card, or the review card when the queue is empty."""
-        queue = quiz_queue(s.state, self.catalog, self.cfg, s.state.meta.requiz)
+        queue = quiz_queue(s.state, self.catalog, self.cfg)
         if not queue:
             turn = s.state.meta.turn
-            s.state = with_meta(s.state, phase="review", requiz=False, other_qid=None, other_text=None)
+            s.state = with_meta(s.state, phase="review", other_qid=None, other_text=None)
             s.card = review_card()
             s.transcript.append({"role": "agent", "text": REVIEW_SAY, "turn": turn, "kind": "say"})
             emit("say", {"replace": REVIEW_SAY})
@@ -404,14 +423,13 @@ class Engine:
         answer: the text is an option the user pressed on the open card (it answers that card; Clef is not asked)."""
         before = st = s.state
         prev = s.card
-        # Only the turn that reads the user's own telling of the trip may ask in words; after it every question is a
-        # chip card of the quiz. Paused (quiz on hold) is the exception: the user chats freely there and the agent
-        # may ask, pointed at what the state still misses (the auto-resume below stays chat-only, so it never yanks back).
-        clarify = may_ask and (not s.state.meta.told or s.state.meta.phase == "paused")
+        # Chat mode is plain words, never cards: the agent asks in text and the user types. Quiz and review
+        # keep cards; the quiz detour (_quiz_typed) only borrows the chat to resolve a typed answer.
+        chat = s.state.meta.phase == "chat"
+        clarify = may_ask and (not s.state.meta.told or chat)
+        stuck = s.state.meta.unsure_streak >= 2 or s.state.meta.idle_streak >= 2
         turn = st.meta.turn + 1
-        closed_at = len(s.transcript)
         self._close_card(s)
-        closed = len(s.transcript) > closed_at
         s.transcript.append({"role": "user", "text": text, "turn": turn, "kind": "text"})
         pre = prepass(text, self.today())
         emit("preview", {"fields": [{"target": p.field, "value": values.jsonable(p.value), "quote": p.quote}
@@ -421,18 +439,23 @@ class Engine:
             emit("state", {"understanding": understanding(st, self.catalog, self.cfg)})
         compared = compared_places(text, self.catalog)
         heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
-        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, clarify, self.judge,
-                          interactive=may_ask)
-        tools.transcript = s.transcript  # so tools can check if questions were recently asked
+        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, self.judge)
         hints = [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote} for p in pre.proposals]
         hints += [{"ambiguous": q, "may_mean": list(k)} for q, k in pre.ambiguous]
+        hints += [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote, "suggested": True}
+                  for p in pre.suggestions]
         log = tools.log
         needed = missing(st, self.cfg.required)
         messages = build_messages(st, text, s.transcript[:-1], prev.text if prev else None, self.today(), hints, compared,
-                                  clarify, dict(needed))
+                                   clarify, dict(needed), stuck)
         said: list[str] = []
-        failed = False
         shown = False  # the Agent starts at once, next to Clef; what it says stays unseen until Clef has let the turn through
+
+        def on_retry() -> None:
+            # the model is asked again: what it streamed so far is not shown or kept
+            said.clear()
+            if shown:
+                emit("say", {"replace": ""})
 
         def on_say(delta: str) -> None:
             said.append(delta)
@@ -444,7 +467,7 @@ class Engine:
 
         async def go() -> None:
             nonlocal shown, fixed
-            agent = asyncio.ensure_future(run_loop(self.chat, messages, tools, on_say, self.cfg.tool_steps))
+            agent = asyncio.ensure_future(run_loop(self.chat, messages, tools, on_say, self.cfg.tool_steps, on_retry))
             if self.route is None or not may_ask or answer:  # a pressed option is never off topic
                 shown = True
                 return await agent
@@ -465,33 +488,38 @@ class Engine:
             asyncio.run(go())
         except AgentError as exc:
             log.append(f"agent_error: {exc}")
-            print(f"[trip] agent_error sid={s.id} turn={turn} phase={s.state.meta.phase}: {exc}",
-                  file=sys.stderr, flush=True)
-            failed = True
             if not said:
                 said.append((NOTED_SAY if tools.recorded else BUSY_SAY) if answer else FALLBACK_SAY)
                 emit("say", {"replace": said[0]})
         finally:
             tools.close()
         if fixed:  # Clef answered for the Agent: whatever it already did is dropped, the open question stays
-            tools.state, tools.card, tools.lead, tools.unmapped = st, None, "", []
+            tools.state, tools.unmapped = st, []
             said.clear()
             log.clear()
         log.extend(clef_log)
         say = "".join(said).strip()
+        model_asked = "?" in say  # the agent's own text asks: fillers added below must not count as its question
         if fixed:  # Clef answered for the Agent: nothing learned, nothing spent, the open question stays
             say = fixed
             emit("say", {"replace": say})
-        if not clarify:
-            plain = drop_questions(say)  # no card follows here, so a question would go unanswered
+        if not say and (tools.recorded or "step_cap" in log):  # the agent wrote no reply: never leave the turn silent
+            got = ", ".join(sorted({FIELD_LABEL.get(f, f) for f in tools.recorded}))
+            say = (PARTIAL_SAY if "step_cap" in log else RECORDED_SAY).format(got=got) if got else NOT_DONE_SAY
+            emit("say", {"replace": say})
+        if not may_ask:  # refine (Chọn nơi) asks nothing: a question would go unanswered there
+            plain = drop_questions(say)
             if plain != say:
                 say = plain
                 emit("say", {"replace": say})
-        if tools.lead and not tools.unmapped:  # a comment written in front of a card's question belongs in the chat
-            say = f"{say} {tools.lead}".strip()
-            emit("say", {"replace": say})
-        if tools.unmapped:  # fixed reply: the model's own words could promise what the search cannot do
-            say = UNMAPPED_SAY.format(wish=", ".join(f"“{w}”" for w in tools.unmapped))
+        if tools.unmapped and model_asked:
+            # the agent already asked its own clarifying question: keep it, the template below is only the fallback
+            log.append("unmapped_agent_asks")
+        if tools.unmapped and not model_asked:  # fixed reply: the model's own words could promise what the search cannot do
+            wish = ", ".join(f"“{w}”" for w in tools.unmapped)
+            near = nearest_group(tools.unmapped[0]) if tools.group_other else None
+            say = (GROUP_NEAR_SAY.format(wish=wish, label=GROUP_LABEL[near]) if near
+                   else (GROUP_OTHER_SAY if tools.group_other else UNMAPPED_SAY).format(wish=wish))
             emit("say", {"replace": say})
         elif why := (bad_say(say, heard, tools.state, self.catalog, {c["id"] for c in compared})
                      or (tools.reply_problem() if say and not fixed else None)):
@@ -499,34 +527,19 @@ class Engine:
             # never leave a question without a visible reply; a told trip gets an honest pointer to the summary
             say = (UNSURE_SAY if "?" in text else NOTED_TEXT_SAY) if say else ""
             emit("say", {"replace": say})
-        card = tools.card
-        if not quiet:
-            if card is None and clarify and say.endswith("?") and not (fixed or tools.unmapped or failed):
-                asked = [x.strip() for x in re.split(r"(?<=[.!?…])\s+", say) if x.rstrip().endswith("?")]
-                if asked and not tools.repeated(asked[-1]):
-                    # asked in plain text instead of through a tool (Gemma often does): it becomes a card like ask_text's
-                    yes_no = re.search(r"\bkhông\s*\?$", asked[-1]) is not None  # "… có … không?": tapped, not typed
-                    card = Question(qid=f"ask:{turn}", group="I", tier=2, custom=True, input="text", text=asked[-1],
-                                    chips=(Chip(id="c0", label="Có"), Chip(id="c1", label="Không")) if yes_no else ())
-                    log.append("text_question")
-            # The open question stays open when this turn did not answer it: a typed message the agent recorded
-            # nothing new for (a reply, a correction, an unmapped wish, an error), or a pressed option the agent never
-            # read. An answered one closes.
-            answered = (answer and not failed) or _learned(before, tools.state, tools.recorded)
-            if card is None and prev is not None and prev.qid.startswith("ask:") and not answered and (clarify or fixed or failed):
-                card = prev
-                if closed:
-                    del s.transcript[closed_at]
-            if card is not None and (plain := drop_questions(say)) != say:  # the card asks; the chat keeps the rest
-                say = plain
-                emit("say", {"replace": say})
+        card = None  # questions are plain text: the quiz cards come from the bank, never from the agent
         if say:
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
         s.transcript.append({"role": "system", "text": "; ".join(log) or "no tools", "turn": turn})
         s.state = tools.state
+        if _learned(before, tools.state, tools.recorded):
+            s.state = with_meta(s.state, unsure_streak=0, idle_streak=0)
+        elif may_ask and not fixed:
+            # an adaptive turn that added nothing: the user may be stuck (surfaced as `stuck` next turn)
+            s.state = with_meta(s.state, idle_streak=s.state.meta.idle_streak + 1)
         if clarify and not fixed and (card is not None or s.state.model_copy(update={"meta": before.meta}) != before):
             # the trip was told (something was read or asked; a greeting or "không đi nữa" is not a telling). An agent
-            # that failed still leaves the keyword reads: the cards ask the rest.
+            # that failed still leaves the keyword reads: the quiz asks the rest when the user switches to it.
             s.state = with_meta(s.state, told=True)
         if quiet:
             return
@@ -538,19 +551,15 @@ class Engine:
                 s.state = with_meta(tools.state, other_qid=None, other_text=None,
                                     asked=tools.state.meta.asked + (other,))
                 resumed = True
-            elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg, tools.state.meta.requiz)) is not None:
+            elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg)) is not None:
                 card = qq  # not resolved yet: the chat clarifies, the chips stay available
-        if may_ask and getattr(tools, "opened", False):
-            # The agent explicitly opened the quiz: start, resume, or redo based on the current phase.
-            s.state = tools.state
-            if before.meta.phase in ("quiz", "review"):
-                return self._start_requiz(s, emit)
-            return self._quiz_next(s, emit)
-        if not resumed and may_ask and fixed is None and card is None and s.state.meta.phase == "chat" \
-                and s.state.meta.told:
-            # the opening telling is read and nothing is left to clarify in words: the rest is chip cards
-            resumed = True
+        # No auto-advance: the mode bar belongs to the user. Chat stays chat until they switch; the quiz
+        # detour above is the only automatic hop.
         s.card = card or conversation_card()
+        st = s.state
+        log_turn(s.id, turn, text, log, say, s.card.qid, {
+            "companions": sorted(map(str, st.companions.value or ())), "start_date": str(st.start_date.value),
+            "days": st.days.value, "unmapped": [u.phrase for u in st.unmapped]})
         if not resumed:
             emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
             emit("card", self._card(s.state, s.card))
@@ -564,7 +573,7 @@ class Engine:
         if self.route is None:
             return None, ClefRoute()
         r = self.route(text, prev.text if prev else None)
-        if r.reject and not (pre.proposals or pre.ambiguous):
+        if r.reject and not (pre.proposals or pre.ambiguous or pre.suggestions):
             log.append(f"clef_reject:{r.reject}")
             return REJECT_SAY, r
         if r.asks_data and {p.field for p in pre.proposals} <= {"month", "start_date"}:  # a date only frames the question
@@ -577,7 +586,8 @@ class Engine:
     def _decline(self, s: Session, q: Question, exit_: str, emit: Emit) -> None:
         """"Bỏ qua" / "Chưa chắc": the field stays unknown and the question is never asked again. No model call."""
         turn = self._open_turn(s, EXIT_LABEL[exit_], "exit")
-        s.state = with_meta(s.state, declined=s.state.meta.declined + (q.text,))
+        s.state = with_meta(s.state, declined=s.state.meta.declined + (q.text,),
+                            unsure_streak=s.state.meta.unsure_streak + 1)
         self._close_turn(s, DECLINE_SAY, turn, emit)
 
     def _pick_date(self, s: Session, raw: str, emit: Emit) -> None:
@@ -618,7 +628,7 @@ class Engine:
         for g in th.get("groups", ()):
             st = apply(st, Update(field="liked_groups", op="add", value=g, source="user", confidence="medium",
                                   evidence=ev))
-        s.state = with_meta(settle(st), told=True)  # the theme is the telling: the rest is chip cards
+        s.state = with_meta(settle(st), told=True)  # the theme is the telling; the user picks chat or quiz next
         self._close_turn(s, THEME_SAY.format(title=th["title"], what=th["say"]), turn, emit)
 
     def _open_turn(self, s: Session, shown: str, kind: str) -> int:
@@ -629,9 +639,9 @@ class Engine:
         return turn
 
     def _close_turn(self, s: Session, say: str, turn: int, emit: Emit) -> None:
-        """Ends a turn the agent did not run. Before the trip is told, the reply says what the user can do next and the
-        chat box is open; after it, the next chip card follows."""
-        if s.state.meta.phase == "chat" and s.state.meta.told:
+        """Ends a turn the agent did not run. The session stays in its phase: the quiz moves to its next
+        card, chat keeps the text box open."""
+        if s.state.meta.phase == "quiz":
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
             emit("say", {"replace": say})
             return self._quiz_next(s, emit)
@@ -680,30 +690,50 @@ class Engine:
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
 
     def _more(self, s: Session, inp: TurnInput, emit: Emit) -> None:
-        """"Hỏi tiếp": the user leaves the agent's own question unanswered and goes on with the chip cards. Nothing is
-        declined: what the question was after is still unknown, so the quiz asks it again in its own card. From a
-        paused chat it resumes the quiz where it left off."""
-        if s.state.meta.phase not in ("chat", "paused"):  # the quiz or the review is already under way: its card stays
+        """"Hỏi tiếp": kept as an alias of the mode bar's to_quiz (an unanswered open card counts as declined)."""
+        return self._to_quiz(s, inp, emit)
+
+    def _to_chat(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        """The mode bar: free chat from here on (plain words, no cards). An open card left unanswered counts
+        as declined: it is never asked again in either mode."""
+        if s.state.meta.phase == "chat":
             emit("card", self._card(s.state, s.card))
             return
         self._close_card(s)
-        s.state = with_meta(s.state, told=True)
-        self._quiz_next(s, emit)
-
-    def _pause(self, s: Session, inp: TurnInput, emit: Emit) -> None:
-        """"Thoát" mid-quiz: back to chatting with the quiz progress kept in asked + values. The open quiz card
-        leaves the screen but `_quiz_next` rebuilds it (asked is untouched); a half-clarified typed answer
-        (`other_qid`) is dropped with it."""
-        if s.state.meta.phase != "quiz":
-            emit("card", self._card(s.state, s.card))
-            return
-        turn = self._open_turn(s, "Tạm nghỉ trắc nghiệm", "answer")
-        s.state = with_meta(s.state, turn=turn, phase="paused", other_qid=None, other_text=None)
+        self._decline_open_card(s)
+        turn = s.state.meta.turn + 1
+        s.transcript.append({"role": "user", "text": "Trò chuyện tự do", "turn": turn, "kind": "answer"})
+        s.state = with_meta(s.state, turn=turn, phase="chat")
         s.card = conversation_card()
-        s.transcript.append({"role": "agent", "text": PAUSE_SAY, "turn": turn, "kind": "say"})
-        emit("say", {"replace": PAUSE_SAY})
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
         emit("card", self._card(s.state, s.card))
+
+    def _to_quiz(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        """The mode bar: quick chip cards from here on. An open card left unanswered counts as declined:
+        it is never asked again in either mode."""
+        if s.state.meta.phase == "quiz":
+            emit("card", self._card(s.state, s.card))
+            return
+        was_review = s.card is not None and s.card.qid == REVIEW_QID
+        self._close_card(s)
+        self._decline_open_card(s)
+        turn = s.state.meta.turn + 1
+        s.transcript.append({"role": "user", "text": "Làm trắc nghiệm nhanh", "turn": turn, "kind": "answer"})
+        s.state = with_meta(s.state, turn=turn, phase="quiz")
+        if was_review and not quiz_queue(s.state, self.catalog, self.cfg):
+            s.card = review_card()
+            emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+            emit("card", self._card(s.state, s.card))
+            return
+        self._quiz_next(s, emit)
+
+    def _decline_open_card(self, s: Session) -> None:
+        """An open question left unanswered on a mode switch: never asked again in either mode."""
+        q = s.card
+        if q is None or q.qid in ("conversation", "frame"):
+            return
+        s.state = with_meta(s.state, asked=s.state.meta.asked + (q.qid,),
+                            declined=s.state.meta.declined + (q.text,))
 
     def _show(self, s: Session, inp: TurnInput | None, emit: Emit) -> None:
         # Next is always open: unknown fields ride along as unknowns. An open health / body / diet hint gets the
@@ -716,7 +746,7 @@ class Engine:
             emit("say", {"replace": say})
             emit("card", self._card(s.state, s.card))
             return
-        si = compile_search_input(s.state, self.cfg.arrival_buffer_min)
+        si = compile_search_input(s.state, self.cfg.arrival_buffer_min, self.cfg.coach_min_people)
         self._remember(s)
         self._close_card(s)
         s.card = None
@@ -726,7 +756,12 @@ class Engine:
     # ---------- helpers ----------
 
     def _deterministic(self, st: TripState, text: str, pre: Prepass, turn: int) -> TripState:
-        """Links, pasted place lists, keyword matches: written before the agent so nothing depends on it."""
+        """Links, pasted place lists, keyword matches: written before the agent so nothing depends on it.
+
+        Only high-precision prepass proposals reach the state (dates, counts, money, explicit body
+        signals, effort hard filters). Suggestions (who goes, transport, pace, novelty, kinds of place)
+        are agent-only hints: the agent reads the user's words and records them via record_fact.
+        """
         lines = [x.strip() for x in text.splitlines() if x.strip()]
         names = [x for x in lines if not URL.match(x)] if len(lines) >= 2 else []
         for raw in URL.findall(text) + names:
@@ -736,6 +771,8 @@ class Engine:
             st = apply(st, Update(field="anchor", op="add", value=a, source="user", confidence="high",
                                   evidence=Evidence(turn=turn, quote=raw)))
         for p in pre.proposals:
+            if p.field not in APPLIED_FIELDS:
+                continue
             try:
                 # keyword guesses: shown with ✎ until the user or the agent confirms them
                 st = apply(st, Update(field=p.field, op=p.op, value=p.value, source="inferred",
@@ -762,5 +799,5 @@ class Engine:
         return card(q, chip_effects(state, q, self.catalog))
 
     def _close_card(self, s: Session) -> None:
-        if s.card:
+        if s.card and s.card.text.strip():  # an empty text box closing leaves no trace
             s.transcript.append({"role": "agent", "text": s.card.text, "turn": s.state.meta.turn, "kind": "card"})

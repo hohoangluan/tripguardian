@@ -9,11 +9,9 @@ class Tools:
         self.stage, self.states = stage, {}
         self.calls = 0
 
-    def create(self, payload, *, namespace=None):
+    def create(self, payload):
         sid = f"{len(self.states) + 1:012x}"
         self.states[sid] = {"id": sid, "value": 0, "input": copy.deepcopy(payload)}
-        if namespace is not None:
-            self.states[sid]["namespace"] = namespace
         return self.load(sid)
 
     def load(self, sid):
@@ -23,8 +21,8 @@ class Tools:
         from trip import SearchInput
         from corpus.ontology import load
         search = SearchInput.model_validate({"ontology_version": load().version,
-            "context": {"days": 2, "nights": 1, "mobility": "motorbike", "start_date": None, "month": None,
-                "base": None, "companions": [], "people": None, "checkin_at": None, "checkout_at": None,
+            "context": {"days": 2, "mobility": "motorbike", "start_date": None, "month": None,
+                "base": None, "companions": [], "people": None, "arrive_at": None, "leave_at": None,
                 "day_end": None}, "hard_filters": [], "anchors": [],
             "soft_weights": [], "pace": {"level": "normal", "max_leg_min": None, "crowd_tolerance": None},
             "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []})
@@ -95,11 +93,6 @@ class Tools:
         return {"status": "ready" if ready else "pending", "book_url": "https://book",
                 "trips": [{"mode": "plane", "carrier": "Vietjet"}] if ready else []}
 
-    def rentals(self, params):
-        if params.get("mode") not in ("plane", "bus"):
-            raise ValueError("mode must be plane or bus")
-        return {"status": "none", "hub": {"text": "Bến xe Liên tỉnh Đà Lạt", "lat": 11.93, "lng": 108.44}, "points": []}
-
 
 def file_store(root):
     from harness import Store
@@ -134,7 +127,6 @@ def test_handoffs_preserve_the_same_journey_and_decision_state():
     v = run(h, v, "act", "select")
     v = run(h, v, "advance", "to-planning")
     assert v["stage"] == "planning" and v["id"] == jid
-    assert v["result"]["view"]["namespace"] == jid
     assert v["outputs"]["decision"]["value"] == 1
     v = run(h, v, "back", "more-places")
     assert v["stage"] == "decision" and v["sessions"]["decision"] == did
@@ -207,8 +199,8 @@ def test_planning_edits_keep_the_confirmed_decision_input():
 
 def preview_tools(tools, draft):
     tools["decision"].read = lambda sid, op, payload: {"output": draft}
-    tools["planning"].preview = lambda payload, *, namespace=None: {
-        "ok": True, "days": 2, "variants": [], "input": payload["decision_output"], "namespace": namespace}
+    tools["planning"].preview = lambda payload: {"ok": True, "days": 2, "variants": [],
+                                                 "input": payload["decision_output"]}
 
 
 def test_preview_builds_a_plan_for_the_current_selection_without_changing_the_journey():
@@ -218,10 +210,38 @@ def test_preview_builds_a_plan_for_the_current_selection_without_changing_the_jo
     out = h.preview(v["id"])
     assert out["status"] == "ready" and out["revision"] == v["revision"]
     assert out["plan"]["input"] == {"confirmed": [{"id": "place-1"}]}
-    assert out["plan"]["namespace"] == v["id"]
     after = h.load(v["id"])
     assert (after["revision"], after["outputs"], after["sessions"]) == (v["revision"], v["outputs"], v["sessions"])
     assert tools["decision"].calls == 0
+
+
+def test_real_decision_overload_can_preview_and_advance_without_losing_selection():
+    from decision import Data, Engine, Store, Tools as DecisionTools, load_settings
+
+    recs = [{"id": f"P{i}", "status": "VERIFIED", "status_reason": None,
+             "identity": {"name": f"Place {i}", "kind": "POI", "category": "Quán cà phê",
+                          "category_group": "cafe", "lat": 11.94, "lng": 108.44, "area": "center"},
+             "operation": {"hours": None, "visit_minutes": {"short": 60, "typical": 600, "long": 600}},
+             "experience": {}, "environment": {}, "service": {}, "effort": {}, "suitability": {},
+             "usable_as": ["experience"], "provenance": {"voices": 1}, "near_duplicate_group": None}
+            for i in range(6)]
+    h, tools = make()
+    tools["decision"] = DecisionTools(Engine(Data(recs), load_settings(), Store(None)))
+    h.tools["decision"] = tools["decision"]
+    tools["planning"].preview = lambda payload: {"ok": True, "input": payload["decision_output"]}
+    v = decision(h)
+    for i in range(6):
+        v = run(h, v, "act", f"select-{i}", {"type": "select", "place_id": f"P{i}"})
+    before = h.load(v["id"])
+    preview = h.preview(v["id"])
+    assert preview["status"] == "ready"
+    draft = preview["plan"]["input"]
+    assert draft["feasibility"]["status"] == "infeasible"
+    assert [p["id"] for p in draft["confirmed"]] == [f"P{i}" for i in range(6)]
+    assert h.load(v["id"])["revision"] == before["revision"]
+    v = run(h, v, "advance", "overload-to-planning")
+    assert v["stage"] == "planning"
+    assert v["outputs"]["decision"] == draft
 
 
 def test_preview_says_blocked_or_empty_and_needs_the_decision_stage():
@@ -242,8 +262,8 @@ def test_summaries_list_only_the_asked_journeys_with_their_places():
     other = h.create()
     out = h.summaries([v["id"], "000000000000", "../bad", other["id"]])
     assert [s["id"] for s in out] == [v["id"], other["id"]]
-    assert out[0]["stage"] == "planning" and out[0]["days"] == 2 and out[0]["nights"] == 1 and out[0]["places"] == ["place-1"]
-    assert out[1]["places"] == [] and out[1]["days"] is None and out[1]["nights"] is None and not out[1]["confirmed"]
+    assert out[0]["stage"] == "planning" and out[0]["days"] == 2 and out[0]["places"] == ["place-1"]
+    assert out[1]["places"] == [] and out[1]["days"] is None and not out[1]["confirmed"]
 
 
 def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path, store_kind):

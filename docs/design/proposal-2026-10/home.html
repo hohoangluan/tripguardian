@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thiết kế trang Khám phá</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet">
+<style>
+/* Tokens: web/src/user/css/tokens.css. --ink-3 darkened to #5c696e for 4.5:1. No other colour. */
+:root {
+  --bg: #faf7f2; --surface: #fff; --ink: #1b2a2f; --ink-2: #4a5a60; --ink-3: #5c696e;
+  --line: #e7e1d6; --line-2: #d6cdbb;
+  --pine: #0f5f5a; --pine-d: #0b4743; --pine-soft: #e3f1ee; --pine-line: #bcdcd6;
+  --sun: #e8590c; --sun-ink: #b8420a; --sun-soft: #fdebdd;
+  --warn: #8a5a00; --warn-bg: #fff4dc; --warn-line: #f0d9a0;
+  --r-s: 10px; --r-m: 16px; --r-l: 22px;
+  --sh-1: 0 1px 2px rgba(27,42,47,.06), 0 6px 20px rgba(27,42,47,.06);
+  --sh-2: 0 2px 4px rgba(27,42,47,.06), 0 18px 48px rgba(27,42,47,.14);
+  --display: 'Lora', Georgia, serif; --sans: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #e8ecec; color: var(--ink); font: 400 15px/1.55 var(--sans); }
+svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.doc { max-width: 1280px; margin: 0 auto; padding: 56px 0 96px; }
+.doc h1 { font: 600 2.2rem/1.2 var(--display); max-width: 26ch; }
+.doc .lead { color: var(--ink-2); max-width: 74ch; margin-top: 10px; }
+.sec { margin-top: 56px; } .sec > h2 { font: 600 1.5rem/1.25 var(--display); } .sec > .lead { margin: 6px 0 18px; }
+.lab { display: inline-block; margin-bottom: 10px; font-size: .8rem; font-weight: 600; color: var(--pine); background: var(--pine-soft); border: 1px solid var(--pine-line); padding: 3px 12px; border-radius: 999px; }
+.notes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 20px; }
+.notes div { font-size: .88rem; color: var(--ink-2); padding-left: 34px; position: relative; }
+.notes div::before { content: attr(data-n); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--sun-ink); color: #fff; font: 700 .78rem/24px var(--sans); text-align: center; }
+.notes b { display: block; color: var(--ink); font-weight: 600; }
+.tbl { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: .9rem; margin-top: 14px; }
+.tbl th, .tbl td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl th { background: var(--bg); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.ask { display: grid; gap: 10px; margin-top: 14px; }
+.ask div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); padding: 14px 18px; display: grid; grid-template-columns: 28px 1fr; gap: 12px; font-size: .92rem; color: var(--ink-2); }
+.ask b { color: var(--ink); } .ask i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: var(--pine); color: #fff; font: 700 .78rem/24px var(--sans); text-align: center; }
+
+/* ---------- App frame: rail + page ---------- */
+.frame { width: 1280px; background: var(--bg); border-radius: 14px; overflow: hidden; box-shadow: var(--sh-2); display: flex; position: relative; }
+.rail { width: 76px; flex: none; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; }
+.rail img { width: 36px; height: 36px; border-radius: 10px; margin-bottom: 18px; }
+.rail .a { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: var(--ink-2); position: relative; }
+.rail .a.on { background: var(--pine); color: #fff; }
+.rail .a .tip { position: absolute; left: 56px; background: var(--ink); color: #fff; font-size: .78rem; padding: 3px 10px; border-radius: 8px; white-space: nowrap; }
+.rail .a b { position: absolute; right: 2px; top: 2px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--sun-ink); color: #fff; font: 700 .68rem/18px var(--sans); text-align: center; padding: 0 4px; }
+.rail .me { margin-top: auto; width: 36px; height: 36px; border-radius: 50%; background: var(--pine-soft); color: var(--pine); display: grid; place-items: center; font-weight: 600; font-size: .85rem; border: 1px solid var(--pine-line); }
+.page { flex: 1; min-width: 0; }
+
+/* Hero */
+.hero { position: relative; overflow: hidden; }
+.hero .img { position: absolute; inset: 0; background-size: cover; background-position: 70% 40%; }
+.hero .veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(250,247,242,.9) 0%, rgba(250,247,242,.6) 40%, rgba(250,247,242,0) 72%), linear-gradient(180deg, rgba(250,247,242,0) 70%, var(--bg) 100%); }
+.hero .in { position: relative; padding: 84px 56px 84px; max-width: 820px; }
+.hero h1 { font: 600 3.3rem/1.1 var(--display); letter-spacing: -.015em; } .hero h1 em { color: var(--pine); font-weight: 500; }
+.hero .sub { color: var(--ink-2); font-size: 1.05rem; margin: 16px 0 26px; max-width: 52ch; }
+.ask-box { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--sh-2); padding: 18px 20px 14px 22px; max-width: 720px; }
+.ask-box .t { display: flex; gap: 12px; align-items: flex-start; color: var(--ink-3); font-size: 1.02rem; min-height: 56px; }
+.ask-box .t svg { color: var(--pine); margin-top: 3px; }
+.ask-box .tools { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tool { display: inline-flex; gap: 6px; align-items: center; font-size: .84rem; color: var(--ink-2); padding: 6px 10px; border-radius: 999px; }
+.tool svg { width: 17px; height: 17px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 11px 22px; font: 600 .92rem var(--sans); background: var(--pine); color: #fff; border: 1px solid var(--pine); white-space: nowrap; }
+.btn.ghost { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
+.ask-box .btn { margin-left: auto; padding: 12px 24px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; max-width: 720px; }
+.chip { background: rgba(255,255,255,.92); border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 14px; font-size: .86rem; color: var(--ink); }
+.chip.on { background: var(--pine); border-color: var(--pine); color: #fff; }
+.flow { display: flex; align-items: center; gap: 0; margin-top: 26px; font-size: .88rem; color: var(--ink-2); max-width: 720px; }
+.flow span { display: inline-flex; gap: 8px; align-items: center; } .flow i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--pine); color: var(--pine); font: 600 .72rem/19px var(--sans); text-align: center; }
+.flow u { text-decoration: none; flex: 1; height: 1.5px; background: var(--line-2); margin: 0 12px; min-width: 18px; }
+
+.band { padding: 8px 56px 0; }
+.band h2 { font: 600 1.7rem/1.2 var(--display); display: flex; justify-content: space-between; align-items: baseline; gap: 20px; }
+.band h2 small { font: 400 .9rem var(--sans); color: var(--ink-3); }
+.themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 18px; }
+.th { background: var(--surface); border-radius: var(--r-l); overflow: hidden; box-shadow: var(--sh-1); }
+.th .ph { height: 190px; background-size: cover; background-position: center; position: relative; }
+.th .ph::after { content: ''; position: absolute; inset: auto 0 0 0; height: 44px; background: linear-gradient(transparent, rgba(11,28,31,.55)); }
+.th .ph em { position: absolute; left: 14px; bottom: 8px; z-index: 1; font-style: normal; font-size: .72rem; color: #fff; }
+.th .tx { padding: 16px 20px 18px; }
+.th .tx span { font-size: .8rem; font-weight: 600; color: var(--pine); }
+.th h3 { font: 600 1.2rem/1.3 var(--display); margin: 3px 0 4px; } .th p { font-size: .9rem; color: var(--ink-2); }
+.th .go { margin-top: 12px; display: inline-flex; gap: 6px; align-items: center; font-weight: 600; font-size: .88rem; color: var(--pine); }
+.trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding: 52px 56px 56px; }
+.trust svg { color: var(--pine); width: 24px; height: 24px; } .trust b { display: block; font: 600 1.05rem var(--display); margin: 8px 0 3px; } .trust p { font-size: .9rem; color: var(--ink-2); }
+
+.how { padding: 48px 56px 56px; }
+.how h2 { font: 600 1.5rem/1.2 var(--display); }
+.how ol { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 22px; }
+.how li { border-top: 2px solid var(--line-2); padding-top: 14px; }
+.how li:first-child { border-color: var(--pine); }
+.how i { font-style: normal; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--pine-soft); color: var(--pine); font: 700 .78rem var(--sans); margin-right: 8px; }
+.how b { font: 600 1.05rem var(--display); } .how p { font-size: .9rem; color: var(--ink-2); margin-top: 6px; }
+.how .foot { margin-top: 24px; font-size: .86rem; color: var(--ink-3); }
+.quick { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 999px; padding: 6px 6px 6px 20px; color: var(--ink-3); }
+.quick > svg:first-child { color: var(--pine); } .quick .btn { margin-left: auto; padding: 10px 22px; }
+.nthead { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 14px; }
+.ntnote { font-size: .84rem; color: var(--ink-3); margin-top: 10px; }
+.ideas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 14px; }
+.idea { display: flex; gap: 14px; align-items: center; }
+.idea i { width: 72px; height: 72px; border-radius: 14px; background-size: cover; background-position: center; flex: none; }
+.idea b { font: 600 1rem/1.3 var(--display); display: block; } .idea span { font-size: .84rem; color: var(--ink-3); }
+/* Returning state */
+.hello { position: relative; overflow: hidden; height: 206px; }
+.hello .in { position: relative; padding: 56px 56px 0; max-width: none; }
+.hello h1 { font: 600 2.4rem/1.15 var(--display); } .hello h1 em { color: var(--pine); font-weight: 500; }
+.hello p { color: var(--ink-2); margin-top: 6px; }
+.trip { margin: -24px 56px 0; position: relative; background: var(--surface); border-radius: var(--r-l); box-shadow: var(--sh-2); display: grid; grid-template-columns: 250px 1fr 290px; overflow: hidden; }
+.coll { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; min-height: 280px; }
+.coll i { background-size: cover; background-position: center; } .coll i:first-child { grid-row: span 2; }
+.tinfo { padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; }
+.tinfo h2 { font: 600 1.7rem/1.15 var(--display); } .tinfo .m { color: var(--ink-2); font-size: .92rem; margin-top: 2px; }
+.prog { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.prog div { font-size: .78rem; color: var(--ink-3); } .prog div::before { content: ''; display: block; height: 5px; border-radius: 5px; background: var(--line); margin-bottom: 6px; }
+.prog .d::before { background: var(--pine); } .prog .d { color: var(--pine); font-weight: 500; }
+.prog .n::before { background: linear-gradient(90deg, var(--pine) 40%, var(--line) 40%); } .prog .n { color: var(--ink); font-weight: 600; }
+.stats { display: flex; gap: 26px; } .stats b { display: block; font: 600 1.25rem/1.1 var(--display); } .stats span { font-size: .78rem; color: var(--ink-3); }
+.attn { display: flex; gap: 8px; align-items: center; background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn); border-radius: var(--r-s); padding: 8px 12px; font-size: .86rem; font-weight: 500; }
+.attn svg { width: 17px; height: 17px; }
+.tact { display: flex; gap: 10px; margin-top: auto; }
+.others { border-left: 1px solid var(--line); padding: 24px 24px; background: var(--bg); }
+.others h3 { font: 600 1.05rem var(--display); margin-bottom: 8px; }
+.orow { padding: 11px 0; border-top: 1px solid var(--line); font-size: .9rem; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.orow b { font-weight: 600; display: block; } .orow small { color: var(--ink-3); font-size: .78rem; display: block; }
+.orow a { color: var(--pine); font-weight: 600; font-size: .84rem; white-space: nowrap; }
+.others .all { display: inline-flex; gap: 6px; margin-top: 10px; color: var(--pine); font-weight: 600; font-size: .86rem; align-items: center; }
+.newtrip { padding: 40px 56px 0; }
+.newtrip h2 { font: 600 1.5rem/1.2 var(--display); }
+.newtrip .sub { color: var(--ink-3); font-size: .9rem; margin: 2px 0 16px; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line-2); border-radius: 999px; padding: 3px; font-size: .86rem; font-weight: 600; margin-bottom: 14px; }
+.seg span { padding: 7px 16px; border-radius: 999px; color: var(--ink-2); } .seg .on { background: var(--pine); color: #fff; }
+.seg + .why { display: inline-block; margin-left: 12px; font-size: .84rem; color: var(--ink-3); }
+.newtrip .ask-box { box-shadow: var(--sh-1); border: 1px solid var(--line); }
+.gap { height: 36px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.8"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></symbol>
+  <symbol id="suitcase" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12" rx="3"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M3.5 13h17"/></symbol>
+  <symbol id="heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 16l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="clip" viewBox="0 0 24 24"><path d="M20 11.5l-7.6 7.6a4.5 4.5 0 0 1-6.4-6.4l8-8a3 3 0 0 1 4.3 4.3l-8 8a1.5 1.5 0 0 1-2.1-2.1l7.3-7.3"/></symbol>
+  <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.2v.1"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.4-3 7.6-7 9.5-4-1.9-7-5.1-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></symbol>
+  <symbol id="scale" viewBox="0 0 24 24"><path d="M12 4v16M6 20h12M5 8h14M5 8l-2.5 6a3 3 0 0 0 5 0zM19 8l-2.5 6a3 3 0 0 0 5 0z"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M8 12V6.5a1.5 1.5 0 0 1 3 0V11M11 10V5a1.5 1.5 0 0 1 3 0v6M14 10.5V6.5a1.5 1.5 0 0 1 3 0V14c0 4-2.5 6-5.5 6S6 18 5.5 15.5L4.5 12a1.5 1.5 0 0 1 2.6-1.2L8 12"/></symbol>
+</defs></svg>
+
+<div class="doc">
+  <p style="font-size:.85rem;color:var(--ink-3)">Thiết kế trang Khám phá (/app) · chờ bạn chốt · 2026-10-12</p>
+  <h1>Trang đầu: một ô để kể, và luôn thấy chuyến của mình đang ở đâu.</h1>
+  <p class="lead">Hai trạng thái của cùng một trang: người mới (kể một câu là đi) và người quay lại (chuyến dở nằm ngay đầu, bấm “Đi tiếp”). Giữ hero ảnh Đà Lạt, màu, chữ và thanh rail hiện tại. Dữ liệu và tên nơi là mẫu.</p>
+
+  <!-- ===== A ===== -->
+  <section class="sec">
+    <span class="lab">A · Người mới, chưa có chuyến</span>
+    <div class="frame">
+      <nav class="rail" aria-label="Điều hướng chính">
+        <img src="img/logo.webp" alt="TripGuardian">
+        <span class="a on"><svg class="i"><use href="#compass"/></svg></span>
+        <span class="a"><svg class="i"><use href="#sun"/></svg></span>
+        <span class="a"><svg class="i"><use href="#suitcase"/></svg></span>
+        <span class="a"><svg class="i"><use href="#heart"/></svg></span>
+        <span class="a"><svg class="i"><use href="#bell"/></svg></span>
+        <span class="me">V</span>
+      </nav>
+      <main class="page">
+        <section class="hero">
+          <div class="img" style="background-image:url(img/lake.webp)"></div><div class="veil"></div>
+          <div class="in">
+            <h1>Khám phá Đà Lạt,<br><em>đúng gu của bạn.</em></h1>
+            <p class="sub">Kể một câu, TripGuardian dựng cả chuyến. Bạn chốt, TripGuardian không chọn thay.</p>
+            <div class="ask-box">
+              <div class="t"><svg class="i"><use href="#spark"/></svg><span>3 ngày ở Đà Lạt cho hai người, thích chill, cà phê và săn mây…</span></div>
+              <div class="tools">
+                <span class="tool"><svg class="i"><use href="#clip"/></svg>Dán link hoặc đính kèm file</span>
+                <span class="tool"><svg class="i"><use href="#mic"/></svg>Nói</span>
+                <span class="btn">Bắt đầu <svg class="i"><use href="#arrow"/></svg></span>
+              </div>
+            </div>
+            <div class="chips"><span class="chip on">3 ngày</span><span class="chip">Đi với người yêu</span><span class="chip on">Xe máy</span><span class="chip">Chill</span><span class="chip">Cà phê</span><span class="chip">Săn mây</span><span class="chip">Ít đông</span></div>
+          </div>
+        </section>
+        <section class="band">
+          <h2>Hoặc bắt đầu từ một ý <small>Bấm một thẻ là vào cuộc trò chuyện, bạn sửa được ngay.</small></h2>
+          <div class="themes">
+            <article class="th"><div class="ph" style="background-image:url(img/cloud.webp)"><em>Ảnh minh họa</em></div><div class="tx"><span>Theo khu</span><h3>Săn mây rồi cà phê</h3><p>Dậy sớm đón mây, rồi ngồi cà phê gần đó.</p><span class="go">Bắt đầu <svg class="i" style="width:16px;height:16px"><use href="#arrow"/></svg></span></div></article>
+            <article class="th"><div class="ph" style="background-image:url(img/terrace.webp)"><em>Ảnh minh họa</em></div><div class="tx"><span>Theo thời tiết</span><h3>Chỗ trong nhà khi mưa</h3><p>Trời mưa thì đi đâu cho đỡ phí chuyến?</p><span class="go">Bắt đầu <svg class="i" style="width:16px;height:16px"><use href="#arrow"/></svg></span></div></article>
+            <article class="th"><div class="ph" style="background-image:url(img/dusk.webp)"><em>Ảnh minh họa</em></div><div class="tx"><span>Theo giờ trong ngày</span><h3>Chiều muộn bên hồ</h3><p>Một buổi chiều yên tĩnh, ít đông.</p><span class="go">Bắt đầu <svg class="i" style="width:16px;height:16px"><use href="#arrow"/></svg></span></div></article>
+          </div>
+        </section>
+        <section class="how">
+          <h2>TripGuardian làm gì ở từng bước</h2>
+          <ol>
+            <li><i>1</i><b>Tìm hiểu</b><p>Hỏi vài câu ngắn, ghi lại bạn muốn gì.</p></li>
+            <li><i>2</i><b>Lựa chọn</b><p>Gợi ý nơi hợp, mỗi nơi có lý do và cái giá.</p></li>
+            <li><i>3</i><b>Lịch trình</b><p>Xếp theo ngày, kiểm tra giờ mở cửa và đường đi.</p></li>
+            <li><i>4</i><b>Đánh giá</b><p>Bạn chốt, rồi cho biết chuyến có hợp không.</p></li>
+          </ol>
+          <p class="foot">Chưa có bằng chứng thì TripGuardian ghi “chưa biết”, không đoán.</p>
+        </section>
+      </main>
+    </div>
+    <div class="notes">
+      <div data-n="1"><b>Một ô, ba việc</b>Gõ, dán link / đính kèm, hoặc nói. Chip chỉ thêm chữ vào ô, bấm lại để bỏ.</div>
+      <div data-n="2"><b>Hero chỉ 4 thứ</b>Tiêu đề, một dòng phụ, ô nhập, chip. Không còn gì tranh với ô nhập.</div>
+      <div data-n="3"><b>Thẻ ý = câu mở đầu</b>Ba thẻ theo khu, thời tiết, giờ. Không feed, không cuộn vô tận.</div>
+      <div data-n="4"><b>Một khối “làm gì ở từng bước”</b>Gộp dải bước và cam kết. Cùng tên 4 bước với thanh bước ở các màn sau.</div>
+    </div>
+  </section>
+
+  <!-- ===== B ===== -->
+  <section class="sec">
+    <span class="lab">B · Người quay lại, có chuyến dở</span>
+    <div class="frame">
+      <nav class="rail" aria-label="Điều hướng chính">
+        <img src="img/logo.webp" alt="TripGuardian">
+        <span class="a on"><svg class="i"><use href="#compass"/></svg></span>
+        <span class="a"><svg class="i"><use href="#sun"/></svg></span>
+        <span class="a"><svg class="i"><use href="#suitcase"/></svg><b>1</b></span>
+        <span class="a"><svg class="i"><use href="#heart"/></svg></span>
+        <span class="a"><svg class="i"><use href="#bell"/></svg></span>
+        <span class="me">V</span>
+      </nav>
+      <main class="page">
+        <section class="hero hello">
+          <div class="img" style="background-image:url(img/lake.webp);background-position:70% 55%"></div><div class="veil"></div>
+          <div class="in"><h1>Chào V, <em>chuyến Đà Lạt đang dở.</em></h1><p>Bạn dừng ở bước Lựa chọn, còn một chỗ cần xem.</p></div>
+        </section>
+        <section class="trip" aria-labelledby="trip-h">
+          <div class="coll"><i style="background-image:url(img/cloud.webp)"></i><i style="background-image:url(img/terrace.webp)"></i><i style="background-image:url(img/pine.webp)"></i></div>
+          <div class="tinfo">
+            <div><h2 id="trip-h">Đà Lạt · 3 ngày</h2><p class="m">17/10 – 19/10 · 2 người · xe máy</p></div>
+            <div class="prog"><div class="d">Tìm hiểu</div><div class="n">Lựa chọn</div><div>Lịch trình</div><div>Đánh giá</div></div>
+            <div class="stats"><div><b>4 nơi</b><span>đã chọn</span></div><div><b>6 giờ</b><span>tham quan</span></div><div><b>≈ 52′</b><span>đi lại</span></div></div>
+            <div class="attn"><svg class="i"><use href="#alert"/></svg>1 chỗ cần xem trước khi xếp lịch</div>
+            <div class="tact"><span class="btn">Đi tiếp: Lựa chọn <svg class="i"><use href="#arrow"/></svg></span><span class="btn ghost">Xem vé chuyến</span></div>
+          </div>
+          <aside class="others">
+            <h3>Chuyến khác</h3>
+            <div class="orow"><div><b>Đà Lạt · 05/12</b><small>Sắp tới · 3 ngày</small></div><a>Xem lịch</a></div>
+            <div class="orow"><div><b>Đà Lạt · tháng 8</b><small>Đã đi · 2 ngày</small></div><a>Xem lại</a></div>
+            <span class="all">Tất cả chuyến <svg class="i" style="width:15px;height:15px"><use href="#arrow"/></svg></span>
+          </aside>
+        </section>
+        <section class="newtrip">
+          <div class="nthead"><h2>Bắt đầu một chuyến mới</h2><div class="seg" style="margin:0"><span class="on">Theo gu quen thuộc</span><span>Lần này khác</span></div></div>
+          <div class="quick"><svg class="i"><use href="#spark"/></svg><span>Chuyến này bạn đi cùng ai, mấy ngày?</span><span class="tool"><svg class="i"><use href="#clip"/></svg></span><span class="tool"><svg class="i"><use href="#mic"/></svg></span><span class="btn">Bắt đầu <svg class="i"><use href="#arrow"/></svg></span></div>
+          <p class="ntnote">Theo gu quen thuộc: dựa trên 12 nơi bạn đã lưu. Chuyến đang dở vẫn nằm ở “Chuyến của tôi”.</p>
+        </section>
+        <section class="band" style="padding-top:36px">
+          <h2 style="font-size:1.3rem">Cần ý tưởng?</h2>
+          <div class="ideas">
+            <div class="idea"><i style="background-image:url(img/cloud.webp)"></i><div><b>Săn mây rồi cà phê</b><span>Theo khu</span></div></div>
+            <div class="idea"><i style="background-image:url(img/terrace.webp)"></i><div><b>Chỗ trong nhà khi mưa</b><span>Theo thời tiết</span></div></div>
+            <div class="idea"><i style="background-image:url(img/dusk.webp)"></i><div><b>Chiều muộn bên hồ</b><span>Theo giờ trong ngày</span></div></div>
+          </div>
+        </section>
+        <div class="gap"></div>
+      </main>
+    </div>
+    <div class="notes">
+      <div data-n="1"><b>Chuyến dở lên đầu</b>Một thẻ cho biết đang ở bước nào, đã chọn gì, còn gì cần xem, và nút “Đi tiếp”.</div>
+      <div data-n="2"><b>Tiến độ 4 đoạn</b>Cùng tên 4 bước với thanh bước. Bước hiện tại đậm, đã xong màu xanh.</div>
+      <div data-n="3"><b>Chuyến mới nhẹ hơn</b>Một dòng nhập, không cạnh tranh với “Đi tiếp”. Ghi rõ chuyến cũ vẫn còn.</div>
+      <div data-n="4"><b>Hồ sơ chỉ là gợi ý</b>“Lần này khác” bỏ qua hồ sơ, đúng nguyên tắc ưu tiên bối cảnh chuyến hiện tại.</div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>Cần bạn chốt</h2>
+    <div class="ask">
+      <div><i>1</i><span><b>Tiêu đề.</b> Giữ “Khám phá Đà Lạt, đúng gu của bạn.” Mình chỉ đổi câu phụ sang giọng “TripGuardian … bạn” cho khớp quy ước.</span></div>
+      <div><i>2</i><span><b>Khối “TripGuardian làm gì ở từng bước”</b> (dưới ba thẻ ý) thay cho dải bước và hàng cam kết. Giữ, hay bỏ hẳn để trang ngắn hơn?</span></div>
+      <div><i>3</i><span><b>Rail:</b> giữ 5 mục hiện tại (Khám phá, Hôm nay, Chuyến của tôi, Đã lưu, Thông báo) chỉ có biểu tượng, tên hiện khi rê chuột.</span></div>
+      <div><i>4</i><span><b>Ảnh ba thẻ ý:</b> app đang dùng ảnh nơi thật. Mockup dùng ảnh minh họa, và bản làm thật nên giữ ảnh nơi thật có ghi nguồn.</span></div>
+    </div>
+    <table class="tbl">
+      <tr><th>Việc làm vào code</th><th>File</th></tr>
+      <tr><td>Ô nhập có hàng công cụ (đính kèm, nói), khối 4 bước, bỏ nhãn nhỏ trên tiêu đề</td><td>web/src/user/screens/Discover.tsx, css/screens.css</td></tr>
+      <tr><td>Thẻ “Chuyến đang lập”: collage ảnh, tiến độ 4 đoạn, dòng chú ý, “Chuyến khác”</td><td>Discover.tsx (khối returning), css/screens.css</td></tr>
+      <tr><td>Chuyển động: hero chỉ parallax nhẹ, tắt khi reduced-motion; thẻ ý nổi nhẹ khi rê chuột</td><td>screens/useParallax.ts, css/base.css</td></tr>
+    </table>
+  </section>
+</div>
+</body>
+</html>

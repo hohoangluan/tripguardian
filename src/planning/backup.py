@@ -1,4 +1,4 @@
-"""Backups (docs/P4_PLANNING.md ⓗ, docs/ARCHITECTURE.md §13).
+"""Backups (docs/PLANNING.md ⓗ, docs/ARCHITECTURE.md §13).
 
 A sensitive visit: weather-exposed on a rainy day · opening hours UNCERTAIN / OUTDATED · ending close to closing time
 · far from where its day starts · busy on a peak day · a meal place when shops close for Tết · covered by a warning notice. Its replacements come only from the Decision's backup_pool: close by (rough minutes,
@@ -6,10 +6,11 @@ since backups are not in the travel matrix), the same kind, through the hard fil
 reason. None found -> said so, nothing invented. For a delay, each day names the stop to drop first.
 """
 
-from corpus.serving import check
+from requirements import activity_for, allowed
 
 from . import places as pl
 from .conditions import advisory_hits, crowd_sensitive, hazard, warned
+from .details import block, season
 from .schedule import DayCtx, intervals_for
 from .traits import exposure, kind_group
 from .travel import km, rough_minutes
@@ -17,7 +18,8 @@ from .travel import km, rough_minutes
 REASON_TEXT = {"rain": "ngoài trời vào ngày dự báo mưa", "hours_uncertain": "giờ mở cửa chưa chắc",
                "near_close": "sát giờ đóng cửa", "far": "xa điểm xuất phát của ngày",
                "crowd": "rất đông khách vào ngày này, phải chờ lâu", "holiday_closure": "dịp này nhiều quán đóng cửa hoặc đổi giờ",
-               "advisory": "nằm trong vùng có thông báo cảnh báo"}
+               "advisory": "nằm trong vùng có thông báo cảnh báo",
+               "season": "tháng này không phải mùa đẹp của nơi này (theo người đã đi)"}
 SHAKY = ("UNCERTAIN", "OUTDATED")
 
 
@@ -41,19 +43,25 @@ def sensitive(it, cx: DayCtx) -> list[str]:
         out.append("holiday_closure")
     if warned(p, cx.cond):
         out.append("advisory")
+    if cx.day.date and season(p, cx.day.date.month) == "avoid":
+        out.append("season")
     return out
 
 
 def _fits(b, s, reasons: list[str], cx: DayCtx, hard_filters: list) -> bool:
-    if b.kind != s.kind or hazard(b, cx.cond):
+    can_host_meal = s.kind == "meal" and "meal" in (b.rec.get("usable_as") or [])
+    if (b.kind != s.kind and not can_host_meal) or hazard(b, cx.cond):
         return False
     if "crowd" in reasons and crowd_sensitive(b, cx.cond, cx.cfg):
         return False
     if "advisory" in reasons and advisory_hits(b, cx.cond):
         return False
-    if any(hf["op"] == "ne" and check(b.rec, hf["feature"], hf["value"]) == "fail" for hf in hard_filters):
+    activity = activity_for(b.rec, s.activity, s.kind)
+    if any(not allowed(b.rec, hf, activity, s.kind) for hf in hard_filters):
         return False
     if "rain" in reasons and exposure(b) != "sheltered":
+        return False
+    if "season" in reasons and season(b, cx.day.date.month) == "avoid":
         return False
     if ({"hours_uncertain", "holiday_closure"} & set(reasons)) and (b.hours is None or b.hours_status in SHAKY):
         return False
@@ -64,11 +72,11 @@ def backups(ctxs: list[DayCtx], results: list, decision: dict, by_id: dict) -> d
     cfg = ctxs[0].cfg
     tc = decision["trip_context"]
     mobility, hard = tc["context"].get("mobility"), tc.get("hard_filters") or []
-    confirmed = {c["id"] for c in decision["confirmed"]}
+    confirmed = {c["id"] for c in decision["confirmed"]} | {pid for r in results for pid in r.order}
     pool = [b for b in decision.get("backup_pool") or [] if b["id"] not in confirmed]
     entry = {b["id"]: b for b in pool}
     cands, _ = pl.build_places({"confirmed": [{"id": b["id"], "name": b.get("name"), "role": "selected"}
-                                              for b in pool]}, by_id, cfg)
+                                              for b in pool], "trip_context": tc}, by_id, cfg)
     out, on_delay = [], []
     for cx, r in zip(ctxs, results):
         for it in r.items:
@@ -84,13 +92,14 @@ def backups(ctxs: list[DayCtx], results: list, decision: dict, by_id: dict) -> d
                 mine = entry[b.id].get("for") == s.id
                 same_kind = mine or (kind_group(b) is not None and kind_group(b) == kind_group(s))
                 if minutes <= cfg.backup_radius_min and same_kind and _fits(b, s, reasons, cx, hard):
-                    alts.append((not mine, minutes, b.id, b))
-            alts.sort(key=lambda a: a[:3])
+                    quiet = "crowd" in reasons and b.id in (block(s.rec).get("relations") or {}).get("quieter", ())
+                    alts.append((not mine, not quiet, minutes, b.id, b))  # on a peak day, a quieter look-alike first
+            alts.sort(key=lambda a: a[:4])
             out.append({"day": cx.day.index + 1, "place_id": s.id, "name": s.name, "reasons": reasons,
                         "text": ", ".join(REASON_TEXT[x] for x in reasons),
                         "alternatives": [{"id": b.id, "name": b.name, "minutes_rough": m, "for_this": not other,
                                           "reason": entry[b.id].get("reason")}
-                                         for other, m, _, b in alts[: cfg.backups_per_place]],
+                                         for other, _, m, _, b in alts[: cfg.backups_per_place]],
                         "none_text": None if alts else "Không có phương án thay."})
         droppable = [i for i in r.order if cx.places[i].role == "selected"]
         if len(r.order) >= 2 and droppable:

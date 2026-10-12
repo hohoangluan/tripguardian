@@ -1,11 +1,11 @@
-"""Place Decision sessions for the web (docs/P3_PLACE_DECISION.md §12-15, §18): create, act (chips / buttons, no model), turn (typed text, one
+"""Place Decision sessions for the web (docs/PLACE_DECISION.md §12-15, §18): create, act (chips / buttons, no model), turn (typed text, one
 agent call), compare, why-not, confirm. One lock per session; each change is one version that undo restores."""
 
 import asyncio
 import json
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from functools import cache
-from collections.abc import Awaitable, Callable
+from typing import Awaitable, Callable
 
 from corpus.ontology import load as load_ontology
 from trip import SearchInput, squash
@@ -13,12 +13,12 @@ from trip import SearchInput, squash
 from . import output
 from .agent import AgentError, features_text
 from .compare import compare as compare_cands
+from .chunks import CHUNK_DAYS
 from .curation import ActionError, apply
 from .guard import TurnPlan, guard
 from .heuristics import exact_command
 from .pipeline import Data, Result, run, wanted, why_not
-from .rank import fit_level
-from .policy import BUSY, DONE, NONE, policy
+from .policy import DONE, NONE, policy
 from .scope import STEPS, replan_scope
 from .session import Pending, Session, State, Store
 from .settings import Settings
@@ -46,7 +46,16 @@ def _ontology_version() -> int:
 
 
 def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _confirmable(feasibility: dict) -> bool:
+    """Selection estimates can be resolved by Planning; other conflicts still block."""
+    conflicts = feasibility["conflicts"]
+    if any(c.get("check") not in {"time", "per_day", "far_areas", "time_windows", "budget"}
+           for c in conflicts):
+        return False
+    return feasibility["status"] in ("feasible", "unknown") or bool(conflicts)
 
 
 def _list_text(change: dict) -> str:
@@ -68,15 +77,8 @@ def diff(before: dict, after: dict, scope: dict | None, rebuilt: bool = False) -
     def sign(n: int) -> str:
         return f"+{n}" if n > 0 else str(n)
 
-    def span(n: int) -> str:  # "+1 giờ 30 phút", not "+90 phút"
-        h, m = divmod(abs(n), 60)
-        text = " ".join(x for x in (f"{h} giờ" if h else "", f"{m} phút" if m or not h else "") if x)
-        return ("+" if n > 0 else "-" if n < 0 else "") + text
-
-    said = [f"{sign(delta['places'])} nơi" if delta["places"] else "",
-            f"{span(delta['visit'])} tham quan" if delta["visit"] else "",
-            f"{span(delta['travel'])} đi lại" if delta["travel"] else ""]
-    parts = [", ".join(x for x in said if x)] if any(delta.values()) else []
+    parts = [f"{sign(delta['places'])} nơi, {sign(delta['visit'])} phút tham quan, {sign(delta['travel'])} phút đi lại"
+             ] if any(delta.values()) else []
     if rebuilt:
         parts.append(_list_text(after.get("change") or {}))
     return {"added": sorted(a - b), "removed": sorted(b - a),
@@ -107,8 +109,8 @@ class Engine:
     def _result(self, s: Session) -> Result:
         if s.id not in self._results:
             res = run(s, self.data, self.cfg)
-            if res.shown != s.state.shown:  # the window is screen state, not an action: no history entry
-                s.state = s.state.model_copy(update={"shown": res.shown})
+            if res.shown != s.state.shown or res.chunk_assignments != s.state.chunk_assignments:
+                s.state = s.state.model_copy(update={"shown": res.shown, "chunk_assignments": res.chunk_assignments})
                 self.store.save(s)
             self._results[s.id] = res
         return self._results[s.id]
@@ -119,6 +121,10 @@ class Engine:
         st, done, log = s.state, [], []
         for a in actions:
             try:
+                if a.get("type") == "move_chunk":
+                    k = a.get("chunk")
+                    if type(k) is not int or not 0 <= k < (len(before.days) + CHUNK_DAYS - 1) // CHUNK_DAYS:
+                        raise ActionError("chunk outside trip duration")
                 st = apply(st, a, known, before.alternatives, pend, self.cfg)
                 done.append(a)
             except ActionError as e:
@@ -169,16 +175,6 @@ class Engine:
             self._results.pop(s.id, None)
             self.store.save(s)
             return {"view": self._result(s).view}
-
-    def fits(self, sid: str, ids: list[str]) -> dict:
-        """Card.fit of the asked places, shown or not: the stars the trip's own ranking gave them (rank.stars), `None` for
-        a place the trip has no taste to judge it by or that is not a candidate. Read-only; Lịch trình orders its meal and
-        evening suggestions with it, so those restaurants need not be in the shown window."""
-        s = self._get(sid)
-        with self.store.lock(sid):
-            cands = self._result(s).cands
-        return {"fits": {i: ({"stars": c.stars, "level": fit_level(c.stars, self.cfg)} if (c := cands.get(i)) and c.stars is not None else None)
-                         for i in dict.fromkeys(ids)}}
 
     def report(self, place_id, text, reporter) -> dict:
         """A traveller reports something about a place in their own words. It is only stored here; it changes the
@@ -233,8 +229,6 @@ class Engine:
             trips = [a["text"] for a in actions if a.get("type") == "trip"]
             actions = [a for a in actions if a.get("type") != "trip"]
             new, done, skipped = self._apply(s, actions, before, strict=False)
-            if log and log[0].startswith("agent_fallback") and not done:
-                say = BUSY  # the agent failed and the keywords changed nothing: never "not understood"
             say = say or (DONE if done or trips else NONE)  # a guard-dropped say never leaves an empty bubble
             if say != "".join(streamed):
                 emit("say", {"replace": say})
@@ -275,7 +269,7 @@ class Engine:
         with self.store.lock(sid):
             res = self._result(s)
             status = res.view["feasibility"]["status"]
-            if status not in ("feasible", "unknown"):
+            if not _confirmable(res.view["feasibility"]):
                 raise NotConfirmable(status)
             s.output = output.build(s, res, self.cfg)
             self.store.save(s)
@@ -286,7 +280,7 @@ class Engine:
         s = self._get(sid)
         with self.store.lock(sid):
             res = self._result(s)
-            if res.view["feasibility"]["status"] not in ("feasible", "unknown"):
+            if not _confirmable(res.view["feasibility"]):
                 return None
             return output.build(s, res, self.cfg)
 

@@ -1,11 +1,11 @@
-"""repair_day (docs/P4_PLANNING.md §Guardrail "Không xáo lịch âm thầm"): the order of one day right after a
-user act touched its membership, penalized for reshuffling a stop that was already there. Reuses simulate()'s own
-notion of a valid day (DayResult.key: fewer violations first) -- the diff penalty only breaks ties among orders that
-are already equally good, it never trades validity away to stay close to the old order.
+"""Local-first day repair after an edit, followed by bounded exact or heuristic search.
+
+Validity and meals take priority; timing and diff costs rank the remaining alternatives.
 """
 
 from dataclasses import replace
-from itertools import permutations
+from itertools import islice, permutations
+from math import factorial
 
 from .model import DayResult
 from .schedule import DayCtx, simulate
@@ -30,7 +30,7 @@ def _key(r: DayResult, prev: tuple[str, ...], weight: float) -> tuple:
     time itself so it is a real, comparable cost, not a 4th tuple slot that Python's tuple comparison would only
     ever reach on an exact end-time tie (it short-circuits at the first unequal element)."""
     violations, meals, end = r.key
-    return (violations, meals, end + weight * _diff(r.order, prev))
+    return (violations, meals, end + r.time_penalty + weight * _diff(r.order, prev))
 
 
 def _seed_order(ids: list[str], ctx: DayCtx, prev: tuple[str, ...]) -> list[str]:
@@ -50,7 +50,7 @@ def _seed_order(ids: list[str], ctx: DayCtx, prev: tuple[str, ...]) -> list[str]
 
 
 def repair_day(ids: list[str], ctx: DayCtx, prev_order: tuple[str, ...] | None, locked: set[str],
-               cfg: Settings) -> DayResult:
+               cfg: Settings, valid=None) -> DayResult:
     """ids: the day's new membership. prev_order: its order right before the act (None for a day repair_day has
     never touched, which costs no penalty -- the same as a fresh route.order_day)."""
     ids = sorted(ids)
@@ -61,9 +61,19 @@ def repair_day(ids: list[str], ctx: DayCtx, prev_order: tuple[str, ...] | None, 
     weight = cfg.repair_diff_weight
     if len(ids) <= 1:
         return simulate(ids, ctx)
-    if len(ids) <= cfg.exact_n:
+    # Preserve the existing sequence first; a small insertion searches only its possible positions.
+    added = [pid for pid in ids if pid not in prev]
+    if prev and len(added) <= cfg.repair_local_additions:
+        orders = [[pid for pid in prev if pid in ids]]
+        for pid in added:
+            orders = [order[:i] + [pid] + order[i:] for order in orders for i in range(len(order) + 1)]
+        local = [simulate(order, ctx) for order in islice(orders, cfg.repair_search_limit)]
+        feasible = [r for r in local if not r.violations and r.key[1] == 0 and (valid is None or valid(r))]
+        if feasible:
+            return replace(min(feasible, key=lambda r: _key(r, prev, weight)), method="local")
+    if len(ids) <= cfg.exact_n and factorial(len(ids)) <= cfg.repair_search_limit:
         best = None
-        for perm in permutations(ids):
+        for perm in islice(permutations(ids), cfg.repair_search_limit):
             r = simulate(list(perm), ctx)
             k = _key(r, prev, weight)
             if best is None or k < best[0]:
@@ -71,13 +81,17 @@ def repair_day(ids: list[str], ctx: DayCtx, prev_order: tuple[str, ...] | None, 
         return replace(best[1], method="exact")
     order = _seed_order(ids, ctx, prev)
     best = simulate(order, ctx)
+    trials = 1
     n = len(order)
     for _ in range(cfg.improve_passes):
         improved = False
         for i in range(n - 1):
             for j in range(i + 1, n):
                 cand = order[:i] + order[i:j + 1][::-1] + order[j + 1:]
+                if trials >= cfg.repair_search_limit:
+                    return replace(best, method="heuristic")
                 r = simulate(cand, ctx)
+                trials += 1
                 if _key(r, prev, weight) < _key(best, prev, weight):
                     order, best, improved = cand, r, True
         for i in range(n):
@@ -86,7 +100,10 @@ def repair_day(ids: list[str], ctx: DayCtx, prev_order: tuple[str, ...] | None, 
                     continue
                 cand = order[:]
                 cand.insert(j, cand.pop(i))
+                if trials >= cfg.repair_search_limit:
+                    return replace(best, method="heuristic")
                 r = simulate(cand, ctx)
+                trials += 1
                 if _key(r, prev, weight) < _key(best, prev, weight):
                     order, best, improved = cand, r, True
         if not improved:

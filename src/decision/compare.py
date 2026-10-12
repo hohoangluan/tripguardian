@@ -1,10 +1,10 @@
-"""⑦ Compare two candidates (docs/P3_PLACE_DECISION.md §10): only aspects with evidence on both sides; a side without
+"""⑦ Compare two candidates (docs/PLACE_DECISION.md §10): only aspects with evidence on both sides; a side without
 evidence is "chưa biết", never a loss; the trip-level sacrifice is a rough estimate."""
 
 from corpus.serving import feature
 
 from .cards import feature_label, value_label
-from .model import FIRM, Cand
+from .model import FIRM, Cand, cost_total, known_for
 
 DAYTIME = ("morning", "noon", "afternoon", "evening")
 
@@ -56,10 +56,17 @@ def compare(a: Cand, b: Cand, wanted: list[str], days, cfg) -> dict:
             continue
         rows.append({"aspect": fid, "label": feature_label(fid, cfg), "a": _cell(fa, cfg) if fa else "chưa biết",
                      "b": _cell(fb, cfg) if fb else "chưa biết", "better": "unknown"})
+    ka, kb = known_for(a.rec), known_for(b.rec)
+    if ka or kb:
+        rows.append({"aspect": "known_for", "label": "Nổi tiếng vì",
+                     "a": f"{ka['text']} ({ka['n']} người)" if ka else "chưa biết",
+                     "b": f"{kb['text']} ({kb['n']} người)" if kb else "chưa biết", "better": "unknown"})
+    cost = lambda c: (cost_total(c.rec) or {}).get("base")  # noqa: E731
     sacrifice = [r for r in (
         _lower(f"Đi từ {a.center or 'điểm xuất phát'} (ước tính)", "distance", a.minutes, b.minutes, lambda m: f"≈{m} phút"),
         _lower("Độ đông ban ngày (Google)", "crowd_by_time", _crowd(a, days), _crowd(b, days), lambda v: f"{v}%"),
         _lower("Giá mỗi người", "price", _price(a), _price(b), lambda v: f"{v // 1000}k"),
+        _lower("Tổng tiền mỗi người (vé, gửi xe)", "cost", cost(a), cost(b), lambda v: f"{v // 1000}k"),
     ) if r]
     ta = (a.rec["operation"].get("visit_minutes") or {}).get("typical")
     tb = (b.rec["operation"].get("visit_minutes") or {}).get("typical")

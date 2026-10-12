@@ -19,7 +19,7 @@ def all_days(a="08:00", b="21:00"):
 
 
 def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours="open", visit=(30, 60, 90),
-        features=None, price=None, dup=None, name=None, status="VERIFIED", group="x"):
+        features=None, price=None, dup=None, name=None, status="VERIFIED", group="x", details=None):
     """A serving record. hours: "open" = 08:00-21:00 every day, None = no hours, or a {weekday: [[open, close]]} dict.
     features: {feature id: value}, filed under the feature's group."""
     ontology = load_ontology()
@@ -28,7 +28,7 @@ def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours=
         groups.setdefault(ontology.features[fid].group, {})[fid] = {
             "value": value, "distribution": {value: 3}, "status": "VERIFIED", "n": 3}
     h = all_days() if hours == "open" else hours
-    return {"id": pid, "status": "VERIFIED", "status_reason": None,
+    out = {"id": pid, "status": "VERIFIED", "status_reason": None,
             "identity": {"name": name or pid, "kind": "POI", "category": "x", "category_group": group, "lat": lat,
                          "lng": lng, "address": None, "area": area},
             "operation": {"hours": None if h is None else {"value": h, "status": status, "as_of": "2026-09-30"},
@@ -40,29 +40,29 @@ def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours=
             "service": groups.get("service", {}), "effort": groups.get("effort", {}),
             "suitability": groups.get("suitability", {}), "usable_as": list(usable),
             "near_duplicate_group": dup}
+    if details is not None:
+        out["details"] = details  # shape: corpus.serving.details.place_block()
+    return out
 
 
 def decision(ids, *, roles=None, days=2, start_date="2026-12-12", pace="normal", mobility="motorbike", base=None,
-             entry=None, exit=None, hard=(), budget=None, max_leg=None, relaxed=None, checkin_at=None, checkout_at=None,
-             flags=None, log=(), nights=None):
-    """A Decision Output (docs/P3_PLACE_DECISION.md §15) as the JSON a session would write."""
+             entry=None, exit=None, hard=(), budget=None, max_leg=None, relaxed=None, arrive_at=None, leave_at=None,
+             flags=None, log=()):
+    """A Decision Output (docs/PLACE_DECISION.md §15) as the JSON a session would write."""
     roles = roles or {}
-    out = {
+    return {
         "confirmed": [{"id": i, "name": i, "role": roles.get(i, "selected"), "visit": None,
                        "flags": (flags or {}).get(i, []), "relaxed": (relaxed or {}).get(i, [])} for i in ids],
         "backup_pool": [], "wishlist": [], "decision_log": list(log), "feasibility": {},
         "trip_context": {
             "context": {"start_date": start_date, "month": None, "days": days, "base": base, "entry_point": entry,
                         "exit_point": exit, "mobility": mobility, "companions": [], "people": 2,
-                        "checkin_at": checkin_at, "checkout_at": checkout_at, "day_end": None, "budget_vnd": budget},
+                        "arrive_at": arrive_at, "leave_at": leave_at, "day_end": None, "budget_vnd": budget},
             "hard_filters": list(hard),
             "anchors": [{"place_id": i, "priority": "must"} for i in roles if roles[i] == "anchor"],
             "soft_weights": [], "pace": {"level": pace, "max_leg_min": max_leg, "crowd_tolerance": None},
             "novelty": {"level": None, "visited": []}, "unknowns": [], "unmapped": []},
     }
-    if nights is not None:
-        out["trip_context"]["context"]["nights"] = nights
-    return out
 
 
 def fake_matrix(points, mode, cfg):

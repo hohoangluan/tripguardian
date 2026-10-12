@@ -1,0 +1,27 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "TripGuardian — desktop decision flow": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-10-12T06:04:16.385Z",
+          "status": "needs-review"
+        }
+      ]
+    },
+    "TripGuardian — UX audit and rationale": {
+      "versions": [
+        {
+          "path": "review.html",
+          "createdAt": "2026-10-12T06:04:16.447Z",
+          "status": "needs-review"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-12T06:04:16.386Z",
+  "updatedAt": "2026-10-12T06:10:47.240Z"
+}
