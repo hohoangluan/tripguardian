@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TRIPS = ROOT / "config" / "bench_trips.yaml"
 
 Who = Literal["solo", "partner", "friends", "kids", "parents"]
-Vehicle = Literal["motorbike", "car", "ride"]
+Vehicle = Literal["motorbike", "car"]
 SignalKind = Literal["knee", "elderly", "kids", "wheelchair", "vegetarian", "motion_sick", "height"]
 Effort = Literal["steep", "walk", "both", "none"]
 EFFORT_SIGNALS = ("knee", "elderly", "kids", "wheelchair")

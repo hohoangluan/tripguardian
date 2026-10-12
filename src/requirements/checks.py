@@ -107,7 +107,8 @@ def hard_result(rec: dict, requirement, activity: Activity | None = None, role: 
         return ("pass", None) if set(f["distribution"]) <= {val} else ("unknown", None)
     result = check(rec, fid, val)
     if (result == "unknown" and f is not None and f["status"] == "UNCERTAIN" and f["value"] != val
-            and val not in f["distribution"] and ontology().features[fid].group not in {"effort", "suitability"}):
+            and val not in f["distribution"] and fid in ontology().features
+            and ontology().features[fid].group not in {"effort", "suitability"}):  # fit.<who> is a safety check too
         return "pass", "uncertain_value"
     return result, None
 

@@ -8,8 +8,10 @@ valid -> back to Place Decision with the places that broke it. Lodging joins the
 from dataclasses import asdict
 
 import live
+from trip import nights
 
 from .backup import backups
+from .details import plan_notes
 from .timefit import describe as time_description
 from .recommendations import recommend
 from .build import ENTRY, EXIT, flag_warnings, itinerary, prepare, render_text, schedule_trip, shared_output, \
@@ -44,6 +46,12 @@ def _comparison(variants: list[dict]) -> list[dict]:
 def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None, matrix_fn=None,
                    sun_fn=None, weather: dict | None = None, signals: dict | None = None) -> dict:
     trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals)
+    from .composer import compose
+    composed = compose(trip)
+    if composed is not None:
+        composed["variants"] = [{k: v for k, v in variant.items() if not k.startswith("_")}
+                                 for variant in composed["variants"]]
+        return {**shared_output(trip), **composed}
     cfg = trip.cfg
     objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
     tried = [(obj, schedule_trip(trip, cfg.objective_weights[obj])) for obj in objectives]
@@ -70,6 +78,7 @@ def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None,
         seen.add(orders)
         m = metrics(s.ctxs, s.results)
         days = [cx.day for cx in s.ctxs]        # schedule_trip may pull a later day's start earlier (early_start)
+        notes = plan_notes(s.ctxs, s.results, decision, trip.weather, trip.by_place)  # season, last entry, dark road; what to prepare
         variants.append({
             "id": f"v{len(variants) + 1}", "objective": obj, "label": LABEL[obj], "score": list(score(obj, m)),
             "metrics": m, "itinerary": itinerary(days, s.results),
@@ -77,7 +86,8 @@ def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None,
             "time_suitability": time_description(s.ctxs, s.results),
             "recommendations": recommend(s.ctxs, s.results, decision, trip.by_id),
             "robustness": robustness(s.ctxs, s.results, trip.travel.source),
-            "backups": backups(s.ctxs, s.results, decision, trip.by_id), "warnings": s.warnings})
+            "backups": backups(s.ctxs, s.results, decision, trip.by_id), "warnings": [*s.warnings, *notes["warnings"]],
+            "checklist": notes["checklist"]})
     if len(variants) < len(valid):
         warnings.append(_warn("variants_same", n=len(variants)))
     weather_src = sorted({(w.get("source"), w.get("fetched_at")) for w in (weather or {}).values()
@@ -122,7 +132,7 @@ def render_variants(out: dict) -> str:
 
 
 def _nights(ctx: dict) -> int:
-    return max((ctx.get("days") or 1) - 1, 0)
+    return nights(ctx)
 
 
 def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None,
@@ -149,9 +159,68 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
     trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals,
                    extra_nodes={c["id"]: (c["lat"], c["lng"]) for c in cands})
     home0 = trip.days[0].start_node if trip.days else None
+    from .composer import compose, profile_metrics, profile_violations, render_profile
+    composed = compose(trip)
+    if composed is not None:
+        slept = _nights(decision["trip_context"]["context"])
+        options = [{"id": None, "home": home0, "price": None, "name": None}] + [
+            {"id": c["id"], "home": c["id"], "price": c["price_vnd"], "name": c["name"], "candidate": c}
+            for c in cands]
+        chosen_rows, lodging_rows = [], []
+        for variant in composed["variants"]:
+            preset = variant["preset"]
+            scored = []
+            for opt in options:
+                t2 = trip if opt["home"] in (None, home0) else with_home(trip, opt["id"])
+                sched = schedule_trip(t2, cfg.objective_weights[preset], kept=variant["kept"],
+                                      allow_shrink=preset != "diverse")
+                rendered = render_profile(t2, sched, preset, baseline=composed["keep_all"]["metrics"])
+                valid_plan = rendered["confirmable"]
+                m = rendered["metrics"]
+                if opt["price"] is not None:
+                    m["lodging_cost_vnd"] = opt["price"] * slept if isinstance(opt["price"], (int, float)) else None
+                    if m["lodging_cost_vnd"] is not None:
+                        m["estimated_cost_vnd"] += m["lodging_cost_vnd"]
+                    else:
+                        m["cost_basis"] = "partial"
+                if preset == "low_cost":
+                    rank_key = (not valid_plan, m["estimated_cost_vnd"], m["travel_min"], -m["utility"],
+                                opt["price"] is None and opt["id"] is not None, opt["id"] or "")
+                elif preset == "diverse":
+                    rank_key = (not valid_plan, -(m["wish_coverage"] or 0), -m["diversity"],
+                                m["duration_loss_min"], m["travel_min"], opt["id"] or "")
+                else:
+                    rank_key = (not valid_plan, -m["places"], -m["visit_density"], -m["utility"],
+                                m["travel_min"], opt["id"] or "")
+                scored.append((rank_key, opt, sched, rendered))
+                if preset == "least_travel":
+                    card = opt.get("candidate")
+                    if opt["id"] is None or card:
+                        row = {"id": opt["id"], "name": opt["name"] or "Không chỗ ở", "price_vnd": opt["price"],
+                               "amenities": card["amenities"] if card else [], "total_travel_min": m["travel_min"]}
+                        if card:
+                            row["minutes_vs_no_lodging"] = m["travel_min"] - next(
+                                (r["total_travel_min"] for r in lodging_rows if r["id"] is None), m["travel_min"])
+                        lodging_rows.append(row)
+            _, opt, sched, rendered = min(scored, key=lambda x: x[0])
+            profile = {**variant, **rendered, "id": variant["id"], "preset": preset,
+                       "lodging": {"id": opt["id"], "name": opt["name"], "price_vnd": opt["price"]},
+                       "travel_load": travel_load([cx.day for cx in sched.ctxs], sched.results),
+                       "robustness": robustness(sched.ctxs, sched.results, trip.travel.source),
+                       "time_suitability": time_description(sched.ctxs, sched.results),
+                       "backups": backups(sched.ctxs, sched.results, decision, trip.by_id),
+                       "_results": sched.results, "_ctxs": sched.ctxs, "_home": opt["home"]}
+            chosen_rows.append(profile)
+        composed["variants"] = [{k: v for k, v in variant.items() if not k.startswith("_")}
+                                 for variant in chosen_rows]
+        composed["comparison"] = [{"variant": v["id"], "objective": v["preset"], "label": v["label"],
+                                    **v["metrics"], "delta_vs_selection": v["delta_vs_selection"],
+                                    "robustness": v["robustness"]["level"]} for v in chosen_rows]
+        return {**shared_output(trip), **composed,
+                "lodging": {"candidates": lodging_rows, "chosen": None}}
     options = [{"id": None, "home": home0, "price": None, "name": None}] + \
         [{"id": c["id"], "home": c["id"], "price": c["price_vnd"], "name": c["name"]} for c in cands]
-    nights = _nights(decision["trip_context"]["context"])
+    slept = _nights(decision["trip_context"]["context"])
     objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
 
     rows = {obj: [] for obj in objectives}
@@ -161,7 +230,7 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
             s = schedule_trip(t2, cfg.objective_weights[obj])
             m = metrics(s.ctxs, s.results) if not s.violations else None
             if m is not None and opt["id"] is not None:    # "no lodging" adds no cost, known or unknown
-                m = add_lodging_cost(m, opt["price"], nights)
+                m = add_lodging_cost(m, opt["price"], slept)
             rows[obj].append({**opt, "sched": s, "metrics": m})
 
     warnings += list(trip.warnings)
@@ -191,13 +260,15 @@ def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_c
         seen.add(key)
         s, m = r["sched"], r["metrics"]
         days = [cx.day for cx in s.ctxs]        # schedule_trip may pull a later day's start earlier (early_start)
+        notes = plan_notes(s.ctxs, s.results, decision, trip.weather, trip.by_place)
         variants.append({
             "id": f"v{len(variants) + 1}", "objective": obj, "label": LABEL[obj], "score": list(score(obj, m)),
             "metrics": m, "itinerary": itinerary(days, s.results), "travel_load": travel_load(days, s.results),
             "time_suitability": time_description(s.ctxs, s.results),
             "recommendations": recommend(s.ctxs, s.results, decision, trip.by_id),
             "robustness": robustness(s.ctxs, s.results, trip.travel.source),
-            "backups": backups(s.ctxs, s.results, decision, trip.by_id), "warnings": s.warnings,
+            "backups": backups(s.ctxs, s.results, decision, trip.by_id), "warnings": [*s.warnings, *notes["warnings"]],
+            "checklist": notes["checklist"],
             "lodging": {"id": r["id"], "name": r["name"], "price_vnd": r["price"]}})
     if len(variants) < len(best):
         warnings.append(_warn("variants_same", n=len(variants)))

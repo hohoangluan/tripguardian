@@ -215,14 +215,14 @@ _không có_
 
 ## landing — Landing 3D (máy tính) + Dùng ứng dụng (điện thoại)
 
-- file: `web/src/user/screens/{Landing,GetApp}.tsx`, `web/src/user/landing/{scene,terrain,device}.ts`, `web/src/user/landing/{places,points,stats}.json` (sinh bằng `web/scripts/pick_landing_places.py`), `web/src/user/css/landing.css`, `web/src/user/UserApp.tsx`; phụ thuộc `three`
-- cách kiểm chứng: `npm run build --prefix web` (chunk `scene` riêng chứa three.js); mở `/` ở 1440×900 và 1024×768, cuộn qua 6 đoạn; giả UA iPhone mở `/` phải thấy trang Dùng ứng dụng; bật `prefers-reduced-motion` thấy khung tĩnh + 4 chương xếp lưới
+- file: `web/src/user/screens/{Landing,GetApp}.tsx`, `web/src/user/landing/{scene,terrain,device}.ts`, `web/src/user/landing/{places,points,stats}.json` (sinh bằng `web/scripts/pick_landing_places.py`), `web/src/user/css/landing.css`, `web/src/user/UserApp.tsx`; phụ thuộc `three`, `gsap`, `lenis`
+- cách kiểm chứng: `npx tsc --noEmit -p web`; mở `/` ở 1440×900 (`?3d=off` buộc bản nhẹ, `?3d=on` buộc 3D) và cuộn hết trang; `prefers-reduced-motion` thấy mọi khối hiện sẵn; giả UA iPhone mở `/` phải thấy trang Dùng ứng dụng
 
-### Hiện tại (2026-10-08, khuya)
+### Hiện tại (2026-10-12)
+- hành vi: máy tính thấy màn đầu là thung lũng Đà Lạt 3D sống (three.js thuần, tải lười; kéo để xoay, nút `Xoay thử Đà Lạt 3D` mở khám phá tự do), chữ `Lịch trình Đà Lạt vừa với bạn.`, một CTA `Lên lịch chuyến của bạn` (lặp ở thanh trên và hộp cuối) ba cam kết `Miễn phí` · `Không cần tài khoản` · `Chỉ gồm nơi có thật` và nút nổi `Cuộn xuống để xem cách hoạt động` ở chân màn. Dưới màn đầu là ba bước tĩnh: Tìm hiểu nhu cầu (khung chat + thẻ chuyến đi), Tìm địa điểm phù hợp (thẻ lý do của Thênh Thang từ `places.json`: đánh giá Google, khung đông nhất cuối tuần, clip TikTok), Lịch trình của bạn (ví dụ một ngày 6 nơi thật, phút đi xe tính thô từ toạ độ bằng `road_factor` / `rough_speed_kmh` của `config/planning.yaml`). Rồi `Địa điểm thật` (4 ảnh ban ngày, nguồn ghi theo `credit` của từng ảnh), Hỏi nhanh 5 câu cạnh một dòng `Sắp có`, CTA cuối, footer. Cuộn mượt bằng Lenis, mỗi khối hiện một lần khi tới (GSAP ScrollTrigger); giảm chuyển động tắt cả hai. Thanh bước bên phải hiện chữ cả 3 bước. Nút CTA mở phiên khách nếu chưa có phiên. Điện thoại không đổi: trang Dùng ứng dụng.
+
+### Trước đó (2026-10-08, khuya)
 - hành vi: máy tính thấy sân khấu sticky với thung lũng Đà Lạt 3D lúc bình minh (three.js thuần, tải lười): bầu trời hồng đào, sương, đồi thông, hai hồ, phố mái ngói; 1.773 đốm sáng là toạ độ thật của mọi nơi; 5 nơi được chọn là bưu thiếp in ảnh thật, tuyến là đường chấm. Cuộn qua 6 đoạn theo bước sản phẩm (Mở đầu → Tìm hiểu → Lựa chọn → Lựa chọn · lý do → Lịch trình → Đánh giá), thanh bước bên phải 5 mục. Đoạn Đánh giá diễn 4 câu của màn Phản hồi. Ô nhập ở Mở đầu là ô thật. Sau sân khấu: bento ảnh thật, Hỏi nhanh cạnh Sắp có, CTA, footer. Chữ: Lora + Be Vietnam Pro, giọng "TripGuardian" / "bạn". Điện thoại vào `/` thấy trang Dùng ứng dụng (link cửa hàng từ `VITE_APP_IOS_URL` / `VITE_APP_ANDROID_URL`, chưa có thì `Sắp có` + `chưa mở`; `Gửi link sang máy tính`; `Tiếp tục với bản web` → `/app`).
-
-### Trước đó (2026-10-08, tối)
-- hành vi: landing 3D dạng sa bàn nổi trên nền giấy (khối đất có đế, ghim cầu cam, tuyến ống liền), 5 chương Mở đầu → Hiểu chuyến đi → Lọc địa điểm → Nguồn kiểm chứng → Lịch trình; điện thoại thấy trang Dùng ứng dụng như hiện tại.
 
 ## user-web — Giao diện người dùng chính thức (landing + `/app`)
 
@@ -268,14 +268,14 @@ _không có_
 
 ## accounts — Tài khoản, Postgres (`docs/ACCOUNTS.md`)
 
-- file: `src/db/`, `migrations/`, `src/accounts/`, `src/harness/server.py`, `run.sh` (`db`, `db-backup`), `web/src/user/{account.ts,screens/Auth.tsx,screens/Account.tsx}`
-- cách kiểm chứng: `./run.sh db` (chạy lại → `nothing new`); `TEST_DATABASE_URL=<DATABASE_URL> python -m pytest -q tests/db tests/accounts tests/harness`; walk Playwright với `TG_TEST_LOGIN=1` + `APP_BASE_URL` http
+- file: `src/db/`, `migrations/`, `src/accounts/`, `src/harness/server.py`, `run.sh` (`db`, `db-backup`), `web/src/user/{account.ts,screens/Auth.tsx,screens/Account.tsx,screens/Guest.tsx}`
+- cách kiểm chứng: `./run.sh db` (chạy lại → `nothing new`); `TEST_DATABASE_URL=<DATABASE_URL> python -m pytest -q tests/db tests/accounts tests/harness`; walk Playwright với `TG_TEST_LOGIN=1` + `APP_BASE_URL` http; walk khách (CTA landing → `/app`, Hôm nay 403, kết thúc phiên) trên harness + schema tạm
 
-### Hiện tại (2026-10-09)
+### Hiện tại (2026-10-12)
+- hành vi: Postgres riêng (container `tripguardian-pg`, 127.0.0.1:5433, role `tg_app` / `tg_analytics`, migration SQL đánh số). `/app` cần đăng nhập Google (code + PKCE, state server + cookie), cookie `tg_session` 30 ngày trượt, đồng ý điều khoản lần đầu. Hồ sơ (avatar 256 px WebP, tên, thành phố, phương tiện, người đi cùng) là prior `source = profile` cho Trip. Xóa tài khoản giữ dữ liệu ẩn danh. Mọi `/api/harness/*` cần phiên (401), mutation kiểm `Origin` (403), hành trình người khác 404; hành trình lưu ở bảng `journeys` (`PgStore`, kiểm revision khi ghi), feedback ở bảng `feedback`; `import-files` nạp file cũ. Khách (`users.kind = 'guest'`, migration 003): `POST /api/auth/guest` mở phiên 24 giờ trượt, lập chuyến như tài khoản (không giới hạn số chuyến, không prior hồ sơ, không học), không có Hôm nay / thông báo / Calendar / hồ sơ (403 `guest`); hết phiên thì xóa khách và chuyến, giữ `journeys` / `events` ẩn danh; đăng nhập Google chuyển chuyến của khách sang tài khoản; mỗi địa chỉ tối đa 20 khách / giờ.
+
+### Trước đó (2026-10-09)
 - hành vi: Postgres riêng (container `tripguardian-pg`, 127.0.0.1:5433, role `tg_app` / `tg_analytics`, migration SQL đánh số). `/app` cần đăng nhập Google (code + PKCE, state server + cookie), cookie `tg_session` 30 ngày trượt, đồng ý điều khoản lần đầu. Hồ sơ (avatar 256 px WebP, tên, thành phố, phương tiện, người đi cùng) là prior `source = profile` cho Trip. Xóa tài khoản giữ dữ liệu ẩn danh. Mọi `/api/harness/*` cần phiên (401), mutation kiểm `Origin` (403), hành trình người khác 404; hành trình lưu ở bảng `journeys` (`PgStore`, kiểm revision khi ghi), feedback ở bảng `feedback`; `import-files` nạp file cũ.
-
-### Trước đó
-- _không có_ (tài khoản giả lập trong localStorage, hành trình ở `data/harness/sessions/*.json`)
 
 ## companion — Đang đi, Calendar, thông báo (`docs/COMPANION.md`)
 
@@ -298,3 +298,18 @@ _không có_
 
 ### Trước đó
 - _không có_ (Admin Analytics là khung tĩnh, Phiên chỉ đọc localStorage)
+
+## place-details — Chi tiết địa điểm (13 mục)
+
+- file: `config/{ontology,companions,seasons,serving,planning,decision,trip}.yaml`, `src/corpus/{ontology.py,observe/details_gate.py,observe/{gmaps,tiktok,official}/,aggregate/details.py,serving/details.py,judge/audit.py,review/labels.py}`, `src/requirements/`, `src/trip/domain/`, `src/decision/{fit,cards,compare,feasibility}.py`, `src/planning/{details,places,objectives,timefit,schedule,backup,output,variants}.py`, `web/scripts/export_snapshot.py`, `web/src/user/ui/{PlaceDetails,PlaceSheet}.tsx`
+- cách kiểm chứng: `pytest tests/test_ontology.py tests/observe tests/aggregate tests/serving tests/review tests/judge tests/trip tests/decision tests/planning tests/web`
+
+### Hiện tại (2026-10-12)
+- ontology version 12: 14 feature enum mới + 15 kind `detail.<kind>`; `observation(detail=...)`, mảng `details` riêng trong file observation; gate `details_gate.py`.
+- Maps, TikTok (lời nói + caption), official (`fee`, vé `senior`, `last_entry`) trích `details`; Judge đếm nhãn theo `(detail.<kind>, "*")`.
+- aggregate gộp thành cụm theo kind; serving ghi khối `details`; `feature(record, "fit.<who>")` cho `check`.
+- Trip: người đi cùng thêm `baby`, `pet`, `coworkers`, `companions_other`; hard filter `fit.<x>`, `pets`, `coach_access`. Decision: điểm mềm `details_fit`, thẻ và so sánh có `known_for`, `cost`. Planning: chi phí thật, giờ đẹp / tránh, `last_entry` official cứng, đường tối, mùa, dự phòng nơi vắng hơn, `checklist`. Web: các khối PlaceDetails, checklist ở màn Lịch trình.
+- chưa chạy trên dữ liệu thật: dữ liệu hiện có chưa có `details`, nên mọi khối đều rỗng cho tới khi chạy lại `corpus build`.
+
+### Trước đó (_không có_)
+- _không có_

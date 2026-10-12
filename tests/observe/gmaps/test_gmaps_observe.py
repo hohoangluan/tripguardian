@@ -14,6 +14,11 @@ def review(i, text, author, details=(), rating=None, published="2 tuần trướ
             "published_text": published, "likes": 0, "photos": 0, "author_meta": ""}
 
 
+FEE = {"kind": "fee", "text": "xe điện", "amount_vnd": 40000, "audience": "", "unit": "item", "min_people": 0,
+       "months": [], "days": [], "hour": "", "who": "", "verdict": "", "time_of_day": "unknown",
+       "quote": "xe điện 40k/lượt"}
+
+
 def setup(tmp_path, monkeypatch, reviews, qc=None, place=None):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     d = tmp_path / "gmaps" / "places" / DIR
@@ -37,7 +42,8 @@ def setup(tmp_path, monkeypatch, reviews, qc=None, place=None):
         for ref, text in re.findall(r"^(r\d+): (.*)$", reviews_text, re.M):
             obs = [{"feature": "scenic_view", "value": "present", "quote": "view đẹp", "time_of_day": "unknown",
                     "day_type": "unknown", "weather": "unknown"}] if "view đẹp" in text else []
-            items.append({"ref": ref, "observations": obs, "proposed": []})
+            details = [FEE, {**FEE, "quote": "xe điện 99k"}] if "xe điện 40k" in text.casefold() else []  # the 2nd quote is made up
+            items.append({"ref": ref, "observations": obs, "proposed": [], "details": details})
         return {"reviews": items}
 
     monkeypatch.setattr(extract, "ask_batch", fake_ask)
@@ -630,3 +636,59 @@ def test_file_without_read_list_reuses_reviews_of_files_older_than_it(tmp_path, 
     out.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     asyncio.run(extract.run("dalat"))
     assert len(calls) == 1 and json.loads(out.read_text(encoding="utf-8"))["stats"]["reused"] == 1
+
+
+def test_details_are_gated_and_written_next_to_observations(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Vé 50k, xe điện 40k/lượt, view đẹp", "a1")])
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert [(o["id"], o["feature"], o["value"], o["detail"]["amount_vnd"], o["detail"]["unit"], o["source_type"],
+             o["span"]["quote"], o["context"]["day_type"]) for o in res["details"]] == \
+        [("gmaps:R1:d0", "detail.fee", "xe điện", 40000, "item", "gmaps_review", "xe điện 40k/lượt", "unknown")]
+    assert [o["feature"] for o in res["observations"]] == ["scenic_view"]  # aggregate reads these only
+    assert res["stats"]["dropped"]["detail_quote_not_in_source"] == 1
+
+
+def test_answer_without_details_key_means_none(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Quán có view đẹp lắm luôn nha", "a1")])
+
+    async def old_ask(client, model, city, place, ontology_text, reviews_text, note=""):
+        return {"reviews": [{"ref": "r1", "observations": [], "proposed": []}]}
+
+    monkeypatch.setattr(extract, "ask_batch", old_ask)
+    asyncio.run(extract.run("dalat"))
+    assert json.loads(out.read_text(encoding="utf-8"))["details"] == []
+
+
+def test_reused_review_keeps_its_details_and_targeted_ones_are_tagged(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Xe điện 40k/lượt, nhưng view đẹp", "a")])
+    asyncio.run(extract.run("dalat"))
+    first = json.loads(out.read_text(encoding="utf-8"))
+    d = tmp_path / "gmaps" / "places" / DIR
+    (d / "reviews_keywords.json").write_text(json.dumps({"fetched_at": FETCHED, "keywords": {"xe điện": {
+        "complete": True, "reviews": [review(9, "Đi xe điện 40k/lượt rất tiện", "z")]}}}, ensure_ascii=False),
+        encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    res = json.loads(out.read_text(encoding="utf-8"))
+    assert len(calls) == 2 and res["stats"]["reused"] == 1
+    assert [o for o in res["details"] if o["source_id"] == "R1"] == first["details"]
+    assert [(o["id"], o.get("sample")) for o in res["details"]] == [("gmaps:R1:d0", None), ("gmaps:R9:d0", "keywords")]
+
+
+def test_qc_flag_after_observe_prunes_the_details_of_that_review(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, [review(1, "Xe điện 40k/lượt, nhưng view đẹp", "a")])
+    asyncio.run(extract.run("dalat"))
+    assert len(json.loads(out.read_text(encoding="utf-8"))["details"]) == 1
+    (tmp_path / "gmaps" / "qc").mkdir(parents=True)
+    (tmp_path / "gmaps" / "qc" / f"{DIR}.json").write_text(
+        json.dumps({"llm": {"bad_reviews": [{"review_id": "R1", "problem": "spam"}]}}), encoding="utf-8")
+    assert asyncio.run(extract.run("dalat"))["status"] == {"pruned": 1} and len(calls) == 1
+    assert json.loads(out.read_text(encoding="utf-8"))["details"] == []
+
+
+def test_detail_schema_puts_quote_last():
+    from corpus.llm import REVIEW_OBSERVE
+    item = REVIEW_OBSERVE.schema["properties"]["reviews"]["items"]
+    det = item["properties"]["details"]["items"]
+    assert "details" in item["required"] and list(det["properties"])[-1] == "quote" and det["required"][-1] == "quote"
+    assert det["properties"]["amount_vnd"] == {"type": "integer"} and det["properties"]["months"]["items"] == {"type": "integer"}

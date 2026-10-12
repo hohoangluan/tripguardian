@@ -157,7 +157,7 @@ Hai vòng đầu là lý do Place Decision và Planning tách nhau mà vẫn n�
 
 ```text
 web (Vite, :5173)  /          landing, public
-                   /app       User Web (cần đăng nhập Google) → /api/auth/*, /api/harness/* → harness :8769
+                   /app       User Web (Google hoặc khách) → /api/auth/*, /api/harness/* → harness :8769
                    /admin     Admin Web → review :8765, analytics :8770 (private, chỉ đọc)
 notify worker      python -m notify run (không cổng) → Postgres, web push
 Postgres           127.0.0.1:5433 (container tripguardian-pg)

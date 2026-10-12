@@ -6,6 +6,15 @@ repair_search_limit: 720
 cache_entries: 128
 suggestion_workers: 2
 
+# Deterministic proposals from the user's selection. Transport rates require sourced configuration.
+composer:
+  rho: 0.9
+  alpha: 0.7
+  tight_ratio: 0.8
+  per_day_max: {slow: 4, normal: 5, packed: 7}
+  search_limit: 120
+  transport_vnd_per_min: {}
+
 # Soft estimates, not opening hours or a universal energy rule. Explicit user periods override these defaults.
 time_suitability:
   enabled: true
@@ -22,10 +31,21 @@ time_suitability:
   overload_weight: 3.0
   recommendation_gap_min: 90
   recommendations_per_gap: 2
+  # What people who went there said (serving details.timing, details/night_road_risk): planning minutes of score
+  timing_bonus: 60.0      # a visit starting in a time of day reviewers call the best
+  timing_penalty: 120.0   # ... in one they call the time to avoid
+  night_road_penalty: 120.0  # on a motorbike, ending after sunset at a place whose road is dangerous at night
+  tod:                    # the times of day of details.timing.*.by_time_of_day (config/ontology.yaml context time_of_day)
+    early_morning: ["05:00", "07:00"]
+    morning: ["07:00", "11:00"]
+    noon: ["11:00", "13:00"]
+    afternoon: ["13:00", "17:00"]
+    evening: ["17:00", "19:00"]
+    night: ["19:00", "23:59"]
 
 # Rough travel, used only when OSRM is down or has no road for a pair. Every number built on it is an estimate.
 road_factor: 1.4            # straight line -> road distance
-rough_speed_kmh: {motorbike: 25, car: 25, ride: 22}
+rough_speed_kmh: {motorbike: 25, car: 25, walk: 22}
 walk_km: 0.4                # a leg shorter than this is walked
 walk_kmh: 4.5
 
@@ -63,6 +83,8 @@ cluster_merge_min: 8        # clusters of different areas merge only when this c
 fill_ratio: 0.8             # a cluster whose load exceeds this share of a day is split
 intra_leg_min: 10           # minutes charged per place for moving inside a cluster when sizing a day
 max_days: 7
+chunk_days: 7
+long_trip_exact_n: 5
 max_clusters: 8
 exact_n: 7                  # up to this many stops a day the order is found by trying every permutation
 improve_passes: 5
@@ -115,7 +137,7 @@ backup_radius_min: 25       # rough minutes from the sensitive place to a replac
 backups_per_place: 2
 
 # Lodging (ⓐ, P5): a candidate competes as the anchor of each day; it never becomes Place Intelligence.
-radius_km: {motorbike: 3.0, car: 5.0, ride: 4.0}
+radius_km: {motorbike: 3.0, car: 5.0, walk: 4.0}
 lodging_k: 6
 lodging_share: 0.3  # share of budget_vnd spent on lodging, over the whole stay
 min_reviews: 5

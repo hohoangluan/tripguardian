@@ -4,7 +4,7 @@ import { WHO_LABEL, type Who } from '../trip'
 import type { HardRow, SoftRow } from './types'
 
 export const FIELD_LABEL: Record<string, string> = {
-  dates: 'Ngày đi', start_date: 'Ngày đi', month: 'Tháng', days: 'Số ngày', companions: 'Đi với ai', people: 'Số người',
+  dates: 'Ngày đi', start_date: 'Ngày đi', month: 'Tháng', days: 'Số ngày', nights: 'Số đêm', companions: 'Đi với ai', people: 'Số người',
   base: 'Chỗ ở', mobility: 'Đi lại', arrive_at: 'Ngày đầu tới', leave_at: 'Ngày cuối rời', day_end: 'Mỗi ngày xong trước',
   purpose: 'Mục đích', pace: 'Nhịp độ', max_leg_min: 'Mỗi chặng tối đa', crowd_tolerance: 'Chỗ đông', novelty: 'Mới hay quen',
   budget_vnd: 'Ngân sách', origin: 'Xuất phát', arrival_mode: 'Tới Đà Lạt bằng', inbound: 'Chuyến đi', outbound: 'Chuyến về',

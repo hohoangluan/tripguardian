@@ -17,7 +17,7 @@ MONEY = re.compile(r"(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)?")
 LITERALS = ("companions", "mobility", "purpose", "pace", "novelty", "crowd_tolerance", "signal", "arrival_mode",
             "lodging_booked", "budget_scope", "month_part", "liked_groups")
 ENUM_VALUES = {
-    "companions": ("solo", "partner", "friends", "kids", "parents"),
+    "companions": ("solo", "partner", "friends", "kids", "parents", "baby", "pet", "coworkers"),
     "mobility": ("motorbike", "car", "walk"),
     "purpose": ("relax", "bond", "photo", "food_culture", "nature", "explore", "adventure"),
     "pace": ("slow", "normal", "packed"),
@@ -87,7 +87,7 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
         key, weight = split_weight(raw)
         return str(SoftKey.parse(key)), weight
     if field == "hard":
-        m = re.fullmatch(r"\s*([a-z_]+)\s*(!=|=)\s*([a-z_0-9]+)\s*", raw)
+        m = re.fullmatch(r"\s*([a-z_.]+)\s*(!=|=)\s*([a-z_0-9]+)\s*", raw)  # "fit.baby != bad" has a dot
         if not m or not valid_condition(m[1], m[3]):
             raise ValueError(f"hard filter {raw!r} is not feature!=value from the ontology")
         return {"feature": m[1], "op": "ne" if m[2] == "!=" else "eq", "value": m[3]}

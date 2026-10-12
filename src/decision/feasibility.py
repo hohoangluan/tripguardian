@@ -8,7 +8,7 @@ from corpus.serving import feature
 
 from .cards import feature_label, value_label
 from .geo import fmt, km, minutes, point, to_min
-from .model import Cand
+from .model import Cand, cost_total
 
 
 def _visit(c: Cand) -> int:
@@ -22,7 +22,8 @@ def _cost_vnd(c: Cand) -> int:
     lo = (p["value"].get("min_vnd") or 0) if p else 0
     hi = (p["value"].get("max_vnd") or lo) if p else 0
     fee = (op.get("entry_fee") or {}).get("typical_vnd") or 0
-    return int((lo + hi) / 2 + fee)
+    total = cost_total(c.rec)  # entry + parking from the details, when the place has them
+    return int((lo + hi) / 2 + (total["base"] if total else fee))
 
 
 def _areas(chosen: list[Cand]) -> dict[str, tuple[tuple[float, float], list[Cand]]]:

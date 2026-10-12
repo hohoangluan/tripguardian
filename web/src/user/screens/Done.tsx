@@ -4,6 +4,7 @@ import { useTrip } from '../trip'
 import { go, Link } from '../ui/common'
 import { Icon } from '../ui/icons'
 import { FlowBar, Page, useTitle } from '../ui/Shell'
+import { GuestNotice } from './Guest'
 
 const QS: [string, string][] = [['fit', 'Gợi ý có đúng gu của bạn?'], ['clear', 'Lý do dễ hiểu?'], ['realistic', 'Lịch có thực tế?'], ['confident', 'Bạn tự tin hơn về chuyến đi?']]
 
@@ -28,6 +29,7 @@ export function Done() {
     <>
       <FlowBar step="done" />
       <Page narrow className="tg-done">
+        <GuestNotice />
         {state !== 'sent' ? (
           <>
             <div className="tg-done__hero"><span className="tg-done__seal"><Icon name="check" size={30} /></span><p className="tg-kicker">Chuyến Đà Lạt của bạn</p><h1>Kế hoạch đã chốt.</h1><p className="tg-muted">Vài câu ngắn thôi, bỏ qua được hết. Câu trả lời giúp mình gợi ý đúng hơn lần sau.</p></div>

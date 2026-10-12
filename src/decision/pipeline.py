@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from corpus.serving import load as load_records
 
 from .cards import card, feature_label, value_label
+from .chunks import assign_chunks, coverage, describe_chunks
 from .curation import pending
 from .diversify import display_group, pick, sizes
 from .feasibility import evaluate
@@ -42,6 +43,7 @@ class Result:
     days: list
     shown: dict[str, list[str]]
     ranked: dict[str, list[str]]
+    chunk_assignments: dict[str, int]
 
 
 def stub(pid: str) -> dict:
@@ -159,6 +161,7 @@ def run(s, data: Data, cfg) -> Result:
     feas = evaluate(chosen, si, days, known_days, set(anchors), set(st.locked), ctrs,
                     {f for f in want if f in cfg.timed_features}, cfg)
     pend = pending(st, data.by_id, si, feas, s.first_shortlist, group_of, cfg)
+    allocation = assign_chunks(chosen, st.chunk_assignments, days, cfg)
 
     def name(pid: str) -> str:
         c = cands.get(pid)
@@ -176,6 +179,9 @@ def run(s, data: Data, cfg) -> Result:
         "change": change,
         "shortlist": [x["id"] for g in groups for x in g["cards"]],
         "selected": list(st.selected), "locked": list(st.locked),
+        "chunk_assignments": allocation,
+        "chunks": describe_chunks(chosen, allocation, days),
+        "coverage": coverage(chosen, si, days, feas, cfg, st.free_time),
         "unverified": {"count": len(unverified), "open": any(h.unknown_policy == "flag" for h in si.hard_filters),
                        "cards": [mk(c) for c in unverified[:cfg.unverified_show]]},
         "excluded": {"by_rule": [{"rule": r, "label": _rule_label(r, si, cfg), "count": n}
@@ -190,7 +196,7 @@ def run(s, data: Data, cfg) -> Result:
         "unknowns": list(si.unknowns),
         "unmapped": [*si.unmapped, *st.unmapped],
     }
-    return Result(view, cands, {k: [x.id for x in v] for k, v in alts.items()}, group_of, days, shown, ranked)
+    return Result(view, cands, {k: [x.id for x in v] for k, v in alts.items()}, group_of, days, shown, ranked, allocation)
 
 
 def why_not(res: Result, pid: str, si, cfg) -> dict:

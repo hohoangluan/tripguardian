@@ -1,20 +1,23 @@
 """Local journey HTTP/SSE boundary; the router owns stage permissions, accounts own sign-in (docs/ACCOUNTS.md).
 
-Every /api/harness/* call needs a signed-in session (cookie tg_session); /api/auth/* is the sign-in flow itself.
+Every /api/harness/* call needs a session (cookie tg_session): a Google account, or a guest made by POST /api/auth/guest
+(a guest plans like anyone but keeps no history and gets no Calendar, notifications or Today). /api/auth/* is the sign-in flow.
 Mutations must come from the app's own origin. Another account's journey is answered 404, as if it did not exist.
 """
 
 import json
 import re
 import sys
+import threading
 import time
 import traceback
+from collections import deque
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
 from pydantic import ValidationError
-from accounts import AVATAR_MAX_BYTES, AuthError, safe_next
+from accounts import AVATAR_MAX_BYTES, GUEST_HOURS, AuthError, safe_next
 from agents import ToolError
 from companion import CalendarError, NotConnected
 
@@ -27,7 +30,7 @@ PROFILE = re.compile(r"/api/harness/profile/([A-Za-z0-9_-]{8,64})")
 AVATAR = re.compile(r"/api/harness/avatars/([0-9a-f]{32})")
 SESSION = re.compile(BASE + r"/([0-9a-f]{12})")
 REQUEST = re.compile(BASE + r"/([0-9a-f]{12})/request")
-READ = re.compile(BASE + r"/([0-9a-f]{12})/read/(decision|planning)/(compare|why-not|lodging|variants|page|suggestions)")
+READ = re.compile(BASE + r"/([0-9a-f]{12})/read/(decision|planning)/(compare|why-not|lodging|variants|page|suggestions|preview-act)")
 LODGING = re.compile(BASE + r"/([0-9a-f]{12})/planning/lodging/events")
 PREVIEW = re.compile(BASE + r"/([0-9a-f]{12})/preview")
 FEEDBACK = re.compile(BASE + r"/([0-9a-f]{12})/feedback")
@@ -41,6 +44,12 @@ TRANSIT_POLL_S = 0.5
 COOKIE = "tg_session"
 STATE_COOKIE = "tg_oauth"
 SESSION_MAX_AGE = 30 * 86400
+GUEST_MAX_AGE = GUEST_HOURS * 3600
+GUEST_PER_IP_HOUR = 20  # new guests one address may start per hour (each guest can start model calls)
+PURGE_EVERY_S = 3600
+MEMBERS_ONLY = {"/api/harness/me/notification-prefs", "/api/harness/notifications", "/api/harness/push/key",
+                "/api/harness/calendar/preview", "/api/harness/me/avatar", "/api/harness/calendar/apply",
+                "/api/harness/calendar/disconnect", "/api/harness/push/subscribe", "/api/harness/push/unsubscribe"}
 
 
 class StalePreview(Exception):
@@ -59,6 +68,9 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
 
     def cookie(name, value, max_age, path="/"):
         return f"{name}={value}; HttpOnly; SameSite=Lax; Path={path}; Max-Age={max_age}{secure}"
+
+    guest_starts: dict[str, deque] = {}
+    guest_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, body: bytes, content_type, headers=()):
@@ -96,8 +108,28 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
             token = self._cookie(COOKIE)
             user, refreshed = accounts.user_for(token)
             if refreshed:
-                self._set.append(("Set-Cookie", cookie(COOKIE, token, SESSION_MAX_AGE)))
+                self._set.append(("Set-Cookie", cookie(COOKIE, token, GUEST_MAX_AGE if user["guest"] else SESSION_MAX_AGE)))
             return user
+
+        def _guest_may_start(self):
+            """At most GUEST_PER_IP_HOUR new guests per address per hour (the proxy's address header when there is one)."""
+            ip = (self.headers.get("CF-Connecting-IP") or self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                  or self.client_address[0])
+            now = time.monotonic()
+            with guest_lock:
+                if len(guest_starts) > 5000:
+                    for key in [k for k, q in guest_starts.items() if not q or now - q[-1] > 3600]:
+                        del guest_starts[key]
+                window = guest_starts.setdefault(ip, deque())
+                while window and now - window[0] > 3600:
+                    window.popleft()
+                if len(window) >= GUEST_PER_IP_HOUR:
+                    return False
+                window.append(now)
+            return True
+
+        def _members_only(self):
+            self._json(403, {"error": "guest", "message": "Tính năng này cần đăng nhập Google."})
 
         def _same_origin(self):
             origin = self.headers.get("Origin")
@@ -172,7 +204,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return None
             user = self._user()
             if not user and url.path == "/api/harness/events":
-                user = {"id": None, "role": "anonymous"}  # the public landing may report page_view / landing_cta
+                user = {"id": None, "role": "anonymous", "guest": False}  # the public landing may report page_view / landing_cta
             if not user:
                 self._json(401, {"error": "sign in first"})
                 return None
@@ -214,8 +246,14 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                         return self._redirect(f"{exc.next}{sep}calendar=failed")
                     return self._redirect("/app/login?error=" + ("denied" if "access_denied" in str(exc) else "failed"))
                 if out["purpose"] == "login":
+                    visitor = self._user()  # a guest session from before signing in, if any
+                    account = accounts.user_for(out["token"])[0] or {}
+                    if visitor and visitor["guest"] and account:  # the guest's trips now belong to the account
+                        moved = harness.adopt(visitor["id"], account["id"])
+                        accounts.drop_guest(visitor["id"])
+                        harness._event("auth.guest_adopted", account["id"], None, journeys=moved)
                     self._set.append(("Set-Cookie", cookie(COOKIE, out["token"], SESSION_MAX_AGE)))
-                    harness._event("auth.login", (accounts.user_for(out["token"])[0] or {}).get("id"), None)
+                    harness._event("auth.login", account.get("id"), None)
                     return self._redirect(out["next"])
                 harness._event("calendar.connect", None, None)
                 sep = "&" if "?" in out["next"] else "?"
@@ -237,6 +275,8 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
             if user is None:
                 return self._auth_get(path, query)
             owner = user["id"]
+            if user["guest"] and (path in MEMBERS_ONLY or TODAY.fullmatch(path) or SUGGEST.fullmatch(path)):
+                return self._members_only()
             if path == "/api/harness/me":
                 if harness.notify is not None:
                     harness.notify.resume(owner)  # the user opened the app: a notification pause ends
@@ -293,6 +333,8 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                     return self._json(400, {"error": "unknown stage"})
                 return self._call(lambda: harness.load(m[1], stage, owner))
             if m := READ.fullmatch(path):
+                if m[3] == "preview-act" and len(query.get("action", "")) > 8192:
+                    return self._json(400, {"error": "preview action too large"})
                 return self._call(lambda: harness.read(m[1], m[2], m[3], query, owner))
             if m := LODGING.fullmatch(path):
                 try:
@@ -320,6 +362,17 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return
             path, query, user = begun
             if user is None:
+                if path == "/api/auth/guest":
+                    if not self._same_origin():
+                        return self._json(403, {"error": "cross-origin request refused"})
+                    if self._user():  # already has a session (an account or a guest): nothing to start
+                        return self._json(200, {"started": False})
+                    if not self._guest_may_start():
+                        return self._json(429, {"error": "too many guests from this address; sign in with Google"})
+                    token = accounts.guest(self.headers.get("User-Agent", ""))
+                    self._set.append(("Set-Cookie", cookie(COOKIE, token, GUEST_MAX_AGE)))
+                    harness._event("auth.guest", accounts.user_for(token)[0]["id"], None)
+                    return self._json(200, {"started": True})
                 if path == "/api/auth/logout":
                     if not self._same_origin():
                         return self._json(403, {"error": "cross-origin request refused"})
@@ -337,6 +390,8 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return self._json(200, {"stored": stored})
             if owner is None:
                 return self._json(401, {"error": "sign in first"})
+            if user["guest"] and (path in MEMBERS_ONLY or COMPANION.fullmatch(path) or NOTE_OPEN.fullmatch(path)):
+                return self._members_only()
             if path == "/api/harness/me/avatar":
                 try:
                     data = self._raw(AVATAR_MAX_BYTES)
@@ -353,6 +408,9 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                     if body.get("start_with") not in (None, "nothing", "saved", "must", "itinerary"):
                         raise ValueError("bad start_with")
                     me = accounts.me(owner)
+                    if user["guest"]:  # no profile prior, no long-term learning
+                        return self._call(lambda: harness.create(body.get("experience"), body.get("start_with"), owner,
+                                                                 False, owner, {}))
                     prior = {k: me.get(k) for k in ("usual_mobility", "usual_companions") if me.get(k)}
                     return self._call(lambda: harness.create(body.get("experience"), body.get("start_with"), owner,
                                                              me["consents"].get("patterns") is True, owner, prior))
@@ -428,6 +486,8 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
             if not begun:
                 return
             path, _, user = begun
+            if user and user["guest"] and path in ("/api/harness/me", "/api/harness/me/notification-prefs"):
+                return self._members_only()
             if user and path in ("/api/harness/me", "/api/harness/me/notification-prefs"):
                 try:
                     body = self._body()
@@ -449,6 +509,10 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
             if not begun:
                 return
             path, _, user = begun
+            if user and user["guest"] and path == "/api/harness/me":  # a guest ends the visit: their trips go now
+                accounts.drop_guest(user["id"])
+                self._set.append(("Set-Cookie", cookie(COOKIE, "", 0)))
+                return self._json(200, {"deleted": True})
             if user and path == "/api/harness/me":
                 try:
                     if self._body().get("confirm") is not True:
@@ -471,4 +535,12 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
 
 
 def run(harness, accounts, port=8769, base_url="", test_login=False):
+    def sweep():
+        while True:  # guests whose sessions ran out are deleted with their trips, even when nobody new arrives
+            try:
+                accounts.purge_guests()
+            except Exception:
+                traceback.print_exc(file=sys.stderr)
+            time.sleep(PURGE_EVERY_S)
+    threading.Thread(target=sweep, daemon=True).start()
     ThreadingHTTPServer(("127.0.0.1", port), handler(harness, accounts, base_url, test_login)).serve_forever()

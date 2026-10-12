@@ -7,6 +7,7 @@ prepare() does once what every variant shares; schedule_trip() lays the trip out
 from dataclasses import asdict, dataclass, field, replace
 
 import live
+from trip import RECOMMENDED_TRIP_DAYS
 
 from . import places as pl
 from .cluster import cluster_places, split_to_fit
@@ -84,6 +85,7 @@ class Trip:
     weather: dict | None
     lodging_ids: tuple = ()         # ids of the extra nodes added to the matrix as lodging candidates (P5)
     routes: dict = field(default_factory=dict)      # day, pace, conditions and place signature -> DayResult
+    chunk_assignments: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,8 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     signals: {"YYYY-MM-DD": {"holiday": name | None, "events": [...], "advisories": [...]}} or None (see
     conditions.fetch_live). With neither, no day has a DayCond and the plan is what it was before conditions."""
     cfg = cfg or load_settings()
+    if (decision["trip_context"]["context"].get("days") or cfg.default_days) > cfg.chunk_days:
+        cfg = replace(cfg, exact_n=min(cfg.exact_n, cfg.long_trip_exact_n))
     live_cfg = live_cfg or live.load_settings()
     geocode_fn = geocode_fn or (lambda text: live.geocode(text, live_cfg))
     matrix_fn = matrix_fn or live.travel_matrix
@@ -113,6 +117,10 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     pace = (tc.get("pace") or {}).get("level") or "normal"
     mobility = ctx.get("mobility")
     warnings: list[dict] = []
+    if (ctx.get("days") or cfg.default_days) > RECOMMENDED_TRIP_DAYS:
+        warnings.append({"code": "long_trip_scope", "text":
+                         f"Khuyến nghị tối đa {RECOMMENDED_TRIP_DAYS} ngày. Chuyến dài hơn vẫn được phép, "
+                         "nhưng khả năng xử lý chưa được kiểm chứng và việc xếp, sửa lịch có thể lâu hơn."})
 
     placed, unplaced = pl.build_places(decision, by_id, cfg)
     # A place known for several times of day (sunset and cloud hunting) is visited for the one the user asked for.
@@ -173,11 +181,12 @@ def prepare(decision: dict, records: list[dict], cfg: Settings | None = None, li
     crowd_tol = (tc.get("pace") or {}).get("crowd_tolerance")
     ctxs = [DayCtx(d, by_place, travel, cfg, pace,
                    sun_fn(d.date, *centre, live_cfg.tz_offset_h) if d.date and centre else None, rain_on(d), prefs,
-                   build_cond(d, weather, signals, cfg), crowd_tol, ctx.get("purpose"), tuple(tc.get("time_preferences") or ()))
+                   build_cond(d, weather, signals, cfg), crowd_tol, ctx.get("purpose"), tuple(tc.get("time_preferences") or ()),
+                   mobility=mobility)
             for d in days]
     warnings += condition_warnings(ctxs)
     return Trip(decision, cfg, pace, by_place, unplaced, by_id, points, travel, days, ctxs, warnings, weather,
-               lodging_ids=tuple(extra_nodes or {}))
+               lodging_ids=tuple(extra_nodes or {}), chunk_assignments=dict(decision.get("chunk_assignments") or {}))
 
 
 def condition_warnings(ctxs: list) -> list[dict]:
@@ -213,23 +222,49 @@ def pull_early(cx: DayCtx, day_ids, by_place: dict, travel) -> tuple[DayCtx, str
     return replace(cx, day=replace(cx.day, start=start)), pid
 
 
-def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
+def schedule_trip(trip: Trip, weights: dict | None = None, *, kept=None, allow_shrink: bool | None = None) -> Schedule:
     """Lay the trip out with one objective's day-split weights merged over the defaults (None = the defaults)."""
     cfg = trip.cfg
+    if kept is not None:
+        kept = set(kept)
+        if not kept <= set(trip.by_place):
+            raise ValueError("kept contains places outside the prepared selection")
+        trip = replace(trip, by_place={pid: p for pid, p in trip.by_place.items() if pid in kept})
+    if allow_shrink is not None:
+        trip = replace(trip, ctxs=[replace(cx, allow_shrink=allow_shrink) for cx in trip.ctxs])
     soft = trip.decision["trip_context"].get("soft_weights") or []
     prefs = {pid: preference(p, soft) for pid, p in trip.by_place.items()}
     ctxs = [replace(cx, places=trip.by_place, prefs=prefs,
                     cfg=replace(cfg, weights={**cfg.weights, **(weights or {})})) for cx in trip.ctxs]
     warnings: list[dict] = []
     ids = sorted(trip.by_place)
-    cap = int(cfg.fill_ratio * max(d.end - d.start for d in trip.days))
-    clusters = cluster_places(ids, {p.id: p.area for p in trip.by_place.values()}, trip.travel, cfg)
-    # a cluster is cut when it holds more places than a day is planned for, or more than a day can carry
-    size = lambda c: cap + 1 if len(c) > cfg.per_day[trip.pace] else day_load(c, trip.by_place, cfg, trip.pace)
-    clusters = split_to_fit(clusters, size, cap, trip.travel)
-    per_day, flag = assign_days(split_competing(isolate_constrained(clusters, ctxs), ctxs), ctxs)
-    if flag:
-        warnings.append(_warn(flag))
+
+    def split(day_ids, day_ctxs):
+        cap = int(cfg.fill_ratio * max(cx.day.end - cx.day.start for cx in day_ctxs))
+        clusters = cluster_places(day_ids, {p.id: p.area for p in trip.by_place.values()}, trip.travel, cfg)
+        size = lambda c: cap + 1 if len(c) > cfg.per_day[trip.pace] else day_load(c, trip.by_place, cfg, trip.pace)
+        clusters = split_to_fit(clusters, size, cap, trip.travel)
+        return assign_days(split_competing(isolate_constrained(clusters, day_ctxs), day_ctxs), day_ctxs)
+
+    if len(ctxs) <= cfg.chunk_days:
+        per_day, flag = split(ids, ctxs)
+        if flag:
+            warnings.append(_warn(flag))
+    else:
+        mapping = trip.chunk_assignments
+        missing = [pid for pid in ids if type(mapping.get(pid)) is not int
+                   or not 0 <= mapping[pid] < (len(ctxs) + cfg.chunk_days - 1) // cfg.chunk_days]
+        if missing:
+            # Legacy output: one coarse allocation, never a routing trial against every week.
+            coarse, _ = split(missing, [replace(cx, cfg=cfg) for cx in ctxs])
+            mapping.update({pid: k // cfg.chunk_days for k, group in enumerate(coarse) for pid in group})
+        per_day = []
+        for start in range(0, len(ctxs), cfg.chunk_days):
+            week_ids = [pid for pid in ids if mapping[pid] == start // cfg.chunk_days]
+            group, flag = split(week_ids, ctxs[start:start + cfg.chunk_days])
+            per_day.extend(group)
+            if flag and not any(w["code"] == flag for w in warnings):
+                warnings.append(_warn(flag))
     ctxs = list(ctxs)
     for k, (cx, day_ids) in enumerate(zip(ctxs, per_day)):
         ctxs[k], pid = pull_early(cx, day_ids, trip.by_place, trip.travel)
@@ -255,7 +290,8 @@ def schedule_trip(trip: Trip, weights: dict | None = None) -> Schedule:
         for note in r.notes:
             code, _, meal = note.partition(":")
             warnings.append(_warn(code, day=cx.day.index + 1, meal=MEAL_NAME.get(meal, meal)))
-    anchors = {c["id"] for c in trip.decision["confirmed"] if c.get("role") == "anchor"}
+    anchors = {c["id"] for c in trip.decision["confirmed"] if c.get("role") in {"anchor", "locked"}}
+    anchors |= {a["place_id"] for a in tc.get("anchors") or [] if a.get("priority") == "must"}
     violations = validate(ctxs, results, hard, anchors, budget, max_leg)
     return Schedule(per_day, results, ctxs, violations, warnings)
 
@@ -292,6 +328,16 @@ def itinerary(days: list, results: list) -> list[dict]:
     return [{"day": d.index + 1, "date": d.date.isoformat() if d.date else None, "weekday": d.weekday,
              "window": [fmt(d.start), fmt(d.end)], "method": r.method,
              "items": [_item(i) for i in r.items]} for d, r in zip(days, results)]
+
+
+def chunk_view(itinerary_days: list, chunk_days: int = 7) -> dict:
+    mapping = {it["place_id"]: (d["day"] - 1) // chunk_days for d in itinerary_days
+               for it in d["items"] if it["kind"] == "visit"}
+    groups = [{"id": start // chunk_days, "start_day": start + 1,
+               "end_day": min(start + chunk_days, len(itinerary_days)),
+               "places": [pid for pid, k in mapping.items() if k == start // chunk_days]}
+              for start in range(0, len(itinerary_days), chunk_days)]
+    return {"chunk_assignments": mapping, "chunks": groups}
 
 
 def travel_load(days: list, results: list) -> list[dict]:
@@ -333,6 +379,7 @@ def build_plan(decision: dict, records: list[dict], cfg: Settings | None = None,
     days = [cx.day for cx in sched.ctxs]      # schedule_trip may pull a later day's start earlier (early_start)
     return {
         "ok": not sched.violations,
+        **(chunk_view(itinerary(days, sched.results), trip.cfg.chunk_days) if len(days) > trip.cfg.chunk_days else {}),
         "itinerary": itinerary(days, sched.results),
         "travel_load": travel_load(days, sched.results),
         "time_suitability": time_description(sched.ctxs, sched.results),

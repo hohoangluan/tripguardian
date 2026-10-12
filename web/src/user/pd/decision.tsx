@@ -152,7 +152,8 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
     try {
       const created = await mutateJourney(id, 'decision', 'advance')
       const out = created.outputs.decision as DecisionOutput
-      await runRecommend(created.id, (created.result as { view: PlanView }).view)
+      const planView = (created.result as { view: PlanView }).view
+      if (!planView.overload) await runRecommend(created.id, planView)
       if (origin !== location.pathname + location.search) return false
       dispatch({
         type: 'set',

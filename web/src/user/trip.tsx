@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useReducer, type ReactNode } from
 import type { Vehicle } from '../data/store'
 import type { SearchInput } from './tu/types'
 
-export type Who = 'partner' | 'friends' | 'kids' | 'parents' | 'solo'
+export type Who = 'partner' | 'friends' | 'kids' | 'parents' | 'solo' | 'baby' | 'pet' | 'coworkers'
 export type Weight = 'love' | 'avoid'
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
 
@@ -182,6 +182,9 @@ export const WHO_LABEL: Record<Who, string> = {
   kids: 'Có trẻ em',
   parents: 'Bố mẹ',
   solo: 'Một mình',
+  baby: 'Có em bé',
+  pet: 'Có thú cưng',
+  coworkers: 'Đồng nghiệp',
 }
 
 export const DROP_LABEL: Record<DropReason, string> = {

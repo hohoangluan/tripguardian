@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as api from './api'
-import type { Action, Diff, PlanOutput, ProgressEvent, View } from './types'
+import type { Action, ActPreview, Diff, PlanOutput, ProgressEvent, View } from './types'
 import { useTrip } from '../trip'
 import { mergeSuggestions, PlanningGate } from './current'
 
@@ -11,6 +11,9 @@ interface PlanningCtx {
   error: string | null
   busy: boolean
   act: (a: Action) => Promise<void>
+  previewAct: (a: Action) => Promise<ActPreview | null>
+  editPreview: ActPreview | null
+  dismissPreview: () => void
   confirm: () => Promise<PlanOutput | null>
   optimize: () => Promise<void>
   reload: () => void
@@ -23,11 +26,14 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   const { trip } = useTrip()
   const id = trip.planningId
   const [view, setView] = useState<View | null>(null)
+  const currentView = useRef(view)
+  currentView.current = view
   const [diff, setDiff] = useState<Diff | null>(null)
   const [lodgingProgress, setLodgingProgress] = useState<ProgressEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [tick, setTick] = useState(0)
+  const [preview, setPreview] = useState<{ result: ActPreview; ticket: ReturnType<PlanningGate['previewTicket']>; revision: number; view: View } | null>(null)
   const gate = useRef(new PlanningGate())
   const gateId = useRef<string | null | undefined>(undefined)
   const pending = useRef(0)
@@ -135,6 +141,24 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
     }
   }, [id])
 
+  const previewAct = useCallback(async (a: Action): Promise<ActPreview | null> => {
+    if (!id || !view || pending.current) return null
+    const ticket = gate.current.previewTicket(view)
+    setPreview(null)
+    try {
+      const result = await api.previewAct(id, a)
+      if (result.view.suggestions?.session_id !== view.suggestions?.session_id
+        || !api.acceptsRevision(id, result.revision) || !gate.current.acceptPreview(ticket, result.revision, currentView.current)) return null
+      setPreview({ result, ticket, revision: result.revision, view })
+      setError(null)
+      return result
+    } catch (e) {
+      if (!gate.current.currentPreview(ticket, currentView.current)) return null
+      setError(e instanceof api.PlanningError ? `Chưa xem trước được: ${e.detail || e.status}` : OFFLINE)
+      return null
+    }
+  }, [id, view])
+
   // Ask the Planning Agent for one better layout; the server keeps it only if it passes the checks.
   const optimize = useCallback(async () => {
     if (!id) return
@@ -152,7 +176,11 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
   }, [id, view, accept])
 
   return (
-    <Ctx.Provider value={{ view, diff, lodgingProgress, error, busy, act, confirm, optimize, reload: () => setTick((t) => t + 1) }}>
+    <Ctx.Provider value={{ view, diff, lodgingProgress, error, busy, act, previewAct,
+      editPreview: preview && !busy && preview.view === view && gate.current.currentPreview(preview.ticket, view)
+        && id && api.acceptsRevision(id, preview.revision) ? preview.result : null,
+      dismissPreview: () => { gate.current.previewTicket(); setPreview(null) },
+      confirm, optimize, reload: () => setTick((t) => t + 1) }}>
       {children}
     </Ctx.Provider>
   )

@@ -117,3 +117,13 @@ def test_part_of_month_and_kinds_of_place():
     assert {("month", 10, False), ("month_part", "late", False)} <= g
     s = sugg("Cuối tháng 10 đi, thích cà phê và ăn uống, không thích bảo tàng")
     assert {x[1] for x in s if x[0] == "liked_groups"} == {"chill", "meal"}  # a negated kind is not a liking
+
+
+def test_nights_and_day_trips():
+    full = got("đi Đà Lạt 3 ngày 2 đêm")
+    assert ("days", 3, False) in full and ("nights", 2, False) in full
+    only_nights = got("mình ở 2 đêm thôi")  # arrive, sleep twice, leave: three days, but only said as a guess
+    assert ("nights", 2, False) in only_nights and ("days", 3, True) in only_nights
+    day_trip = got("đi về trong ngày")
+    assert ("days", 1, False) in day_trip and ("nights", 0, False) in day_trip
+    assert not any(f == "days" for f, *_ in got("ở 30 đêm"))  # 30 nights would be 31 days: more than a trip holds

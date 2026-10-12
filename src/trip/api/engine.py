@@ -5,7 +5,9 @@ option the agent wrote, run the agent loop (agent/loop.py): the agent records fa
 """
 
 import asyncio
-import re
+import json
+from datetime import datetime
+from pathlib import Path
 from datetime import date
 from typing import Callable, Literal
 
@@ -13,13 +15,13 @@ from pydantic import ValidationError, model_validator
 
 from ..agent import AgentError, Chat, TurnTools, build_messages, run_loop
 from ..domain import values
-from ..domain.card import OPENING, Chip, Question, conversation_card
+from ..domain.card import OPENING, Question, conversation_card
 from ..domain.compile import UnhandledSignal, compile_search_input
-from ..domain.guard import bad_say, drop_questions
+from ..domain.guard import GROUP_LABEL, bad_say, drop_questions, nearest_group
 from ..domain.logistics import pick_transit
 from ..domain.patterns import Summary, seed, seed_profile, votes_from_state
 from ..domain.prepass import Prepass, prepass
-from ..domain.questions import (FIELD_LABEL, OFFER_QID, OTHER_CHIP, QUIZ_FIELD, REVIEW_QID, STAY_CHAT, TO_QUIZ,
+from ..domain.questions import (FIELD_LABEL, OFFER_QID, OTHER_CHIP, QUIZ_FIELD, REVIEW_QID, TO_QUIZ,
                                 apply_chip, find_quiz, is_quiz, pending_fields, strictest,
                                 quiz_queue, review_card)
 from ..domain.readiness import missing
@@ -32,12 +34,29 @@ from ..infrastructure.catalog import Catalog
 from ..infrastructure.clef import ClefRoute
 from ..infrastructure.profile import ProfileStore
 from ..infrastructure.sessions import Session, SessionStore
-from ..infrastructure.settings import Settings
+from ..infrastructure.settings import ROOT, Settings
 
 Emit = Callable[[str, dict], None]
+TURN_LOG = ROOT / "logs" / "run" / "trip_turns.log"  # one JSON line per turn: tools called, retry, reply, card (debugging)
+
+
+def log_turn(sid: str, turn: int, text: str, log: list[str], say: str, card: str, state: dict | None = None,
+             path: Path = TURN_LOG) -> None:
+    """Append one turn's trace. Logging must never break a turn, so a failed write is ignored."""
+    line = {"at": datetime.now().isoformat(timespec="seconds"), "session": sid, "turn": turn, "user": text,
+            "tools": log, "retried": "claim_without_record" in log, "say": say, "card": card, "state": state or {}}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 Route = Callable[[str, str | None], ClefRoute]
 
 GREETING = "Chào bạn! Mình hỏi vài câu ngắn để hiểu chuyến Đà Lạt của bạn trước khi chọn chỗ."
+RECORDED_SAY = "Mình đã ghi lại ({got}). Bạn kể thêm gì về chuyến đi không?"
+PARTIAL_SAY = "Mình đã ghi lại một phần ({got}), phần còn lại chưa xử lý xong. Bạn kể lại giúp mình nhé."
+NOT_DONE_SAY = "Mình chưa xử lý xong ý này. Bạn kể lại giúp mình một lần nữa nhé."
 FALLBACK_SAY = ("Mình đã ghi lại những gì đọc được, nhưng trợ lý đang bận nên chưa hiểu hết câu này. "
                 "Bạn gửi lại giúp mình nhé.")
 BUSY_SAY = "Trợ lý đang bận nên chưa ghi được lựa chọn này. Bạn bấm lại giúp mình nhé."  # a button answer the agent missed
@@ -50,6 +69,12 @@ NOTED_TEXT_SAY = "Mình ghi lại như dưới đây, bạn xem có đúng khôn
 UNSURE_SAY = "Mình chưa chắc chắn về thông tin này nên chưa trả lời được ở bước này. Bạn cứ kể tiếp về chuyến đi nhé."
 UNMAPPED_SAY = ("Mình đã ghi lại {wish}, nhưng hiện chưa dùng được điều này để lọc địa điểm. "
                 "Bạn kể thêm về chuyến đi nhé.")
+# a group the companions field does not hold: say which groups the search does filter by
+GROUP_OTHER_SAY = ("Mình đã ghi lại {wish}, nhưng hiện mình chỉ lọc chuyến theo các nhóm: một mình, người yêu, "
+                   "bạn bè, trẻ nhỏ, bố mẹ. Bạn thấy {wish} giống nhóm nào trong đó không?")
+# a group wish close to one value: ask the user to confirm it (nothing is written from the question)
+GROUP_NEAR_SAY = ("Mình đã ghi lại {wish}, nhưng chưa lọc theo nhóm này được. Có phải bạn muốn nói “{label}” không? "
+                  "Nếu không, bạn kể rõ hơn giúp mình nhé.")
 DONE_SAY = "Xong rồi, mình đi tìm chỗ hợp với chuyến này."
 OTHER_TYPE_SAY = "Bạn gõ ý của bạn vào ô bên dưới giúp mình nhé."
 REVIEW_SAY = "Xong trắc nghiệm rồi, mình tóm tắt hiểu biết ở bảng bên cạnh. Bạn muốn chỉnh gì thêm, hay có nơi cụ thể nào phải đến không?"
@@ -192,7 +217,7 @@ class Engine:
                 self._run(s, text, emit, may_ask=False, quiet=True)
                 s.card = card_before
                 try:
-                    emit("done", {"search_input": compile_search_input(s.state, self.cfg.arrival_buffer_min).model_dump(mode="json")})
+                    emit("done", {"search_input": compile_search_input(s.state, self.cfg.arrival_buffer_min, self.cfg.coach_min_people).model_dump(mode="json")})
                 except UnhandledSignal:  # an open health hint: the user answers it on the Understand screen
                     pass
             finally:
@@ -260,7 +285,7 @@ class Engine:
             self._open_turn(s, "Làm trắc nghiệm", "answer")
             s.state = with_meta(s.state, phase="quiz")
             return self._quiz_next(s, emit)
-        turn = self._open_turn(s, "Kể thêm bằng chat", "answer")
+        self._open_turn(s, "Kể thêm bằng chat", "answer")
         s.state = with_meta(s.state, phase="chat")
         s.card = conversation_card()
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
@@ -404,9 +429,7 @@ class Engine:
         clarify = may_ask and (not s.state.meta.told or chat)
         stuck = s.state.meta.unsure_streak >= 2 or s.state.meta.idle_streak >= 2
         turn = st.meta.turn + 1
-        closed_at = len(s.transcript)
         self._close_card(s)
-        closed = len(s.transcript) > closed_at
         s.transcript.append({"role": "user", "text": text, "turn": turn, "kind": "text"})
         pre = prepass(text, self.today())
         emit("preview", {"fields": [{"target": p.field, "value": values.jsonable(p.value), "quote": p.quote}
@@ -416,9 +439,7 @@ class Engine:
             emit("state", {"understanding": understanding(st, self.catalog, self.cfg)})
         compared = compared_places(text, self.catalog)
         heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
-        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared,
-                          may_ask and not chat, self.judge)
-        tools.transcript = s.transcript  # so tools can check if questions were recently asked
+        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, self.judge)
         hints = [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote} for p in pre.proposals]
         hints += [{"ambiguous": q, "may_mean": list(k)} for q, k in pre.ambiguous]
         hints += [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote, "suggested": True}
@@ -428,8 +449,13 @@ class Engine:
         messages = build_messages(st, text, s.transcript[:-1], prev.text if prev else None, self.today(), hints, compared,
                                    clarify, dict(needed), stuck)
         said: list[str] = []
-        failed = False
         shown = False  # the Agent starts at once, next to Clef; what it says stays unseen until Clef has let the turn through
+
+        def on_retry() -> None:
+            # the model is asked again: what it streamed so far is not shown or kept
+            said.clear()
+            if shown:
+                emit("say", {"replace": ""})
 
         def on_say(delta: str) -> None:
             said.append(delta)
@@ -441,7 +467,7 @@ class Engine:
 
         async def go() -> None:
             nonlocal shown, fixed
-            agent = asyncio.ensure_future(run_loop(self.chat, messages, tools, on_say, self.cfg.tool_steps))
+            agent = asyncio.ensure_future(run_loop(self.chat, messages, tools, on_say, self.cfg.tool_steps, on_retry))
             if self.route is None or not may_ask or answer:  # a pressed option is never off topic
                 shown = True
                 return await agent
@@ -462,31 +488,38 @@ class Engine:
             asyncio.run(go())
         except AgentError as exc:
             log.append(f"agent_error: {exc}")
-            failed = True
             if not said:
                 said.append((NOTED_SAY if tools.recorded else BUSY_SAY) if answer else FALLBACK_SAY)
                 emit("say", {"replace": said[0]})
         finally:
             tools.close()
         if fixed:  # Clef answered for the Agent: whatever it already did is dropped, the open question stays
-            tools.state, tools.card, tools.lead, tools.unmapped = st, None, "", []
+            tools.state, tools.unmapped = st, []
             said.clear()
             log.clear()
         log.extend(clef_log)
         say = "".join(said).strip()
+        model_asked = "?" in say  # the agent's own text asks: fillers added below must not count as its question
         if fixed:  # Clef answered for the Agent: nothing learned, nothing spent, the open question stays
             say = fixed
             emit("say", {"replace": say})
-        if not clarify:
-            plain = drop_questions(say)  # no card follows here, so a question would go unanswered
+        if not say and (tools.recorded or "step_cap" in log):  # the agent wrote no reply: never leave the turn silent
+            got = ", ".join(sorted({FIELD_LABEL.get(f, f) for f in tools.recorded}))
+            say = (PARTIAL_SAY if "step_cap" in log else RECORDED_SAY).format(got=got) if got else NOT_DONE_SAY
+            emit("say", {"replace": say})
+        if not may_ask:  # refine (Chọn nơi) asks nothing: a question would go unanswered there
+            plain = drop_questions(say)
             if plain != say:
                 say = plain
                 emit("say", {"replace": say})
-        if tools.lead and not tools.unmapped:  # a comment written in front of a card's question belongs in the chat
-            say = f"{say} {tools.lead}".strip()
-            emit("say", {"replace": say})
-        if tools.unmapped:  # fixed reply: the model's own words could promise what the search cannot do
-            say = UNMAPPED_SAY.format(wish=", ".join(f"“{w}”" for w in tools.unmapped))
+        if tools.unmapped and model_asked:
+            # the agent already asked its own clarifying question: keep it, the template below is only the fallback
+            log.append("unmapped_agent_asks")
+        if tools.unmapped and not model_asked:  # fixed reply: the model's own words could promise what the search cannot do
+            wish = ", ".join(f"“{w}”" for w in tools.unmapped)
+            near = nearest_group(tools.unmapped[0]) if tools.group_other else None
+            say = (GROUP_NEAR_SAY.format(wish=wish, label=GROUP_LABEL[near]) if near
+                   else (GROUP_OTHER_SAY if tools.group_other else UNMAPPED_SAY).format(wish=wish))
             emit("say", {"replace": say})
         elif why := (bad_say(say, heard, tools.state, self.catalog, {c["id"] for c in compared})
                      or (tools.reply_problem() if say and not fixed else None)):
@@ -494,27 +527,7 @@ class Engine:
             # never leave a question without a visible reply; a told trip gets an honest pointer to the summary
             say = (UNSURE_SAY if "?" in text else NOTED_TEXT_SAY) if say else ""
             emit("say", {"replace": say})
-        card = tools.card
-        if not quiet:
-            if card is None and clarify and not chat and say.endswith("?") and not (fixed or tools.unmapped or failed):
-                asked = [x.strip() for x in re.split(r"(?<=[.!?…])\s+", say) if x.rstrip().endswith("?")]
-                if asked and not tools.repeated(asked[-1]):
-                    # asked in plain text instead of through a tool (Gemma often does): it becomes a card like ask_text's
-                    yes_no = re.search(r"\bkhông\s*\?$", asked[-1]) is not None  # "… có … không?": tapped, not typed
-                    card = Question(qid=f"ask:{turn}", group="I", tier=2, custom=True, input="text", text=asked[-1],
-                                    chips=(Chip(id="c0", label="Có"), Chip(id="c1", label="Không")) if yes_no else ())
-                    log.append("text_question")
-            # The open question stays open when this turn did not answer it: a typed message the agent recorded
-            # nothing new for (a reply, a correction, an unmapped wish, an error), or a pressed option the agent never
-            # read. An answered one closes.
-            answered = (answer and not failed) or _learned(before, tools.state, tools.recorded)
-            if card is None and prev is not None and prev.qid.startswith("ask:") and not answered and (clarify or fixed or failed):
-                card = prev
-                if closed:
-                    del s.transcript[closed_at]
-            if card is not None and (plain := drop_questions(say)) != say:  # the card asks; the chat keeps the rest
-                say = plain
-                emit("say", {"replace": say})
+        card = None  # questions are plain text: the quiz cards come from the bank, never from the agent
         if say:
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
         s.transcript.append({"role": "system", "text": "; ".join(log) or "no tools", "turn": turn})
@@ -543,6 +556,10 @@ class Engine:
         # No auto-advance: the mode bar belongs to the user. Chat stays chat until they switch; the quiz
         # detour above is the only automatic hop.
         s.card = card or conversation_card()
+        st = s.state
+        log_turn(s.id, turn, text, log, say, s.card.qid, {
+            "companions": sorted(map(str, st.companions.value or ())), "start_date": str(st.start_date.value),
+            "days": st.days.value, "unmapped": [u.phrase for u in st.unmapped]})
         if not resumed:
             emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
             emit("card", self._card(s.state, s.card))
@@ -729,7 +746,7 @@ class Engine:
             emit("say", {"replace": say})
             emit("card", self._card(s.state, s.card))
             return
-        si = compile_search_input(s.state, self.cfg.arrival_buffer_min)
+        si = compile_search_input(s.state, self.cfg.arrival_buffer_min, self.cfg.coach_min_people)
         self._remember(s)
         self._close_card(s)
         s.card = None

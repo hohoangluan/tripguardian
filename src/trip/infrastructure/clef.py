@@ -21,7 +21,6 @@ SUPPORT = "fact.supported_by_quote"
 CLARITY = "other.states_value"  # quiz other-gate: a typed answer clearly states a value for the field
 PROMISE = "reply.promises_results"
 INVENT = "reply.states_unsaid_fact"
-REPEAT = "question.already_answered"
 # What the Agent can answer in this step (keep in line with agent/tools.py and agent/prompt.py): anything else is a
 # figure the later steps own, and Clef lets the fixed reply answer it before the Agent is called.
 HAVE = ("số ngày, ngày hoặc tháng đi, số người, đi với ai, phương tiện, mục đích, nhịp độ, ngân sách, sở thích và giới hạn đã nói, "
@@ -160,9 +159,3 @@ class Judge:
             return "states a fact nobody gave"
         return None
 
-    def repeats(self, question: str, known: str) -> bool:
-        """True only when Clef is sure the answer to `question` is already in `known` (the Trip State as JSON)."""
-        answers = ask({"question": question, "known": known}, {REPEAT: {
-            "type": "choice", "instructions": "Thông tin trong known đã trả lời câu question chưa?",
-            "criteria": {"A": "đã trả lời", "B": "chưa", "C": "chưa rõ"}}}, self.cfg)
-        return prob(answers, REPEAT, "A") >= self.cfg.clef_repeat_min

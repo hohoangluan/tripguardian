@@ -40,7 +40,7 @@ from harness.dispatch import Conflict  # noqa: E402
 from harness.router import RouteError  # noqa: E402
 from planning import Engine as PlanningEngine, Tools as PlanningTools  # noqa: E402
 from planning.session import Store as PlanningStore  # noqa: E402
-from trip import Tools as TripTools, create_engine as trip_engine  # noqa: E402
+from trip import MAX_TRIP_DAYS, Tools as TripTools, create_engine as trip_engine  # noqa: E402
 
 EXPECTED = (Conflict, RouteError, ToolError, ValueError, KeyError)     # a refused request, not a crash
 SAT = date(2026, 12, 12)                                               # a Saturday
@@ -472,7 +472,7 @@ def persona_typed_decision(sim, run):
 def persona_vague_family(sim, run):
     """Half-sentences, mixed language, a baby in the group: the safety question has to come from the words alone."""
     c = Client(sim, run)
-    c.turn(kind="answer", qid="frame", chips=["mobility:ride"])
+    c.turn(kind="answer", qid="frame", chips=["mobility:car"])
     typed(c, "chắc đi 2-3 ngày gì đó, không biết nữa, bạn gợi ý đi")
     typed(c, "đi với gia đình, có em bé 1 tuổi nên hơi lo")
     run.final["card_after_baby"] = (c.card or {}).get("qid")
@@ -680,8 +680,8 @@ EXPECT = {
     "messy": {
         "survives garbage text": lambda r, c: True,
         "the model never echoes a secret": lambda r, c: not any("key" in t["say"].lower() and "api" in t["say"].lower() for t in r.typed),
-        "no day count outside 1-7 reaches the state": lambda r, c: all(
-            not (x["target"] == "days" and not 1 <= int(x["value"]) <= 7) for x in r.final["text_state_days"]),
+        f"no day count outside 1-{MAX_TRIP_DAYS} reaches the state": lambda r, c: all(
+            not (x["target"] == "days" and not 1 <= int(x["value"]) <= MAX_TRIP_DAYS) for x in r.final["text_state_days"]),
     },
     "storyteller": {
         "the sentence fills days, companions and vehicle": lambda r, c: {x["target"] for x in r.final["after_sentence"]["trip"]} >= {"days", "companions", "mobility"},

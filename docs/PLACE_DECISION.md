@@ -146,6 +146,8 @@ Khoảng cách và thời gian di chuyển chưa phải constraint ở đây; ch
 
 Đây là fail-closed: thiếu bằng chứng cho hard constraint thì không được nói địa điểm là an toàn. Field trong `unknowns` của Search Input không tạo kiểm tra nào.
 
+**Bộ lọc cứng từ người đi cùng và xe.** Chip người đi cùng ghi kèm hard filter: `fit.baby`, `fit.parents`, `fit.pregnant`, `fit.wheelchair` `!= bad` (verdict của `details.fit[x]`, tên có tiền tố `fit.`), `pets != not_allowed` khi có thú cưng. Đi `car` với `people ≥ coach_min_people` (`config/trip.yaml`) thì Trip thêm `coach_access != no`, chính sách unknown mặc định `exclude`. Cả ba chạy qua `hard_result` như mọi feature; `fit.*` luôn là kiểm tra an toàn nên giá trị `UNCERTAIN` không bao giờ `pass`.
+
 `eq` cần giá trị VERIFIED/OUTDATED phù hợp và distribution không mâu thuẫn; `ne` dùng cùng semantics cho Decision và Planning. Dietary thiếu evidence không thành `not_applicable`. Soft ranking loại yêu cầu không liên quan khỏi cả tử số, mẫu số và uncertainty. Wine preference đọc offering có evidence riêng, không suy việc user bắt buộc uống; coffee-only không bị wine requirement lọc. Contract ý định ở `docs/TRIP_UNDERSTANDING.md` §9.
 
 ### 6.3 Xung đột với địa điểm user chọn
@@ -181,6 +183,7 @@ Mỗi ứng viên bị loại giữ `reason` (constraint, giá trị, bằng ch�
 | Độ đông dự kiến | Signal độ đông theo bối cảnh × ngày trong tuần / buổi của chuyến | `crowd × weekend × morning` cao + user muốn ít người → trừ điểm, gợi ý buổi khác |
 | Nhạy mùa | Environment × tháng của chuyến | Ngoài trời vào mùa mưa → cờ "cần dự phòng" (không dùng dự báo thời tiết thật) |
 | Anchor | Anchor có giờ cố định | Nơi xa anchor giờ cố định trong cùng ngày → trừ điểm |
+| Hợp người đi cùng | `details.fit` của từng x trong chuyến: `companions`, x có hard filter `fit.<x>` (bà bầu, xe lăn), `large_group` khi `people ≥ coach_min_people`; cùng feature x cần | `good` đã xác minh cộng `good_bonus`; `bad` đã xác minh trừ `bad_penalty` và gắn cờ `fit_bad` kèm lý do; feature cần (trẻ / em bé: `kids_play_area`, `stroller_access`; bố mẹ: `rest_benches`, `toilet_available`) cộng `feature_bonus`. Giá trị chưa xác minh hoặc thiếu dữ liệu không đổi điểm (`details_fit` trong `config/decision.yaml`) |
 
 Output: `context_fit` (điểm) + danh sách cờ. Ứng viên có `context_fit` dưới ngưỡng không vào shortlist nhưng vẫn giữ trong pool. Bán kính và ngưỡng theo `pace` và travel tolerance, trong config.
 
@@ -263,6 +266,8 @@ A vs B
 └── hy sinh gì    hệ quả với chuyến: khoảng cách tới anchor / cụm, độ đông theo buổi, effort
 ```
 
+So sánh có thêm hàng "Nổi tiếng vì" (khi một bên có `known_for`; bên kia "chưa biết") và "Tổng tiền mỗi người" (`cost.total_vnd.base`, ở mục hy sinh). Kiểm tra ngân sách của tổ hợp (§13) dùng `cost.total_vnd.base` thay cho giá vé ước tính khi có.
+
 Ví dụ:
 
 ```text
@@ -285,6 +290,8 @@ Mỗi ứng viên chỉ hiển thị thông tin phục vụ quyết định (`do
 | Ảnh hưởng vị trí | "cùng cụm với X", "xa base", ước lượng thô | Hợp bối cảnh |
 | Độ tin cậy | Trạng thái theo khía cạnh; `UNCERTAIN` / `OUTDATED` hiển thị rõ | Provenance |
 | Phụ thuộc unknown | "Chưa biết ngân sách của bạn; giá nơi này khoảng …" | `unknowns` |
+| Nổi tiếng vì | `known_for.headline` (cụm hiếm trong nhóm category) kèm số người nhắc | `details` |
+| Tổng tiền | `cost.total_vnd` (một người: vé, gửi xe; kèm các khoản thêm) | `details` |
 
 Giờ / giá / vị trí lấy từ bằng chứng official hoặc Google, không trộn với bằng chứng trải nghiệm (`docs/CORPUS.md` §Place Decision dùng corpus thế nào). Không hiển thị một review đơn lẻ như sự thật.
 

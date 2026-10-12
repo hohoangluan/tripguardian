@@ -99,7 +99,7 @@ Chức năng đầy đủ từng màn: `docs/Role_Web_Functional_Design.md` §2 
 
 - Quy tắc cứng là **con dấu** viền đậm có khóa; sở thích mềm là chip **viền đứt**, có × để bỏ và ghi nguồn (*từ lời bạn / từ hồ sơ*).
 - Ảnh bìa thẻ địa điểm là ảnh thật của chính nơi đó (Google Maps / frame clip), có ghi nguồn. Ảnh sinh chỉ dùng cho không khí.
-- Vào `/app` lần đầu là màn Vào ứng dụng: "Dùng thử, không cần tài khoản" mạnh nhất; email + mật khẩu chỉ lưu trong trình duyệt (`web/src/user/account.ts`, không lưu mật khẩu); đăng nhập Google / Zalo / Facebook / Apple `sắp có`.
+- Vào `/app` lần đầu (chưa có phiên) là màn Vào ứng dụng: `Tiếp tục với Google` và `Dùng thử, không cần tài khoản` (khách, không lưu lịch sử, `docs/ACCOUNTS.md` §7).
 
 ## 8. Câu hỏi mở cho designer
 

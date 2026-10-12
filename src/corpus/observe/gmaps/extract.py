@@ -27,7 +27,7 @@ from ...llm import REVIEW_OBSERVE, REVIEW_VERIFY
 from ...ontology import UNKNOWN, Ontology, load as load_ontology
 from .. import keep_stale, observation
 from .details import day_type, details_pairs
-from .gate import BadAnswer, gate, norm
+from .gate import BadAnswer, gate, gate_details, norm
 from .place_rules import (AUTHOR, RULES_VERSION, attribute_pairs, parse_closure, parse_hours, parse_popular_times,
                           parse_price, parse_tickets, parse_time_spent)
 from .prep import batches, clean_text, is_junk, keep_for_llm, observed_at, stars
@@ -221,12 +221,15 @@ def tag_samples(doc: dict, reviews: list[dict], samples: dict[str, str], bad_ids
     extra = {who(r) for r in read if r["review_id"] in samples} - base
     by_author = {r.get("author_hash"): samples[r["review_id"]] for r in reviews
                  if r["review_id"] in samples and r.get("author_hash") not in base}
-    obs = []
-    for o in doc["observations"]:
-        o = {k: v for k, v in o.items() if k != "sample"}
-        if o["source_type"] != "gmaps_attribute" and o["source_id"] in samples:
-            o["sample"] = samples[o["source_id"]]
-        obs.append(o)
+    def tagged(rows: list[dict]) -> list[dict]:
+        out = []
+        for o in rows:
+            o = {k: v for k, v in o.items() if k != "sample"}
+            if o["source_type"] != "gmaps_attribute" and o["source_id"] in samples:
+                o["sample"] = samples[o["source_id"]]
+            out.append(o)
+        return out
+
     ratings = []
     for r in doc.get("ratings", []):
         r = {k: v for k, v in r.items() if k != "sample"}
@@ -234,7 +237,8 @@ def tag_samples(doc: dict, reviews: list[dict], samples: dict[str, str], bad_ids
             r["sample"] = by_author[r["author"]]
         ratings.append(r)
     vt = min(len(extra), total)
-    return {**doc, "observations": obs, "ratings": ratings, "voices": total - vt, "voices_targeted": vt}
+    return {**doc, "observations": tagged(doc["observations"]), "details": tagged(doc.get("details") or []),
+            "ratings": ratings, "voices": total - vt, "voices_targeted": vt}
 
 
 def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
@@ -253,7 +257,7 @@ def input_hash(place_dir: Path, bad_ids: set[str]) -> str:
 
 def prune(doc: dict, reviews: list[dict], bad_ids: set[str]) -> dict:
     """An observation file without the evidence of reviews qc flagged since it was built: their observations,
-    star ratings, proposed features and voices go; attributes (not a review) stay."""
+    details, star ratings, proposed features and voices go; attributes (not a review) stay."""
     gone = {r["review_id"] for r in reviews if r["review_id"] in bad_ids} - set(doc.get("qc_dropped") or [])
     authors = {r.get("author_hash") for r in reviews if r["review_id"] in gone} - {None}
     silenced = {r.get("author_hash") or r["review_id"] for r in reviews if r["review_id"] in gone and spoke(r)}
@@ -261,6 +265,7 @@ def prune(doc: dict, reviews: list[dict], bad_ids: set[str]) -> dict:
     return {**doc,
             "observations": [o for o in doc["observations"]
                              if o["source_type"] == "gmaps_attribute" or o["source_id"] not in gone],
+            "details": [o for o in doc.get("details") or [] if o["source_id"] not in gone],
             "ratings": [r for r in doc.get("ratings", []) if r.get("author") not in authors],
             "proposed": [x for x in doc.get("proposed", []) if x.get("source_id") not in gone],
             "voices": max(0, total - len(silenced)), "voices_targeted": 0,
@@ -276,14 +281,16 @@ def bad_review_ids(qc_file: Path) -> set[str]:
 
 
 async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tuple[str, dict]], note: str = ""):
-    """A failed batch is split in halves (shorter answers, other context); a single review gets ATTEMPTS tries."""
+    """(observations, proposed, details, dropped) of the batch, each kept item with its ref. A failed batch is split in halves (shorter answers, other context); a single review gets ATTEMPTS tries."""
     refs = dict(batch)
     text = "\n".join(f"{ref}: {' '.join(r['text'].split())}" for ref, r in batch)
     for attempt in range(1 if len(batch) > 1 else ATTEMPTS):
         try:
             answer = await call(slots, lambda client, model, note=note: ask_batch(client, model, city, place,
                                                                                 ont.prompt_text(), text, note))
-            return gate(answer, refs, ont)
+            kept, proposed, dropped = gate(answer, refs, ont)
+            details, detail_dropped = gate_details(answer, refs, ont)
+            return kept, proposed, details, dropped + detail_dropped
         except openai.APIError:
             raise  # splitting cannot fix the network or the API
         except BAD_ANSWER as e:
@@ -294,8 +301,8 @@ async def ask_checked(slots: Slots, city, place, ont: Ontology, batch: list[tupl
     mid = len(batch) // 2
     halves = await asyncio.gather(*(ask_checked(slots, city, place, ont, b, note)
                                     for b in (batch[:mid], batch[mid:])))
-    return ([x for h in halves for x in h[0]], [x for h in halves for x in h[1]],
-            sum((h[2] for h in halves), collections.Counter()))
+    return ([x for h in halves for x in h[0]], [x for h in halves for x in h[1]], [x for h in halves for x in h[2]],
+            sum((h[3] for h in halves), collections.Counter()))
 
 
 def listed_category(item: dict) -> str | None:
@@ -341,8 +348,9 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
         place["category"] = category
     reviews, samples = load_samples(place_dir)
     fid, fetched = place["fid"], place["fetched_at"]
-    obs, proposed, ratings = [], [], []
+    obs, details, proposed, ratings = [], [], [], []
     seq = collections.Counter()
+    dseq = collections.Counter()
     voices = set()  # authors whose details or text were read
 
     def add(r: dict, feature: str, value: str, context: dict, quote: str, field: str, extractor: str):
@@ -353,6 +361,15 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
             author=r.get("author_hash"), observed_at=observed_at(r.get("published_text"), fetched), quote=quote,
             field=field, extractor=extractor, ontology_version=ont.version))
         seq[rid] += 1
+
+    def add_detail(r: dict, d: dict, context: dict, extractor: str):
+        rid = r["review_id"]
+        details.append(observation(
+            id=f"gmaps:{rid}:d{dseq[rid]}", place_fid=fid, feature=f"detail.{d['kind']}", value=d["text"],
+            context=context, source_type="gmaps_review", source_id=rid, author=r.get("author_hash"),
+            observed_at=observed_at(r.get("published_text"), fetched), quote=d["quote"], field="text",
+            extractor=extractor, ontology_version=ont.version, detail=d["detail"]))
+        dseq[rid] += 1
 
     for i, (feature, value, label) in enumerate(attribute_pairs(place.get("attributes"))):
         obs.append(observation(
@@ -384,6 +401,10 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
             for o in previous["observations"]:
                 if o["source_type"] == "gmaps_review" and o["source_id"] == r["review_id"]:
                     add(r, o["feature"], o["value"], o["context"], o["span"]["quote"], "text", o["extractor"])
+            for o in previous.get("details") or []:
+                if o["source_id"] == r["review_id"]:
+                    add_detail(r, {"kind": o["feature"].removeprefix("detail."), "text": o["value"],
+                                   "quote": o["span"]["quote"], "detail": o["detail"]}, o["context"], o["extractor"])
     proposed += [p for p in (previous or {}).get("proposed", []) if p.get("source_id") in reuse]
     refs = {f"r{i}": r for i, r in enumerate((r for r in to_llm if r["review_id"] not in reuse), 1)}
     parts = batches(list(refs.items()))
@@ -391,8 +412,8 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
         tasks = [tg.create_task(ask_checked(slots, city, place, ont, b)) for b in parts]
     results = [t.result() for t in tasks]
     dropped = collections.Counter()
-    kept_all = [(ref, o) for kept, _, drop in results for ref, o in kept]
-    for _, _, drop in results:
+    kept_all = [(ref, o) for kept, _, _, _ in results for ref, o in kept]
+    for *_, drop in results:
         dropped.update(drop)
     checks = [(ref, o) for ref, o in kept_all if ont.features[o["feature"]].span_check]
     async with asyncio.TaskGroup() as tg:
@@ -402,7 +423,11 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
         if v.result() != "supports":
             rejected.add(id(o))
             dropped[f"span_check_{v.result()}"] += 1
-    for kept, prop, _ in results:
+    for kept, prop, det, _ in results:
+        for ref, d in det:
+            r = refs[ref]
+            ctx = {"time_of_day": d["time_of_day"], "day_type": day_type(r), "weather": UNKNOWN}
+            add_detail(r, d, ctx, f"review_observe@{REVIEW_OBSERVE.prompt_hash}")
         for ref, o in kept:
             if id(o) in rejected:
                 continue
@@ -416,7 +441,7 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
                              "author": refs[ref].get("author_hash"), **p})
     return tag_samples({
             "place_fid": fid, "place_name": place.get("name"), "as_of": fetched[:10], "observations": obs,
-            "proposed": proposed, "ratings": ratings,
+            "details": details, "proposed": proposed, "ratings": ratings,
             "place": {k: place.get(k) for k in ("category", "lat", "lng", "address")},
             "voices": len(voices),
             "place_facts": {"popular_times": parse_popular_times(place.get("popular_times")),
@@ -526,6 +551,7 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
     summary = {
         "at": now(), "places": len(dirs), "status": dict(status),
         "observations": dict(collections.Counter(o["feature"] for f in files for o in f["observations"]).most_common()),
+        "details": dict(collections.Counter(o["feature"] for f in files for o in f.get("details") or []).most_common()),
         "dropped": dict(sum((collections.Counter(f["stats"]["dropped"]) for f in files), collections.Counter())),
         "proposed_top": collections.Counter(p["label"].casefold() for f in files for p in f["proposed"]).most_common(30),
     }

@@ -95,6 +95,66 @@ def quotes_by_obs(fid: str) -> dict:
     return out
 
 
+SERVING = DATA / "serving" / "places.json"  # `python -m corpus serving`: the record each place is served by
+DETAIL_ITEMS = 5  # most entries of any list in a place's details
+DETAIL_QUOTES = 2  # words of earlier visitors shown behind an entry
+_serving: dict = {}
+
+
+def serving_details(fid: str) -> dict | None:
+    """The `details` block of the place's serving record (docs/CORPUS.md), or None."""
+    if not _serving:
+        _serving["by_id"] = {r["id"]: r.get("details") for r in read(SERVING)["records"]} if SERVING.exists() else {}
+    return _serving["by_id"].get(fid)
+
+
+def evidence_quotes(fid: str) -> dict:
+    """observation id -> {text, date, source} for every source's observations and details of the place."""
+    out = {}
+    for sub in ("gmaps/observations", "tiktok/observations", "official/observations"):
+        p = DATA / sub / f"{fid_dir(fid)}.json"
+        if not p.exists():
+            continue
+        doc = read(p)
+        for o in (doc.get("observations") or []) + (doc.get("details") or []):
+            q = ((o.get("span") or {}).get("quote") or "").strip()
+            if (o.get("span") or {}).get("field") == "details":
+                q = q.splitlines()[-1] if q else q
+            out[o["id"]] = {"text": q[:200], "date": o.get("observed_at"), "source": o["source_type"]}
+    return out
+
+
+def slim_details(node, quotes: dict):
+    """The details block as the sheet shows it: lists cut to DETAIL_ITEMS entries and the evidence ids of an entry
+    replaced by up to DETAIL_QUOTES quotes (the words behind it), so the snapshot stays small."""
+    if isinstance(node, list):
+        return [slim_details(x, quotes) for x in (node[:DETAIL_ITEMS] if node and isinstance(node[0], dict) else node)]
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for k, v in node.items():
+        if k == "evidence":
+            out["quotes"] = [quotes[i] for i in v if i in quotes and quotes[i]["text"]][:DETAIL_QUOTES]
+        else:
+            out[k] = slim_details(v, quotes)
+    return out
+
+
+def has_details(d: dict) -> bool:
+    """Anything to show: a headline, a list, a cost, a time, a verdict, a look-alike or a walk."""
+    t = d.get("timing") or {}
+    return bool((d.get("known_for") or {}).get("headline") or d.get("cost") or d.get("fit")
+                or any(d.get(k) for k in ("order", "avoid", "activity", "photo_spot", "access", "booking", "bring", "situation"))
+                or any(t.get(k) for k in ("best_months", "avoid_months", "schedule", "last_entry"))
+                or any((t.get(w) or {}).get("items") for w in ("best_time", "avoid_time"))
+                or any((d.get("relations") or {}).values()) or d.get("walk_to_night_market_min") is not None)
+
+
+def place_details(fid: str) -> dict | None:
+    d = serving_details(fid)
+    return slim_details(d, evidence_quotes(fid)) if d and has_details(d) else None
+
+
 def ui_status(sig: dict) -> str:
     if sig["needs_review"]:
         return "NEEDS_REVIEW"
@@ -202,6 +262,8 @@ def main() -> None:
             "proposed": d.get("proposed_features") or [],
             "videos": videos_for(fid),
         }
+        if details := place_details(fid):
+            p["details"] = details
         places.append(p)
         for ft in feats:
             sample = ft["status"] == "VERIFIED" and random.random() < SAMPLE_RATE

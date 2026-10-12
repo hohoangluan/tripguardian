@@ -19,7 +19,7 @@ def all_days(a="08:00", b="21:00"):
 
 
 def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours="open", visit=(30, 60, 90),
-        features=None, price=None, dup=None, name=None, status="VERIFIED", group="x"):
+        features=None, price=None, dup=None, name=None, status="VERIFIED", group="x", details=None):
     """A serving record. hours: "open" = 08:00-21:00 every day, None = no hours, or a {weekday: [[open, close]]} dict.
     features: {feature id: value}, filed under the feature's group."""
     ontology = load_ontology()
@@ -28,7 +28,7 @@ def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours=
         groups.setdefault(ontology.features[fid].group, {})[fid] = {
             "value": value, "distribution": {value: 3}, "status": "VERIFIED", "n": 3}
     h = all_days() if hours == "open" else hours
-    return {"id": pid, "status": "VERIFIED", "status_reason": None,
+    out = {"id": pid, "status": "VERIFIED", "status_reason": None,
             "identity": {"name": name or pid, "kind": "POI", "category": "x", "category_group": group, "lat": lat,
                          "lng": lng, "address": None, "area": area},
             "operation": {"hours": None if h is None else {"value": h, "status": status, "as_of": "2026-09-30"},
@@ -40,6 +40,9 @@ def rec(pid, lat, lng, *, area="area-1", usable=("experience", "backup"), hours=
             "service": groups.get("service", {}), "effort": groups.get("effort", {}),
             "suitability": groups.get("suitability", {}), "usable_as": list(usable),
             "near_duplicate_group": dup}
+    if details is not None:
+        out["details"] = details  # shape: corpus.serving.details.place_block()
+    return out
 
 
 def decision(ids, *, roles=None, days=2, start_date="2026-12-12", pace="normal", mobility="motorbike", base=None,

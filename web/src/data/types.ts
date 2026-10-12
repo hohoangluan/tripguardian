@@ -47,6 +47,74 @@ export interface PriceRange {
   reports: number
 }
 
+// What earlier visitors said about a place, as served (src/corpus/serving/details.py) and cut by export_snapshot.py.
+export interface DetailQuote {
+  text: string
+  date: string | null
+  source: string
+}
+
+export interface DetailItem {
+  text: string
+  n: number // independent people who said it
+  status: Status
+  reason: string | null
+  quotes?: DetailQuote[]
+  amount_vnd?: number
+  audience?: string
+  unit?: string
+  min_people?: number
+  months?: number[]
+  days?: string[]
+  hour?: string
+}
+
+export interface TimeWindow {
+  by_time_of_day: Record<string, number>
+  hours: string[]
+  items: DetailItem[]
+}
+
+export interface Fit {
+  value: 'good' | 'bad' | 'conditional'
+  distribution: Record<string, number>
+  n: number
+  reasons: string[]
+  status: Status
+  quotes?: DetailQuote[]
+}
+
+export interface PlaceDetails {
+  known_for?: { headline: DetailItem | null; more: DetailItem[] }
+  order?: DetailItem[]
+  avoid?: DetailItem[]
+  activity?: DetailItem[]
+  photo_spot?: DetailItem[]
+  access?: DetailItem[]
+  booking?: DetailItem[]
+  bring?: DetailItem[]
+  situation?: DetailItem[]
+  cost?: {
+    entry: Partial<Record<'adult' | 'child' | 'senior', { vnd: number; source: 'official' | 'reviews' } | null>>
+    parking: DetailItem | null
+    extras: DetailItem[]
+    per_party: DetailItem[]
+    total_vnd: { base: number; with_extras: number } | null
+    kind: 'fact' | 'estimate'
+  } | null
+  timing?: {
+    best_time: TimeWindow
+    avoid_time: TimeWindow
+    best_months: number[]
+    avoid_months: number[]
+    schedule: DetailItem[]
+    last_entry: { time: string; source: 'official' | 'reviews' } | null
+  }
+  fit?: Record<string, Fit>
+  relations?: { quieter: string[]; busier: string[] }
+  walk_to_night_market_min?: number | null
+}
+
 export interface Place {
   id: string
   name: string
@@ -71,6 +139,7 @@ export interface Place {
   crowdByTime?: CrowdTable | null
   ratingTrend?: { recent_mean: number | null; older_mean: number | null; direction: Trend; recent_n: number; older_n: number } | null
   features: Signal[]
+  details?: PlaceDetails
   proposed?: { label: string; count: number; authors: number }[]
   videos: Video[]
 }

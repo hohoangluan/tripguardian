@@ -10,7 +10,6 @@ osrm_profile: driving
 mode_factor:
   car: 1.0
   motorbike: 0.95
-  ride: 1.0
   walk: 1.0
 
 timeout_s: 10

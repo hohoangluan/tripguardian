@@ -1,4 +1,4 @@
-from trip.domain.guard import bad_say, drop_questions, record_fact, split_lead
+from trip.domain.guard import bad_say, drop_questions, record_fact
 from trip.domain.state import TripState
 
 TEXT = "Mình đi 3 ngày, thích chỗ yên tĩnh"
@@ -34,6 +34,13 @@ def test_a_malformed_or_unknown_feature_is_refused_with_the_format_so_the_agent_
 def test_the_agent_can_choose_unmapped_itself(catalog):
     st, note = put(TripState(), "unmapped", "yên tĩnh", "yên tĩnh", op="add", catalog=catalog)
     assert note == "" and [u.phrase for u in st.unmapped] == ["yên tĩnh"]
+
+
+def test_unmapped_bypasses_the_guard_and_is_never_refused(catalog):
+    # even a quote that is not in the message is kept: the escape hatch never dead-ends a turn
+    st, note = put(TripState(), "unmapped", "người anh họ", "người anh họ", op="add",
+                   text="tôi muốn đi với anh họ của tôi", catalog=catalog)
+    assert note == "" and [u.phrase for u in st.unmapped] == ["người anh họ"]
 
 
 def test_inference_cannot_overwrite_what_the_user_said(catalog):
@@ -86,8 +93,51 @@ def test_the_models_equals_sign_before_the_weight_is_read_as_a_weight(catalog):
         assert note == "" and st.soft["crowd=low"].value == weight, raw
 
 
-def test_split_lead_keeps_only_the_question_in_the_card_text():
-    assert split_lead("Tuyệt vời! Bạn đi mấy ngày?") == ("Tuyệt vời!", "Bạn đi mấy ngày?")
-    assert split_lead("Bạn đi mấy ngày? Và đi cùng ai?") == ("", "Bạn đi mấy ngày? Và đi cùng ai?")
-    assert split_lead("Hãy kể thêm về chuyến đi.") == ("", "Hãy kể thêm về chuyến đi.")  # no question: nothing to split
-    assert split_lead("Tháng 12 khá lạnh, 10-20°C. Bạn đi tháng mấy?") == ("Tháng 12 khá lạnh, 10-20°C.", "Bạn đi tháng mấy?")
+
+
+def test_a_requirement_sent_with_companions_is_ignored_not_refused(catalog):
+    st, note = record_fact(TripState(), "companions", "add", "friends", "bạn bè", "said", "đi cùng bạn bè", 1, catalog,
+                           requirement={"meaning": "đi cùng bạn bè", "scope": "all", "subject": "group"})
+    assert note == "" and st.companions.known
+
+
+def test_a_spelling_slip_still_names_the_group_but_an_unknown_group_does_not():
+    from trip.domain.guard import names_group
+    assert names_group("đi với nah họ theo kiểu bnạ bè", "friends")
+    assert names_group("đi cùng người yêu", "partner") and not names_group("đi cùng người yêu", "friends")
+    assert not names_group("đi với người họ hàng xa", "friends") and not names_group("người lạ", "friends")
+
+
+def test_a_reply_may_repeat_the_trips_own_date_and_days(catalog):
+    from trip.domain.state import Update, apply, Evidence
+    st = apply(TripState(), Update(field="start_date", value="2026-04-19", source="user", confidence="high",
+                                   evidence=Evidence(turn=1, quote="19/4")))
+    assert bad_say("Bạn đi ngày 19/04 nhỉ.", "bạn bt gì về tôi", st, catalog, set()) is None
+    assert bad_say("Bạn đi ngày 25/04 nhỉ.", "bạn bt gì về tôi", st, catalog, set())
+
+
+def test_a_companions_the_user_took_away_can_be_stated_again(catalog):
+    st = TripState()
+    st, _ = record_fact(st, "companions", "add", "partner", "đi với bồ", "said", "đi với bồ", 1, catalog)
+    st, _ = record_fact(st, "companions", "remove", "partner", "không đi với bồ", "said", "không đi với bồ nữa", 2, catalog)
+    assert not st.companions.known
+    st, note = record_fact(st, "companions", "add", "friends", "bạn bè", "inferred", "đi với anh họ kiểu bạn bè", 3, catalog)
+    assert note == "" and st.companions.known
+
+
+def test_kieu_ban_names_friends_even_when_the_user_drops_the_be(catalog):
+    st, note = record_fact(TripState(), "companions", "add", "friends", "anh họ theo kiểu bạn đi", "inferred",
+                           "anh họ theo kiểu bạn đi", 1, catalog)
+    assert note == "" and st.companions.known
+
+
+def test_a_group_wish_close_to_one_value_is_asked_about_by_that_value():
+    from trip.domain.guard import nearest_group
+    assert nearest_group("anh họ theo kiểu bạn đi") == "friends"
+    assert nearest_group("họ hàng xa") is None
+
+
+def test_a_group_the_message_names_is_taken_even_when_the_quote_is_only_the_person(catalog):
+    st, note = record_fact(TripState(), "companions", "add", "friends", "anh họ", "said",
+                           "tôi muốn đi với anh họ theo kiểu bạn bè đó", 1, catalog)
+    assert note == "" and st.companions.known

@@ -4,7 +4,9 @@ rests and meals go. route.py tries orders through simulate(); validate.py re-che
 
 from dataclasses import dataclass
 
+from .cache import put
 from .conditions import DayCond, queue_minutes, crowd_sensitive
+from .details import official_last_entry
 from .model import Day, DayResult, Item, Place, Violation
 from .places import windows_on
 from .settings import Settings
@@ -28,6 +30,8 @@ class DayCtx:
     crowd_tol: str | None = None    # the user's crowd tolerance: avoid | ok_if_worth | fine
     purpose: str | None = None
     time_preferences: tuple = ()
+    allow_shrink: bool = True
+    mobility: str | None = None     # how the trip gets around (motorbike | car | walk); None = not known
 
     @property
     def wet(self) -> float | None:
@@ -45,8 +49,8 @@ def intervals_for(place: Place, ctx: DayCtx) -> list[tuple[int, int]]:
     return [(0, DAY_MINUTES)] if w is None else w
 
 
-def pin_window(place: Place, ctx: DayCtx) -> tuple[int, int]:
-    """(earliest start, latest start) for a place known for a timed feature. One timed feature is reason enough to be
+def pin_window(place: Place, ctx: DayCtx, *, _intervals: list[tuple[int, int]] | None = None) -> tuple[int, int]:
+    """(earliest start, latest start) for a place known for a timed feature or with an official last entry. One timed feature is reason enough to be
     there: a place known for both sunrise and sunset is pinned to one of them, not to their (empty) overlap. The pin
     taken is the first one the place's own opening hours can host for a visit of this pace, preferring one inside the
     day; a pin the place itself can never host (live music after closing time) does not pin it at all. A sun-based
@@ -60,25 +64,52 @@ def pin_window(place: Place, ctx: DayCtx) -> tuple[int, int]:
             base = ctx.sun[0] if pin["anchor"] == "sunrise" else ctx.sun[1]
             wins.append((base + pin["from_min"], base + pin["to_min"]))
     visit = min(place.visit[ctx.cfg.visit_key[ctx.pace]], place.visit["short"])
-    open_ = intervals_for(place, ctx)
+    open_ = intervals_for(place, ctx) if _intervals is None else _intervals
     hosted = [(a, b) for a, b in wins if any(max(a, o) <= b and max(a, o) + visit <= c for o, c in open_)]
     in_day = [(a, b) for a, b in hosted if max(a, ctx.day.start) <= b and max(a, ctx.day.start) + visit <= ctx.day.end]
-    return (in_day or hosted or [(0, DAY_MINUTES)])[0]
+    lo, hi = (in_day or hosted or [(0, DAY_MINUTES)])[0]
+    last = official_last_entry(place)  # the place's own site: nobody is let in after it
+    return (lo, hi if last is None else min(hi, last))
 
 
-def _meal_slots(order: list[str], ctx: DayCtx) -> tuple[dict, list[str]]:
+class _SimulationCache:
+    """Inputs and repeated interval scores for one route search, never shared across contexts."""
+
+    def __init__(self, ids: list[str], ctx: DayCtx):
+        self.ctx = ctx
+        self.intervals = {pid: intervals_for(ctx.places[pid], ctx) for pid in ids}
+        self.pins = {pid: pin_window(ctx.places[pid], ctx, _intervals=self.intervals[pid]) for pid in ids}
+        self.rules = {pid: windows_for(ctx.places[pid], ctx) for pid in ids}
+        self.scores: dict = {}
+        self.legs: dict = {}
+
+    def score(self, place: Place, start: int, end: int) -> tuple[float, dict]:
+        key = (place.id, start, end)
+        if key in self.scores:
+            return self.scores[key]
+        return put(self.scores, key, visit_score(place, start, end, self.ctx, _rules=self.rules[place.id]),
+                   self.ctx.cfg.cache_entries)
+
+    def leg(self, frm: str, to: str) -> tuple[int, str]:
+        key = (frm, to)
+        if key in self.legs:
+            return self.legs[key]
+        return put(self.legs, key, self.ctx.travel.leg(frm, to), self.ctx.cfg.cache_entries)
+
+
+def _meal_slots(order: list[str], ctx: DayCtx, cache: _SimulationCache | None = None) -> tuple[dict, list[str]]:
     """Meal places take the day's meal windows in order; the windows left over get a free block."""
     names = list(ctx.cfg.meal_windows)[: ctx.cfg.meals_per_day]
     reachable = [n for n in names if ctx.cfg.meal_windows[n][1] >= ctx.day.start]    # a window already over is not claimed
     claimed: dict = {}
     for pid in (p for p in order if ctx.places[p].kind == "meal"):
         p = ctx.places[pid]
-        lo, hi = pin_window(p, ctx)                     # a dinner place known for evening music takes dinner
+        lo, hi = cache.pins[pid] if cache else pin_window(p, ctx)  # a dinner place known for evening music takes dinner
         need = min(p.visit[ctx.cfg.visit_key[ctx.pace]], p.visit["short"])
         # a meal window the place can host: open then (an afternoon-only place never takes lunch) and at its pin
         fits = [n for n in reachable if n not in claimed.values()
                 and any(max(lo, o, ctx.cfg.meal_windows[n][0]) <= min(hi, ctx.cfg.meal_windows[n][1], c - need)
-                        for o, c in intervals_for(p, ctx))]
+                        for o, c in (cache.intervals[pid] if cache else intervals_for(p, ctx)))]
         if fits:
             claimed[pid] = fits[0]
         # no window fits: the place is visited like any other stop, the meals stay free blocks
@@ -104,19 +135,25 @@ def _breaks(t: int, active: int, items: list, free: list, served: set, notes: li
     return t, active
 
 
-def simulate(order: list[str], ctx: DayCtx, shrink: bool = True) -> DayResult:
+def simulate(order: list[str], ctx: DayCtx, shrink: bool = True, *, _cache: _SimulationCache | None = None) -> DayResult:
     """shrink=False keeps every visit at the pace's length: robustness asks whether the day survives a delay as
     planned, not whether it survives by cutting visits short."""
-    preferred = _simulate(order, ctx, shrink, True)
+    if _cache is not None and _cache.ctx is not ctx:
+        raise ValueError("simulation cache belongs to another context")
+    shrink = shrink and ctx.allow_shrink
+    preferred = _simulate(order, ctx, shrink, True, _cache)
     if preferred.violations or any(n.startswith("meal_missed") for n in preferred.notes):
-        earliest = _simulate(order, ctx, shrink, False)
+        earliest = _simulate(order, ctx, shrink, False, _cache)
         return earliest if earliest.key < preferred.key else preferred
     return preferred
 
 
-def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool) -> DayResult:
+def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool,
+              cache: _SimulationCache | None = None) -> DayResult:
     cfg, day, travel = ctx.cfg, ctx.day, ctx.travel
-    claimed, free = _meal_slots(order, ctx)
+    claimed, free = _meal_slots(order, ctx, cache)
+    leg = cache.leg if cache else travel.leg
+    score = cache.score if cache else lambda place, a, b: visit_score(place, a, b, ctx)
     t, here, active = day.start, day.start_node, 0
     items: list[Item] = []
     viol: list[Violation] = []
@@ -130,7 +167,7 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool) ->
         nonlocal t, active, travel_min
         if frm is None or to is None or frm == to:
             return
-        m, mode = travel.leg(frm, to)
+        m, mode = leg(frm, to)
         items.append(Item("travel", t, t + m, from_id=frm, to_id=to, mode=mode))
         t, active, travel_min = t + m, active + m, travel_min + m
 
@@ -140,15 +177,16 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool) ->
         move(here, pid)
         visit = p.visit[cfg.visit_key[ctx.pace]]
         visit += queue_minutes(p, visit, ctx.cond, cfg)
-        lo, hi = pin_window(p, ctx)
+        lo, hi = cache.pins[pid] if cache else pin_window(p, ctx)
+        open_ = cache.intervals[pid] if cache else intervals_for(p, ctx)
         if pid in claimed:
             a, b = cfg.meal_windows[claimed[pid]]
             lo, hi = max(lo, a), min(hi, b)
             served.add(claimed[pid])
-        pin_lo = pin_window(p, ctx)[0]
+        pin_lo = cache.pins[pid][0] if cache else pin_window(p, ctx)[0]
         start, why = None, "opening"
         shortest = min(visit, p.visit["short"] + queue_minutes(p, p.visit["short"], ctx.cond, cfg)) if shrink else visit
-        for o, c in intervals_for(p, ctx):
+        for o, c in open_:
             s = max(t, o, lo)
             # The visit is an estimate range: when the pace's length does not fit the opening block or what is
             # left of the day, it shrinks toward the short estimate, never below it.
@@ -159,9 +197,9 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool) ->
                 break
         if start is not None and prefer_time:
             choices = [(start, visit, why)]
-            for rule in windows_for(p, ctx):
+            for rule in (cache.rules[pid] if cache else windows_for(p, ctx)):
                 for a, b in rule.windows:
-                    for o, c in intervals_for(p, ctx):
+                    for o, c in open_:
                         s = max(t, o, lo, a)
                         room = min(c, day.end) - s
                         if s <= hi and room >= shortest:
@@ -170,7 +208,7 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool) ->
                             if shrink and shortest <= b - s < length:
                                 choices.append((s, b - s, "preferred_time"))
             start, visit, why = min(choices, key=lambda x: (
-                x[0] + x[1] + visit_score(p, x[0], x[0] + x[1], ctx)[0], x[0]))
+                x[0] + x[1] + score(p, x[0], x[0] + x[1])[0], x[0]))
         if start is None:
             viol.append(Violation("hours", day.index, pid, 0, False, "no feasible start"))
             start = t
@@ -200,14 +238,14 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool) ->
                     wait_min += start - w_at
             t = start       # with no start point the day simply opens at the first stop: nothing is waited out
         items.append(Item("visit", start, start + visit, place_id=pid, name=p.name))
-        penalty, detail = visit_score(p, start, start + visit, ctx)
+        penalty, detail = score(p, start, start + visit)
         time_penalty += penalty
         details.append(detail)
         t, active, here = start + visit, active + visit, pid
         nxt = order[idx + 1] if idx + 1 < len(order) else day.end_node
         if nxt is not None and nxt != pid:
             buffer = cfg.buffer_min[ctx.pace]
-            if travel.leg(pid, nxt)[0] > cfg.long_leg_min:
+            if leg(pid, nxt)[0] > cfg.long_leg_min:
                 buffer += cfg.buffer_extra_long
             if p.hours_status in ("UNCERTAIN", "OUTDATED"):
                 buffer += cfg.buffer_extra_uncertain

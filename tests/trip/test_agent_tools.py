@@ -28,8 +28,8 @@ from trip.agent import TurnTools
 from trip.domain.state import TripState  # noqa: E402
 
 
-def tools(catalog, text="Mình đi 3 ngày với bố mẹ", state=None, may_ask=True):
-    return TurnTools(state or TripState(), text, 1, catalog, date(2026, 10, 8), [], may_ask)
+def tools(catalog, text="Mình đi 3 ngày với bố mẹ", state=None):
+    return TurnTools(state or TripState(), text, 1, catalog, date(2026, 10, 8), [])
 
 
 def test_record_fact_writes_through_the_guard_and_refuses_a_made_up_quote(catalog):
@@ -40,29 +40,10 @@ def test_record_fact_writes_through_the_guard_and_refuses_a_made_up_quote(catalo
     assert "error" in out and t.state.days.value == 3
 
 
-def test_ask_choice_makes_a_custom_card_and_stops_the_turn(catalog):
-    t = tools(catalog)
-    t.run("ask_choice", {"text": "Bạn đi bằng gì?", "options": ["Xe máy", "Ô tô"], "multi": False, "reason": "x"})
-    assert t.stopped and t.card.custom and [c.label for c in t.card.chips] == ["Xe máy", "Ô tô"]
-
-
-@pytest.mark.parametrize("options", [["Một"], ["a"] * 7, ["a", "b" * 41]])
-def test_ask_choice_needs_two_to_six_short_options(catalog, options):
-    t = tools(catalog)
-    out = t.run("ask_choice", {"text": "?", "options": options, "multi": False, "reason": "x"})
-    assert "error" in out and not t.stopped and t.card is None
-
-
 def test_the_model_has_no_way_to_end_the_conversation(catalog):
     t = tools(catalog)
     assert "finish" not in [s["function"]["name"] for s in t.specs()]
-    assert "error" in t.run("finish", {"outcome": "ready", "message": "Xong."}) and not t.stopped
-
-
-def test_a_wish_typed_after_the_questions_cannot_ask(catalog):
-    t = tools(catalog, may_ask=False)
-    assert "ask_choice" not in [s["function"]["name"] for s in t.specs()]
-    assert "error" in t.run("ask_text", {"text": "?"}) and not t.stopped
+    assert "error" in t.run("finish", {"outcome": "ready", "message": "Xong."})
 
 
 def test_an_unknown_tool_or_bad_arguments_come_back_as_errors(catalog):
@@ -82,7 +63,7 @@ def test_search_features_finds_a_feature_by_its_meaning_and_admits_when_none_fit
 def test_a_wish_stored_as_unmapped_is_remembered_for_the_fixed_reply(catalog):
     t = tools(catalog, text="mình muốn có chó")
     t.run("record_fact", {"field": "unmapped", "op": "add", "value": "chó", "quote": "muốn có chó", "how": "said"})
-    assert t.unmapped == ["muốn có chó"] and not t.stopped
+    assert t.unmapped == ["muốn có chó"]
     bad = t.run("record_fact", {"field": "soft", "op": "add", "value": "khong_co=present", "quote": "muốn có chó", "how": "said"})
     assert "error" in bad and t.unmapped == ["muốn có chó"]  # a malformed feature is the agent's to fix, not unmapped
 
@@ -123,18 +104,6 @@ def test_every_soft_and_hard_example_in_the_system_prompt_is_valid():
         assert ontology().valid(feature, value), (feature, value)
 
 
-def test_a_card_carries_the_agents_example_answer_for_its_text_box(catalog):
-    t = tools(catalog)
-    t.run("ask_text", {"text": "Hai bạn đi vào tháng mấy?", "placeholder": "cuối tháng 12, hoặc 20/12"})
-    assert t.card.placeholder == "cuối tháng 12, hoặc 20/12" and t.card.text == "Hai bạn đi vào tháng mấy?"
-    t = tools(catalog)
-    t.run("ask_choice", {"text": "Đi bằng gì?", "options": ["Xe máy", "Ô tô"], "multi": False, "reason": "x", "placeholder": "xe đạp điện"})
-    assert t.card.placeholder == "xe đạp điện"
-    t = tools(catalog)
-    t.run("ask_text", {"text": "Mấy ngày?"})  # optional: the screen falls back to its own example
-    assert t.card.placeholder == ""
-
-
 def test_every_clef_check_of_a_reply_is_sent_before_any_tool_runs_and_the_tools_reuse_them(catalog):
     from trip_fixtures import call
     asked = []
@@ -144,22 +113,40 @@ def test_every_clef_check_of_a_reply_is_sent_before_any_tool_runs_and_the_tools_
             asked.append(("v", quote))
             return False
 
-        def repeats(self, question, known):
-            asked.append(("r", question))
-            return False
-
         def bad_reply(self, say):
             asked.append(("s", say))
             return None
 
     t = TurnTools(TripState(), "thích yên tĩnh, đi với bạn", 1, catalog, date(2026, 10, 8), judge=Judge())
-    calls = [call("record_fact", field="soft", op="add", value="noise=quiet:love", quote="yên tĩnh", how="inferred"),
-             call("ask_text", text="Bạn đi mấy ngày?")]
+    calls = [call("record_fact", field="soft", op="add", value="noise=quiet:love", quote="yên tĩnh", how="inferred")]
     t.prefetch(calls, "Mình hiểu rồi.")
-    for c in t.checks.values():
+    for c in [*t.checks.values(), *t.replies]:
         c.result()
-    assert sorted(a[0] for a in asked) == ["r", "s", "v"]
+    assert sorted(a[0] for a in asked) == ["s", "v"]
     t.run("record_fact", {"field": "soft", "op": "add", "value": "noise=quiet:love", "quote": "yên tĩnh", "how": "inferred"})
-    t.run("ask_text", {"text": "Bạn đi mấy ngày?", "placeholder": ""})
-    assert len(asked) == 3 and t.reply_problem() is None  # nothing was asked twice
+    assert len(asked) == 2 and t.reply_problem() is None  # nothing was asked twice
     t.close()
+
+
+def test_prompt_walk_example_uses_the_same_polarity_as_the_prepass():
+    from trip.agent.prompt import SYSTEM
+    from trip.domain.prepass import prepass
+    assert "long_walk!=present" in SYSTEM and "long_walk=present" not in SYSTEM
+    hard = [p.value for p in prepass("mẹ không đi bộ xa được", date(2026, 10, 8)).proposals if p.field == "hard"]
+    assert hard == [{"feature": "long_walk", "op": "ne", "value": "present"}]
+
+
+def test_questions_are_never_offered_as_tools(catalog):
+    tools = TurnTools(TripState(), "x", 1, catalog, date(2026, 10, 8))
+    assert not {"ask_choice", "ask_text"} & {s["function"]["name"] for s in tools.specs()}
+
+
+def test_every_field_has_a_way_to_say_other():
+    from typing import get_args
+
+    from trip.agent.prompt import SYSTEM
+    from trip.domain.guard import FieldName
+    block = SYSTEM[SYSTEM.index("OTHER (the wish fits no value"):SYSTEM.index("Literal field values")]
+    missing = [f for f in get_args(FieldName) if f not in block]
+    assert missing == [], missing
+    assert "companions, mobility" in block and "unmapped" in block

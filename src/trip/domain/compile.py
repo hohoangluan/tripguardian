@@ -1,6 +1,6 @@
 """Trip State -> Search Input (docs/TRIP_UNDERSTANDING.md §9). Deterministic; refuses while a physical signal is open."""
 
-from ..infrastructure.settings import ARRIVAL_BUFFER_MIN
+from ..infrastructure.settings import ARRIVAL_BUFFER_MIN, COACH_MIN_PEOPLE
 from .budget import per_person_day
 from .logistics import clock_after
 from .state import (AnchorRef, Context, HardFilter, NoveltySpec, PaceSpec, SearchInput, SoftKey, SoftWeight, TripState,
@@ -25,7 +25,8 @@ def day_window(state: TripState, buffer_min: int = ARRIVAL_BUFFER_MIN) -> tuple[
     return opens, closes
 
 
-def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUFFER_MIN) -> SearchInput:
+def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUFFER_MIN,
+                         coach_min_people: int = COACH_MIN_PEOPLE) -> SearchInput:
     pending = pending_signals(state)
     if pending:
         raise UnhandledSignal(", ".join(s.kind for s in pending))
@@ -40,6 +41,13 @@ def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUF
             soft.append(SoftWeight(feature=k.feature, value=k.value, context=dict(k.context) or None,
                                    weight=WEIGHT_SIGN[f.value], source=f.source, evidence=f.evidence,
                                    **(f.requirement.model_dump() if f.requirement else {})))
+    hard = [HardFilter(feature=h.feature, op=h.op, value=h.value, unknown_policy=h.unknown_policy or "exclude",
+                       evidence=h.evidence,
+                       **{k: getattr(h, k) for k in ("meaning", "scope", "subject", "subject_count", "ambiguity")})
+            for h in state.hard]
+    if v("mobility") == "car" and (v("people") or 0) >= coach_min_people and not any(h.feature == "coach_access" for h in hard):
+        # a party this big needs a coach or 16-seater: a physical limit, derived here, never typed by the user
+        hard.append(HardFilter(feature="coach_access", op="ne", value="no", unknown_policy="exclude"))
     opens, closes = day_window(state, arrival_buffer_min)
     budget = per_person_day(state)
     unknowns = unknown_fields(state)
@@ -50,15 +58,13 @@ def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUF
         context=Context(start_date=v("start_date"), month=v("month"), month_part=v("month_part"), days=v("days"), nights=v("nights"),
                         base=v("base"),
                         entry_point=v("entry_point"), exit_point=v("exit_point"),
-                        mobility=v("mobility"), companions=tuple(sorted(v("companions") or ())), people=v("people"),
+                        mobility=v("mobility"), companions=tuple(sorted(v("companions") or ())),
+                        companions_other=state.companions_other, people=v("people"),
                         checkin_at=opens, checkout_at=closes, day_end=v("day_end"),
                         budget_vnd=budget, experience=state.meta.experience, origin=v("origin"),
                         arrival_mode=v("arrival_mode"), inbound=v("inbound"), outbound=v("outbound"),
                         lodging_booked=v("lodging_booked"), lodging=v("lodging"), purpose=v("purpose")),
-        hard_filters=tuple(HardFilter(feature=h.feature, op=h.op, value=h.value,
-                                      unknown_policy=h.unknown_policy or "exclude", evidence=h.evidence,
-                                      **{k: getattr(h, k) for k in ("meaning", "scope", "subject", "subject_count", "ambiguity")})
-                           for h in state.hard),
+        hard_filters=tuple(hard),
         anchors=tuple(AnchorRef(place_id=a.place_id, priority=a.priority)
                       for a in state.anchors if a.state == "matched" and a.place_id),
         soft_weights=tuple(soft),

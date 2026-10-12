@@ -135,9 +135,9 @@ export function TripChat({ msgs, ready, busy, live, reads, quotes, u, card, prev
         )}
         {summary && u && <li className="tg-chat__msg is-ai is-sum tg-chat__indent"><Understood u={u} card={card} quotes={quotes} preview={preview} onOpen={onOpen} onEdit={onEdit} /></li>}
       </ol>
-      {summary && (
+      {summary && !card && (
         <div className="tg-chat__go">
-          <button type="button" className="tg-btn tg-btn--primary" disabled={busy || leaving} onClick={onGo}>{card ? 'Đúng rồi, hỏi tiếp' : 'Đúng rồi, bắt đầu tìm'} <Icon name="arrow" size={18} /></button>
+          <button type="button" className="tg-btn tg-btn--primary" disabled={busy || leaving} onClick={onGo}>Đúng rồi, bắt đầu tìm <Icon name="arrow" size={18} /></button>
         </div>
       )}
       <form

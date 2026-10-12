@@ -206,7 +206,7 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
         {(Object.keys(WHO_LABEL) as Who[]).map((w) => <button key={w} type="button" className="tg-chip" aria-pressed={companions.includes(w)} onClick={() => onEdit('companions', (companions.includes(w) ? companions.filter((x) => x !== w) : [...companions, w]).join(','))}>{WHO_LABEL[w]}</button>)}
       </div>
     ),
-    mobility: <Seg label="Đi lại" value={t.mobility?.value ?? null} options={[{ value: 'motorbike', label: 'Xe máy' }, { value: 'car', label: 'Ô tô' }, { value: 'ride', label: 'Xe công nghệ' }]} onChange={(v) => onEdit('mobility', v)} />,
+    mobility: <Seg label="Đi lại" value={t.mobility?.value ?? null} options={[{ value: 'motorbike', label: 'Xe máy' }, { value: 'car', label: 'Ô tô' }, { value: 'walk', label: 'Khác' }]} onChange={(v) => onEdit('mobility', v)} />,
     base: <PlaceSearch placeholder="Chọn nơi gần chỗ ở" onPick={(p) => onEdit('base', p.id)} />,
     origin: <PlaceInput<GeoHit> label="Nơi bạn khởi hành" placeholder="Thành phố, quận hoặc địa chỉ" icon="home" fetcher={geoSearch} row={(g) => ({ key: `${g.lat},${g.lng}`, icon: 'pin', name: g.text, sub: g.address })} onPick={(g) => onEdit('origin', JSON.stringify({ text: g.text, lat: g.lat, lng: g.lng, province: g.province }))} />,
     arrival_mode: <Seg label="Tới Đà Lạt bằng" value={t.arrival_mode?.value ?? null} options={Object.entries(ARRIVAL_LABEL).map(([value, label]) => ({ value, label }))} onChange={(v) => onEdit('arrival_mode', v)} />,

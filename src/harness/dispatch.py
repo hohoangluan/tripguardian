@@ -91,7 +91,7 @@ class Harness:
             if stage not in session.sessions:
                 raise Conflict(f"no {stage} session")
             out = self.tools[stage].read(session.sessions[stage], operation, payload or {})
-            if operation == "suggestions" and stage == "planning":
+            if operation in {"suggestions", "preview-act"} and stage == "planning":
                 out = {**out, "revision": session.revision}
         if operation == "why-not":
             self._event("why_not", owner, jid, place_id=(payload or {}).get("place"))
@@ -188,6 +188,17 @@ class Harness:
 
     def forget_profile(self, user_id: str) -> bool:
         return self.tools["trip"].forget(user_id)
+
+    def adopt(self, from_id: str, to_id: str) -> int:
+        """A guest signed in with Google: their journeys now belong to the account. Returns how many moved."""
+        moved = 0
+        for jid in self.store.list_for(from_id):
+            with self.store.lock(jid):
+                session = self.store.get(jid)
+                session.user_id = to_id
+                self.store.save(session)
+            moved += 1
+        return moved
 
     def request(self, jid: str, request: Request, emit: Emit | None = None, owner: str | None = None) -> dict:
         started = time.monotonic()

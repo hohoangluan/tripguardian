@@ -1,9 +1,9 @@
 # Place Decision thresholds (docs/PLACE_DECISION.md). Starting values; tune after the pilot.
 version: 1
 center: {name: "trung tâm Đà Lạt", lat: 11.9404, lng: 108.4583}
-speed_kmh: {motorbike: 25, car: 25, ride: 22}
+speed_kmh: {motorbike: 25, car: 25, walk: 22}    # walk = no vehicle of their own (we never book a ride); starting estimate
 road_factor: 1.4            # straight line -> road distance
-radius_km: {motorbike: 12, car: 15, ride: 10}
+radius_km: {motorbike: 12, car: 15, walk: 10}
 area_bonus: 0.2             # same area as an anchor
 crowd_busy_pct: 70          # Google popular times at or above this = busy
 crowd_penalty: 0.2
@@ -13,6 +13,12 @@ weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.
 price_ref_vnd: 300000       # price per person that counts as "expensive" (1.0) for price sensitivity
 near_min: 12                # minutes: "Gần <tâm>" on a card
 per_day: {slow: 3, normal: 4, packed: 6}
+shortlist_days: 7
+coach_min_people: 9         # a party this big counts as the companion large_group (same number as config/trip.yaml)
+details_fit:                # context fit from serving details (docs/PLACE_DECISION.md): a verified fit verdict for a companion of the trip, and
+  good_bonus: 0.1           # the features that companion needs (kids_play_area, stroller_access, rest_benches, toilet_available)
+  bad_penalty: 0.2
+  feature_bonus: 0.05
 per_day_max: {slow: 4, normal: 5, packed: 7}
 meals_per_day: 2
 spare_factor: 1.6
@@ -134,9 +140,25 @@ labels:                     # same words as web/src/data/labels.ts
     wheelchair: "Xe lăn"
     couples: "Cặp đôi"
     groups: "Nhóm đông"
+    car_access: "Ô tô vào được"
+    coach_access: "Xe 16 chỗ, xe khách vào được"
+    night_road_risk: "Đường tối nguy hiểm"
+    rest_benches: "Có chỗ ngồi nghỉ"
+    stroller_access: "Đẩy xe em bé được"
+    fog_blocks_view: "Sương mù che view"
+    cold: "Lạnh, cần áo ấm"
+    toilet_available: "Có nhà vệ sinh"
+    heater: "Có máy sưởi"
+    hot_water: "Nước nóng"
+    kids_play_area: "Khu chơi cho trẻ"
+    pets: "Mang thú cưng"
+    scam_stage: "Chặt chém ở khâu"
+    breakfast: "Bữa sáng"
   value: {present: "có", absent: "không", good: "tốt", mixed: "lẫn lộn", poor: "kém", low: "vắng", medium: "vừa",
           high: "đông", quiet: "yên tĩnh", moderate: "hơi ồn", loud: "ồn", indoor: "trong nhà", outdoor: "ngoài trời",
           both: "cả hai", clean: "sạch", dirty: "chưa sạch", sheltered: "có mái che", easy: "dễ", hard: "khó",
           none: "không phải chờ", short: "chờ chút", long: "chờ lâu", "yes": "có", "no": "không", generous: "nhiều",
           small: "ít", free: "miễn phí", paid: "có thu phí", declined: "xuống cấp", suitable: "hợp",
-          unsuitable: "không hợp"}
+          unsuitable: "không hợp", allowed: "được", not_allowed: "không được", included: "đã gồm",
+          not_included: "chưa gồm", parking: "gửi xe", photo: "chụp ảnh", tout: "cò mồi", forced_purchase: "ép mua",
+          menu_price: "giá món", rental: "thuê đồ", bad: "không hợp", conditional: "hợp có điều kiện"}

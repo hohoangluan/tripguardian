@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 // /api/auth/google/start sends the browser to Google and back with an HttpOnly session cookie.
 // undefined = still asking the server; null = signed out. Any /api/harness call answered 401 signs out here too.
 
-export type Mobility = 'motorbike' | 'car' | 'ride'
+export type Mobility = 'motorbike' | 'car' | 'walk'
 export type Companions = 'solo' | 'partner' | 'friends' | 'kids' | 'parents'
 
 export type Me = {
@@ -12,6 +12,7 @@ export type Me = {
   email: string | null
   name: string
   avatar: string | null
+  guest: boolean // no Google account: plans like anyone, keeps nothing after 24 idle hours (docs/ACCOUNTS.md §Khách)
   role: 'user' | 'admin'
   home_city: string | null
   usual_mobility: Mobility | null
@@ -81,6 +82,13 @@ if (typeof window !== 'undefined') {
 // Only a path on this site comes back from Google (the server checks it again).
 export const signInHref = (next: string) => `/api/auth/google/start?next=${encodeURIComponent(next.startsWith('/') ? next : '/app')}`
 
+// A visitor without an account: the server makes a guest session (cookie) and /me then answers with `guest: true`.
+export async function startGuest() {
+  const res = await fetch('/api/auth/guest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+  if (!res.ok) throw new AccountError(res.status, (await res.json().catch(() => ({}))).error ?? '')
+  await refreshAccount()
+}
+
 export async function signOut() {
   await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {})
   set(null)
@@ -103,4 +111,4 @@ export async function deleteAccount() {
   set(null)
 }
 
-export const initialOf = (a: Account | null | undefined) => (a ? ((a.name || a.email || '?').trim()[0] ?? '?').toUpperCase() : null)
+export const initialOf = (a: Account | null | undefined) => (a ? (a.guest ? 'K' : ((a.name || a.email || '?').trim()[0] ?? '?').toUpperCase()) : null)

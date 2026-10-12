@@ -70,6 +70,18 @@ class Tools:
             return self.engine.lodging(sid)
         if operation == "variants":
             return {"variants": self.engine.variants(sid)}
+        if operation == "preview-act":
+            import json
+            raw = payload.get("action")
+            if not isinstance(raw, str) or not 0 < len(raw) <= 8192:
+                raise ValueError("action must be a JSON object of at most 8192 characters")
+            try:
+                action = json.loads(raw)
+            except json.JSONDecodeError:
+                raise ValueError("action must be valid JSON") from None
+            if not isinstance(action, dict):
+                raise ValueError("action must be a JSON object")
+            return self.engine.preview_act(sid, action)
         raise ValueError(f"unknown Planning read {operation}")
 
     def geo(self, q: str) -> list[dict]:

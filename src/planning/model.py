@@ -62,7 +62,7 @@ class Item:
     name: str | None = None
     from_id: str | None = None
     to_id: str | None = None
-    mode: str | None = None         # travel: walk | motorbike | car | ride
+    mode: str | None = None         # travel: walk | motorbike | car
     note: str | None = None
 
 

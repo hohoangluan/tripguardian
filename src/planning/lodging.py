@@ -11,6 +11,7 @@ from datetime import date, timedelta
 
 from corpus.serving import check, feature
 from live import Unavailable
+from trip import nights
 
 from .places import Place
 from .settings import Settings
@@ -185,8 +186,8 @@ def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, lodgin
     centres = search_area(by_place, tc.get("mobility"), cfg)
     if not centres:
         return []
-    nights = max((tc.get("days") or 1) - 1, 0)
-    cap = price_cap(tc, nights, cfg)
+    slept = nights(tc)
+    cap = price_cap(tc, slept, cfg)
     hard_filters = decision["trip_context"].get("hard_filters") or []
     stays = stays_in(list(records), centres)
     if len(stays) >= cfg.stay_min:

@@ -54,3 +54,16 @@ def test_the_public_api_is_the_plan_builder_and_its_settings():
                                      "run_server", "PlanningProposal", "Tools", "create_engine", "run_proposal"}
     for name in planning.__all__:
         assert hasattr(planning, name)
+
+
+def test_stated_nights_are_what_planning_counts_and_the_time_budget_is_less_than_whole_days():
+    from planning.engine import _nights
+    from planning.model import Day
+    from planning.output import time_budget
+    assert _nights({"days": 3, "nights": 3}) == 3 and _nights({"days": 3}) == 2 and _nights({"days": 1, "nights": 0}) == 0
+    days = [Day(0, None, None, 14 * 60, 21 * 60, None, None), Day(1, None, None, 8 * 60, 21 * 60, None, None),
+            Day(2, None, None, 8 * 60, 12 * 60, None, None)]
+    budget = time_budget(days, 2)
+    assert (budget["days"], budget["nights"]) == (3, 2)
+    assert [p["from"] for p in budget["per_day"]] == ["14:00", "08:00", "08:00"]
+    assert budget["total_minutes"] == 7 * 60 + 13 * 60 + 4 * 60 < 3 * 13 * 60

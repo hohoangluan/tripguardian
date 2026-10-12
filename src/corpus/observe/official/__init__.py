@@ -25,9 +25,10 @@ from ...crawl.common.files import append_jsonl, data_dir, load_config, now, safe
 from ...llm import OFFICIAL_OBSERVE, OutOfQuota
 from ...ontology import UNKNOWN, load as load_ontology
 from .. import observation
+from ..details_gate import AUDIENCES, UNITS, amount_in, hour_in
 
 CHUNK_CHARS = 6000
-GATE_VERSION = "official_gate@v2"  # in the input hash: a changed gate reads the pages again
+GATE_VERSION = "official_gate@v3"  # in the input hash: a changed gate reads the pages again
 # groups whose places sell entry tickets; elsewhere a site's prices are menus, rentals, tours or services
 TICKET_GROUPS = {"nature", "garden_farm", "attraction", "amusement", "museum", "religious", "camping", "other"}
 NEAR = 500  # chars around a quote that must name the place on a shared site
@@ -78,18 +79,6 @@ def chunks(pages: list[dict]) -> list[tuple[str, str]]:
     return [(u, t) for u, t in out if WANT.search(t)]
 
 
-def amount_in(quote: str, amount: int) -> bool:
-    digits = re.sub(r"(?<=\d)[.,\s](?=\d{3}(?!\d))", "", quote)
-    if re.search(rf"(?<!\d){amount}(?!\d)", digits):
-        return True
-    return amount % 1000 == 0 and bool(re.search(rf"(?<!\d){amount // 1000}\s*(?:k|nghìn|ngàn|n)(?!\w)", quote, re.I))
-
-
-def hour_in(quote: str, hhmm: str) -> bool:
-    h = int(hhmm[:2])
-    return any(re.search(rf"(?<!\d)0?{x}(?!\d)", quote) for x in {h, h - 12, h % 24} if x >= 0)
-
-
 def near_name(text: str, quote: str, words: set[str]) -> bool:
     at = norm(text).find(norm(quote))
     window = fold(norm(text)[max(0, at - NEAR):at + len(norm(quote)) + NEAR])
@@ -100,16 +89,26 @@ def gate(fact: dict, text: str, words: set[str] | None, tickets: bool = True) ->
     """None when the fact stands, else why it is dropped. words: the place's distinctive name words, required near the
     quote on a shared site (None = the site is this place's own); tickets: the place's category group sells entry."""
     q = fact["quote"].strip()
-    if fact["kind"] in ("ticket", "free") and not tickets:
+    if fact["kind"] in ("ticket", "free", "fee") and not tickets:
         return "no_entry_ticket_category"
     if not q or norm(q) not in norm(text):
         return "quote_not_in_page"
     if words is not None and not near_name(text, q, words):
         return "shared_site_other_place"
     if fact["kind"] == "ticket":
-        if fact["audience"] not in ("adult", "child") or not 1000 <= fact["amount_vnd"] <= 5_000_000:
+        if fact["audience"] not in ("adult", "child", "senior") or not 1000 <= fact["amount_vnd"] <= 5_000_000:
             return "not_entry_ticket"
         return None if amount_in(q, fact["amount_vnd"]) else "amount_not_in_quote"
+    if fact["kind"] == "fee":
+        if not 1000 <= fact["amount_vnd"] <= 20_000_000:
+            return "bad_fee"
+        if not (fact.get("item") or "").strip() or norm(fact["item"]) not in norm(q):
+            return "fee_item_not_in_quote"
+        return None if amount_in(q, fact["amount_vnd"]) else "amount_not_in_quote"
+    if fact["kind"] == "last_entry":
+        if not TIME.match(fact["open"]):
+            return "bad_hours"
+        return None if hour_in(q, fact["open"]) else "hours_not_in_quote"
     if fact["kind"] == "free":
         return None if FREE.search(q) else "free_not_in_quote"
     if not (TIME.match(fact["open"]) and TIME.match(fact["close"])) or not fact["days"]:
@@ -147,7 +146,7 @@ def build(doc: dict, place: dict, kept: list[tuple[str, dict]], ont_version: int
     ctx = dict.fromkeys(("time_of_day", "day_type", "weather"), UNKNOWN)
     obs, seen = [], set()
     for url, f in kept:
-        if f["kind"] == "hours":
+        if f["kind"] not in ("ticket", "free"):
             continue
         value = "free" if f["kind"] == "free" else "paid"
         if (value, norm(f["quote"])) in seen:
@@ -161,11 +160,27 @@ def build(doc: dict, place: dict, kept: list[tuple[str, dict]], ont_version: int
     if any(f["kind"] == "ticket" and f["audience"] == "adult" for _, f in kept):  # "dưới 90cm miễn phí"
         obs = [o for o in obs if o["value"] != "free"]
     tickets = {a: sorted({f["amount_vnd"] for _, f in kept if f["kind"] == "ticket" and f["audience"] == a})
-               for a in ("adult", "child")}
+               for a in ("adult", "child", "senior")}
+    details, seen_fee = [], set()
+    for url, f in kept:
+        if f["kind"] != "fee" or (norm(f["item"]), f["amount_vnd"]) in seen_fee:
+            continue
+        seen_fee.add((norm(f["item"]), f["amount_vnd"]))
+        details.append(observation(
+            id=f"official:{fid}:d{len(details)}", place_fid=fid, feature="detail.fee", value=f["item"].strip(),
+            context=ctx, source_type=SOURCE_TYPE, source_id=url, author=f"official:{fid}",
+            observed_at=doc["fetched_at"][:10], quote=f["quote"].strip(), field="page_text",
+            extractor=f"official_observe@{OFFICIAL_OBSERVE.prompt_hash}", ontology_version=ont_version,
+            detail={"amount_vnd": f["amount_vnd"], "audience": f["audience"] if f["audience"] in AUDIENCES else None,
+                    "unit": f.get("unit") if f.get("unit") in UNITS else None, "min_people": None, "months": [],
+                    "days": [], "hour": None, "who": None, "verdict": None}))
+    last = {f["open"] for _, f in kept if f["kind"] == "last_entry"}
     return {"place_fid": fid, "place_name": place.get("name"), "as_of": doc["fetched_at"][:10], "source": "official",
             "website": doc["website"], "observations": obs, "proposed": [], "ratings": [], "place": {}, "voices": 0,
+            "details": details,
             "place_facts": {"hours": hours_of([f for _, f in kept if f["kind"] == "hours"]),
-                            "tickets_vnd": tickets if any(tickets.values()) else None}}
+                            "tickets_vnd": tickets if any(tickets.values()) else None,
+                            "last_entry": next(iter(last)) if len(last) == 1 else None}}
 
 
 async def run(city: str, limit: int | None = None) -> dict:

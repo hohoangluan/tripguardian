@@ -15,10 +15,11 @@ from .google import CALENDAR_SCOPE, LOGIN_SCOPES, GoogleClient, GoogleError
 
 SESSION_DAYS = 30
 SLIDE_AFTER_S = 3600  # a session seen again after this long gets 30 fresh days
+GUEST_HOURS = 24  # a guest session lives this long after the last visit; then the guest and their trips are deleted
 STATE_MINUTES = 10
 TERMS_VERSION = "2026-10-09"
 PROFILE_FIELDS = {"display_name": 60, "home_city": 80, "usual_mobility": 40, "usual_companions": 40}
-MOBILITY = {"motorbike", "car", "ride"}  # trip.domain.state Vehicle
+MOBILITY = {"motorbike", "car", "walk"}  # trip.domain.state Vehicle
 COMPANIONS = {"solo", "partner", "friends", "kids", "parents"}  # trip.domain.state Who
 AVATAR_MAX_BYTES = 5 * 1024 * 1024
 AVATAR_PX = 256
@@ -119,43 +120,84 @@ class Accounts:
         """Only for the walk-through route that the server enables with TG_TEST_LOGIN on a non-https base URL."""
         return self.session(self._upsert({"sub": "test:" + email, "email": email, "name": name}), user_agent)
 
-    def session(self, user_id: str, user_agent: str = "") -> str:
+    def session(self, user_id: str, user_agent: str = "", guest: bool = False) -> str:
         token = secrets.token_urlsafe(32)
         with self.pool.connection() as conn:
             conn.execute("INSERT INTO auth_sessions (token_hash, user_id, expires_at, user_agent) "
-                         "VALUES (%s, %s, now() + make_interval(days => %s), %s)",
-                         (_hash(token), user_id, SESSION_DAYS, user_agent[:300]))
+                         "VALUES (%s, %s, now() + make_interval(hours => %s), %s)",
+                         (_hash(token), user_id, GUEST_HOURS if guest else SESSION_DAYS * 24, user_agent[:300]))
         return token
 
     def user_for(self, token: str | None) -> tuple[dict | None, bool]:
-        """(user, refreshed): refreshed means the server should send the cookie again with 30 fresh days."""
+        """(user, refreshed): refreshed means the server should send the cookie again with fresh time
+        (30 days; 24 hours for a guest). The user carries `guest`."""
         if not token or len(token) > 100:
             return None, False
         with self.pool.connection() as conn:
             row = conn.execute(
-                "SELECT u.id, u.role, extract(epoch FROM now() - s.last_seen_at) AS idle FROM auth_sessions s "
+                "SELECT u.id, u.role, u.kind, extract(epoch FROM now() - s.last_seen_at) AS idle FROM auth_sessions s "
                 "JOIN users u ON u.id = s.user_id WHERE s.token_hash = %s AND s.expires_at > now() "
                 "AND u.status = 'active' AND u.deleted_at IS NULL", (_hash(token),)).fetchone()
             if not row:
                 return None, False
+            guest = row["kind"] == "guest"
             refreshed = row["idle"] > SLIDE_AFTER_S
             if refreshed:
                 conn.execute("UPDATE auth_sessions SET last_seen_at = now(), "
-                             "expires_at = now() + make_interval(days => %s) WHERE token_hash = %s",
-                             (SESSION_DAYS, _hash(token)))
-        return {"id": row["id"].hex, "role": row["role"]}, refreshed
+                             "expires_at = now() + make_interval(hours => %s) WHERE token_hash = %s",
+                             (GUEST_HOURS if guest else SESSION_DAYS * 24, _hash(token)))
+        return {"id": row["id"].hex, "role": row["role"], "guest": guest}, refreshed
 
     def logout(self, token: str | None) -> None:
+        """Ends the session; a guest who leaves takes their trips with them (nobody could open them again)."""
         if token:
             with self.pool.connection() as conn:
-                conn.execute("DELETE FROM auth_sessions WHERE token_hash = %s", (_hash(token),))
+                row = conn.execute("DELETE FROM auth_sessions WHERE token_hash = %s RETURNING user_id",
+                                   (_hash(token),)).fetchone()
+            if row:
+                self.drop_guest(str(row["user_id"]))
+
+    # --- guests -------------------------------------------------------------------------------------------------
+
+    def guest(self, user_agent: str = "") -> str:
+        """A visitor without an account: a real users row (kind 'guest', no email, no Google) with a 24-hour session,
+        so every owner check keyed by user id works unchanged. Returns the session token."""
+        self.purge_guests()
+        with self.pool.connection() as conn:
+            uid = conn.execute("INSERT INTO users (kind, last_login_at) VALUES ('guest', now()) RETURNING id").fetchone()["id"]
+            conn.execute("INSERT INTO profiles (user_id) VALUES (%s)", (uid,))
+        return self.session(str(uid), user_agent, guest=True)
+
+    def drop_guest(self, user_id: str) -> bool:
+        """Deletes one guest (False when the user is not a guest): the trips go; journeys, events and feedback stay
+        without a user, as when an account is deleted."""
+        with self.pool.connection() as conn:
+            row = conn.execute("SELECT 1 FROM users WHERE id = %s AND kind = 'guest'", (user_id,)).fetchone()
+            if row:
+                self._drop(conn, [user_id])
+        return bool(row)
+
+    def purge_guests(self) -> int:
+        """Deletes every guest whose sessions have all expired."""
+        with self.pool.connection() as conn:
+            ids = [r["id"] for r in conn.execute(
+                "SELECT id FROM users u WHERE kind = 'guest' AND NOT EXISTS "
+                "(SELECT 1 FROM auth_sessions s WHERE s.user_id = u.id AND s.expires_at > now())").fetchall()]
+            self._drop(conn, ids)
+        return len(ids)
+
+    @staticmethod
+    def _drop(conn, ids: list) -> None:
+        if ids:
+            conn.execute("DELETE FROM trips WHERE user_id = ANY(%s::uuid[])", (ids,))  # stops and check-ins go with them
+            conn.execute("DELETE FROM users WHERE id = ANY(%s::uuid[])", (ids,))  # sessions, profile: cascade; the rest: SET NULL
 
     # --- profile -----------------------------------------------------------------------------------------------
 
     def me(self, user_id: str) -> dict:
         with self.pool.connection() as conn:
             row = conn.execute(
-                "SELECT u.id, u.email, u.display_name, u.picture_url, u.avatar_key, u.role, u.created_at, "
+                "SELECT u.id, u.email, u.display_name, u.picture_url, u.avatar_key, u.role, u.kind, u.created_at, "
                 "p.home_city, p.usual_mobility, p.usual_companions, p.consents, "
                 "(c.user_id IS NOT NULL AND c.revoked_at IS NULL) AS calendar "
                 "FROM users u LEFT JOIN profiles p ON p.user_id = u.id "
@@ -163,11 +205,12 @@ class Accounts:
         if not row:
             raise KeyError(user_id)
         consents = row["consents"] or {}
-        return {"id": row["id"].hex, "email": row["email"], "name": row["display_name"] or "",
+        guest = row["kind"] == "guest"
+        return {"id": row["id"].hex, "email": row["email"], "name": row["display_name"] or "", "guest": guest,
                 "avatar": f"/api/harness/avatars/{row['avatar_key']}" if row["avatar_key"] else row["picture_url"],
                 "role": row["role"], "home_city": row["home_city"], "usual_mobility": row["usual_mobility"],
                 "usual_companions": row["usual_companions"], "consents": consents,
-                "needs_consent": (consents.get("terms") or {}).get("version") != TERMS_VERSION,
+                "needs_consent": not guest and (consents.get("terms") or {}).get("version") != TERMS_VERSION,
                 "calendar": row["calendar"], "terms_version": TERMS_VERSION}
 
     def consent(self, user_id: str, version: str) -> dict:

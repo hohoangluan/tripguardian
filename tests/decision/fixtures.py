@@ -21,7 +21,8 @@ def feat(value, n=3, status="VERIFIED", dist=None, by_context=None, rate=0.1, ag
 
 def srec(fid, name=None, features=None, group="cafe", category="Quán cà phê", lat=11.94, lng=108.44, area="area-1",
          hours=ALL_DAY, hours_status="VERIFIED", usable=("experience", "meal", "backup"), voices=30,
-         crowd_by_time=None, price=None, visit=(45, 75, 150), dup=None, entry_fee=None, rating_trend=None):
+         crowd_by_time=None, price=None, visit=(45, 75, 150), dup=None, entry_fee=None, rating_trend=None,
+         details=None):
     rec = {"id": fid, "status": "VERIFIED", "status_reason": None,
            "identity": {"name": name or f"Nơi {fid}", "kind": "POI", "category": category, "category_group": group,
                         "lat": lat, "lng": lng, "address": "Đà Lạt", "area": area},
@@ -36,6 +37,8 @@ def srec(fid, name=None, features=None, group="cafe", category="Quán cà phê",
            "provenance": {"as_of": "2026-09-30", "coverage": {}, "voices": voices, "rating_trend": rating_trend,
                           "inputs": []},
            "near_duplicate_group": dup}
+    if details is not None:
+        rec["details"] = details  # shape: corpus.serving.details.place_block()
     for f, v in (features or {}).items():
         rec[ONT.features[f].group][f] = feat(v) if isinstance(v, str) else v
     return rec
@@ -64,3 +67,7 @@ def hard(feature, value, op="ne", policy="exclude"):
 
 def love(feature, value="present", weight=1, context=None):
     return {"feature": feature, "value": value, "context": context, "weight": weight, "source": "user"}
+
+
+def fit_entry(value, n=2, status="VERIFIED", reasons=()):
+    return {"value": value, "distribution": {value: n}, "n": n, "reasons": list(reasons), "status": status, "evidence": []}

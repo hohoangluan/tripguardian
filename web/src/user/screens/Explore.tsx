@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
+import { SECTION_LABEL } from '../../data/store'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { impression } from '../events'
 import { useDecision } from '../pd/decision'
@@ -16,6 +17,7 @@ import { PlaceCard } from '../ui/PlaceCard'
 import { SelectedBar } from '../ui/SelectedBar'
 import { reducedMotion, useStagedList } from '../ui/useStagedList'
 import { FlowBar, Page, useTitle } from '../ui/Shell'
+import { LongTripWarning } from '../ui/LongTripWarning'
 
 // Places in the same tab that name each other as alternatives: shown as a pair, not twice.
 function similarPairs(cards: Card[]) {
@@ -35,6 +37,14 @@ function similarPairs(cards: Card[]) {
 }
 
 const NO_CARDS: Card[] = []
+const PLACE_TYPE_LABEL: Record<string, string> = {
+  meal: 'Ăn uống', cafe: 'Cà phê', nature: SECTION_LABEL.nature, attraction: SECTION_LABEL.sight,
+  garden_farm: 'Vườn và trang trại', camping: 'Cắm trại', museum: 'Bảo tàng và di tích',
+  religious: 'Chùa và nhà thờ', amusement: 'Khu vui chơi', market: 'Chợ',
+  tour: 'Tour trải nghiệm', golf: 'Golf', spa: 'Spa', bar: 'Quán bar', dessert: 'Tráng miệng',
+  restaurant: 'Quán ăn', shop: SECTION_LABEL.shop, stay: 'Chỗ nghỉ', rental: 'Thuê xe',
+  other: 'Loại khác', unknown: 'Chưa biết loại',
+}
 
 // Back to Hiểu chuyến đi to see or relax a limit: the journey steps back on the server (Decision keeps its picks).
 export function useEditTicket() {
@@ -57,7 +67,7 @@ export function Explore() {
   const asst = useUi((u) => u.assistant)
   const editTicket = useEditTicket()
   const pinned = asst.open && asst.pinned
-  const groups = view?.groups.filter((g) => g.id !== 'anchors' && g.cards.length) ?? []
+  const groups = view?.groups.filter((g) => g.id !== 'anchors' && (g.cards.length || g.total)) ?? []
   const current = groups.find((g) => g.id === tab) ?? groups[0]
   useEffect(() => { if (mode === 'grid') current?.cards.forEach((c, i) => impression(c.id, current.id, i + 1)) }, [current?.id, current?.cards.length, mode]) // eslint-disable-line react-hooks/exhaustive-deps
   const foodSel = view ? view.groups.flatMap((g) => g.cards).filter((c) => c.chosen && /cà phê|coffee|cafe/i.test(c.category ?? '')).length : 0
@@ -139,6 +149,22 @@ export function Explore() {
       </>
     )
 
+  const selected = new Set(view.selected)
+  const availableGroups = current ? [current, ...groups.filter((g) => g.id !== current.id)] : groups
+  const additionalGroup = availableGroups.find((g) => g.cards.some((c) => !c.chosen && !selected.has(c.id)))
+    ?? availableGroups.find((g) => g.cards.length < g.total)
+  const additionalCard = additionalGroup?.cards.find((c) => !c.chosen && !selected.has(c.id))
+  const showAdditional = () => {
+    if (!additionalGroup) return
+    setMode('grid')
+    setUi({ tab: additionalGroup.id })
+    if (additionalCard) requestAnimationFrame(() => {
+      const card = gridRef.current?.querySelector<HTMLElement>(`[data-place="${CSS.escape(additionalCard.id)}"]`)
+      card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      card?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
+    })
+    else if (additionalGroup.cards.length < additionalGroup.total) void more(additionalGroup.id)
+  }
   const anchors = view.groups.find((g) => g.id === 'anchors')?.cards ?? []
   const total = groups.reduce((n, g) => n + g.total, 0) + anchors.length
   const excluded = view.excluded.by_rule.reduce((n, r) => n + r.count, 0)
@@ -169,6 +195,20 @@ export function Explore() {
                 <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={editTicket}><Icon name="sliders" size={16} /> Sửa vé chuyến</button>
               </div>
             </header>
+
+            <LongTripWarning days={view.days.length} />
+            {view.coverage?.status === 'sparse' && !view.coverage.free_time_accepted && (
+              <section className="tg-narrow" aria-label="Thời gian tự do">
+                <span>Bạn chọn {view.coverage.selected_experiences} nơi trải nghiệm cho {view.days.length} ngày. Còn nhiều thời gian tự do; chọn thêm nơi hoặc giữ để nghỉ.</span>
+                {additionalGroup ? <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" disabled={busy || Boolean(loadingMore)} onClick={showAdditional}>Gợi ý thêm nơi</button> : <><span>Đã chọn hết các nơi phù hợp trong danh sách hiện tại.</span><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" disabled={busy} onClick={editTicket}>Xem và sửa giới hạn</button></>}
+                <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" disabled={busy} onClick={() => act({ type: 'keep_free_time' })}>Giữ ngày tự do</button>
+              </section>
+            )}
+            {!!view.chunks && view.chunks.length > 1 && <p className="tg-faint">{view.chunks.map((chunk) => {
+              const types = Object.entries(chunk.type_counts ?? {}).filter(([, count]) => count > 0)
+                .map(([type, count]) => `${count} ${PLACE_TYPE_LABEL[type] ?? PLACE_TYPE_LABEL.unknown}`).join(', ')
+              return `Tuần ${chunk.id + 1} (ngày ${chunk.start_day}–${chunk.end_day}): ${chunk.places.length} nơi${types ? ` · ${types}` : ''}`
+            }).join(' · ')}</p>}
 
             {view.excluded.by_rule.length > 0 && (
               <>

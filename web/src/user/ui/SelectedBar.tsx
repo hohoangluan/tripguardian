@@ -9,6 +9,7 @@ import { Icon } from './icons'
 
 export type BarLevel = 'building' | 'ready' | 'attention' | 'blocked'
 const LEVEL_TEXT: Record<BarLevel, string> = { building: 'Đang xếp lịch…', ready: 'Lịch sẵn sàng', attention: 'Cần chú ý', blocked: 'Chưa đi được' }
+const PLANNING_CAN_RESOLVE = new Set(['time', 'per_day', 'far_areas', 'time_windows', 'budget'])
 
 // The cheapest schedule the background build found for the current selection.
 const bestOf = (vs: PreviewVariant[]) => [...vs].sort((a, b) => a.metrics.travel_min - b.metrics.travel_min)[0] ?? null
@@ -48,7 +49,9 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
   const names = new Map(view.groups.flatMap((g) => g.cards).map((c) => [c.id, c.name]))
   const failed = 'plan' in preview && preview.status === 'failed' ? preview.plan?.back_to_decision?.places ?? [] : []
   const needs = level === 'attention' || level === 'blocked'
-  const canGo = (f.status === 'feasible' || f.status === 'unknown') && view.selected.length > 0 && !busy
+  const overload = f.conflicts.length > 0 && f.conflicts.every((c) => PLANNING_CAN_RESOLVE.has(c.check))
+  const canGo = (f.status === 'feasible' || f.status === 'unknown' || overload) &&
+    view.selected.length > 0 && !busy && !failed.length
   const nConflicts = f.conflicts.length + (failed.length ? 1 : 0)
   const go2plan = async () => { if (await toPlan()) setOpen(false) }
   return (
@@ -58,7 +61,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
           <button type="button" className="tg-notice__head" onClick={() => setStrip((v) => !v)} aria-expanded={strip}>
             <Icon name={level === 'blocked' ? 'x' : 'warn'} size={18} />
             <b>{level === 'blocked' ? 'Bộ nơi này chưa đi được' : `${nConflicts || 1} chỗ cần chú ý`}</b>
-            <span>{level === 'blocked' ? (f.known_days ? `Cần khoảng ${fmtMin(t.needed)}, chuyến đi có ${fmtMin(t.available)}` : 'Bỏ bớt vài nơi để lịch đi được') : 'Sửa trước khi xếp lịch. Bạn vẫn chọn tiếp được.'}</span>
+            <span>{overload ? `Bạn đã chọn hơi nhiều nơi. Vào Planning để xem ba hướng cắt giảm và tự chọn.` : level === 'blocked' ? (f.known_days ? `Cần khoảng ${fmtMin(t.needed)}, chuyến đi có ${fmtMin(t.available)}` : 'Bỏ bớt vài nơi để lịch đi được') : 'Sửa trước khi xếp lịch. Bạn vẫn chọn tiếp được.'}</span>
             <Icon name={strip ? 'chevronDown' : 'chevronUp'} size={18} />
           </button>
           {strip && (
@@ -71,6 +74,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
                   <div className="tg-conflict__fixes">{failed.map((id) => <button key={id} type="button" className="tg-fix" disabled={busy} onClick={() => act({ type: 'drop', place_id: id })}><span><b>Bỏ {names.get(id) ?? id}</b><em>lịch được dựng lại ngay</em></span><Icon name="check" size={18} /></button>)}</div>
                 </div>
               )}
+              {overload && <p className="tg-muted">Đây mới là ước lượng ở bước chọn nơi. Planning sẽ xếp lịch thật và kiểm tra giờ mở cửa, di chuyển cùng các giới hạn khác.</p>}
               {f.conflicts.length === 0 && !failed.length && <p className="tg-muted">Bỏ bớt một vài nơi để lịch đi được.</p>}
               {view.wishlist.length > 0 && <p className="tg-notice__foot"><Icon name="bookmark" size={14} /> Để dành cho dịp khác: {view.wishlist.map((w) => w.name).join(', ')}</p>}
               <p className="tg-notice__foot"><Icon name="info" size={14} /> Mình không tự bỏ nơi bạn đã chọn; mỗi cách sửa ghi rõ cái giá.</p>
@@ -99,7 +103,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
             <Icon name="chevronUp" size={18} />
           </button>
           <button type="button" className="tg-btn tg-btn--primary" disabled={!canGo} onClick={go2plan}>
-            {busy ? 'Đang xếp…' : f.status === 'partial' ? 'Sửa chỗ cần chú ý trước' : 'Xem lịch trình'}<Icon name="arrow" size={18} />
+            {busy ? 'Đang xếp…' : overload ? 'Xem 3 hướng lập lịch' : f.status === 'partial' ? 'Sửa chỗ cần chú ý trước' : 'Xem lịch trình'}<Icon name="arrow" size={18} />
           </button>
         </div>
       </div>
@@ -115,7 +119,9 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
                 return (
                   <li key={id}>
                     <PlacePhoto id={id} name={name} className="tg-listpanel__ph" />
-                    <div><button type="button" className="tg-link tg-listpanel__name" onClick={() => { setOpen(false); openPlace(id) }}>{name}</button></div>
+                    <div><button type="button" className="tg-link tg-listpanel__name" onClick={() => { setOpen(false); openPlace(id) }}>{name}</button>
+                      {view.chunks && view.chunks.length > 1 && <label className="tg-week-choice tg-faint">Tuần ghé <select aria-label={`Tuần ghé ${name}`} disabled={busy} value={view.chunk_assignments?.[id] ?? 0} onChange={(e) => act({ type: 'move_chunk', place_id: id, chunk: Number(e.target.value) })}>{view.chunks.map((chunk) => <option key={chunk.id} value={chunk.id}>Tuần {chunk.id + 1} · ngày {chunk.start_day}–{chunk.end_day} · {chunk.places.length} nơi</option>)}</select></label>}
+                    </div>
                     <button type="button" className={`tg-icon-btn ${isLocked ? 'is-on' : ''}`} disabled={busy} onClick={() => act({ type: isLocked ? 'unlock' : 'lock', place_id: id })} aria-pressed={isLocked} aria-label={isLocked ? 'Bỏ khóa' : 'Khóa'}><Icon name={isLocked ? 'lock' : 'unlock'} size={18} /></button>
                     <button type="button" className="tg-icon-btn" disabled={busy} onClick={() => act({ type: 'drop', place_id: id })} aria-label={`Bỏ ${name}`}><Icon name="x" size={18} /></button>
                   </li>

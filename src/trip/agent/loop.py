@@ -12,8 +12,16 @@ from agents import AgentError
 
 from corpus.llm import AGENT
 
+from ..domain.text import fold
 from ..infrastructure.settings import Settings
 from .tools import TurnTools
+
+# Words in a reply that say something was written down. Such a reply with no record_fact in the turn is retried once.
+CLAIM = ("da ghi", "ghi nhan", "ghi lai", "da cap nhat", "cap nhat lai", "da luu", "hieu la", "da hieu", "minh hieu")
+REPLY_NOTE = ("Câu trả lời vừa rồi bị chặn vì: {why}. Viết lại một câu ngắn: không hứa kết quả, không nêu số hay "
+              "địa điểm mà user chưa nói.")
+RETRY_NOTE = ("Bạn vừa nói đã ghi nhận nhưng chưa gọi record_fact lần nào trong lượt này. Nếu tin nhắn mới nhất có "
+              "một fact, hãy gọi record_fact cho fact đó ngay. Nếu không, đừng nói là đã ghi nhận.")
 
 
 @dataclass
@@ -117,13 +125,13 @@ def _wire(call: Call) -> dict:
 
 
 async def run_loop(chat: Chat, messages: list[dict], tools: TurnTools, on_say: Callable[[str], None],
-                   max_steps: int) -> None:
+                   max_steps: int, on_retry: Callable[[], None] = lambda: None) -> None:
     """Run one turn through an explicit internal graph.
 
     `RESOLVE_REFUSAL` prevents a rejected fact from silently turning into an unrelated question: the agent must
     correct it, clarify the rejected field, or call `drop_refusal`. Results remain on `tools`.
     """
-    node, steps, reply = GraphNode.AGENT, 0, None
+    node, steps, reply, retried, clef_retried = GraphNode.AGENT, 0, None, False, False
     while node is not GraphNode.END:
         if node is GraphNode.AGENT:
             if steps >= max_steps:
@@ -133,6 +141,24 @@ async def run_loop(chat: Chat, messages: list[dict], tools: TurnTools, on_say: C
             reply = await chat(messages, tools.specs(), on_say)
             tools.prefetch(reply.calls, reply.content)
             if not reply.calls:
+                if not retried and not tools.recorded and any(c in fold(reply.content) for c in CLAIM):
+                    # the reply says it wrote something, but no record_fact ran: the streamed text is dropped and the
+                    # model gets one more try, told what it claimed
+                    retried = True
+                    tools.log.append("claim_without_record")
+                    on_retry()
+                    messages.append({"role": "assistant", "content": reply.content})
+                    messages.append({"role": "system", "content": RETRY_NOTE})
+                    continue
+                if not clef_retried and (why := tools.reply_problem()):
+                    # Clef sent the reply back (a promise, or a fact nobody gave): the model is told why and writes again
+                    clef_retried = True
+                    tools.log.append(f"clef_retry {why}")
+                    on_retry()
+                    tools.forget_replies()
+                    messages.append({"role": "assistant", "content": reply.content})
+                    messages.append({"role": "system", "content": REPLY_NOTE.format(why=why)})
+                    continue
                 if tools.refused:
                     tools.log.append(f"refusal_unresolved {sorted(tools.refused)}")
                 return
@@ -152,7 +178,7 @@ async def run_loop(chat: Chat, messages: list[dict], tools: TurnTools, on_say: C
                     result = {"error": "arguments are not a JSON object"}
                 messages.append({"role": "tool", "tool_call_id": call.id,
                                  "content": json.dumps(result, ensure_ascii=False)})
-                if tools.stopped or tools.unmapped:
+                if tools.unmapped:
                     node = GraphNode.END
                     break
             else:

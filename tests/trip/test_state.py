@@ -42,7 +42,7 @@ def test_keyword_value_can_be_replaced_by_the_agent():
 @pytest.mark.parametrize("clock_field", ("checkin_at", "checkout_at", "day_end"))
 def test_ranges_clock_and_literals_are_checked(clock_field):
     with pytest.raises(ValueError):
-        apply(TripState(), up("days", 12))
+        apply(TripState(), up("days", 31))
     with pytest.raises(ValueError):
         apply(TripState(), up(clock_field, "9h"))
     with pytest.raises(ValueError):

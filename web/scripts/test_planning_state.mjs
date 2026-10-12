@@ -2,6 +2,32 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PlanningGate, mergeSuggestions } from '../src/user/planning/current.ts'
 
+test('only the latest preview can open the panel, including reversed promise completion', async () => {
+  const gate = new PlanningGate()
+  gate.reset('one')
+  const first = gate.previewTicket()
+  const second = gate.previewTicket()
+  assert.equal(gate.acceptPreview(second, 3), true)
+  assert.equal(gate.acceptPreview(first, 3), false)
+  assert.equal(gate.currentPreview(first), false)
+  gate.invalidate()
+  assert.equal(gate.acceptPreview(second, 3), false)
+  const third = gate.previewTicket()
+  gate.accept(gate.ticket(), 4, true)
+  assert.equal(gate.acceptPreview(third, 3), false)
+  gate.reset('two')
+  assert.equal(gate.currentPreview(third), false)
+})
+
+test('a preview failure from the previous view cannot set an error after a session reload', () => {
+  const gate = new PlanningGate()
+  gate.reset('same-journey')
+  const previousView = { suggestions: { session_id: 'old-session' } }
+  const ticket = gate.previewTicket(previousView)
+  const newView = { suggestions: { session_id: 'new-session' } }
+  assert.equal(gate.currentPreview(ticket, newView), false)
+})
+
 test('an edit invalidates older reads and undo never accepts an old suggestion token', () => {
   const gate = new PlanningGate()
   gate.reset('journey')

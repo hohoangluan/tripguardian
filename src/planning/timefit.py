@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from corpus.serving import feature
 from requirements import category_for
 
+from .details import night_road, timing_delta
 from .settings import fmt, to_min
 
 REASON_TEXT = {"preferred_period": "Ưu tiên khung giờ bạn đã chọn", "sun_time_unknown": "Chưa có giờ bình minh / hoàng hôn để chấm",
                "night_activity": "Ưu tiên hoạt động buổi tối", "daylight_photography": "Ưu tiên ánh sáng ban ngày để chụp ảnh",
                "light_activity": "Ưu tiên hoạt động nhẹ buổi sáng hoặc chiều", "midday_break": "Ưu tiên nghỉ và uống nước giữa trưa",
-               "morning_energy": "Ưu tiên điểm quan trọng hoặc hoạt động tốn sức vào buổi sáng"}
+               "morning_energy": "Ưu tiên điểm quan trọng hoặc hoạt động tốn sức vào buổi sáng",
+               "best_time": "Người đã đi khuyên nên tới vào buổi này", "avoid_time": "Người đã đi khuyên tránh buổi này",
+               "night_road": "Đi xe máy về sau hoàng hôn trên đường tối nguy hiểm"}
 
 
 @dataclass(frozen=True)
@@ -104,9 +107,9 @@ def windows_for(place, ctx) -> tuple[TimeRule, ...]:
                      cfg["heuristic_weight"], reason, "heuristic"),)
 
 
-def visit_score(place, start: int, end: int, ctx) -> tuple[float, dict]:
+def visit_score(place, start: int, end: int, ctx, *, _rules: tuple[TimeRule, ...] | None = None) -> tuple[float, dict]:
     """Penalty in comparable planning minutes. Neither this score nor its estimates can relax a constraint."""
-    rules = windows_for(place, ctx)
+    rules = windows_for(place, ctx) if _rules is None else _rules
     duration = max(1, end - start)
     penalty = 0.0
     reasons = []
@@ -123,6 +126,16 @@ def visit_score(place, start: int, end: int, ctx) -> tuple[float, dict]:
     shortened = max(0, expected - (end - start))
     if ctx.cfg.time_suitability.get("enabled", False):
         penalty += ctx.cfg.time_suitability.get("duration_loss_min", 0) * shortened
+        delta = timing_delta(place, start, ctx.cfg)
+        if delta:
+            penalty += delta
+            reasons.append({"reason": "best_time" if delta < 0 else "avoid_time", "source": "reviews",
+                            "text": REASON_TEXT["best_time" if delta < 0 else "avoid_time"], "windows": [], "fit": None,
+                            "evidence": []})
+        if night_road(place, ctx.mobility, end, ctx.sun):
+            penalty += ctx.cfg.time_suitability.get("night_road_penalty", 0.0)
+            reasons.append({"reason": "night_road", "source": "reviews", "text": REASON_TEXT["night_road"], "windows": [],
+                            "fit": None, "evidence": []})
     detail = {"place_id": place.id, "activity": place.activity, "visit": [fmt(start), fmt(end)],
               "penalty": round(penalty, 3), "shortened_min": shortened, "reasons": reasons,
               "source": rules[0].source if rules else None}

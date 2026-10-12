@@ -12,8 +12,10 @@ import { useDecision } from '../pd/decision'
 import type { Card, Claim } from '../pd/types'
 import { DropSheet, useEditTicket } from '../screens/Explore'
 import { toggleCmp, toggleSaved, useUi } from '../store'
+import { useTrip } from '../trip'
 import { go, Photo, Trust, Unconfirmed } from './common'
 import { HeartFill, Icon } from './icons'
+import { DetailsOverview, KnownFor } from './PlaceDetails'
 
 // docs/Role_Web_Functional_Design.md §6: "Xem chi tiết" of a place. One sheet for the disc, the grid and the shared
 // link page (/explore/place/:id). As a modal it lives in the URL (?place=<id>), so the browser's Back closes it.
@@ -149,6 +151,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
   const saved = useUi((u) => u.saved.includes(id))
   const cmp = useUi((u) => u.cmp.includes(id))
   const editTicket = useEditTicket()
+  const { trip } = useTrip()
   const [g, setG] = useState(0)
   const [tab, setTab] = useState<Tab>('overview')
   const [dropping, setDropping] = useState(false)
@@ -216,6 +219,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
         <div className="tg-ps__lead">
           <p className="tg-ps__kick"><i />{[p.category, p.area].filter(Boolean).join(' · ')}</p>
           <Title className="tg-ps__name">{p.name}</Title>
+          <KnownFor p={snap} />
           {quote && <p className="tg-ps__quote">“{quote}”<small>Trích từ đánh giá của người đã đến</small></p>}
           {highlights(snap).length > 0 && <p className="tg-ps__hl">{highlights(snap).join(' · ')}</p>}
           <dl className="tg-ps__facts">{facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
@@ -290,6 +294,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
                 </div>
               </div>
             </div>
+            <DetailsOverview p={snap} trip={trip.searchInput?.context.companions ?? []} onOpen={(i) => openPlace(i)} />
             {card && (card.why.length > 0 || card.tradeoffs.length > 0) && (
               <div className="tg-ps__why">
                 <h4>Vì sao hợp với chuyến của bạn</h4>

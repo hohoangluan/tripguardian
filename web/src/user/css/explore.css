@@ -112,3 +112,6 @@
 @media (max-width: 760px) { .tg-grid, .tg-grid.is-two { grid-template-columns: 1fr; } .tg-xhead { grid-template-columns: 1fr; } }
 
 .tg-xhead__ops { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+
+.tg-week-choice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.tg-week-choice select { min-width: 0; max-width: 100%; padding: 6px; border: 1px solid var(--tg-pine-line); border-radius: 6px; background: var(--tg-surface); color: inherit; font: inherit; }

@@ -35,6 +35,8 @@ class Relax(BaseModel):
 
 class State(BaseModel):
     chosen_variant: str | None = None
+    plan_dropped: list[str] = Field(default_factory=list)   # optimizer's exclusions; separate from user preference
+    restored: list[str] = Field(default_factory=list)      # selection places explicitly restored by the user
     lodging_touched: bool = False       # False = still the chosen variant's own lodging
     lodging_id: str | None = None       # a candidate id, or None for "no lodging" once lodging_touched
     lodging_point: dict | None = None   # set_lodging(text): {"id","lat","lng","text","source","fetched_at"}
@@ -65,6 +67,9 @@ class ActCtx:
     objective_names: set
     valid_paces: set
     activities: dict[str, Activity] = field(default_factory=dict)
+    variant_kept: dict[str, set[str]] = field(default_factory=dict)
+    selection_ids: set[str] = field(default_factory=set)
+    protected_ids: set[str] = field(default_factory=set)
 
 
 def _is_physical(feature: str) -> bool:
@@ -88,6 +93,10 @@ def _drop(s: State, pid: str, reason: str | None = None) -> None:
 
 def _place(s: State, pid: str, day: int) -> None:
     s.dropped = [d for d in s.dropped if d.place_id != pid]
+    if pid in s.plan_dropped:
+        s.plan_dropped = [i for i in s.plan_dropped if i != pid]
+        if pid not in s.restored:
+            s.restored.append(pid)
     s.assignment[pid] = day
     # pid may have had an explicit order on some OTHER day before this move (or still has one on its old day) --
     # an order_override that no longer matches its day's real membership would desync from reorder's own "order
@@ -108,6 +117,9 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
             # differently) -- not safe to replay onto a different variant's days. Place-level edits (assignment /
             # dropped / locked) are keyed by place id, not day shape, and stay meaningful across the switch.
             s.order_override = {}
+        if vid in ctx.variant_kept:
+            selected = {i for i in ctx.by_place}
+            s.plan_dropped = sorted(selected - ctx.variant_kept[vid] - set(s.restored))
         s.chosen_variant = vid
     elif t == "pick_lodging":
         s.lodging_touched, s.lodging_id, s.lodging_point = True, action.get("id"), None
@@ -162,18 +174,42 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
             s.activity_override[pid] = activity
     elif t == "swap":
         a, b = action.get("place"), action.get("with")
-        if b not in ctx.backup_ids:
-            raise ActionError(f"{b!r} is not in the backup pool")
+        from_backup = b in ctx.backup_ids
+        if not from_backup and b not in ctx.selection_ids:
+            raise ActionError(f"{b!r} is neither in the selection nor the backup pool")
         day = _day_of(ctx, a)
         if day is None:
             raise ActionError(f"{a!r} is not currently in the plan")
+        if _day_of(ctx, b) is not None:
+            raise ActionError(f"{b!r} is already in the plan")
         if a in s.locked:
             raise ActionError(f"{a!r} is locked to its day")
         _drop(s, a)
         _place(s, b, day)
-        source = ctx.by_place.get(a)
-        if source and source.activity:
-            s.activity_override[b] = source.activity
+        if from_backup:
+            source = ctx.by_place.get(a)
+            if source and source.activity:
+                s.activity_override[b] = source.activity
+    elif t == "reoptimize":
+        plan_dropped = action.get("_plan_dropped")
+        if not isinstance(plan_dropped, list) or any(pid not in ctx.selection_ids for pid in plan_dropped):
+            raise ActionError("reoptimize needs a validated selection result")
+        s.plan_dropped = sorted(set(plan_dropped) - set(s.restored))
+    elif t == "make_room":
+        edit, drop_places = action.get("edit"), action.get("drop_places")
+        if not isinstance(edit, dict) or edit.get("type") not in {"move_place", "add_from_backup", "swap"}:
+            raise ActionError("make_room needs a supported edit")
+        if not isinstance(drop_places, list) or not 0 < len(drop_places) <= 3 or \
+                len(set(drop_places)) != len(drop_places):
+            raise ActionError("make_room needs one to three distinct places")
+        s = apply_act(s, edit, ctx)
+        newly_protected = {edit.get("place"), edit.get("with")}
+        for pid in drop_places:
+            if not _known(ctx, pid):
+                raise ActionError(f"unknown place {pid!r}")
+            if pid in ctx.protected_ids or pid in newly_protected or pid in s.locked or pid in s.restored:
+                raise ActionError(f"{pid!r} is protected and cannot make room")
+            _drop(s, pid)
     elif t == "lock_slot":
         pid = action.get("place")
         day = _day_of(ctx, pid)

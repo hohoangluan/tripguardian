@@ -99,6 +99,8 @@ Bind `127.0.0.1`; Vite proxy `/api/harness` và `/api/auth` đến cổng 8769 (
 | `POST /api/harness/events` | Lô event của web (`docs/ANALYTICS.md`) |
 | `POST /api/harness/reports` | `{place_id, text, reporter}` → báo cáo thông tin sai của Decision (`corpus.review.reports`); không đổi corpus ngay |
 
+Planning `preview-act` là read-only; response kèm revision hành trình, không tăng revision và token chỉ dùng lại cho đúng action/context ở mutation kế tiếp. Quy tắc preview/edit và cách Web bỏ response cũ: `docs/PLANNING.md` §Vòng người dùng sửa và góp ý.
+
 Request mẫu:
 
 ```json

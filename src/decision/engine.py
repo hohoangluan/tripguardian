@@ -13,6 +13,7 @@ from trip import SearchInput, squash
 from . import output
 from .agent import AgentError, features_text
 from .compare import compare as compare_cands
+from .chunks import CHUNK_DAYS
 from .curation import ActionError, apply
 from .guard import TurnPlan, guard
 from .heuristics import exact_command
@@ -46,6 +47,15 @@ def _ontology_version() -> int:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _confirmable(feasibility: dict) -> bool:
+    """Selection estimates can be resolved by Planning; other conflicts still block."""
+    conflicts = feasibility["conflicts"]
+    if any(c.get("check") not in {"time", "per_day", "far_areas", "time_windows", "budget"}
+           for c in conflicts):
+        return False
+    return feasibility["status"] in ("feasible", "unknown") or bool(conflicts)
 
 
 def _list_text(change: dict) -> str:
@@ -99,8 +109,8 @@ class Engine:
     def _result(self, s: Session) -> Result:
         if s.id not in self._results:
             res = run(s, self.data, self.cfg)
-            if res.shown != s.state.shown:  # the window is screen state, not an action: no history entry
-                s.state = s.state.model_copy(update={"shown": res.shown})
+            if res.shown != s.state.shown or res.chunk_assignments != s.state.chunk_assignments:
+                s.state = s.state.model_copy(update={"shown": res.shown, "chunk_assignments": res.chunk_assignments})
                 self.store.save(s)
             self._results[s.id] = res
         return self._results[s.id]
@@ -111,6 +121,10 @@ class Engine:
         st, done, log = s.state, [], []
         for a in actions:
             try:
+                if a.get("type") == "move_chunk":
+                    k = a.get("chunk")
+                    if type(k) is not int or not 0 <= k < (len(before.days) + CHUNK_DAYS - 1) // CHUNK_DAYS:
+                        raise ActionError("chunk outside trip duration")
                 st = apply(st, a, known, before.alternatives, pend, self.cfg)
                 done.append(a)
             except ActionError as e:
@@ -255,7 +269,7 @@ class Engine:
         with self.store.lock(sid):
             res = self._result(s)
             status = res.view["feasibility"]["status"]
-            if status not in ("feasible", "unknown"):
+            if not _confirmable(res.view["feasibility"]):
                 raise NotConfirmable(status)
             s.output = output.build(s, res, self.cfg)
             self.store.save(s)
@@ -266,7 +280,7 @@ class Engine:
         s = self._get(sid)
         with self.store.lock(sid):
             res = self._result(s)
-            if res.view["feasibility"]["status"] not in ("feasible", "unknown"):
+            if not _confirmable(res.view["feasibility"]):
                 return None
             return output.build(s, res, self.cfg)
 

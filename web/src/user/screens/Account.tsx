@@ -14,6 +14,7 @@ import { ArtCup, ArtHills, ArtRoute, Busy, Empty, go, Link, placeHref, PlacePhot
 import { HeartFill, Icon } from '../ui/icons'
 import { Page, useTitle } from '../ui/Shell'
 import { useBegin } from './Discover'
+import { GuestNotice } from './Guest'
 
 const STAGE_STEP = { trip: 0, decision: 1, planning: 2 } as const
 type Kind = 'building' | 'confirmed' | 'done'
@@ -50,6 +51,7 @@ export function Trips() {
   const shown = (list ?? []).filter((t) => kindOf(t) === tab)
   return (
     <Page>
+      <GuestNotice />
       <header className="tg-head"><div><p className="tg-kicker">Chuyến của tôi</p><h1>Chuyến đi của bạn</h1><p>Các chuyến của tài khoản này, mở được trên mọi máy.</p></div><button type="button" className="tg-btn tg-btn--primary" onClick={() => begin({ startWith: 'nothing', startText: null })}><Icon name="plus" size={18} /> Tạo chuyến đi</button></header>
       <div className="tg-tabs" role="tablist" aria-label="Trạng thái chuyến">
         {([['building', 'Đang lên kế hoạch'], ['confirmed', 'Sắp tới'], ['done', 'Đã hoàn thành']] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className="tg-tab" onClick={() => setTab(k)}>{l}{list && <b>{list.filter((t) => kindOf(t) === k).length}</b>}</button>)}
@@ -124,7 +126,7 @@ export function Saved() {
   )
 }
 
-const MOBILITY: [Mobility, string][] = [['motorbike', 'Xe máy'], ['car', 'Ô tô tự lái'], ['ride', 'Taxi / xe công nghệ']]
+const MOBILITY: [Mobility, string][] = [['motorbike', 'Xe máy'], ['car', 'Ô tô tự lái'], ['walk', 'Khác (không dùng xe riêng)']]
 const WHO: [Companions, string][] = [['solo', 'Đi một mình'], ['partner', 'Với người yêu / vợ chồng'], ['friends', 'Với bạn bè'], ['kids', 'Với con nhỏ'], ['parents', 'Với bố mẹ']]
 
 export function Account() {

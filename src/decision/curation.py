@@ -12,7 +12,7 @@ from .model import FIRM
 from .session import Chip, Drop, Pending, SoftAdd, State
 
 REASONS = ("far", "crowded", "pricey", "dislike", "visited")
-PLACE_ACTIONS = {"select", "drop", "lock", "unlock", "swap", "relax", "wishlist"}
+PLACE_ACTIONS = {"select", "drop", "lock", "unlock", "swap", "relax", "wishlist", "move_chunk"}
 
 
 class ActionError(ValueError):
@@ -32,6 +32,7 @@ def _select(s: State, pid: str) -> None:
 
 
 def _remove(s: State, pid: str) -> None:
+    s.chunk_assignments.pop(pid, None)
     s.selected = [x for x in s.selected if x != pid]
     s.locked = [x for x in s.locked if x != pid]
 
@@ -57,6 +58,12 @@ def apply(state: State, act: dict, known, alternatives: dict[str, list[str]], pe
         s.suggest_group = None
     if t == "select":
         _select(s, pid)
+    elif t == "move_chunk":
+        if pid not in s.selected:
+            raise ActionError("choose the place before moving it")
+        s.chunk_assignments[pid] = act["chunk"]
+    elif t == "keep_free_time":
+        s.free_time = True
     elif t == "lock":
         _select(s, pid)
         if pid not in s.locked:

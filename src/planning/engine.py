@@ -7,19 +7,22 @@ import asyncio
 import copy
 import hashlib
 import json
+import secrets
 import threading
 import time
 import traceback
 import urllib.error
 import urllib.request
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
+from itertools import combinations
 from json import loads
 from typing import Awaitable, Callable
 
 import live
+from trip import nights
 
-from .build import prepare, pull_early, schedule_trip, with_home
+from .build import chunk_view, prepare, pull_early, schedule_trip, with_home
 from .lodging import candidates as lodging_candidates
 from .lodging import booked, live_cards, price_cap, rank, refresh_prices, search_area, with_booked_base
 from .objectives import LABEL, add_lodging_cost, choose, metrics, score
@@ -64,7 +67,7 @@ class NotConfirmable(Exception):
 
 
 def _nights(ctx: dict) -> int:
-    return max((ctx.get("days") or 1) - 1, 0)
+    return nights(ctx)  # the user's own number ("3 ngày 3 đêm" sleeps 3), else days - 1
 
 
 class _Base:
@@ -79,6 +82,8 @@ class _Base:
         self.ok = ok
         self.warnings = warnings
         self.back_to_decision = back_to_decision
+        self.overload: dict | None = None
+        self.keep_all: dict | None = None
         self.lodging_status = "pending"   # pending | ready | unavailable | booked (the trip has its lodging)
         self.lodging_candidates: list[dict] = []   # every candidate ever crawled, never filtered in place
         self.days: dict = {}
@@ -119,6 +124,7 @@ class Engine:
         self._previews: dict[str, tuple[float, _Base]] = {}   # Decision Output hash -> (built at, base)
         self._previews_lock = threading.Lock()
         self._epochs: dict[str, int] = {}
+        self._preview_tokens: dict[str, tuple[dict, float]] = {}
         self.timings: dict[str, dict] = {}
         self._suggestion_slots = threading.BoundedSemaphore(max(1, self.cfg.suggestion_workers))
 
@@ -146,6 +152,13 @@ class Engine:
 
     def _build_base(self, decision: dict) -> _Base:
         trip = self._prepare(decision)
+        from .composer import compose
+        composed = compose(trip)
+        if composed is not None:
+            base = _Base(trip, composed["variants"], composed["comparison"], composed["ok"],
+                         composed["warnings"], composed["back_to_decision"])
+            base.overload, base.keep_all = composed["overload"], composed["keep_all"]
+            return base
         objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, self.cfg)
         variants, seen = [], set()
         for obj in objectives:
@@ -249,7 +262,7 @@ class Engine:
             prev_results = results[k - 1]
             if prev_results is None:
                 prev_results = next((v["_results"] for v in base.variants if v["id"] == old_state.chosen_variant),
-                                    []) if old_state.chosen_variant else []
+                                    base.keep_all["_results"] if base.keep_all and base.keep_all.get("id") == old_state.chosen_variant else []) if old_state.chosen_variant else []
             action = s.log[k - 1]["action"]
             s_view = s.model_copy(update={"states": s.states[: k + 1], "position": k})
             results[k] = self._compute_results(base, s_view, old_state, prev_results, action)
@@ -335,7 +348,8 @@ class Engine:
         if results is None:
             results = self._schedules.get(s.id, [None] * len(s.states))[s.position]
         if results is None:
-            results = next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant)
+            results = next((v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant),
+                           base.keep_all["_results"] if base.keep_all and base.keep_all.get("id") == s.state.chosen_variant else [])
         by_place = self._places_for(s, base)
         home = self._home_for(s, base)
         _, ctxs = self._ctxs_for(base.trip, by_place, home, s.state, results)
@@ -449,7 +463,15 @@ class Engine:
         base = self._ensure_base(s.id)
         active = active if active is not None else self._active_itinerary(s, base, results)
         suggestions = self._suggestions(s, base, active)
+        active_variant = None
+        if active and s.state.chosen_variant:
+            active_variant = {k: v for k, v in self._variant_dict(base, s, active["results"], active["ctxs"]).items()
+                              if not k.startswith("_")}
         return {"ok": base.ok, "variants": [{k: v for k, v in v.items() if not k.startswith("_")} for v in base.variants],
+               "overload": base.overload,
+               "keep_all": {k: v for k, v in base.keep_all.items() if not k.startswith("_")} if base.keep_all else None,
+               "active_variant": active_variant,
+               **chunk_view(active["itinerary"] if active else [], base.trip.cfg.chunk_days),
                "comparison": base.comparison, "warnings": base.warnings, "back_to_decision": base.back_to_decision,
                "lodging": {"status": base.lodging_status,
                            "candidates": [self._lodging_card(c) for c in self._offered_lodging(base, s.state)]},
@@ -462,6 +484,158 @@ class Engine:
                                    **(describe(cx.cond) or {})} for cx in base.trip.ctxs if cx.cond],
                "crowd_tips": crowd_tips(list(self._places_for(s, base).values()), [cx.cond for cx in base.trip.ctxs], self.cfg),
                "state": s.state.model_dump(mode="json")}
+
+    def _preview_fingerprint(self, s: Session, base: _Base) -> str:
+        lodging = [(c.get("id"), c.get("price_vnd"), c.get("over_cap")) for c in base.lodging_candidates]
+        return fingerprint((s.id, s.state.model_dump(mode="json"), s.decision, base.generation,
+                            self._home_for(s, base), lodging, base.trip.travel.source, base.trip.travel.index))
+
+    def _act_ctx(self, s: Session, base: _Base, previous: list) -> ActCtx:
+        from .composer import must_places
+        selected = {c["id"] for c in s.decision.get("confirmed") or []}
+        protected = must_places(base.trip) | set(s.state.locked) | set(s.state.restored) | set(s.state.assignment)
+        variant_ids = {v["id"] for v in base.variants
+                       if v.get("status", "available") == "available"}
+        if base.keep_all:
+            variant_ids.add("keep_all")
+        variant_kept = {v["id"]: set(v.get("kept") or []) for v in base.variants
+                        if v.get("status", "available") == "available" and "kept" in v}
+        if base.keep_all and "kept" in base.keep_all:
+            variant_kept["keep_all"] = set(base.keep_all["kept"])
+        return ActCtx(by_place={**base.trip.by_place, **self._places_for(s, base)},
+                      n_days=len(base.trip.days),
+                      variant_ids=variant_ids,
+                      backup_ids={b["id"]: b for b in s.decision.get("backup_pool") or []},
+                      day_members=[list(r.order) for r in previous] if previous else [],
+                      objective_names=set(LABEL) | {"keep_all"}, valid_paces=set(self.cfg.per_day),
+                      activities=s.decision["trip_context"].get("activities") or {},
+                      variant_kept=variant_kept,
+                      selection_ids=selected, protected_ids=protected)
+
+    def _resolve_reoptimize(self, base: _Base, s: Session, action: dict) -> dict:
+        if action.get("type") != "reoptimize":
+            return action
+        if set(action) != {"type"}:
+            raise ActionError("reoptimize does not accept optimizer internals")
+        selected = next((v for v in base.variants if v["id"] == s.state.chosen_variant), None)
+        preset = selected.get("preset") if selected else None
+        if preset is None:
+            raise ActionError("reoptimize is available only for overload profiles")
+        from .composer import compose, must_places
+        trip = base.trip
+        home = self._home_for(s, base)
+        if home not in (None, trip.days[0].start_node if trip.days else None):
+            trip = with_home(trip, home)
+        must = must_places(trip) | set(s.state.restored) | set(s.state.locked) | set(s.state.assignment)
+        banned = {drop.place_id for drop in s.state.dropped}
+        composed = compose(trip, force=True, must=must, banned=banned)
+        profile = next((v for v in (composed or {}).get("variants", []) if v.get("preset") == preset), None)
+        if profile is None or profile.get("status") != "available":
+            reason = (profile or {}).get("unavailable_reason") or "no profile satisfies the protected choices"
+            raise ActionError(f"cannot reoptimize: {reason}")
+        selection = {c["id"] for c in s.decision.get("confirmed") or []}
+        return {"type": "reoptimize", "_plan_dropped": sorted(selection - set(profile["kept"]) - banned)}
+
+    @staticmethod
+    def _view_confirmable(view: dict) -> bool:
+        profile = view.get("active_variant") or {}
+        return not bool(view.get("violations")) and profile.get("confirmable", True) is not False
+
+    def _make_room_actions(self, s: Session, base: _Base, action: dict, previous: list,
+                           ctx: ActCtx, candidates: list[str]) -> list[dict]:
+        if action.get("type") not in {"move_place", "add_from_backup", "swap"}:
+            return []
+        protected = set(ctx.protected_ids) | {action.get("place"), action.get("with")}
+        optional = sorted(set(candidates) - protected)
+        limit = int(self.cfg.composer.get("make_room_trials", 18))
+        attempts, found = 0, []
+        for size in range(1, min(3, len(optional)) + 1):
+            for dropped in combinations(optional, size):
+                if attempts >= limit:
+                    return found
+                attempts += 1
+                composite = {"type": "make_room", "edit": copy.deepcopy(action),
+                             "drop_places": list(dropped)}
+                try:
+                    new_state = _apply(s.state, composite, ctx)
+                    trial = s.model_copy(deep=True)
+                    trial.states = s.states[:s.position + 1] + [new_state]
+                    trial.position = s.position + 1
+                    trial_base = copy.deepcopy(base)
+                    prior_base = self._base.get(s.id)
+                    self._base[s.id] = trial_base
+                    try:
+                        results = self._compute_results(trial_base, trial, s.state, previous, composite)
+                        active = self._active_itinerary(trial, trial_base, results)
+                        view = self._view(trial, results, active)
+                    finally:
+                        if prior_base is not None:
+                            self._base[s.id] = prior_base
+                        else:
+                            self._base.pop(s.id, None)
+                except (ActionError, StopIteration):
+                    continue
+                if self._view_confirmable(view):
+                    found.append(composite)
+                    if len(found) >= 3:
+                        return found
+            if found:
+                return found
+        return found
+
+    def preview_act(self, sid: str, action: dict) -> dict:
+        """Build an isolated edit preview; it never commits State, history, output, or live lookups."""
+        if action.get("type") in {"set_lodging", "set_lodging_budget"}:
+            raise ActionError("this action needs a fresh lodging lookup and cannot be previewed")
+        with self.store.lock(sid):
+            client_action = copy.deepcopy(action)
+            s = self._get(sid)
+            base = self._ensure_base(sid)
+            if s.state.chosen_variant is None and action.get("type") != "pick_variant":
+                raise ActionError("pick a variant before previewing an edit")
+            previous = self._schedules.get(sid, [None] * len(s.states))[s.position]
+            if previous is None:
+                previous = next((v["_results"] for v in base.variants
+                                 if v["id"] == s.state.chosen_variant),
+                                base.keep_all["_results"] if base.keep_all and base.keep_all.get("id") == s.state.chosen_variant else [])
+            trial_base = copy.deepcopy(base)
+            ctx = self._act_ctx(s, trial_base, previous)
+            if action.get("type") == "pick_lodging" and action.get("id") not in {
+                    c["id"] for c in self._offered_lodging(trial_base, s.state)}:
+                raise ActionError(f"unknown or no-longer-offered lodging {action.get('id')!r}")
+            action = self._resolve_reoptimize(trial_base, s, action)
+            new_state = _apply(s.state, action, ctx)
+            s2 = s.model_copy(deep=True)
+            s2.states = s.states[:s.position + 1] + [new_state]
+            s2.position = s.position + 1
+            prior_base = self._base.get(sid)
+            self._base[sid] = trial_base
+            try:
+                results = self._compute_results(trial_base, s2, s.state, previous, action)
+                active = self._active_itinerary(s2, trial_base, results)
+                view = self._view(s2, results, active)
+                before_active = self._active_itinerary(s, base, previous) if s.state.chosen_variant else None
+            finally:
+                if prior_base is not None:
+                    self._base[sid] = prior_base
+                else:
+                    self._base.pop(sid, None)
+            token = secrets.token_urlsafe(24)
+            state_key = self._preview_fingerprint(s, base)
+            self._preview_tokens[sid] = ({"token": token, "action": client_action,
+                                          "fingerprint": state_key}, time.monotonic())
+            before_metrics = before_active["metrics"] if before_active else None
+            after_metrics = active["metrics"] if active else None
+            fields = ("travel_min", "visit_min", "cost_vnd", "places", "wish_coverage", "robustness")
+            delta = {key: (after_metrics or {}).get(key) - (before_metrics or {}).get(key)
+                     if isinstance((after_metrics or {}).get(key), (int, float))
+                     and isinstance((before_metrics or {}).get(key), (int, float)) else None for key in fields}
+            confirmable = self._view_confirmable(view)
+            make_room = [] if confirmable else self._make_room_actions(
+                s, base, client_action, previous, ctx, [pid for r in active["results"] for pid in r.order])
+            return {"token": token, "action": client_action, "view": view, "delta": delta,
+                    "violations": view.get("violations") or [],
+                    "confirmable": confirmable, "make_room": make_room}
 
     def _lodging_card(self, c: dict) -> dict:
         """What the "Bạn ở đâu?" screen shows of a candidate (docs/Role_Web_Functional_Design.md §6)."""
@@ -507,7 +681,8 @@ class Engine:
         return replace(p, relaxed=p.relaxed + tuple(relax_for)) if p and relax_for else p
 
     def _places_for(self, s: Session, base: _Base) -> dict:
-        dropped = {d.place_id for d in s.state.dropped}
+        dropped = {d.place_id for d in s.state.dropped} | \
+            (set(s.state.plan_dropped) - set(s.state.restored))
         out = {}
         for pid in set(base.trip.by_place) | set(s.state.assignment):
             if pid not in dropped:
@@ -534,7 +709,7 @@ class Engine:
         for day, (lo, hi) in state.day_window_override.items():
             if 0 <= day < len(ctxs):
                 ctxs[day] = replace(ctxs[day], day=replace(ctxs[day].day, start=lo, end=hi))
-        ctxs = [replace(cx, places=by_place, travel=t2.travel, cfg=self.cfg) for cx in ctxs]
+        ctxs = [replace(cx, places=by_place, travel=t2.travel, cfg=t2.cfg) for cx in ctxs]
         if results is not None:
             ctxs = [pull_early(cx, [i.place_id for i in r.items if i.kind == "visit"], by_place, t2.travel)[0]
                     for cx, r in zip(ctxs, results)] + ctxs[len(results):]
@@ -550,7 +725,8 @@ class Engine:
             per_day = [[i for i in ids if i != pid] for ids in per_day]
             if 0 <= day < len(per_day):
                 per_day[day].append(pid)
-        dropped = {d.place_id for d in s.state.dropped}
+        dropped = {d.place_id for d in s.state.dropped} | \
+            (set(s.state.plan_dropped) - set(s.state.restored))
         return [[i for i in ids if i not in dropped] for ids in per_day]
 
     def _repair_pass(self, s: Session, ctxs: list, baseline: list, touched_days: set) -> list:
@@ -582,7 +758,7 @@ class Engine:
                                    sorted(locked_here), hard, budget, max_leg))
                 from .validate import validate
                 if key not in base.repairs:
-                    result = repair_day(members[day], ctxs[day], prev_order, locked_here, self.cfg,
+                    result = repair_day(members[day], ctxs[day], prev_order, locked_here, ctxs[day].cfg,
                                         valid=lambda r: not validate([ctxs[day]], [r], hard, set(), budget, max_leg))
                     put(base.repairs, key, result, self.cfg.cache_entries)
                 results[day] = base.repairs[key]
@@ -603,7 +779,9 @@ class Engine:
         repair pass (the same one a RELAYOUT uses) re-applies them on top, seeded from this fresh layout -- a
         place the user moved or locked lands back on its pinned day regardless of where the automatic clustering
         would have put it, and repair_day still refuses to let a locked place leave its day."""
-        obj = s.state.objective_override or next(v["objective"] for v in base.variants if v["id"] == s.state.chosen_variant)
+        selected = next((v for v in base.variants if v["id"] == s.state.chosen_variant),
+                        base.keep_all if base.keep_all and base.keep_all.get("id") == s.state.chosen_variant else None)
+        obj = s.state.objective_override or (selected["objective"] if selected else "balance")
         by_place = self._places_for(s, base)
         home = self._home_for(s, base)
         trip = replace(base.trip, by_place=by_place)
@@ -617,21 +795,118 @@ class Engine:
             if 0 <= day < len(ctxs):
                 ctxs[day] = replace(ctxs[day], day=replace(ctxs[day].day, start=lo, end=hi))
         t2 = replace(t2, ctxs=ctxs)
-        weights = dict(self.cfg.objective_weights[obj])
-        sched = schedule_trip(t2, weights)
+        weights = dict(self.cfg.objective_weights.get(obj, self.cfg.objective_weights["least_travel"]))
+        sched = schedule_trip(t2, weights, allow_shrink=selected.get("preset") != "diverse" if selected else True)
         results = self._repair_pass(s, sched.ctxs, sched.results, set(range(len(sched.ctxs))))
         return results, sched.ctxs
 
     def _variant_dict(self, base: _Base, s: Session, results: list, ctxs: list) -> dict:
-        obj = s.state.objective_override or next(v["objective"] for v in base.variants if v["id"] == s.state.chosen_variant)
+        selected = next((v for v in base.variants if v["id"] == s.state.chosen_variant),
+                        base.keep_all if base.keep_all and base.keep_all.get("id") == s.state.chosen_variant else None)
+        obj = s.state.objective_override or (selected.get("objective", "keep_all") if selected else "keep_all")
+        by_place = self._places_for(s, base)
+        home = self._home_for(s, base)
         m = metrics(ctxs, results)
-        cand = next((c for c in base.lodging_candidates if c["id"] == self._home_for(s, base)), None)
+        cand = next((c for c in base.lodging_candidates if c["id"] == home), None)
         if cand:
             m = add_lodging_cost(m, cand["price_vnd"], _nights(s.decision["trip_context"]["context"]))
         from .build import itinerary as render_itinerary
         from .build import travel_load as render_travel_load
         days = [cx.day for cx in ctxs]
-        return {"id": s.state.chosen_variant, "objective": obj, "label": LABEL[obj], "score": list(score(obj, m)),
+        profile = {}
+        if selected and (selected is base.keep_all or selected.get("id") == "keep_all"):
+            from .build import Schedule
+            from .composer import profile_metrics
+            profile = {k: v for k, v in selected.items() if not k.startswith("_")}
+            from .validate import validate
+            tc = s.decision["trip_context"]
+            anchors = {c["id"] for c in s.decision.get("confirmed", []) if c.get("role") == "anchor"}
+            val_errors = validate(ctxs, results, tc.get("hard_filters") or [], anchors, tc["context"].get("budget_vnd"),
+                                  (tc.get("pace") or {}).get("max_leg_min"))
+            violations = [asdict(v) for v in val_errors]
+            violations += [{"kind": "unplaced", "day": None, "place_id": p.id, "detail": p.reason}
+                           for p in base.trip.unplaced]
+            profile["violations"] = violations
+            profile["confirmable"] = not bool(violations)
+            profile["status"] = "available" if profile["confirmable"] else "unavailable"
+            if not profile["confirmable"]:
+                profile["unavailable_reason"] = "; ".join(v.get("detail", "") for v in violations if v.get("detail")) or "Lịch vi phạm ràng buộc"
+            profile["kept"] = sorted({pid for result in results for pid in result.order})
+            m = profile_metrics(replace(base.trip, by_place=by_place),
+                                Schedule([list(r.order) for r in results], results, ctxs, [], []))
+            baseline = base.keep_all["metrics"]
+            baseline_home = (base.keep_all or {}).get("_home")
+            same_home = (home == baseline_home)
+            profile["delta_vs_selection"] = {
+                "places": len(profile["kept"]) - len(s.decision.get("confirmed") or []),
+                "travel_min": m["travel_min"] - baseline["travel_min"] if same_home and not base.trip.unplaced else None,
+                "cost_vnd": m["cost_vnd"] - baseline["cost_vnd"] if same_home and not base.trip.unplaced else None,
+            }
+            if cand:
+                lodging_cost = cand["price_vnd"] * _nights(s.decision["trip_context"]["context"]) \
+                    if cand["price_vnd"] is not None else None
+                m["lodging_cost_vnd"] = lodging_cost
+                if lodging_cost is not None:
+                    m["estimated_cost_vnd"] += lodging_cost
+                else:
+                    m["cost_basis"] = "partial"
+            if cand:
+                m = add_lodging_cost(m, cand["price_vnd"], _nights(tc["context"]))
+            profile["metrics"] = m
+        elif selected and selected.get("preset"):
+            from .composer import profile_metrics, profile_violations
+            from .build import Schedule
+            trip_for_metrics = replace(base.trip, by_place=by_place)
+            if home not in (None, trip_for_metrics.days[0].start_node if trip_for_metrics.days else None):
+                trip_for_metrics = with_home(trip_for_metrics, home)
+            profile_schedule = Schedule([list(r.order) for r in results], results, ctxs, [], [])
+            profile = {k: v for k, v in selected.items() if not k.startswith("_")}
+            profile["metrics"] = profile_metrics(trip_for_metrics, profile_schedule)
+            profile["violations"] = profile_violations(trip_for_metrics, profile_schedule, selected["preset"])
+            if selected["preset"] == "low_cost" and profile["metrics"]["value_share"] + 1e-9 < trip_for_metrics.cfg.composer["alpha"]:
+                profile["violations"].append({"kind": "profile_value", "day": None, "place_id": None,
+                                               "minutes": 0, "physical": False,
+                                               "detail": "insufficient retained selection value"})
+            profile["confirmable"] = not profile["violations"]
+            profile["status"] = "available" if profile["confirmable"] else "unavailable"
+            kept = sorted({pid for result in results for pid in result.order})
+            profile["kept"] = kept
+            old_drops = {drop["place_id"]: drop for drop in selected.get("dropped_by_plan") or []}
+            plan_dropped = sorted(set(s.state.plan_dropped) - set(s.state.restored))
+            selected_by_id = {c["id"]: c for c in s.decision.get("confirmed") or []}
+            profile["dropped_by_plan"] = [old_drops.get(pid) or {
+                "place_id": pid, "name": selected_by_id.get(pid, {}).get("name") or pid,
+                "reason": "pricey" if selected["preset"] == "low_cost" else
+                          "far" if selected["preset"] == "least_travel" else "crowded",
+                "text": "Chừa thời gian cho các nơi hợp ưu tiên của phương án này.",
+                "saved_min": base.trip.by_place[pid].visit[base.trip.cfg.visit_key[base.trip.pace]]
+                             if pid in base.trip.by_place else None,
+                "saved_vnd": base.trip.by_place[pid].cost_vnd if pid in base.trip.by_place else None,
+                "regret": None, "source": "plan",
+            } for pid in plan_dropped]
+            baseline = (base.keep_all or {}).get("metrics") or {}
+            baseline_home = (base.keep_all or {}).get("_home")
+            complete = not base.trip.unplaced
+            same_home = (home == baseline_home)
+            profile["delta_vs_selection"] = {
+                "places": len(kept) - len(s.decision.get("confirmed") or []),
+                "travel_min": profile["metrics"]["travel_min"] - baseline["travel_min"]
+                              if complete and "travel_min" in baseline and same_home else None,
+                "cost_vnd": profile["metrics"]["cost_vnd"] - baseline["cost_vnd"]
+                            if complete and "cost_vnd" in baseline and same_home else None,
+            }
+            m = profile["metrics"]
+            if cand:
+                lodging_cost = cand["price_vnd"] * _nights(s.decision["trip_context"]["context"]) \
+                    if cand["price_vnd"] is not None else None
+                m["lodging_cost_vnd"] = lodging_cost
+                if lodging_cost is not None:
+                    m["estimated_cost_vnd"] += lodging_cost
+                else:
+                    m["cost_basis"] = "partial"
+        return {**profile, "id": s.state.chosen_variant, "objective": obj,
+               "label": selected.get("label") or LABEL.get(obj, obj),
+               "score": [-m.get("places", 0), m["travel_min"]] if obj == "keep_all" else list(score(obj, m)),
                "metrics": m, "itinerary": render_itinerary(days, results), "travel_load": render_travel_load(days, results),
                "time_suitability": time_description(ctxs, results),
                "recommendations": self._suggestions(s, base, self._active_itinerary(s, base, results))["items"],
@@ -706,14 +981,18 @@ class Engine:
         t = action.get("type")
         if t == "recommend":
             return self._proposal_trial(base, s2, old_state, prev_results, action["proposal"])[1]
+        if t == "reoptimize" and "_plan_dropped" not in action:
+            action = self._resolve_reoptimize(base, s2, action)
         if t == "set_lodging" and action.get("_point"):
             self._ensure_lodging_node(base, s2.decision, action["_point"])
         if t == "pick_variant":
             state = s2.state
-            if (state.assignment or state.dropped or state.order_override or state.pace_override
+            if (state.assignment or state.dropped or state.plan_dropped or state.restored or state.order_override or state.pace_override
                     or state.objective_override or state.day_window_override or state.lodging_touched or state.relaxed
                     or state.activity_override):
                 return self._rebuild_variant(base, s2)[0]
+            if base.keep_all and s2.state.chosen_variant == "keep_all":
+                return base.keep_all["_results"]
             return next(v["_results"] for v in base.variants if v["id"] == s2.state.chosen_variant)
         scope = act_scope(action)
         if scope == NONE:
@@ -753,7 +1032,19 @@ class Engine:
             base = self._ensure_base(sid)
             self.timings[sid] = {key: 0 for key in ("layout_ms", "validate_ms", "metrics_ms", "suggestions_ms",
                                                    "view_ms", "operation_ms", "day_cache_hits")}
+            preview_token = action.get("_preview_token")
+            if preview_token is not None:
+                entry = self._preview_tokens.get(sid)
+                if (entry is None or entry[0].get("token") != preview_token or
+                        entry[1] < time.monotonic() - 600 or entry[0].get("action") !=
+                        {k: v for k, v in action.items() if k != "_preview_token"} or
+                        entry[0].get("fingerprint") != self._preview_fingerprint(s, base)):
+                    raise ActionError("preview token is stale or does not match this action; preview again")
+                action = {k: v for k, v in action.items() if k != "_preview_token"}
+            requested_action = copy.deepcopy(action)
             t = action.get("type")
+            if t == "make_room" and preview_token is None:
+                raise ActionError("make_room requires a preview token; preview the action first")
             if t == "undo":
                 if s.position == 0:
                     raise ActionError("nothing to undo")
@@ -788,12 +1079,7 @@ class Engine:
             prev_results = self._schedules.get(sid, [None])[s.position] or \
                 (next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant)
                 if s.state.chosen_variant else [])
-            ctx = ActCtx(by_place={**base.trip.by_place, **self._places_for(s, base)}, n_days=len(base.trip.days),
-                        variant_ids={v["id"] for v in base.variants},
-                        backup_ids={b["id"]: b for b in s.decision.get("backup_pool") or []},
-                        day_members=[list(r.order) for r in prev_results] if prev_results else [],
-                        objective_names=set(LABEL), valid_paces=set(self.cfg.per_day),
-                        activities=s.decision["trip_context"].get("activities") or {})
+            ctx = self._act_ctx(s, base, prev_results)
             if t == "pick_lodging":
                 if action.get("id") not in {c["id"] for c in self._offered_lodging(base, s.state)}:
                     raise ActionError(f"unknown or no-longer-offered lodging {action.get('id')!r}")
@@ -816,6 +1102,8 @@ class Engine:
                            if feature not in p.relaxed and self._has_hard_violation(base, s, pid, feature)]
                 action = {**action, "place_ids": affected}
 
+            action = self._resolve_reoptimize(base, s, action)
+
             new_state = _apply(s.state, action, ctx)
             s2 = s.model_copy(update={"states": s.states[: s.position + 1] + [new_state], "position": s.position + 1})
             layout_start = time.perf_counter()
@@ -825,9 +1113,14 @@ class Engine:
             active = self._active_itinerary(s2, base, results)
             view = self._view(s2, results, active)
             self.timings[sid]["view_ms"] = (time.perf_counter() - render_start) * 1000
-            s2.log = s.log[:s.position] + [{"action": action, "at": _now()}]
+            # Persist the public action. The derived kept/drop set is a trial detail and
+            # must be recomputed during replay, not accepted as client input.
+            logged_action = requested_action if t == "reoptimize" else action
+            s2.log = s.log[:s.position] + [{"action": logged_action, "at": _now()}]
             s2.output = None
             self.store.save(s2)
+            if preview_token is not None:
+                self._preview_tokens.pop(sid, None)
             s.states, s.position, s.log, s.output = s2.states, s2.position, s2.log, s2.output
             self._schedules.setdefault(sid, [None] * len(s.states))
             while len(self._schedules[sid]) < len(s.states):
@@ -843,7 +1136,9 @@ class Engine:
             if t == "set_day_window" and all(old is new for i, (old, new) in enumerate(zip(prev_results, results))
                                              if i != action["day"]):
                 scope = RELAYOUT
-            return {"view": view, "diff": {"scope": scope}}
+            changed = sorted({i // base.trip.cfg.chunk_days for i, r in enumerate(results)
+                              if i >= len(prev_results) or r is not prev_results[i]})
+            return {"view": view, "diff": {"scope": scope, "affected_chunks": changed}}
 
     # ---------- internal recommendation ----------
 
@@ -876,6 +1171,9 @@ class Engine:
                 return {'id': sid, 'view': self._view(session),
                         'proposal': {'status': 'fallback', 'diagnostics': ['no_valid_baseline']}}
             if session.state.chosen_variant is None:
+                if base.overload:
+                    return {'id': sid, 'view': self._view(session),
+                            'proposal': {'status': 'fallback', 'diagnostics': ['choose_overload_profile']}}
                 self.act(sid, {'type': 'pick_variant', 'id': base.variants[0]['id']})
             previous = self._turn_current(session, base)
             view = self._view(session)
@@ -956,7 +1254,8 @@ class Engine:
                 raise NotConfirmable("no variant chosen")
             results = self._schedules.get(sid, [None] * len(s.states))[s.position]
             if results is None:
-                results = next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant)
+                results = (base.keep_all["_results"] if base.keep_all and s.state.chosen_variant == "keep_all" else
+                           next(v["_results"] for v in base.variants if v["id"] == s.state.chosen_variant))
             by_place = self._places_for(s, base)
             home = self._home_for(s, base)
             trip, ctxs = self._ctxs_for(base.trip, by_place, home, s.state, results)
@@ -965,6 +1264,19 @@ class Engine:
             anchors = {c["id"] for c in s.decision["confirmed"] if c.get("role") == "anchor"}
             violations = validate(ctxs, results, tc.get("hard_filters") or [], anchors, tc["context"].get("budget_vnd"),
                                   (tc.get("pace") or {}).get("max_leg_min"))
+            selected = next((v for v in base.variants if v["id"] == s.state.chosen_variant), base.keep_all)
+            if s.state.chosen_variant == "keep_all" and base.trip.unplaced:
+                raise NotConfirmable("confirmed places cannot be scheduled")
+            if selected.get("preset"):
+                from .build import Schedule
+                from .composer import profile_metrics, profile_violations
+                trip_for_metrics = replace(trip, by_place=by_place)
+                schedule = Schedule([list(r.order) for r in results], results, ctxs, [], [])
+                profile_errors = profile_violations(trip_for_metrics, schedule, selected["preset"])
+                profile = profile_metrics(trip_for_metrics, schedule)
+                if selected["preset"] == "low_cost" and profile["value_share"] + 1e-9 < trip_for_metrics.cfg.composer["alpha"]:
+                    profile_errors.append({"detail": "insufficient retained selection value"})
+                violations.extend(profile_errors)
             if violations:
                 raise NotConfirmable("plan has unresolved violations")
             variant = self._variant_dict(base, s, results, ctxs)

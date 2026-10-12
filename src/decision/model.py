@@ -19,6 +19,18 @@ def value(rec: dict, fid: str) -> str | None:
     return f["value"] if f else None
 
 
+def known_for(rec: dict) -> dict | None:
+    """The one thing the place is known for ({text, n}), from its serving details; None without it."""
+    h = ((rec.get("details") or {}).get("known_for") or {}).get("headline")
+    return {"text": h["text"], "n": h["n"]} if h else None
+
+
+def cost_total(rec: dict) -> dict | None:
+    """What a visit costs one person ({base, with_extras} in VND), from its serving details; None without it."""
+    t = ((rec.get("details") or {}).get("cost") or {}).get("total_vnd")
+    return {"base": t["base"], "with_extras": t["with_extras"]} if t else None
+
+
 @dataclass
 class Cand:
     rec: dict

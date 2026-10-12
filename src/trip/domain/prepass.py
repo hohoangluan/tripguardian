@@ -12,6 +12,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
+from .state import MAX_TRIP_DAYS
 from .text import fold
 
 
@@ -41,8 +42,11 @@ NEGATION = re.compile(r"\b(khong|chang|k|ko|tranh|ghet|ngai|so)\s+(\w+\s+){0,4}$
 COMPANIONS = [
     (r"\b(bo me|ba me|ba ma|cha me|ong ba|phu huynh|nguoi lon tuoi)\b", "parents"),
     (r"\b(nguoi yeu|ban gai|ban trai|vo chong|hai vo chong|cap doi|honeymoon|trang mat)\b", "partner"),
-    (r"\b(ban be|nhom ban|hoi ban|dong nghiep|team)\b", "friends"),
+    (r"\b(ban be|nhom ban|hoi ban)\b", "friends"),
+    (r"\b(dong nghiep|team building|team|cong ty)\b", "coworkers"),
     (r"\b(con nho|tre nho|tre em|em be|be nho|cac be)\b", "kids"),
+    (r"\b(so sinh|xe day|con moi sinh)\b", "baby"),
+    (r"\b(thu cung|con cho|con meo|cun cung|pet)\b", "pet"),
     (r"\b(mot minh|solo)\b", "solo"),
 ]
 SIGNALS = [
@@ -161,22 +165,44 @@ def prepass(text: str, today: date) -> Prepass:
             add("month", int(m[2]), m)
             if m[1]:  # "cuối tháng 10" is more than "tháng 10"
                 add("month_part", MONTH_PART[m[1]], m)
+    def duration_negated(m) -> bool:
+        return bool(NEGATION.search(low[max(0, m.start() - 32):m.start()]))
+
     if not any(p.field == "days" for p in out):
-        m = re.search(r"\b(\d)\s*n\s*(\d)\s*d\b", low)
+        m = re.search(r"\b(\d{1,2})\s*n\s*(\d{1,2})\s*d\b", low)
         if m:
-            add("days", int(m[1]), m)
-            add("nights", int(m[2]), m)
+            if not duration_negated(m) and 1 <= int(m[1]) <= MAX_TRIP_DAYS and 0 <= int(m[2]) <= MAX_TRIP_DAYS:
+                add("days", int(m[1]), m)
+                add("nights", int(m[2]), m)
         else:
             for m in re.finditer(r"(?<!/)\b(\d{1,2})\s*(?:ngay|n)\b|\b(hai|ba|bon|nam|sau|bay)\s+ngay\b(?!\s*\d)", low):
                 n = int(m[1]) if m[1] else NUMBER[m[2]]
-                if 1 <= n <= 7:
+                if not duration_negated(m) and 1 <= n <= MAX_TRIP_DAYS:
                     add("days", n, m)
                     break
-    for m in re.finditer(r"\b(\d)\s*dem\b|\b(hai|ba|bon|nam|sau|bay)\s+dem\b", low):
-        if not any(p.field == "nights" for p in out):  # "3N2Đ" already said it
+            if not any(p.field == "days" for p in out):
+                for m in re.finditer(r"\b(\d{1,2}|mot|hai)\s+(?:tuan|weeks?)\b", low):
+                    before = low[max(0, m.start() - 40):m.start()]
+                    relative = re.search(r"\bsau(?:\s+(?:khoang|tam|chung|hon|gan))*\s*$", before) or re.match(
+                        r"\s+nua\b", low[m.end():])
+                    if relative or duration_negated(m) or re.search(r"\b(?:moi|tren|ngan sach)\s*$|/\s*$|\b(?:trieu|tr|nghin|ngan|k)\s*$", before):
+                        continue
+                    n = int(m[1]) if m[1].isdigit() else {"mot": 1, "hai": 2}[m[1]]
+                    if 1 <= n * 7 <= MAX_TRIP_DAYS:
+                        add("days", n * 7, m)
+                        break
+    for m in re.finditer(r"\b(\d{1,2})\s*dem\b|\b(hai|ba|bon|nam|sau|bay)\s+dem\b", low):
+        if not any(p.field == "nights" for p in out):
             n = int(m[1]) if m[1] else NUMBER[m[2]]
-            if 0 <= n <= 7:
+            if not duration_negated(m) and 0 <= n <= MAX_TRIP_DAYS:
                 add("nights", n, m)
+                if not any(p.field == "days" for p in out) and n < MAX_TRIP_DAYS:
+                    add("days", n + 1, m, inferred=True)
+    if not any(p.field == "days" for p in out):
+        m = re.search(r"\b(di|ve|choi)\s+(ve\s+)?trong\s+ngay\b|\bday trip\b", low)
+        if m:  # a day trip: one day, no night in the city
+            add("days", 1, m)
+            add("nights", 0, m)
     for m in re.finditer(r"\b(\d{1,2})\s*(?:nguoi|ng)\b", low):
         add("people", int(m[1]), m)
         break

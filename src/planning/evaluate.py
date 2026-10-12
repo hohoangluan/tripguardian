@@ -18,7 +18,7 @@ import yaml
 from corpus.ontology import load as load_ontology
 from decision import Data as DecisionData, Engine as DecisionEngine, Store as DecisionStore
 from decision import load_settings as decision_default
-from trip import SearchInput
+from trip import SearchInput, nights
 
 from .engine import Engine
 from .session import Store
@@ -118,8 +118,8 @@ def plan_results(decision_output: dict, records: list[dict], planning_cfg=None, 
         out = eng.confirm(sid)
     except Exception as e:
         return {"ok": False, "ms_variants": ms_variants, "ms_total": ms_total, "reason": str(e)}
-    nights = max((decision_output["trip_context"]["context"].get("days") or 1) - 1, 0)
-    saved_per_day = (travel_no_lodging - best_travel) / max(nights, 1)
+    slept = nights(decision_output["trip_context"]["context"])
+    saved_per_day = (travel_no_lodging - best_travel) / max(slept, 1)
     return {"ok": True, "ms_variants": ms_variants, "ms_total": ms_total, "travel_min": travel_no_lodging,
             "travel_with_lodging_min": best_travel, "baseline_travel_min": baseline,
             "lodging_saved_min_per_day": round(saved_per_day, 1),

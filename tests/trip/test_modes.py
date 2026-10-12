@@ -30,7 +30,7 @@ def test_mode_bar_switches_both_ways_and_declines_the_open_card(catalog, cfg, tm
     v = e.load(sid)
     assert v["phase"] == "chat" and v["card"]["qid"] == "conversation"
     st = e.store.get(sid).state
-    assert "days" in st.meta.asked and "Chuyến này bạn đi mấy ngày?" in st.meta.declined
+    assert "days" in st.meta.asked and "Bạn định đi mấy ngày mấy đêm?" in st.meta.declined
     run(e, sid, kind="to_quiz")
     assert e.load(sid)["card"]["qid"] == "companions"  # days is never asked again in either mode
 
@@ -50,7 +50,7 @@ def test_chat_learning_is_visible_to_the_quiz(catalog, cfg, tmp_path):
     run(e, sid, kind="text", text="đi 3 ngày")  # the agent is down: only the keyword rules write
     assert e.store.get(sid).state.days.value == 3
     run(e, sid, kind="to_quiz")
-    assert e.load(sid)["card"]["qid"] == "nights"  # days is known: the quiz skips it
+    assert e.load(sid)["card"]["qid"] == "companions"  # days is known: the quiz skips it
 
 
 def test_quiz_learning_is_visible_to_the_chat(catalog, cfg, tmp_path):
@@ -101,6 +101,48 @@ def test_quiz_exhaustion_goes_to_review(catalog, cfg, tmp_path):
                           ("soft:scenic_view=present", "love")):
         run(e, sid, kind="edit", target=target, value=value)
     run(e, sid, kind="to_quiz")
+    assert e.load(sid)["card"]["qid"] == "care"  # the one health / diet question is never skipped silently
+    run(e, sid, kind="answer", qid="care", chips=("none",))
     v = e.load(sid)
     assert v["phase"] == "review" and v["card"] is not None and v["card"]["qid"] == "review"
     assert [c["id"] for c in v["card"]["chips"]] == ["show"]  # an open chat box: type, or press show
+
+
+def test_the_days_chip_records_the_nights_and_no_question_asks_them_again(catalog, cfg, tmp_path):
+    e = make_engine(catalog, cfg, tmp_path)
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="to_quiz")
+    card = e.load(sid)["card"]
+    assert card["qid"] == "days" and [c["label"] for c in card["chips"]][:3] == ["Đi về trong ngày", "2 ngày 1 đêm", "3 ngày 2 đêm"]
+    run(e, sid, kind="answer", qid="days", chips=("days:3",))
+    st = e.store.get(sid).state
+    assert (st.days.value, st.nights.value) == (3, 2)
+    run(e, sid, kind="answer", qid="companions", chips=("who:friends",))
+    run(e, sid, kind="answer", qid="care", chips=("none",))
+    assert "nights" not in e.store.get(sid).state.meta.asked and e.load(sid)["card"]["qid"] != "nights"
+
+
+def test_the_care_card_resolves_its_own_follow_ups(catalog, cfg, tmp_path):
+    """One chip carries its signal, its limit and the "handled" mark: no c_effort / c_other card comes after it."""
+    e = make_engine(catalog, cfg, tmp_path)
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="edit", target="days", value="2")
+    run(e, sid, kind="edit", target="companions", value="solo")
+    run(e, sid, kind="to_quiz")
+    assert e.load(sid)["card"]["qid"] == "care"
+    run(e, sid, kind="answer", qid="care", chips=("knee", "veg"))
+    st = e.store.get(sid).state
+    assert {h.feature for h in st.hard} >= {"steep_or_stairs", "long_walk", "vegetarian_options"}
+    assert not [s for s in st.signals if not s.handled]
+    assert e.load(sid)["card"]["qid"] not in ("c_effort", "c_other")
+
+
+def test_a_care_hint_without_a_verified_feature_stays_a_note_not_a_filter(catalog, cfg, tmp_path):
+    e = make_engine(catalog, cfg, tmp_path)
+    sid = e.create("first", "nothing")["id"]
+    run(e, sid, kind="edit", target="days", value="2")
+    run(e, sid, kind="edit", target="companions", value="solo")
+    run(e, sid, kind="to_quiz")
+    run(e, sid, kind="answer", qid="care", chips=("allergy",))
+    st = e.store.get(sid).state
+    assert not st.hard and any("dị ứng" in u.phrase for u in st.unmapped)

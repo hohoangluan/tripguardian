@@ -1,7 +1,7 @@
 import threading
 
 import pytest
-from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, sample_trip, small_trip
+from plan_fixtures import CENTRE, CFG, FakeLive, decision, fake_lodging, fake_matrix, no_geocode, sample_trip, small_trip, spot
 
 from planning.engine import Engine, NoSession
 from planning.session import ActionError, Store
@@ -31,6 +31,59 @@ def test_create_returns_variants_right_away_without_waiting_on_lodging():
     assert out["id"] and out["view"]["ok"] and out["view"]["variants"]
     assert out["view"]["lodging"]["status"] == "pending"
     gate.set()
+
+
+def test_engine_overload_offers_profiles_and_tracks_profile_specific_drops():
+    records = [spot(f"p{i}", CENTRE, i % 7, price={"typical_vnd": 200000 if i == 7 else 10000},
+                    group=f"kind-{i % 4}") for i in range(8)]
+    d = decision([r["id"] for r in records], days=1, leave_at="21:00")
+    d["feasibility"] = {"status": "infeasible", "totals": {"needed": 1000, "available": 600},
+                        "conflicts": [{"check": "time", "id": "time"}]}
+    for chosen in d["confirmed"]:
+        chosen["utility"] = 0.1 if chosen["id"] == "p7" else 1.0
+    e = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
+               matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), lodging_fn=fake_lodging, background=False)
+    created = e.create(d, None)
+    sid, view = created["id"], created["view"]
+    assert view["overload"]["level"] == "overloaded"
+    assert {v["preset"] for v in view["variants"]} == {"low_cost", "diverse", "least_travel"}
+    cheap = next(v for v in view["variants"] if v["preset"] == "low_cost")
+    assert cheap["status"] == "available" and "p7" not in cheap["kept"]
+    e.act(sid, {"type": "pick_variant", "id": cheap["id"]})
+    chosen = e.load(sid)["view"]
+    assert set(chosen["state"]["plan_dropped"]) == set(cheap["dropped_by_plan"][i]["place_id"]
+                                                        for i in range(len(cheap["dropped_by_plan"])))
+    assert {i["place_id"] for day in chosen["itinerary"] for i in day["items"] if i["kind"] == "visit"} == set(cheap["kept"])
+    other = next(v for v in view["variants"] if v["preset"] == "least_travel" and v["status"] == "available")
+    switched = e.act(sid, {"type": "pick_variant", "id": other["id"]})["view"]
+    assert set(switched["state"]["plan_dropped"]) == {x["place_id"] for x in other["dropped_by_plan"]}
+    assert not switched["state"]["dropped"]
+    restored = e.act(sid, {"type": "pick_variant", "id": cheap["id"]})["view"]
+    plan_drop = next(x["place_id"] for x in cheap["dropped_by_plan"] if x["place_id"] not in restored["state"]["restored"])
+    restored = e.act(sid, {"type": "move_place", "place": plan_drop, "day": 0})["view"]
+    assert plan_drop in restored["state"]["restored"]
+    assert plan_drop not in restored["state"]["plan_dropped"]
+    assert plan_drop in {i["place_id"] for day in restored["itinerary"] for i in day["items"] if i["kind"] == "visit"}
+
+
+def test_preview_act_does_not_mutate_and_requires_the_same_current_action():
+    e, sid = started()
+    action = {"type": "drop_place", "place": "a"}
+    before = e.store.get(sid).model_dump(mode="json")
+    preview = e.preview_act(sid, action)
+    assert preview["action"] == action and preview["delta"]
+    assert e.store.get(sid).model_dump(mode="json") == before
+    applied = e.act(sid, {**action, "_preview_token": preview["token"]})
+    assert "a" not in {i.get("place_id") for d in applied["view"]["itinerary"] for i in d["items"]}
+
+
+def test_preview_act_token_is_stale_after_an_intervening_edit():
+    e, sid = started()
+    action = {"type": "drop_place", "place": "a"}
+    preview = e.preview_act(sid, action)
+    e.act(sid, {"type": "drop_place", "place": "b"})
+    with pytest.raises(ActionError, match="stale"):
+        e.act(sid, {**action, "_preview_token": preview["token"]})
 
 
 def test_load_an_unknown_session_is_no_session():

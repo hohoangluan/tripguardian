@@ -215,6 +215,35 @@ def test_preview_builds_a_plan_for_the_current_selection_without_changing_the_jo
     assert tools["decision"].calls == 0
 
 
+def test_real_decision_overload_can_preview_and_advance_without_losing_selection():
+    from decision import Data, Engine, Store, Tools as DecisionTools, load_settings
+
+    recs = [{"id": f"P{i}", "status": "VERIFIED", "status_reason": None,
+             "identity": {"name": f"Place {i}", "kind": "POI", "category": "Quán cà phê",
+                          "category_group": "cafe", "lat": 11.94, "lng": 108.44, "area": "center"},
+             "operation": {"hours": None, "visit_minutes": {"short": 60, "typical": 600, "long": 600}},
+             "experience": {}, "environment": {}, "service": {}, "effort": {}, "suitability": {},
+             "usable_as": ["experience"], "provenance": {"voices": 1}, "near_duplicate_group": None}
+            for i in range(6)]
+    h, tools = make()
+    tools["decision"] = DecisionTools(Engine(Data(recs), load_settings(), Store(None)))
+    h.tools["decision"] = tools["decision"]
+    tools["planning"].preview = lambda payload: {"ok": True, "input": payload["decision_output"]}
+    v = decision(h)
+    for i in range(6):
+        v = run(h, v, "act", f"select-{i}", {"type": "select", "place_id": f"P{i}"})
+    before = h.load(v["id"])
+    preview = h.preview(v["id"])
+    assert preview["status"] == "ready"
+    draft = preview["plan"]["input"]
+    assert draft["feasibility"]["status"] == "infeasible"
+    assert [p["id"] for p in draft["confirmed"]] == [f"P{i}" for i in range(6)]
+    assert h.load(v["id"])["revision"] == before["revision"]
+    v = run(h, v, "advance", "overload-to-planning")
+    assert v["stage"] == "planning"
+    assert v["outputs"]["decision"] == draft
+
+
 def test_preview_says_blocked_or_empty_and_needs_the_decision_stage():
     from harness import Conflict
     h, tools = make()

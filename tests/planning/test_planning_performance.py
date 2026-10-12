@@ -137,11 +137,13 @@ def test_day_cache_depends_on_activity_time_preferences_config_and_travel():
     # A change to a different day's unused place does not invalidate this day.
     assert day_key(replace(cx, places={**cx.places, "b": replace(cx.places["b"], activity="coffee")}), ["a"]) == key
     for changed in [replace(cx, pace="slow"),
+                    replace(cx, allow_shrink=not cx.allow_shrink),
                     replace(cx, places={**cx.places, "a": replace(cx.places["a"], activity="coffee", activity_explicit=True)}),
                     replace(cx, time_preferences=({"place_id": "a", "period": "evening"},)),
                     replace(cx, cfg=replace(CFG, buffer_extra_uncertain=999)),
                     replace(cx, rain=0.9), replace(cx, travel=replace(cx.travel, fetched_at="new"))]:
         assert day_key(changed, ["a"]) != key
+    assert day_key(cx, ["a", "b"]) != key
 
 
 def test_local_repair_falls_back_when_a_closing_time_requires_reordering():

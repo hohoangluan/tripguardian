@@ -61,6 +61,8 @@ class State(BaseModel):
     suggest_group: str | None = None  # "Gợi ý nơi tương tự" was answered for this display group
     last: str | None = None  # type of the last action
     shown: dict[str, list[str]] = Field(default_factory=dict)  # display group -> ids on screen, in screen order
+    chunk_assignments: dict[str, int] = Field(default_factory=dict)
+    free_time: bool = False
 
 
 class Session(BaseModel):

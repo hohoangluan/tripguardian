@@ -47,7 +47,7 @@ Việc user đã từng đến Đà Lạt hay chưa không đổi cách hỏi. N
 
 ```text
 Trip State
-├── Thông tin cơ bản   start_date | month (+ month_part đầu / giữa / cuối tháng), days, companions, people, base (chỗ ở),
+├── Thông tin cơ bản   start_date | month (+ month_part đầu / giữa / cuối tháng), days, companions (+ companions_other), people, base (chỗ ở),
 │                      mobility, budget_vnd + budget_scope (§Ngân sách)
 ├── Điểm vào / ra      entry_point, exit_point — nơi chuyến đi vào và rời thành phố (bến xe, sân bay, tự lái)
 ├── Hậu cần            origin, arrival_mode, inbound, outbound, lodging_booked, lodging (§Hậu cần)
@@ -69,7 +69,7 @@ Trip State
 
 `budget_vnd` là số tiền **đúng như user nói** ("5 triệu" → 5 000 000), `budget_scope` là phạm vi của số đó: `trip_total` (cả chuyến), `per_day` (cả nhóm mỗi ngày), `per_person` (mỗi người cả chuyến), `per_person_day`. `prepass` đọc phạm vi trong cùng mệnh đề với số tiền ("cho 2 người", "tổng", "cả chuyến" → `trip_total`; "/người/ngày", "mỗi người … một ngày" → `per_person_day`); agent cũng ghi được. Không ai nói phạm vi thì `domain/budget.py` đoán theo độ lớn (≥ `TOTAL_FROM` 2 triệu → cả chuyến, nhỏ hơn → mỗi người mỗi ngày) và bản hiểu nhu cầu đánh dấu ✎. Chia ra **VND mỗi người mỗi ngày** bằng `days` và số người trả: `people`, hoặc 1 khi `solo`, 2 khi chỉ `partner`; không biết số người hay số ngày (khi phạm vi cần) thì không chia được, Search Input để `budget_vnd = null` và `unknowns` có `budget_vnd`, không đoán.
 
-`entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Lưu text + `place_id`, hoặc tọa độ khi điểm được chọn từ ô tìm (`origin`, `lodging`: `Base.lat/lng/province/kind`); geocode phần còn lại xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `arrive_at` / `leave_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
+`entry_point` / `exit_point` là nơi Planning neo ngày đầu và ngày cuối. Lưu text + `place_id`, hoặc tọa độ khi điểm được chọn từ ô tìm (`origin`, `lodging`: `Base.lat/lng/province/kind`); geocode phần còn lại xảy ra ở Planning nên `trip` không phụ thuộc `live`. Thiếu → ngày đầu / cuối chỉ bị cắt theo `checkin_at` / `checkout_at` và mang cờ "ước lượng ngày đầu / cuối kém chắc" (`docs/PLANNING.md` §Đầu vào).
 
 Mỗi field không lưu giá trị trần mà lưu kèm nguồn và trạng thái:
 
@@ -144,12 +144,11 @@ Tool của agent (`agent/tools.py`, function calling gốc trên role Agent, `do
 | `record_fact(field, op, value, quote, how)` | Ghi một fact (cả `budget_scope`, `month_part`, `liked_groups`) | `quote` phải có nguyên văn trong tin nhắn; `values.parse` hợp lệ. Bị từ chối (kể cả feature sai hoặc sai định dạng) thì trả lỗi kèm định dạng đúng lại cho agent để sửa trong cùng lượt. Mong muốn không feature nào diễn đạt được thì **agent chủ động** ghi `field = unmapped` |
 | `resolve_relative_date`, `search_places` | Tra cứu chỉ đọc | argument phải là span trong câu user; chỉ đọc catalog |
 | `search_features(query)` | Tra feature ontology khớp một mong muốn ("thú cưng" → `animals`), tối đa 5 | chỉ đọc ontology; bỏ qua từ quá chung chung |
-| `ask_choice(text, options, multi, reason)` | Thẻ multiple choice 2–6 lựa chọn ≤ 40 ký tự. Chỉ tồn tại nơi có thẻ (lượt chat nhờ của quiz, §luồng quiz); ở chat mode specs không chứa tool này nên agent hỏi bằng chữ | Dừng lượt |
-| `ask_text(text, placeholder, kind?)` | Câu hỏi mở: thẻ có câu hỏi làm tiêu đề và ô gõ, không chip. `kind = "date"` khi hỏi ngày khởi hành: thẻ `input = "date"` (lịch chọn ngày + "Chưa chắc"). Như trên: chỉ nơi có thẻ | Dừng lượt; câu user đã `declined` hoặc vừa hỏi bị trả lỗi |
+| Không có tool hỏi | Câu hỏi luôn là chữ trong chat. Thẻ quiz chỉ lấy từ bộ câu hỏi có sẵn (`domain/questions.py`), không do agent tạo | — |
 
-Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một tool dừng thành công, khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Khối suy nghĩ model viết vào nội dung (`<|channel>…<channel|>` của Gemma, trước hoặc sau câu trả lời) bị bỏ ngay khi stream (`loop.Visible`), không bao giờ hiện cho user. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
+Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Khối suy nghĩ model viết vào nội dung (`<|channel>…<channel|>` của Gemma, trước hoặc sau câu trả lời) bị bỏ ngay khi stream (`loop.Visible`), không bao giờ hiện cho user. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
 
-Kết quả của lượt thành thẻ cho web (`api/engine.py`): ở quiz/review, `ask_choice` / `ask_text` (lượt chat nhờ) → thẻ `custom` (qid `ask:<lượt>`; `ask_text` không có chip). Ở chat mode agent không có tool hỏi nên không bao giờ phát thẻ: hỏi bằng chữ thì ở yên trong chữ, lượt chỉ còn ô gõ tự do (`conversation`). Khi có thẻ, các câu hỏi trong lời chat bị bỏ (thẻ đã hỏi); phần agent viết trước câu hỏi trong `text` của thẻ được tách ra thành chữ trong chat (`guard.split_lead`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent.
+Kết quả của lượt thành thẻ cho web (`api/engine.py`): agent không tạo thẻ. Thẻ quiz là câu kế tiếp của bộ có sẵn (`quiz_queue`); chat chỉ có chữ và ô gõ tự do (`conversation`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent.
 
 Thẻ quiz mở **đóng** khi đã được trả lời (bấm chip ghi drafts thẳng vào state, không qua model). `Bỏ qua` / `Chưa chắc` giữ field `unknown` và không hỏi lại ở cả hai mode. Lượt gõ tự do trong quiz mà other-gate không đọc được thì nhờ chat giải quyết (`resolving_other` trong CURRENT CONTEXT) trong khi chip vẫn giữ; giải quyết xong thì quay lại quiz đúng một thẻ tiếp theo.
 
@@ -170,7 +169,7 @@ Lượt chat không có khái niệm "thẻ đang mở" (chat không phát thẻ
 
 **Clef quanh Agent (`Judge` trong `infrastructure/clef.py`).** Clef làm các kiểm tra có/không rẻ ở những chỗ trước đây phải tốn một vòng model hoặc dựa vào regex. Mọi kiểm tra đều fail open: Clef không cấu hình, chậm hoặc lỗi thì không chặn gì, Agent chạy như cũ. Ngưỡng nằm ở `config/trip.yaml` (`clef_*_min`); chỉ chặn khi Clef chắc, vì chặn nhầm tốn hơn bỏ sót. Một request Clef mất khoảng 0,3–0,4 s dù có 1 hay nhiều câu hỏi, nên các kiểm tra được gửi cùng lúc thay vì nối đuôi:
 - **Clef và Agent chạy song song.** Lượt chặn (lạc đề, phá hoại, số liệu) chạy trong một luồng ngay khi Agent bắt đầu. Trong lúc đó lời Agent chưa hiện ra màn hình. Clef cho qua thì lời đã giữ hiện ra; Clef chặn thì Agent bị hủy, mọi thứ nó đã ghi (state, thẻ, lời) bị bỏ và `REJECT_SAY` / `NODATA_SAY` thay vào. Đổi lại, lượt bị chặn vẫn trả tiền cho phần Agent đã chạy.
-- **Kiểm tra theo từng lời Agent (`TurnTools.prefetch`).** Ngay khi một lời Agent đến, mọi kiểm tra của nó được gửi cùng lúc và chạy trong lúc các tool thực thi: mỗi fact soft / hard `inferred` (câu trích có nói điều này không; chắc là không thì từ chối, `clef_verify_min` 0,75, log `clef_unsupported`), mỗi câu hỏi định gửi (State, kèm các fact chính lời đó ghi, đã trả lời câu này chưa; `clef_repeat_min`, log `clef_repeat`; rồi thì Agent nhận lỗi và hỏi điều khác), và đoạn chữ Agent viết (có hứa kết quả hoặc nêu sự thật chưa ai nói không; `clef_reply_min`; có thì thay bằng `UNSURE_SAY`). Kết quả được dùng lại khi tool chạy, không hỏi lần hai.
+- **Kiểm tra theo từng lời Agent (`TurnTools.prefetch`).** Ngay khi một lời Agent đến, mọi kiểm tra của nó được gửi cùng lúc và chạy trong lúc các tool thực thi: mỗi fact soft / hard `inferred` (câu trích có nói điều này không; chắc là không thì từ chối, `clef_verify_min` 0,75, log `clef_unsupported`), và đoạn chữ Agent viết (có hứa kết quả hoặc nêu sự thật chưa ai nói không; `clef_reply_min`; có thì thay bằng `UNSURE_SAY`). Kết quả được dùng lại khi tool chạy, không hỏi lần hai.
 - **`search_features`.** Bộ từ khóa không ra gì thì Clef xếp hạng các feature theo mô tả, có lựa chọn `none` làm lối thoát cho mong muốn không feature nào diễn đạt được; chỉ lấy từ `clef_feature_min` (0,5; “cá heo bay” ra animals 0,46 nên bị loại). Lợi ích là độ phủ, không tiết kiệm lượt Agent. Log `clef_features`.
 
 Số đo thật: ca không liên quan ra B 0,8–0,9, ca đúng ra B ≤ 0,15; ca ngược nghĩa (“không thích đông” so với “muốn đông”) chỉ ra B 0,41 nên kiểm tra câu trích không bắt được lỗi đảo nghĩa.
@@ -194,9 +193,26 @@ Hai điều code giữ cứng, agent không nới được: (1) Next khóa cho t
 
 Từ chủ quan ("chill", "đẹp") agent không đoán feature mà hỏi nghĩa. `prepass` đưa các cách hiểu có thể thành `keyword_hints` để agent xác nhận.
 
+### Hỏi ít, ghi chính xác
+
+```mermaid
+flowchart LR
+    T[Một câu của người dùng] --> P[Prepass + Agent<br/>ghi nhiều trường cùng lúc]
+    P --> S[(Trip State)]
+    S --> Q{Còn trường nào<br/>đổi kết quả?}
+    Q -->|có| A[Hỏi đúng câu đó]
+    Q -->|không| N[Xem gợi ý]
+```
+
+- **Một câu, nhiều trường.** "3 ngày 2 đêm với bồ, đi xe máy" ghi `days`, `nights`, `companions`, `mobility`, mỗi giá trị kèm trích dẫn của chính nó. Trường đã biết thì quiz bỏ qua.
+- **Quỹ thời gian.** "N ngày M đêm" là N ngày lịch: ngày đầu bắt đầu lúc người dùng tới, ngày cuối kết thúc lúc họ về, nên "3 ngày 2 đêm" ít hơn 3 ngày trọn vẹn. `days` và `nights` ghi đúng như người dùng nói (chip "3 ngày 2 đêm" ghi cả hai; "đi về trong ngày" ghi `days = 1`, `nights = 0`; chỉ nói "ở 2 đêm" thì `days = 3` là giá trị suy ra). Giờ tới và giờ phải rời là `checkin_at` / `checkout_at`, mốc thật của ngày đầu và ngày cuối. Số đêm không bao giờ có câu hỏi riêng: thiếu thì lấy `days - 1` (`trip.nights`), và Planning dùng đúng hàm này cho tiền phòng và trần giá. Plan Output có `time_budget` (số phút dùng được mỗi ngày) để người dùng thấy quỹ thời gian thực (`docs/PLANNING.md`).
+- **Người đi cùng mở.** `companions` nhận id của `config/companions.yaml` mà chuyến dùng được: `solo`, `partner`, `friends`, `kids`, `parents`, `baby`, `pet`, `coworkers` (bà bầu và xe lăn là tín hiệu của câu `care`; đoàn đông tính từ `people ≥ coach_min_people`). Chip `baby`, `parents` ghi thêm hard filter `fit.<x> != bad`, `pet` ghi `pets != not_allowed`, chip `pregnant` / `wheelchair` của `care` ghi `fit.pregnant` / `fit.wheelchair != bad`. Agent ghi `companions` bằng từ đồng nghĩa trong từ vựng (vd "con chó" → `pet`) thì được đổi sang id; ai ngoài từ vựng ("hàng xóm") giữ nguyên lời người dùng ở `companions_other`, không gán vào id gần nhất và không tạo bộ lọc, vì corpus không có dữ liệu cho x đó. Đi `car` với `people ≥ coach_min_people` (`config/trip.yaml`, 9) thì lúc biên dịch Search Input thêm `coach_access != no`.
+- **Một câu lưu ý (`care`).** Hỏi một lần ngay sau "đi cùng ai", chọn nhiều được: đau chân/khó đi bộ, xe lăn, mang thai, ăn chay, thuần chay, dị ứng hoặc kiêng món, say xe, sợ độ cao, hoặc không có gì. Mỗi chip mang sẵn tín hiệu, giới hạn tương ứng và dấu "đã xử lý", nên không còn thẻ `c_effort` / `c_other` theo sau (trừ xe lăn và trẻ nhỏ/người lớn tuổi từ câu đi cùng ai). Dị ứng chưa có feature xác minh trong dữ liệu nên chỉ là ghi chú nhắc người dùng, không phải bộ lọc. Dữ liệu sức khỏe chỉ ở phiên.
+- **Hoãn câu mềm.** Độ đông, nhịp độ, ngân sách là sở thích mềm; có thể suy ra từ mục đích, người đi cùng, hoặc từ chọn và bỏ ở bước Chọn nơi (Session Profile) thay vì hỏi trước.
+
 ### Hậu cần
 
-`domain/logistics.py` giữ các hàm thuần cho điểm vào / ra và giờ giấc: `entry_road` (đèo theo hướng `origin`, `config/trip.yaml` `entry_roads`), `nearest_airport` (`config/airports.yaml`), `route` (IATA hoặc tỉnh của chuyến tới), `pick_transit` (một `Transit` đã chọn → `arrive_at` = giờ đến + `arrival_buffer_min`, `leave_at` = giờ đi − đệm, `entry_point` / `exit_point`). Không còn thẻ hậu cần cố định: agent hỏi bằng thẻ thường và ghi qua `record_fact` các trường `entry_point`, `exit_point`, `arrive_at`, `leave_at`, `day_end`, `base`; `origin`, `arrival_mode`, `inbound`, `outbound`, `lodging_booked`, `lodging` chưa có đường ghi từ agent, giữ `unknown` (vé chuyến vẫn sửa / xóa được các dòng này, `{kind: "edit", target, value | null}`).
+`domain/logistics.py` giữ các hàm thuần cho điểm vào / ra và giờ giấc: `entry_road` (đèo theo hướng `origin`, `config/trip.yaml` `entry_roads`), `nearest_airport` (`config/airports.yaml`), `route` (IATA hoặc tỉnh của chuyến tới), `pick_transit` (một `Transit` đã chọn → lưu `inbound` / `outbound` và đặt `entry_point` / `exit_point`; giờ mở ngày đầu và đóng ngày cuối do `compile.day_window` tính khi biên dịch Search Input: không sớm hơn giờ đến + `arrival_buffer_min`, không muộn hơn giờ đi − đệm, và chỉ thu hẹp giờ `checkin_at` / `checkout_at` người dùng muốn, không nới). Không còn thẻ hậu cần cố định: agent hỏi bằng thẻ thường và ghi qua `record_fact` các trường `entry_point`, `exit_point`, `checkin_at`, `checkout_at`, `day_end`, `base`; `origin`, `arrival_mode`, `inbound`, `outbound`, `lodging_booked`, `lodging` chưa có đường ghi từ agent, giữ `unknown` (vé chuyến vẫn sửa / xóa được các dòng này, `{kind: "edit", target, value | null}`).
 
 `Transit` (`state.py`) chỉ đến từ crawl, không bao giờ do model viết: `{mode, carrier, depart_at, arrive_at (giờ VN "YYYY-MM-DDTHH:MM"), from_point, to_point, price_vnd | null, source, fetched_at}`.
 
@@ -257,7 +273,7 @@ Agent diễn giải qua runtime skill; claim `time_preference` đi qua Judge/Cle
 
 ```text
 Search Input
-├── context        start_date | month, month_part, days, base, entry_point, exit_point, mobility, companions,
+├── context        start_date | month, month_part, days, base, entry_point, exit_point, mobility, companions, companions_other,
 │                  people, checkin_at, checkout_at, day_end, budget_vnd (VND mỗi người mỗi ngày, §Ngân sách), experience,
 │                  origin, arrival_mode, inbound, outbound, lodging_booked, lodging, purpose
 ├── hard_filters   physical + user hard constraint            → loại ứng viên (fail-closed)
@@ -440,7 +456,7 @@ Cá nhân hóa cho lần hỏi sau: gu người dùng lặp lại qua nhiều ch
 
 **Điều kiện chạy.** Cần `patterns.enabled`, `user_id` trên phiên (chuỗi mờ 8–64 ký tự `A-Za-z0-9_-`; qua User Web là id tài khoản, harness lấy từ phiên đăng nhập, `docs/ACCOUNTS.md`) và `remember = true` để **ghi**. Có `user_id` mà không `remember` thì chỉ đọc mẫu đã có. Xóa: `DELETE /api/harness/profile/<user_id>` (User Web), `DELETE /api/trip/profile/<user_id>` (API độc lập) hoặc `Engine.forget`.
 
-**Phiếu bầu.** Lúc người dùng bấm xem gợi ý, `votes_from_state` lấy các lựa chọn **tường minh** của phiên: `purpose`, `pace`, `crowd_tolerance`, `novelty`; `soft` do user nói hay chọn (`love` | `avoid`); nơi đã khớp thành anchor. Phiên ghi một `Summary` (id phiên, ngày, phiếu), ghi lại cùng phiên thì thay chứ không cộng. Không bao giờ thành phiếu:
+**Phiếu bầu.** Lúc người dùng bấm xem gợi ý, `votes_from_state` lấy các lựa chọn **tường minh** của phiên: `purpose`, `pace`, `crowd_tolerance`, `novelty`, cách đến và đi lại (`mobility`, `arrival_mode`, `origin`), `budget_vnd`, giờ muốn dùng (`checkin_at`, `checkout_at`; danh sách ở `VOTE_SCALARS` trong `patterns.py`); `soft` do user nói hay chọn (`love` | `avoid`); nơi đã khớp thành anchor. Phiên ghi một `Summary` (id phiên, ngày, phiếu), ghi lại cùng phiên thì thay chứ không cộng. Không bao giờ thành phiếu:
 
 | Không bầu | Vì |
 |---|---|
@@ -448,7 +464,7 @@ Cá nhân hóa cho lần hỏi sau: gu người dùng lặp lại qua nhiều ch
 | `visited` | đã đến ≠ đã thích |
 | Soft do suy luận / từ khóa đoán | chỉ lựa chọn tường minh |
 | Giá trị chỉ được xác nhận từ mẫu đã lưu (`chip:prior`) | tránh vòng lặp tự củng cố; không có filter bubble |
-| `signal` sức khỏe / cơ thể, hard filter, ngày, ngân sách, người đi cùng | chỉ ở phiên, không lưu dài hạn |
+| `signal` sức khỏe / cơ thể, hard filter, ngày, số ngày, người đi cùng | chỉ ở phiên, không lưu dài hạn |
 
 **Mẫu.** `detect` đọc `window` phiếu gần nhất của từng key. Thành mẫu khi cùng một lựa chọn xuất hiện ở ít nhất `min_sessions` phiên khác nhau, chiếm ít nhất `agreement` cửa sổ, và phiếu gần nhất vẫn là lựa chọn đó (đổi gu thì mẫu mất ngay). Phiếu cuối cũ hơn `stale_days` thì bỏ. Độ tin `medium`; `high` khi số phiên ≥ 2 × `min_sessions`.
 

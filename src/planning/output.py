@@ -5,8 +5,11 @@ the chosen lodging's price). Everything else here is reshaping what build.py / v
 """
 
 import live
+from trip import nights
 
-from .build import flag_warnings, shared_output
+from .build import chunk_view, flag_warnings, shared_output
+from .details import plan_notes
+from .settings import fmt
 
 
 def route_of_day(day, result, coords: dict, live_cfg, mobility, route_fn=None) -> dict | None:
@@ -34,27 +37,42 @@ def cost(metrics: dict, lodging_price_vnd: int | None, nights: int) -> dict:
            "lodging_known": lodging_known}
 
 
+def time_budget(days: list, slept: int) -> dict:
+    """The usable time of the trip: "3 ngày 2 đêm" is three days of which the first opens at arrival and the last
+    closes at departure, so the sum is less than 3 full days. Minutes are the day windows the schedule worked in."""
+    per_day = [{"day": d.index + 1, "from": fmt(d.start), "to": fmt(d.end), "minutes": max(d.end - d.start, 0)}
+               for d in days]
+    return {"days": len(per_day), "nights": slept, "per_day": per_day,
+            "total_minutes": sum(p["minutes"] for p in per_day)}
+
+
 def build(trip, variants: list[dict], chosen: dict, chosen_results: list, decision: dict, coords: dict, live_cfg,
          route_fn=None) -> dict:
     """chosen: one of variants.build_lodging_variants' per-variant dicts (itinerary already rendered to text).
     chosen_results: the DayResult objects behind it (Schedule.results for the day order route_of_day needs)."""
     mobility = decision["trip_context"]["context"].get("mobility")
     days = [cx.day for cx in trip.ctxs][: len(chosen_results)] or trip.days[: len(chosen_results)]
-    nights = max((decision["trip_context"]["context"].get("days") or 1) - 1, 0)
+    slept = nights(decision["trip_context"]["context"])
     lodging = chosen.get("lodging") or {}
     shared = shared_output(trip)
+    # a variant already carries its notes (variants.py); a chosen dict without them is read here
+    notes = ({"warnings": [], "checklist": chosen["checklist"]} if "checklist" in chosen else
+             plan_notes(list(trip.ctxs)[: len(chosen_results)], chosen_results, decision, trip.weather, trip.by_place))
     return {
         "variants": [{"id": v["id"], "objective": v["objective"], "label": v["label"], "score": v["score"]}
                      for v in variants],
         "chosen": chosen["id"],
         "itinerary": chosen["itinerary"],
+        **(chunk_view(chosen["itinerary"], trip.cfg.chunk_days) if len(days) > trip.cfg.chunk_days else {}),
         "route": [route_of_day(d, r, coords, live_cfg, mobility, route_fn) for d, r in zip(days, chosen_results)],
+        "time_budget": time_budget(trip.days, slept),
         "lodging": {"chosen": lodging, "candidates": []},
-        "cost": cost(chosen["metrics"], lodging.get("price_vnd"), nights),
+        "cost": cost(chosen["metrics"], lodging.get("price_vnd"), slept),
         "travel_load": chosen["travel_load"],
         "reasons": shared["reasons"],
         "tradeoffs": shared["tradeoffs"],
-        "warnings": trip.warnings + chosen["warnings"] + flag_warnings(decision),
+        "warnings": trip.warnings + chosen["warnings"] + flag_warnings(decision) + notes["warnings"],
+        "checklist": notes["checklist"],
         "uncertainty": shared["uncertainty"],
         "robustness": chosen["robustness"],
         "backups": chosen["backups"],

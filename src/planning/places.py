@@ -8,6 +8,7 @@ from corpus.serving import feature
 from live import Unavailable
 from requirements import activity_for
 
+from .details import total_cost
 from .model import Place, Point, Unplaced
 from .settings import Settings, to_min
 
@@ -66,8 +67,12 @@ def kind_of(rec: dict) -> str | None:
     return "experience" if "experience" in usable else "meal" if "meal" in usable else None
 
 
-def cost_of(op: dict) -> int | None:
-    """Per-person cost estimate in VND, from the entry fee when there is one, else the middle of the price range."""
+def cost_of(op: dict, details: dict | None = None, people: int = 1) -> int | None:
+    """Per-person cost estimate in VND: the serving details' total (entry + parking, plus a vehicle's or group's price
+    shared by `people`) when there is one, else the entry fee, else the middle of the price range."""
+    total = total_cost(details, people)
+    if total is not None:
+        return total
     fee = op.get("entry_fee")
     if fee and fee.get("typical_vnd") is not None:
         return int(fee["typical_vnd"])
@@ -79,6 +84,7 @@ def cost_of(op: dict) -> int | None:
 
 def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place], list[Unplaced]]:
     places, unplaced = [], []
+    people = decision.get("trip_context", {}).get("context", {}).get("people") or 1
     for c in decision["confirmed"]:
         pid = c["id"]
         name = c.get("name") or pid
@@ -107,7 +113,7 @@ def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place
                 dup_group=rec.get("near_duplicate_group"),
                 hours=parse_hours(hours["value"]) if hours else None,
                 hours_status=hours["status"] if hours else None,
-                visit=op["visit_minutes"], cost_vnd=cost_of(op),
+                visit=op["visit_minutes"], cost_vnd=cost_of(op, rec.get("details"), people),
                 pins=tuple(f for f in cfg.pins if (feature(rec, f) or {}).get("value") == "present"),
                 flags=tuple(c.get("flags") or ()), relaxed=tuple(c.get("relaxed") or ()), rec=rec, activity=activity,
                 activity_explicit=pid in (decision.get("trip_context", {}).get("activities") or {})))

@@ -35,12 +35,6 @@ def fact(field, value, quote, op="set", how="said"):
     return call("record_fact", field=field, op=op, value=value, quote=quote, how=how)
 
 
-def ask(text, *options, multi=False):
-    if options:
-        return call("ask_choice", text=text, options=list(options), multi=multi, reason="vì sao")
-    return call("ask_text", text=text)
-
-
 class ScriptedChat:
     """A Chat that plays the given replies in order (one per model call); out of replies it raises AgentError."""
 

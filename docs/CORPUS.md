@@ -136,6 +136,7 @@ Place
 ├── Environment   trong nhà / ngoài trời, độ đông theo bối cảnh, yên tĩnh / sôi động, nhạy thời tiết
 ├── Effort        đi bộ, dốc, khó tiếp cận   (thuộc tính của địa điểm, không phải của chuyến đi)
 ├── Suitability   cặp đôi, gia đình, bạn bè, đi một mình, người lớn tuổi
+├── Details       chữ tự do có nguồn: nổi tiếng vì gì, tổng tiền, giờ / mùa đẹp, hợp với ai (§Chi tiết địa điểm)
 └── Provenance    tham chiếu bằng chứng, thành phần confidence, độ mới, xung đột, coverage, trạng thái
 ```
 
@@ -392,6 +393,34 @@ Giá trị cho phép chưa được kiểm hết thì không phục vụ (`needs
 Ledger `PipelineArtifact`: `source_id, stage, input_hash, processor, processor_version, prompt_hash, ontology_version, status, usage (tokens, cost, latency)`. Một bước chỉ chạy lại khi input hoặc processor của nó đổi; đổi ontology thì chạy lại từ observation trở xuống, không chạy lại ASR.
 
 Job định kỳ: làm mới provider store; làm mới Google ID (12 tháng); tải lại nguồn quá hạn; query xu hướng; quét inventory tìm chỗ mới mở. Observation mới được thêm, cũ được giữ; entity bị ảnh hưởng được tổng hợp lại, định tuyến lại, và publish lại.
+
+## Chi tiết địa điểm
+
+Corpus trả lời 13 câu người đi Đà Lạt cần biết trước khi chọn và xếp lịch: nổi tiếng vì gì, gọi món / làm gì, mất bao lâu, tổng tiền thật, giờ và mùa đẹp, đường đi, trời xấu, hợp với ai (một mình hoặc bất kỳ x nào), chuẩn bị gì, chặt chém ở khâu nào, nơi tương tự, chi tiết chỗ ở, cảm giác khi ở đó. Thiếu bằng chứng là `unknown` / `null`, không bù bằng đoán; mục thiếu thì tăng nguồn (từ khóa Maps, trang official, TikTok), không bỏ mục.
+
+```mermaid
+flowchart LR
+  R[review / video / trang official] -->|Extractor, cùng call| F[feature enum]
+  R -->|Extractor, cùng call| D[observation detail]
+  F --> A[aggregate]
+  D --> A
+  A -->|cụm theo kind| S[serving: details]
+  S --> PD[Place Decision]
+  S --> PL[Planning]
+  S --> W[Web PlaceSheet]
+```
+
+**Ontology (version 12).** 14 feature enum mới (`car_access`, `coach_access`, `night_road_risk`, `rest_benches`, `stroller_access`, `fog_blocks_view`, `cold`, `toilet_available`, `heater`, `hot_water`, `kids_play_area`, `pets`, `scam_stage`, `breakfast`) đi đúng đường feature cũ (`features` → khía cạnh, `check()` fail-closed). Khối `details:` trong `config/ontology.yaml` khai 15 kind chữ tự do (`known_for`, `order`, `avoid`, `activity`, `photo_spot`, `fee`, `best_time`, `avoid_time`, `schedule`, `last_entry`, `access`, `booking`, `bring`, `situation`, `fit`), mỗi kind có `hint` (cho prompt), `claim` (câu Judge đọc), `audit` (`full` | `sampled`), `targeted` (mẫu `extremes` / `keywords` được tính), `owner` (nguồn của chính doanh nghiệp được tính), `needs` (trường bắt buộc). `config/companions.yaml` là từ vựng người đi cùng (`solo`, `partner`, `friends`, `kids`, `baby`, `parents`, `pregnant`, `wheelchair`, `pet`, `coworkers`, `large_group`), mỗi id có từ đồng nghĩa và feature suitability tương ứng; `sensitive` liệt kê x mà `fit = bad` là giá trị cảnh báo. `config/seasons.yaml` chỉ do người điền (cụm mùa → tháng, kèm url nguồn).
+
+**Observation `detail`.** Cùng format `observation()`, ghi trong mảng `details` riêng của file observation (aggregate đọc `observations` cũ không đổi): `feature = "detail.<kind>"`, `value` là chuỗi con của quote, `detail = {amount_vnd, audience, unit, min_people, months, days, hour, who, verdict}`, id `<nguồn>:<id>:d<n>`. Maps và TikTok trích trong cùng call với feature (TikTok chỉ từ lời nói và caption, không từ frame). Trang official ghi `fee` (tên khoản, số tiền, đơn vị), vé `senior` (`place_facts.tickets_vnd.senior`) và `last_entry` (`place_facts.last_entry`, chỉ khi các trang không mâu thuẫn).
+
+**Gate** (`observe/details_gate.py`), theo thứ tự: kind thuộc ontology → quote là chuỗi con của nguồn → `text` là chuỗi con của quote → trường `needs` có đủ → số tiền, số người, tháng ("tháng N"), thứ, giờ phải có trong quote. Lý do bỏ đếm thành `detail_<lý do>` trong `stats.dropped`. `who` đi qua `companions.yaml`: id hoặc từ đồng nghĩa thành id, còn lại giữ chữ gốc.
+
+**Judge.** Nhãn của detail tính theo `(detail.<kind>, "*")`, không theo từng chữ. Kind `audit: full` được đọc hết, kind `sampled` được lấy mẫu theo tầng như feature; câu claim của kind điền `{text}` (và `{who}`, `{verdict}` cho `fit`).
+
+**Aggregate** (`aggregate/details.py`). Theo (nơi, kind): bỏ observation Judge gọi `wrong` / `unsure_again`, mẫu có chủ đích với kind không `targeted`, nguồn của chính doanh nghiệp với kind không `owner`. Hai cách nói một việc gộp thành một cụm khi token (bỏ số tiền và từ đệm) trùng ≥ `cluster_jaccard` hoặc tập này chứa tập kia, so với leader, tất định; `fit` gộp theo `who` trước. Mỗi cụm có `n` (số tác giả, một tác giả một phiếu), `authority` (có trang official), `amount_vnd` (trung vị, mỗi tác giả một số), tháng / thứ / buổi đếm theo tác giả, `evidence` ≤ 5 id. `operation` mang thêm `tickets_vnd` và `last_entry` từ official.
+
+**Serving** (`serving/details.py`, khối `details` của bản ghi). Một cụm được phục vụ khi có ≥ `min_authors` tác giả (hoặc một nguồn official); `VERIFIED` khi độ chính xác của kind qua cổng nhãn, `UNCERTAIN` (`unmeasured_precision`) khi chưa đo, không phục vụ khi kind đã có ≥ 30 nhãn mà không qua cổng. Khối: `known_for` (cụm hiếm trong nhóm category: `n × log(số nơi nhóm / (1 + số nơi khác có cụm trùng))`, cụm mọi nơi đều có điểm 0), các danh sách `order`, `avoid`, `activity`, `photo_spot`, `access`, `booking`, `bring`, `situation`, `cost` (vé theo đối tượng, gửi xe, khoản thêm, giá theo xe / nhóm, `total_vnd` {base, with_extras} cho một người, `fact` chỉ khi mọi phần từ official), `timing` (giờ đẹp / nên tránh, tháng chỉ khi ≥ 2 tác giả hoặc khớp `seasons.yaml`, lịch cố định, `last_entry` official thắng review), `fit` theo `who`, `relations` (vắng hơn / đông hơn khi số người viết và tỷ lệ `crowd = high` cùng chiều), `walk_to_night_market_min` (≤ `walk_max_min`, ước tính). `feature(record, "fit.<who>")` trả `details.fit[who]` nên `check(record, "fit.baby", "bad")` chạy như feature thường. Ngưỡng nằm ở `config/serving.yaml` khối `details`.
 
 ## Vòng lặp tự động
 

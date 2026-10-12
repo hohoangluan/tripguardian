@@ -15,6 +15,7 @@ def build(s, res, cfg) -> dict:
         if c is None:
             continue
         confirmed.append({"id": pid, "name": c.name,
+                          "utility": c.score, "utility_source": "decision_score",
                           "role": "anchor" if pid in anchors else "locked" if pid in st.locked else "selected",
                           "visit": c.rec["operation"].get("visit_minutes"),
                           "flags": [f["text"] for f in c.flags] + [warning_text(w, cfg) for w in c.warnings],
@@ -34,5 +35,6 @@ def build(s, res, cfg) -> dict:
             backup.append({"id": x["id"], "name": x["name"], "for": None,
                            "reason": f"context:{codes[0]}" if codes else "next_best"})
     return {"confirmed": confirmed, "backup_pool": backup, "wishlist": res.view["wishlist"],
+            "chunk_assignments": dict(st.chunk_assignments),
             "trip_context": si.model_dump(mode="json"), "decision_log": list(s.log),
             "feasibility": res.view["feasibility"]}

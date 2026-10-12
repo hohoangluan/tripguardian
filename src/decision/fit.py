@@ -1,10 +1,25 @@
 """④ Context fit (docs/PLACE_DECISION.md §7): rough, cheap, before the shortlist; no route service."""
 
+from functools import cache
+
+from corpus import load_ontology
+from corpus.serving import feature
+
 from .geo import km, minutes, point
-from .model import Cand, value
+from .model import FIRM, Cand, value
 from .trip_days import month_of
 
 DAYTIME = ("morning", "noon", "afternoon", "evening")
+# what each companion needs from a place beyond the fit verdict: feature, value that helps
+NEEDS = {"kids": (("kids_play_area", "present"), ("stroller_access", "yes")),
+         "baby": (("kids_play_area", "present"), ("stroller_access", "yes")),
+         "parents": (("rest_benches", "present"), ("toilet_available", "yes"))}
+FIT_PREFIX = "fit."
+
+
+@cache
+def companions():
+    return load_ontology().companions
 
 
 def centers(si, by_id: dict, cfg) -> list[tuple[str, tuple[float, float]]]:
@@ -61,6 +76,43 @@ def fit(c: Cand, si, days, ctrs, anchor_areas: set[str], profile, cfg) -> None:
                       "sid": "weather_exposed" if exposed else "setting"})
     if value(c.rec, "rough_road_access") == "present":
         flags.append({"code": "rough_road", "sid": "rough_road_access",
-                      "text": "Đường vào xấu, xe công nghệ khó vào" if mob == "ride" else "Đường vào xấu, đi xe cẩn thận"})
+                      "text": "Đường vào xấu, đi xe cẩn thận"})
+    details = details_fit(c.rec, trip_companions(si, cfg), cfg, flags)
     c.flags = flags
-    c.fit = round(max(0.0, min(1.0, dist + area + crowd)), 4)
+    c.fit = round(max(0.0, min(1.0, dist + area + crowd + details)), 4)
+
+
+def trip_companions(si, cfg) -> list[str]:
+    """Who the trip is for: its companions, whoever a `fit.<who>` hard filter protects (pregnant, wheelchair), and a
+    party big enough to need a coach."""
+    who = list(si.context.companions)
+    who += [h.feature[len(FIT_PREFIX):] for h in si.hard_filters if h.feature.startswith(FIT_PREFIX)]
+    if (si.context.people or 0) >= cfg.coach_min_people:
+        who.append("large_group")
+    return list(dict.fromkeys(who))
+
+
+def details_fit(rec: dict, who: list[str], cfg, flags: list) -> float:
+    """Score change from the place's details for each companion of the trip (docs/PLACE_DECISION.md): a verified
+    verdict (good / bad), the features that companion needs. A bad verdict also flags why. Unverified verdicts and
+    missing data change nothing."""
+    cf, total = cfg.details_fit, 0.0
+    for x in who:
+        v = (rec.get("details") or {}).get("fit", {}).get(x)
+        label = companions()[x].vi.casefold() if x in companions() else x
+        if v and v["status"] in FIRM:
+            if v["value"] == "good":
+                total += cf["good_bonus"]
+            elif v["value"] == "bad":
+                total -= cf["bad_penalty"]
+                why = "; ".join(v["reasons"][:2])
+                flags.append({"code": "fit_bad", "sid": None,
+                              "text": f"Không hợp với {label}" + (f": {why}" if why else "")})
+            elif v["value"] == "conditional" and v["reasons"]:
+                flags.append({"code": "fit_conditional", "sid": None,
+                              "text": f"Với {label} có điều kiện: {'; '.join(v['reasons'][:2])}"})
+        for fid, want in NEEDS.get(x, ()):
+            f = feature(rec, fid)
+            if f and f["status"] in FIRM and f["value"] == want:
+                total += cf["feature_bonus"]
+    return total

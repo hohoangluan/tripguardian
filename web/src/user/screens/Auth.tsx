@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { acceptTerms, signInHref, signOut, useAccount } from '../account'
+import { acceptTerms, AccountError, signInHref, signOut, startGuest, useAccount } from '../account'
 import { navigate } from '../../router'
+import { go } from '../ui/common'
 import { Icon, Logo } from '../ui/icons'
 import { useTitle } from '../ui/Shell'
 
@@ -10,12 +11,15 @@ const ERRORS: Record<string, string> = {
   failed: 'Google chưa xác nhận được tài khoản. Thử lại sau ít phút nhé.',
 }
 
-// /app needs an account (docs/Role_Web_Functional_Design.md §1): Google sign-in, then a one-time consent to the terms
-// and the data policy. `next` is where Google sends the browser back.
+// /app needs a session (docs/Role_Web_Functional_Design.md §1): Google sign-in with a one-time consent to the terms and
+// the data policy, or a guest session that keeps nothing. `next` is where Google sends the browser back.
 export function Auth({ next }: { next: string }) {
   const account = useAccount()
   useTitle(account?.needs_consent ? 'Điều khoản' : 'Đăng nhập')
   const error = new URLSearchParams(location.search).get('error')
+  const [guestErr, setGuestErr] = useState<'many' | 'failed' | null>(null)
+  const asGuest = () => startGuest().then(() => go(next.slice('/app'.length) || '/', { replace: true }),
+    (e) => setGuestErr(e instanceof AccountError && e.status === 429 ? 'many' : 'failed'))
   return (
     <div className="tg-auth">
       <aside className="tg-auth__art" aria-hidden="true"><div className="tg-auth__img" /><a className="tg-auth__logo" href="/" onClick={(e) => { e.preventDefault(); navigate('/') }}><Logo size={34} dark /><span>TripGuardian</span></a><p>Đà Lạt có cả nghìn chỗ đẹp.<br /><em>Chuyến này của bạn cần mấy chỗ?</em></p></aside>
@@ -23,10 +27,14 @@ export function Auth({ next }: { next: string }) {
         <div className="tg-auth__card tg-stage" key={account ? 'consent' : 'pick'}>
           {account?.needs_consent ? <Consent version={account.terms_version} /> : (
             <>
-              <h1>Bắt đầu chuyến Đà Lạt</h1><p className="tg-muted">Nói một câu, TripGuardian dựng cả chuyến. Mỗi gợi ý có lý do và có cái giá.</p>
+              <h1>{account?.guest ? 'Đăng nhập để lưu chuyến' : 'Bắt đầu chuyến Đà Lạt'}</h1><p className="tg-muted">{account?.guest ? 'Các chuyến bạn đã lập khi dùng với tư cách khách sẽ chuyển sang tài khoản.' : 'Nói một câu, TripGuardian dựng cả chuyến. Mỗi gợi ý có lý do và có cái giá.'}</p>
               {error && ERRORS[error] && <p className="tg-auth__err" role="alert">{ERRORS[error]}</p>}
               <a className="tg-btn tg-btn--primary tg-auth__try" href={signInHref(next)}>Tiếp tục với Google <Icon name="arrow" size={18} /></a>
-              <p className="tg-faint tg-auth__fine"><Icon name="shield" size={14} /> Chuyến đi, hồ sơ và lịch sử của bạn được lưu theo tài khoản, mở được trên mọi máy. Bạn xóa tài khoản lúc nào cũng được.</p>
+              {account?.guest
+                ? <button type="button" className="tg-link tg-link--quiet" onClick={() => go('/')}>Tiếp tục với tư cách khách</button>
+                : <button type="button" className="tg-btn tg-btn--ghost tg-auth__try" onClick={() => void asGuest()}>Dùng thử, không cần tài khoản</button>}
+              {guestErr && <p className="tg-auth__err" role="alert">{guestErr === 'many' ? 'Địa chỉ này đã mở quá nhiều phiên khách trong một giờ. Bạn đăng nhập bằng Google nhé.' : 'Chưa mở được phiên khách. Bạn thử lại, hoặc đăng nhập bằng Google nhé.'}</p>}
+              <p className="tg-faint tg-auth__fine"><Icon name="shield" size={14} /> Có tài khoản: chuyến đi, hồ sơ và lịch sử được lưu, mở được trên mọi máy, xóa tài khoản lúc nào cũng được. Khách: không lưu lịch sử, chuyến bị xóa sau 24 giờ không hoạt động.</p>
             </>
           )}
         </div>

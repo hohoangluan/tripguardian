@@ -6,7 +6,7 @@ nearby_count: 5
 suggest_count: 4          # "Chơi gì ở đây": features shown
 tight_threshold_min: 30   # arriving this late or more, with stops left today, shows "Phần còn lại hơi chật"
 road_factor: 1.4          # same rough travel as config/planning.yaml; every nearby time is labelled an estimate
-rough_speed_kmh: {motorbike: 25, car: 25, ride: 22}
+rough_speed_kmh: {motorbike: 25, car: 25, walk: 22}
 day_end: "21:00"          # when a day has no window, nearby picks must be done by then
 practical: [entry_fee, wait_time, booking_needed, parking, toilet, cash_only]
 timely_sun: [sunset_view, cloud_hunting]

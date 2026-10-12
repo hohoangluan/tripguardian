@@ -1,5 +1,6 @@
 from datetime import date
 
+from trip.domain.compile import day_window
 from trip.domain.logistics import entry_road, nearest_airport, pick_transit
 from trip.domain.state import Base, Transit, TripState
 from trip.infrastructure.settings import load
@@ -28,5 +29,5 @@ def test_an_origin_without_a_point_has_no_road_and_no_airport():
 def test_a_chosen_flight_sets_the_day_window_and_the_city_entry_and_exit():
     st = pick_transit(TripState(), "inbound", FLIGHT_IN, REAL, 1)
     st = pick_transit(st, "outbound", FLIGHT_OUT, REAL, 2)
-    assert st.arrive_at.value == "08:45" and st.leave_at.value == "17:55"
+    assert day_window(st) == ("08:45", "17:55")  # arrival 08:00 + 45 min, departure 18:40 - 45 min
     assert st.entry_point.value.text == "Sân bay Liên Khương" and st.exit_point.value.text == "Sân bay Liên Khương"

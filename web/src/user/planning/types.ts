@@ -79,13 +79,36 @@ export interface Backups {
   on_delay: { day: number; place_id: string; name: string }[]
 }
 
+// src/planning/details.py plan_notes(): what to prepare for a stop (bring, book, watch for, season, fog).
+export interface ChecklistItem {
+  day: number
+  place_id: string
+  name: string
+  kind: 'bring' | 'booking' | 'scam' | 'cold' | 'fog' | 'schedule' | 'season'
+  text: string
+}
+
 export interface Variant {
   id: string
   objective: string
+  preset?: 'low_cost' | 'diverse' | 'least_travel' | null
   label: string
-  score: [number, number]
+  definition?: string
+  why?: string
+  tradeoff?: string
+  status?: 'available' | 'unavailable'
+  confirmable?: boolean
+  unavailable_reason?: string | null
+  same_as?: string[]
+  kept?: string[]
+  delta_vs_selection?: { places: number; travel_min: number | null; cost_vnd: number | null }
+  dropped_by_plan?: { place_id: string; name: string; reason: string; text: string; saved_min: number | null;
+    saved_vnd: number | null; regret: number | null; source: 'data' | 'plan' }[]
+  score: number[]
   metrics: { travel_min: number; cost_vnd: number; cost_unknown: number; rain_exposed: number;
-    exposure_unknown: number; repeats: number; pref_risk: number }
+    exposure_unknown: number; repeats: number; pref_risk: number; places?: number; visit_min?: number;
+    visit_density?: number; wish_coverage?: number | null; value_share?: number; estimated_cost_vnd?: number;
+    cost_basis?: string; extras_max_vnd?: number; utility?: number; duration_loss_min?: number; transport_cost_vnd?: number | null }
   itinerary: ItineraryDay[]
   travel_load: TravelLoadDay[]
   time_suitability?: TimeSuitabilityDay[]
@@ -93,6 +116,7 @@ export interface Variant {
   robustness: Robustness
   backups: Backups
   warnings: Warning[]
+  checklist?: ChecklistItem[]
   lodging: VariantLodging
 }
 
@@ -117,6 +141,8 @@ export interface Lodging {
 
 export interface SessionState {
   chosen_variant: string | null
+  plan_dropped?: string[]
+  restored?: string[]
   lodging_touched: boolean
   lodging_id: string | null
   lodging_point: Record<string, unknown> | null
@@ -154,8 +180,14 @@ export interface CrowdTip {
 }
 
 export interface View {
+  chunk_assignments?: Record<string, number>
+  chunks?: { id: number; start_day: number; end_day: number; places: string[] }[]
   ok: boolean
   variants: Variant[]
+  active_variant?: Variant | null
+  overload?: { level: 'tight' | 'overloaded'; estimated: boolean; needed: number; available: number;
+    binding: string[]; selection_places: number; keep_all_valid: boolean; text: string } | null
+  keep_all?: Variant & { violations: { kind: string; day: number | null; place_id: string | null; detail: string }[] } | null
   comparison: Record<string, unknown>[]
   warnings: Warning[]
   back_to_decision: { reason: string; places: string[] } | null
@@ -181,7 +213,7 @@ export interface Suggestions {
   items: TimeRecommendation[]
 }
 
-export type Action =
+export type Action = (
   | { type: 'pick_variant'; id: string }
   | { type: 'pick_lodging'; id: string }
   | { type: 'clear_lodging' }
@@ -198,10 +230,24 @@ export type Action =
   | { type: 'set_objective'; name: string }
   | { type: 'set_day_window'; day: number; start: string; end: string }
   | { type: 'relax'; feature: string; place_id?: string; place_ids?: string[]; scope?: 'whole_trip' }
+  | { type: 'reoptimize' }
+  | { type: 'make_room'; edit: { type: 'move_place'; place: string; day: number } | { type: 'add_from_backup'; place: string; day: number } | { type: 'swap'; place: string; with: string }; drop_places: string[] }
   | { type: 'undo' }
   | { type: 'redo' }
+) & { _preview_token?: string }
+
+export interface ActPreview {
+  token: string
+  action: Action
+  view: View
+  delta: Record<string, number | null>
+  violations: { kind: string; day: number | null; place_id: string | null; detail: string }[]
+  confirmable: boolean
+  make_room: Action[]
+}
 
 export interface Diff {
+  affected_chunks?: number[]
   scope: 'none' | 'relayout' | 'variant' | 'lodging_home' | 'lodging_fetch'
 }
 

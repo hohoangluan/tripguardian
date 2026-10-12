@@ -100,6 +100,10 @@ class Tools:
         before = self.load(sid)["view"]
         with self.engine.store.lock(sid):
             s = self.engine.store.get(sid)
+            if s.search_input.context != inp.search_input.context:
+                s.state = s.state.model_copy(update={"chunk_assignments": {}, "free_time": False})
+                s.history = [state.model_copy(update={"chunk_assignments": {}, "free_time": False})
+                             for state in s.history]
             s.search_input, s.trip_session, s.output = inp.search_input, inp.trip_session, None
             for anchor in inp.search_input.anchors:
                 if anchor.place_id not in s.state.selected:

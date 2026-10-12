@@ -199,7 +199,7 @@ def test_session_is_remembered_only_with_consent_and_once(make, store):
         run(e, sid, kind="show")
         run(e, sid, kind="show")
         assert len(store.history(UID)) == expect
-    assert store.history(UID)[0].votes == {"pace": "packed"}
+    assert store.history(UID)[0].votes == {"pace": "packed", "mobility": "car"}  # days, companions and month are session-only
 
 
 def test_forget_deletes_the_history(make, store):

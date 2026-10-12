@@ -280,3 +280,33 @@ def test_tiktok_observations_are_labelled_with_their_words_or_frame(labelled):
     row = next(r for r in labels.stats()["rows"] if r["feature"] == "steep_or_stairs")
     assert row["by_source"] == {"tiktok": {"correct": 1, "wrong": 0}}
     assert labels.frame_path("V1", 2).read_bytes() == b"jpg" and labels.frame_path("../V1", 3) is None
+
+
+def _detail(i, text, kind="order"):
+    return {**_obs(i, f"detail.{kind}", text), "id": f"gmaps:R{i}:d0",
+            "detail": {"amount_vnd": None, "audience": None, "unit": None, "min_people": None, "months": [], "days": [],
+                       "hour": None, "who": None, "verdict": None}}
+
+
+def test_detail_labels_are_counted_per_kind_not_per_text(labelled):
+    dets = [_detail(i, t) for i, t in ((11, "bánh căn"), (12, "mì quảng"), (13, "bún bò"))]
+    f = labelled / "gmaps" / "observations" / "0x1_0x2.json"
+    doc = json.loads(f.read_text(encoding="utf-8"))
+    _w(f, {**doc, "details": dets + [{**_detail(14, "xe điện", "wifi")}, {**_detail(15, "gửi xe", "fee"),
+                                                                           "source_type": "official_page"}]})
+    for o, verdict in zip(dets, ("correct", "correct", "wrong")):
+        labels.judge_label(o, "0x1_0x2", "gmaps", verdict, "", "judge:cx/gpt-5.6-sol")
+    rows = [r for r in labels.stats()["rows"] if r["feature"].startswith("detail.")]
+    assert [(r["feature"], r["value"], r["observations"], r["correct"], r["wrong"]) for r in rows] == \
+        [("detail.order", "*", 3, 2, 1)]  # an unknown kind and an official page are not labelled
+    left = labels.sample(10, feature="detail.order")
+    assert left == [] and labels.latest()[labels.key("R11", "detail.order", "bánh căn", "quote 11")]["label"] == "correct"
+
+
+def test_sample_and_card_of_a_detail(labelled):
+    f = labelled / "gmaps" / "observations" / "0x1_0x2.json"
+    doc = json.loads(f.read_text(encoding="utf-8"))
+    _w(f, {**doc, "details": [_detail(11, "bánh căn"), _detail(12, "mì quảng")]})
+    got = labels.sample(10, feature="detail.order", seed=1)
+    assert {i["value"] for i in got} == {"bánh căn", "mì quảng"} and got[0]["definition"]["hint"]
+    assert labels.label("gmaps:R11:d0", "correct")["feature"] == "detail.order"

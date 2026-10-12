@@ -5,6 +5,7 @@ broken by total travel. No objective changes what validate checks.
 """
 
 from .days import exposed_risk, pref_risk, repeats
+from .details import extras_vnd
 from .settings import Settings
 from .traits import exposure
 
@@ -30,7 +31,7 @@ def choose(trip_context: dict, rains: list, prefs: dict, cfg: Settings) -> list[
 def metrics(ctxs: list, results: list) -> dict:
     """What every objective is scored on, measured on the finished days."""
     m = {"travel_min": 0, "cost_vnd": 0, "cost_unknown": 0, "rain_exposed": 0.0, "exposure_unknown": 0,
-         "repeats": 0, "pref_risk": 0.0, "time_penalty": 0.0}
+         "repeats": 0, "pref_risk": 0.0, "time_penalty": 0.0, "extras_max_vnd": 0}
     for cx, r in zip(ctxs, results):
         ids = list(r.order)
         m["travel_min"] += r.travel_min
@@ -41,6 +42,7 @@ def metrics(ctxs: list, results: list) -> dict:
             else:
                 m["cost_vnd"] += p.cost_vnd
             m["exposure_unknown"] += exposure(p) is None
+            m["extras_max_vnd"] += extras_vnd(p.rec)  # what rides, rentals and games could add, at most
         m["rain_exposed"] += exposed_risk(ids, cx)
         m["repeats"] += repeats(ids, cx)
         m["pref_risk"] += pref_risk(ids, cx)

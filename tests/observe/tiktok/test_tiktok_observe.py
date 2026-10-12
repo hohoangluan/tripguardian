@@ -5,7 +5,8 @@ from corpus.observe.tiktok import extract
 
 SEGS = [{"start_s": 0.0, "end_s": 3.0, "text": "x", "checked_text": "phải leo hơn ba trăm bậc thang", "status": "ok"},
         {"start_s": 3.0, "end_s": 6.0, "text": "x", "checked_text": "lalala", "status": "lyrics"},
-        {"start_s": 6.0, "end_s": 9.0, "text": "x", "checked_text": "đi xe lên tận nơi", "status": "fixed"}]
+        {"start_s": 6.0, "end_s": 9.0, "text": "x", "checked_text": "đi xe lên tận nơi", "status": "fixed"},
+        {"start_s": 9.0, "end_s": 12.0, "text": "x", "checked_text": "xe điện 40k một lượt", "status": "ok"}]
 
 
 class Stub:
@@ -87,3 +88,36 @@ def test_shared_video_sends_no_frames_and_rejected_check_drops(tmp_path, monkeyp
     doc = json.loads((tmp_path / "tiktok" / "observations" / "F1.json").read_text(encoding="utf-8"))
     assert [x["feature"] for x in doc["observations"]] == ["scenic_view"]
     assert (0, "Quán B") in calls["observe"]
+
+
+def d(kind, text, source, ref, quote, **kw):
+    base = {"kind": kind, "text": text, "amount_vnd": 0, "audience": "", "unit": "", "min_people": 0, "months": [],
+            "days": [], "hour": "", "who": "", "verdict": "", "time_of_day": "unknown", "source": source, "ref": ref,
+            "quote": quote}
+    return {**base, **kw}
+
+
+def test_details_come_from_speech_and_caption_only(tmp_path, monkeypatch):
+    answer = {"observations": [], "details": [
+        d("fee", "xe điện", "speech", 4, "xe điện 40k một lượt", amount_vnd=40000, unit="item"),
+        d("photo_spot", "view đẹp", "caption", 0, "view đẹp"),
+        d("photo_spot", "góc chụp", "frame", 2, "góc chụp"),
+        d("fee", "xe điện", "speech", 1, "xe điện 40k một lượt", amount_vnd=40000)]}  # not in segment 1
+    setup(tmp_path, monkeypatch, answer)
+    asyncio.run(extract.run("dalat"))
+    doc = json.loads((tmp_path / "tiktok" / "observations" / "F1.json").read_text(encoding="utf-8"))
+    got = [(x["id"], x["feature"], x["value"], x["source_type"], x["span"]["start_s"], x["span"]["end_s"],
+            x["author"], x["observed_at"]) for x in doc["details"]]
+    assert got == [("tiktok:v1:d0", "detail.fee", "xe điện", "tiktok_segment", 9.0, 12.0, "tiktok:u1", "2026-01-01"),
+                   ("tiktok:v1:d1", "detail.photo_spot", "view đẹp", "tiktok_caption", None, None, "tiktok:u1",
+                    "2026-01-01")]
+    assert doc["details"][0]["detail"]["amount_vnd"] == 40000 and doc["observations"] == []
+    assert doc["stats"]["dropped"] == {"detail_frame_not_allowed": 1, "detail_quote_not_in_source": 1}
+
+
+def test_video_detail_schema_has_source_ref_and_quote_last():
+    from corpus.llm import VIDEO_OBSERVE
+    item = VIDEO_OBSERVE.schema["properties"]["details"]["items"]
+    assert "details" in VIDEO_OBSERVE.schema["required"]
+    assert list(item["properties"])[-1] == "quote" and item["required"][-1] == "quote"
+    assert item["properties"]["source"]["enum"] == ["speech", "caption"] and item["properties"]["ref"] == {"type": "integer"}

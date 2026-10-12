@@ -10,6 +10,7 @@ from requirements import activity_for, allowed
 
 from . import places as pl
 from .conditions import advisory_hits, crowd_sensitive, hazard, warned
+from .details import block, season
 from .schedule import DayCtx, intervals_for
 from .traits import exposure, kind_group
 from .travel import km, rough_minutes
@@ -17,7 +18,8 @@ from .travel import km, rough_minutes
 REASON_TEXT = {"rain": "ngoài trời vào ngày dự báo mưa", "hours_uncertain": "giờ mở cửa chưa chắc",
                "near_close": "sát giờ đóng cửa", "far": "xa điểm xuất phát của ngày",
                "crowd": "rất đông khách vào ngày này, phải chờ lâu", "holiday_closure": "dịp này nhiều quán đóng cửa hoặc đổi giờ",
-               "advisory": "nằm trong vùng có thông báo cảnh báo"}
+               "advisory": "nằm trong vùng có thông báo cảnh báo",
+               "season": "tháng này không phải mùa đẹp của nơi này (theo người đã đi)"}
 SHAKY = ("UNCERTAIN", "OUTDATED")
 
 
@@ -41,6 +43,8 @@ def sensitive(it, cx: DayCtx) -> list[str]:
         out.append("holiday_closure")
     if warned(p, cx.cond):
         out.append("advisory")
+    if cx.day.date and season(p, cx.day.date.month) == "avoid":
+        out.append("season")
     return out
 
 
@@ -56,6 +60,8 @@ def _fits(b, s, reasons: list[str], cx: DayCtx, hard_filters: list) -> bool:
     if any(not allowed(b.rec, hf, activity, s.kind) for hf in hard_filters):
         return False
     if "rain" in reasons and exposure(b) != "sheltered":
+        return False
+    if "season" in reasons and season(b, cx.day.date.month) == "avoid":
         return False
     if ({"hours_uncertain", "holiday_closure"} & set(reasons)) and (b.hours is None or b.hours_status in SHAKY):
         return False
@@ -86,13 +92,14 @@ def backups(ctxs: list[DayCtx], results: list, decision: dict, by_id: dict) -> d
                 mine = entry[b.id].get("for") == s.id
                 same_kind = mine or (kind_group(b) is not None and kind_group(b) == kind_group(s))
                 if minutes <= cfg.backup_radius_min and same_kind and _fits(b, s, reasons, cx, hard):
-                    alts.append((not mine, minutes, b.id, b))
-            alts.sort(key=lambda a: a[:3])
+                    quiet = "crowd" in reasons and b.id in (block(s.rec).get("relations") or {}).get("quieter", ())
+                    alts.append((not mine, not quiet, minutes, b.id, b))  # on a peak day, a quieter look-alike first
+            alts.sort(key=lambda a: a[:4])
             out.append({"day": cx.day.index + 1, "place_id": s.id, "name": s.name, "reasons": reasons,
                         "text": ", ".join(REASON_TEXT[x] for x in reasons),
                         "alternatives": [{"id": b.id, "name": b.name, "minutes_rough": m, "for_this": not other,
                                           "reason": entry[b.id].get("reason")}
-                                         for other, m, _, b in alts[: cfg.backups_per_place]],
+                                         for other, _, m, _, b in alts[: cfg.backups_per_place]],
                         "none_text": None if alts else "Không có phương án thay."})
         droppable = [i for i in r.order if cx.places[i].role == "selected"]
         if len(r.order) >= 2 and droppable:

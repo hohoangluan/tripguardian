@@ -83,6 +83,11 @@ class Settings:
     repair_search_limit: int = 720
     cache_entries: int = 128
     suggestion_workers: int = 2
+    chunk_days: int = 7
+    long_trip_exact_n: int = 5
+    composer: dict = field(default_factory=lambda: {"rho": 0.9, "alpha": 0.7, "tight_ratio": 0.8,
+                                                   "per_day_max": {"slow": 4, "normal": 5, "packed": 7},
+                                                   "search_limit": 120, "transport_vnd_per_min": {}})
 
 
 @cache

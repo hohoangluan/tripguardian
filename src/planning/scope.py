@@ -13,8 +13,8 @@ LODGING_FETCH = "lodging_fetch"     # the candidate list itself must be re-fetch
 _SCOPE = {
     "pick_variant": NONE, "lock_slot": NONE, "unlock": NONE, "undo": NONE, "redo": NONE,
     "move_place": RELAYOUT, "reorder": RELAYOUT, "drop_place": RELAYOUT, "add_from_backup": RELAYOUT,
-    "swap": RELAYOUT, "relax": RELAYOUT,
-    "set_pace": VARIANT, "set_objective": VARIANT, "set_day_window": VARIANT,
+    "swap": RELAYOUT, "make_room": RELAYOUT, "relax": RELAYOUT,
+    "set_pace": VARIANT, "set_objective": VARIANT, "set_day_window": VARIANT, "reoptimize": VARIANT,
     "pick_lodging": LODGING_HOME, "clear_lodging": LODGING_HOME,
     "set_lodging": LODGING_FETCH, "set_lodging_budget": LODGING_FETCH,
 }

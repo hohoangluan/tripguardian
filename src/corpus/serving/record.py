@@ -15,6 +15,7 @@ import yaml
 
 from ..crawl.common.files import ROOT
 from ..ontology import load
+from .details import place_block
 
 load_ontology = cache(load)  # one parse per process: build() runs once per place
 
@@ -88,9 +89,10 @@ def place_status(closure: str | None, judged: str | None) -> tuple[str, str | No
     return "VERIFIED", None
 
 
-def build(intel: dict, built: date | None = None, judged: str | None = None) -> dict:
+def build(intel: dict, built: date | None = None, judged: str | None = None, quality: dict | None = None) -> dict:
     """One serving record. Place `status` DISABLED (closed for good or for now) keeps the record out of serving;
-    judged: the Judge's place_status verdict for this place, if it was reported closed."""
+    judged: the Judge's place_status verdict for this place, if it was reported closed; quality: (feature, value) ->
+    label stats (review.label_stats), which decides the status of the `details` of each kind."""
     ont = load_ontology()
     built = built or date.today()
     as_of = date.fromisoformat(intel["as_of"])
@@ -122,12 +124,18 @@ def build(intel: dict, built: date | None = None, judged: str | None = None) -> 
         **{g: fs for g, fs in groups.items() if g != "operation"},
         "effort_hint": {"value": est.get("effort_hint"), "kind": "estimate"},
         "usable_as": usable,
+        "details": place_block(intel, quality or {}, config()["details"], features.get("entry_fee")),
         "provenance": {"as_of": intel["as_of"], "coverage": coverage, "voices": intel.get("voices"),
                        "rating_trend": intel.get("rating_trend"), "inputs": intel.get("inputs", [])},
     }
 
 
 def feature(record: dict, fid: str) -> dict | None:
+    """The served feature `fid`; "fit.<who>" is how a place fits that companion (details.fit): same shape, so check()
+    runs on it too."""
+    if fid.startswith("fit."):
+        f = (record.get("details") or {}).get("fit", {}).get(fid[4:])
+        return {k: f[k] for k in ("value", "distribution", "status")} if f else None
     group = load_ontology().features[fid].group
     return record.get(group, {}).get(fid)
 

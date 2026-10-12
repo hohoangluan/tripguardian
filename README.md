@@ -24,6 +24,7 @@ Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ
 | `docs/TRIP_UNDERSTANDING.md` | Trip State, chọn câu hỏi, ngân hàng câu hỏi, Search Input, CLI và API |
 | `docs/PLACE_DECISION.md` | Sàng lọc fail-closed, xếp hạng, đa dạng, khả thi của tổ hợp, Decision Output, CLI và API |
 | `docs/PLANNING.md` | Live Context, chia ngày, thứ tự, chỗ ở live, độ vững, dự phòng, Plan Output, CLI và API |
+| `docs/PLANNING_PERFORMANCE.md` | Báo cáo tương thích chuyến dài và số đo tối ưu Planning bảy / mười bốn ngày |
 | `docs/ACCOUNTS.md` | Đăng nhập Google, phiên, hồ sơ, avatar, xóa tài khoản, liên kết Calendar, Postgres |
 | `docs/COMPANION.md` | Chế độ Đang đi (màn Hôm nay, check-in, gợi ý tại chỗ), xuất Google Calendar có xác nhận, thông báo |
 | `docs/ANALYTICS.md` | Event server / web, server analytics private, chỉ số Admin, Insights |
@@ -31,7 +32,7 @@ Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ
 | `docs/UX_Design_Brief.md` | Brief UI/UX: nguyên tắc, cách hiển thị chất lượng dữ liệu, hệ thị giác |
 | `docs/UI_SPEC_USER_WEB.md` | Đặc tả trang User Web cho designer / Figma |
 | `docs/UI_SPEC_FLOW_LAYOUT.md` | Luồng chuyển màn, kiểu chuyển cảnh và bố cục từng màn User Web |
-| `docs/UI_SPEC_LANDING.md` | Đặc tả landing: sa bàn 3D và các chương cuộn (máy tính), trang Dùng ứng dụng (điện thoại) |
+| `docs/UI_SPEC_LANDING.md` | Đặc tả landing: màn đầu 3D và ba bước (máy tính), trang Dùng ứng dụng (điện thoại) |
 | `docs/LLM_PROVIDER.md` | Model nào đảm nhận vai trò nào: endpoint, key, chứng chỉ, ASR local |
 | `docs/log/DEV_LOG.md` | Nhật ký **code đang có gì** theo từng tính năng |
 | `docs/log/AGENT_FAILURES.md` | Nhật ký lỗi của coding agent, làm bằng chứng trước khi nâng thành rule |

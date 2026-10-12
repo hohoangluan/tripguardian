@@ -10,10 +10,11 @@ clef_data_min: 0.8   # ... and this sure the user asks for a real-world figure (
 clef_feature_min: 0.5  # search_features, when the keywords find nothing: Clef ranks features, those from this probability are returned
 clef_verify_min: 0.75 # record_fact (an inferred soft / hard fact): Clef must be this sure the quote does not say the fact to refuse it
 clef_reply_min: 0.9   # Clef must be this sure a reply promises results or states an unsaid fact to replace it
-clef_repeat_min: 0.9  # Clef must be this sure a question is already answered by the state to send the Agent back
 tool_steps: 6       # maximum model calls in one turn (each may call several tools)
 required: [days, companions, mobility, when]  # known before the user may press Next (when = a start date or a month)
 max_tokens: 1500    # agent: completion limit of one model call
+
+coach_min_people: 9 # a party this big in its own car must go to places a coach or 16-seater reaches (hard filter coach_access != no)
 
 # Logistics after the conversation (docs/TRIP_UNDERSTANDING.md §Hậu cần).
 arrival_buffer_min: 45  # a chosen coach / flight: first stop this long after it arrives, last stop this long before it leaves

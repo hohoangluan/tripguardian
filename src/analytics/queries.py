@@ -206,7 +206,7 @@ def today(pool) -> dict:
             "count(*) FILTER (WHERE props->>'path' = 'fallback') AS fallbacks, "
             "count(DISTINCT user_id) AS active_users FROM events WHERE at >= %s AND at < %s", (start, end)).fetchone()
         new = conn.execute("SELECT count(*) AS n FROM users WHERE created_at >= %s AND created_at < %s "
-                           "AND deleted_at IS NULL", (start, end)).fetchone()["n"]
+                           "AND deleted_at IS NULL AND kind = 'user'", (start, end)).fetchone()["n"]
     return {**dict(r), "new_users": new, "day": start.date().isoformat()}
 
 

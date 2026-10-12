@@ -33,7 +33,7 @@ Không được làm: dùng số sao / phần trăm trần làm tín hiệu chí
 
 | Route `/app/…` | Tên trang | Người dùng làm gì ở đây | Khung |
 |---|---|---|---|
-| `login` (hoặc `/app` lần đầu, chưa có tài khoản) | Vào ứng dụng | Dùng thử không cần tài khoản, hoặc đăng nhập | BARE |
+| `login` (hoặc `/app` lần đầu, chưa có phiên) | Vào ứng dụng | Tiếp tục với Google, hoặc dùng thử không cần tài khoản (khách) | BARE |
 | `` (gốc) | **Khám phá** | Gõ một câu / chủ đề (dán link, đính kèm file ở khung chat của Hiểu chuyến đi); người quay lại thấy chuyến đang lập | NAV |
 | `understand` | Hiểu chuyến đi | Trả lời từng lượt hỏi của agent; soát và sửa vé | FLOW 1 |
 | `explore` | **Chọn nơi** | Đọc tập nhỏ có lý do + đánh đổi; thêm / bỏ / khóa / so sánh; hỏi trợ lý; thanh "Đã chọn" báo khả thi và lịch ngầm | FLOW 2 |
@@ -62,7 +62,7 @@ Bước đã xong trên stepper bấm được để quay lại; hành trình tr
 
 ### Vào ứng dụng (`/app/login`)
 
-Nút **"Dùng thử, không cần tài khoản"** mạnh nhất. Email + mật khẩu (tài khoản hiện chỉ lưu trong trình duyệt); Google, Zalo, Facebook, Apple hiện `sắp có`. Chuyến đi không phụ thuộc tài khoản: máy chủ giữ theo mã hành trình.
+Hai lối: `Tiếp tục với Google` (nút chính) và `Dùng thử, không cần tài khoản` (khách: không lưu lịch sử, chuyến xóa sau 24 giờ không hoạt động; `docs/ACCOUNTS.md` §7). Khách đang dùng mở lại trang này thì chỉ còn đường đăng nhập Google để giữ chuyến.
 
 ### Khám phá (`/app`)
 

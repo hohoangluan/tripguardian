@@ -176,3 +176,61 @@ def test_delete_account_removes_personal_data_and_keeps_anonymous_rows(accounts)
     assert not any((accounts.avatars).glob("*.webp"))
     fresh = accounts.user_for(login(accounts, "g-9")["token"])[0]["id"]
     assert fresh != uid  # signing in again starts a new account
+
+
+def _rows(accounts, sql, *args):
+    with accounts.pool.connection() as conn:
+        return conn.execute(sql, args).fetchall()
+
+
+def test_guest_is_an_anonymous_user_with_a_short_session(accounts):
+    token = accounts.guest("Mozilla")
+    user, refreshed = accounts.user_for(token)
+    assert user["guest"] is True and user["role"] == "user" and not refreshed
+    me = accounts.me(user["id"])
+    assert me["guest"] is True and me["email"] is None and me["name"] == "" and me["needs_consent"] is False
+    left = _rows(accounts, "SELECT expires_at - now() AS left FROM auth_sessions")[0]["left"]
+    assert left.days == 0 and left.seconds > 23 * 3600
+    assert accounts.user_for(login(accounts)["token"])[0]["guest"] is False
+
+
+def test_guest_session_slides_by_hours_not_days(accounts):
+    token = accounts.guest()
+    with accounts.pool.connection() as conn:
+        conn.execute("UPDATE auth_sessions SET last_seen_at = now() - interval '2 hours', "
+                     "expires_at = now() + interval '1 hour'")
+    assert accounts.user_for(token)[1] is True
+    left = _rows(accounts, "SELECT expires_at - now() AS left FROM auth_sessions")[0]["left"]
+    assert left.days == 0 and left.seconds > 23 * 3600
+
+
+def test_expired_guests_are_deleted_with_their_trips_but_journeys_stay_anonymous(accounts):
+    gone, kept = accounts.guest(), accounts.guest()
+    gone_id, kept_id = (accounts.user_for(t)[0]["id"] for t in (gone, kept))
+    member = accounts.user_for(login(accounts)["token"])[0]["id"]
+    with accounts.pool.connection() as conn:
+        conn.execute("INSERT INTO journeys (id, user_id, stage, revision, envelope) VALUES ('j-gone', %s, 'trip', 0, '{}')",
+                     (gone_id,))
+        conn.execute("INSERT INTO events (user_id, source, name) VALUES (%s, 'server', 'trip.turn')", (gone_id,))
+        conn.execute("INSERT INTO trips (journey_id, user_id, plan_hash) VALUES ('j-gone', %s, 'h')", (gone_id,))
+        conn.execute("UPDATE auth_sessions SET expires_at = now() - interval '1 minute' "
+                     "WHERE user_id = %s", (gone_id,))
+    assert accounts.purge_guests() == 1
+    assert accounts.user_for(gone) == (None, False) and accounts.user_for(kept)[0]["id"] == kept_id
+    assert _rows(accounts, "SELECT user_id FROM journeys")[0]["user_id"] is None
+    assert _rows(accounts, "SELECT count(*) AS n FROM trips")[0]["n"] == 0
+    assert _rows(accounts, "SELECT count(*) AS n FROM events WHERE user_id IS NULL")[0]["n"] == 1
+    assert {r["id"].hex for r in _rows(accounts, "SELECT id FROM users")} == {kept_id, member}
+
+
+def test_a_guest_who_signs_out_or_ends_the_visit_is_deleted_an_account_is_not(accounts):
+    a, b = accounts.guest(), accounts.guest()
+    accounts.logout(a)
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'guest'")[0]["n"] == 1
+    assert accounts.drop_guest(accounts.user_for(b)[0]["id"]) is True
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'guest'")[0]["n"] == 0
+    token = login(accounts)["token"]
+    user = accounts.user_for(token)[0]["id"]
+    assert accounts.drop_guest(user) is False
+    accounts.logout(token)
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'user'")[0]["n"] == 1

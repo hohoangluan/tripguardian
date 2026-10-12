@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f5f5a">
+  <title>Chuyến đi của bạn · TripGuardian</title>
+  <link rel="icon" href="assets/logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Đến nội dung chính</a>
+  <div class="prototype-note"><span>BẢN THIẾT KẾ TƯƠNG TÁC</span> Địa điểm, dữ liệu và ảnh đều minh họa. <a href="review.html">Xem đánh giá & quyết định thiết kế <span aria-hidden="true">↗</span></a></div>
+  <header class="header">
+    <a class="brand" href="#discover" aria-label="TripGuardian — chọn địa điểm"><img src="assets/logo.webp" alt="" width="34" height="38"><span>TripGuardian<small>Chọn đúng nơi. Đi thảnh thơi.</small></span></a>
+    <nav class="steps" aria-label="Các bước chuẩn bị chuyến đi">
+      <a href="#understand" data-step="understand"><span>1</span>Chuyến của bạn</a><i aria-hidden="true"></i>
+      <a href="#discover" data-step="discover"><span>2</span>Chọn địa điểm</a><i aria-hidden="true"></i>
+      <a href="#plan" data-step="plan"><span>3</span>Lịch trình</a>
+    </nav>
+    <button class="header-trip" data-action="edit-trip"><svg class="icon"><use href="assets/icons.svg#cal"/></svg><span id="header-date">17–19 thg 10</span><span class="avatar" aria-hidden="true">B</span></button>
+  </header>
+  <main id="main" tabindex="-1"></main>
+  <div id="mobile-dock" class="mobile-dock"></div>
+  <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+  <dialog id="modal" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <noscript><p class="noscript">Bật JavaScript để thử chọn địa điểm, so sánh và xem lịch nháp.</p></noscript>
+</body>
+</html>

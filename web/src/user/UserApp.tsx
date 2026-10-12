@@ -14,6 +14,7 @@ import { Discover } from './screens/Discover'
 import { Done } from './screens/Done'
 import { Explore } from './screens/Explore'
 import { GetApp } from './screens/GetApp'
+import { GuestGate, GuestProfile } from './screens/Guest'
 import { Landing } from './screens/Landing'
 import { PlaceDetail } from './screens/PlaceDetail'
 import { Plan } from './screens/Plan'
@@ -74,7 +75,8 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
   const { snap, error } = useSnapshot()
   useEffect(() => { window.scrollTo({ top: 0 }) }, [p, !account])
   const signedIn = !!account && !account.needs_consent
-  useEffect(() => { if (signedIn && p === '/login') go('/', { replace: true }) }, [signedIn, p])
+  const guest = !!account?.guest
+  useEffect(() => { if (signedIn && !guest && p === '/login') go('/', { replace: true }) }, [signedIn, guest, p])
   let m: Record<string, string> | null
   let rail = true
   let screen: ReactNode
@@ -83,7 +85,8 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
     // /app needs an account: Google brings the browser back to the page it asked for.
     screen = <Auth next={p === '/login' ? '/app' : '/app' + p + location.search} />
     rail = false
-  } else if (p === '/login') { screen = <div className="tg-page"><Busy text="Đang vào…" /></div>; rail = false }
+  } else if (p === '/login' && guest) { screen = <Auth next="/app" />; rail = false } // a guest who wants to keep the trips
+  else if (p === '/login') { screen = <div className="tg-page"><Busy text="Đang vào…" /></div>; rail = false }
   else if (p === '/understand') { screen = <Understand />; rail = false } // talks to the harness only: never waits for the snapshot
   else if (!snap) {
     screen = error ? (
@@ -97,11 +100,11 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
   else if ((m = match(p, '/explore/compare/:ids'))) { screen = <Compare ids={m.ids.split(',')} key={m.ids} />; rail = false }
   else if (p === '/plan') { screen = <PlanningProvider><Plan /></PlanningProvider>; rail = false }
   else if (p === '/done') { screen = <Done />; rail = false }
-  else if (p === '/today') screen = <Today />
-  else if (p === '/inbox') screen = <Inbox />
+  else if (p === '/today') screen = guest ? <GuestGate what="Hôm nay" /> : <Today />
+  else if (p === '/inbox') screen = guest ? <GuestGate what="Thông báo" /> : <Inbox />
   else if (p === '/trips') screen = <Trips />
   else if (p === '/saved') screen = <Saved />
-  else if (p === '/profile') screen = <Account />
+  else if (p === '/profile') screen = guest ? <GuestProfile /> : <Account />
   else screen = <Empty art={<ArtHills />} title="Không có trang này" body="Đường dẫn này không còn dùng nữa." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/')}>Về Khám phá</button>} />
   return (
     <div className="tg tg-root">

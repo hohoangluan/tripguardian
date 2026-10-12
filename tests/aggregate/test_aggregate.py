@@ -205,7 +205,8 @@ def test_crowd_by_time_and_price_from_place_facts():
 def test_no_place_facts_gives_empty_operation():
     assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "hours": None, "hours_source": None,
                                                           "hours_conflict": None, "closure": None,
-                                                          "crowd_by_time": None, "popular_times": None}
+                                                          "crowd_by_time": None, "popular_times": None,
+                                                          "tickets_vnd": None, "last_entry": None}
 
 
 def test_mention_rate_uses_voices_of_all_files_and_skips_authority():

@@ -4,7 +4,7 @@ rule result, so a card cannot say what the data does not hold."""
 from corpus.serving import feature
 from requirements import applicable
 
-from .model import FIRM, Cand, value
+from .model import FIRM, Cand, cost_total, known_for, value
 
 WARNING = {"hours_unknown": "Chưa có giờ mở cửa",
            "hours_outdated": "Giờ mở cửa có thể đã đổi, kiểm tra lại trước chuyến",
@@ -103,7 +103,7 @@ def card(c: Cand, si, cfg, *, wanted=(), chosen=False, locked=False, anchor=Fals
         "why": _why(c, anchor, cfg), "tradeoffs": _tradeoffs(c, cfg),
         "visit": {k: vm.get(k) for k in ("short", "typical", "long", "source")} if vm else None,
         "location": {"center": c.center, "km": c.km, "minutes": c.minutes},
-        "price": price,
+        "price": price, "known_for": known_for(rec), "cost": cost_total(rec),
         "confidence": _confidence(c, wanted, cfg, si.activities.get(c.id), si.soft_weights),
         "declined": value(rec, "condition_change") == "declined" or trend == "falling",
         "depends_on_unknown": f"Chưa biết ngân sách của bạn; giá khoảng {price}"

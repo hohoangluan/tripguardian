@@ -46,9 +46,15 @@ def test_crowd_penalty_only_when_avoiding_and_day_type_known():
 
 def test_area_bonus_rain_and_rough_road_flags():
     rec = srec("R", lat=12.02, features={"weather_exposed": "present", "rough_road_access": "present"}, area="area-9")
-    s = si(context={"start_date": "2026-07-06", "mobility": "ride"})
+    s = si(context={"start_date": "2026-07-06", "mobility": "car"})
     c = run(Cand(rec, "experience"), s, anchor_areas={"area-9"})
     plain = run(Cand(srec("R2", lat=12.02, area="area-1"), "experience"), s)
     assert round(c.fit - plain.fit, 3) == CFG.area_bonus
     assert {f["code"] for f in c.flags} == {"rain", "rough_road"}
-    assert any("xe công nghệ" in f["text"] for f in c.flags)
+
+
+def test_a_trip_without_a_vehicle_of_its_own_is_still_fitted():
+    """Trip can hand over mobility = walk (no personal vehicle; we never book a ride): every config table has it."""
+    rec = srec("W", lat=12.02, features={"rough_road_access": "present"})
+    c = run(Cand(rec, "experience"), si(context={"mobility": "walk"}))
+    assert c.minutes and 0.0 <= c.fit <= 1.0 and {f["code"] for f in c.flags} == {"rough_road"}

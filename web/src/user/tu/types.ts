@@ -159,7 +159,7 @@ export interface SearchInput {
     month: number | null
     days: number | null
     base: Base | null
-    mobility: 'motorbike' | 'car' | 'ride' | null
+    mobility: 'motorbike' | 'car' | 'walk' | null
     companions: string[]
     people: number | null
     arrive_at: string | null

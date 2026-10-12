@@ -128,3 +128,20 @@
   .tg-ps.is-modal, .tg-psov { animation: tg-fade 150ms; }
   .tg-ps.is-modal .tg-ps__lead > *, .tg-ps.is-modal .tg-ps__thumb, .tg-ps__pane { animation: none; }
 }
+
+/* Chi tiết địa điểm (PlaceDetails.tsx): sections of the overview; tokens only */
+.tg-ps__known { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: var(--tg-pine-d); }
+.tg-ps__known small { color: var(--tg-ink-3); font-size: 0.8rem; }
+.tg-ps__details { display: grid; gap: 22px; margin-top: 26px; }
+.tg-ps__sec h4 { margin-bottom: 4px; }
+.tg-ps__list { display: grid; gap: 6px; font-weight: 500; }
+.tg-ps__said small { font-size: 0.78rem; }
+.tg-ps__q { margin-top: 4px; font-weight: 400; font-size: 0.84rem; }
+.tg-ps__q summary { cursor: pointer; color: var(--tg-pine); width: fit-content; }
+.tg-ps__q summary:focus-visible { outline: 2px solid var(--tg-pine); outline-offset: 2px; border-radius: 4px; }
+.tg-ps__q ul { display: grid; gap: 6px; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--tg-pine-line); }
+.tg-ps__q small { display: block; color: var(--tg-ink-3); }
+.tg-ps__tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--tg-pine-soft); color: var(--tg-pine-d); font-size: 0.74rem; font-weight: 600; }
+.tg-ps__chips { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.tg-checklist { display: grid; gap: 6px; }
+.tg-checklist li { display: flex; gap: 8px; align-items: flex-start; font-size: 0.9rem; }

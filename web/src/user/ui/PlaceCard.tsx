@@ -10,7 +10,7 @@ import { openPlace } from './PlaceSheet'
 // One suggestion: why it fits, what it costs, how sure we are. Every main action works by click and keyboard;
 // hover only reveals the secondary row earlier.
 export function PlaceCard({ c, onDrop, cmp, onCmp, warn, phase = 'stay', order = 0 }: { c: Card; onDrop: (c: Card) => void; cmp: boolean; onCmp: (id: string) => void; warn?: string; phase?: 'stay' | 'enter' | 'leave'; order?: number }) {
-  const { act, busy } = useDecision()
+  const { act, busy, view } = useDecision()
   const p = info(c.id)
   const saved = useUi((u) => u.saved.includes(c.id))
   const flash = useUi((u) => u.flashId === c.id)
@@ -52,7 +52,9 @@ export function PlaceCard({ c, onDrop, cmp, onCmp, warn, phase = 'stay', order =
           {crowd !== null && crowd >= 60 && <span className="tg-pc__crowd">Cuối tuần đông</span>}
           <Trust level={TRUST[c.confidence.level]} why={c.confidence.reason + (c.declined ? ' Có dấu hiệu xuống cấp gần đây.' : '')} />
         </div>
+          {c.chosen && view?.chunks && view.chunks.length > 1 && <label className="tg-week-choice tg-faint">Tuần ghé <select aria-label={`Tuần ghé ${c.name}`} value={view.chunk_assignments?.[c.id] ?? 0} disabled={busy} onChange={(e) => act({ type: 'move_chunk', place_id: c.id, chunk: Number(e.target.value) })}>{view.chunks.map((chunk) => <option key={chunk.id} value={chunk.id}>Tuần {chunk.id + 1} · {chunk.places.length} nơi</option>)}</select></label>}
         <div className="tg-pc__act">
+
           {c.chosen ? (
             <button type="button" className="tg-btn tg-btn--sm tg-btn--soft" disabled={busy || c.anchor} onClick={() => onDrop(c)} title={c.anchor ? 'Nơi bạn nói nhất định đến' : 'Bấm để bỏ khỏi danh sách'} aria-pressed="true"><Icon name="check" size={16} /> Đã chọn</button>
           ) : (

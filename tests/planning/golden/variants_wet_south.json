@@ -135,6 +135,7 @@
      }
     ]
    },
+   "checklist": [],
    "id": "v1",
    "itinerary": [
     {
@@ -316,6 +317,7 @@
     "cost_unknown": 8,
     "cost_vnd": 0,
     "exposure_unknown": 5,
+    "extras_max_vnd": 0,
     "pref_risk": 0.0,
     "rain_exposed": 2.4,
     "repeats": 6,
@@ -592,6 +594,7 @@
     ],
     "places": []
    },
+   "checklist": [],
    "id": "v2",
    "itinerary": [
     {
@@ -773,6 +776,7 @@
     "cost_unknown": 8,
     "cost_vnd": 0,
     "exposure_unknown": 5,
+    "extras_max_vnd": 0,
     "pref_risk": 0.0,
     "rain_exposed": 0.6,
     "repeats": 6,

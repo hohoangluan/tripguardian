@@ -94,11 +94,14 @@ def test_no_valid_variant_goes_back_to_place_decision_with_the_places_that_broke
     assert [v["kind"] for v in out["violations"]] == ["anchor"]
 
 
-def test_a_day_window_violation_names_the_places_crowded_onto_that_day():
+def test_a_day_window_violation_keeps_the_failed_baseline_and_offers_trimmed_plans():
     d, recs = sample_trip(days=1, leave_at="12:00")        # one short day, too little room for eight places
     out = run(d, recs)
-    assert not out["ok"] and [v["kind"] for v in out["violations"]] == ["day_window"]
-    assert out["back_to_decision"]["places"]                     # not empty: day_window carries no place_id itself
+    assert out["ok"]
+    assert [v["kind"] for v in out["keep_all"]["violations"]] == ["day_window"]
+    assert not out["keep_all"]["confirmable"]
+    assert out["keep_all"]["kept"]
+    assert any(v["status"] == "available" for v in out["variants"])
 
 
 def test_a_trip_with_no_places_is_one_empty_solid_variant():

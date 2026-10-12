@@ -113,8 +113,66 @@ def test_compare_why_not_confirm():
     assert out["confirmed"][0]["id"] == "C0" and e.store.get(sid).output == out
     for i in range(1, 6):
         e.act(sid, {"type": "select", "place_id": f"C{i}"})
+    assert e.draft(sid) == e.confirm(sid)
+    assert len(e.confirm(sid)["confirmed"]) == 6
+
+
+def test_overload_draft_preserves_selection_estimate_and_actual_utility():
+    from decision import DecisionOutput, Tools
+
+    e = engine()
+    sid = e.create(trip(context={"days": 1, "day_end": "10:00"}))["id"]
+    for i in range(6):
+        e.act(sid, {"type": "select", "place_id": f"C{i}"})
+    before = e.load(sid)["view"]
+    assert before["feasibility"]["status"] == "infeasible"
+    draft = Tools(e).read(sid, "draft", {})["output"]
+    assert draft is not None
+    assert draft["feasibility"] == before["feasibility"]
+    assert [p["id"] for p in draft["confirmed"]] == before["selected"]
+    assert e.store.get(sid).output is None
+    result = e._result(e.store.get(sid))
+    for place in draft["confirmed"]:
+        assert place["utility"] == result.cands[place["id"]].score
+        assert place["utility_source"] == "decision_score"
+        assert "novelty" not in place
+    assert DecisionOutput.model_validate(e.confirm(sid))
+
+
+@pytest.mark.parametrize("check", ["hours", "relax", "physical", "hard", "future_check"])
+def test_blocking_conflict_cannot_pass_alongside_selection_overload(check):
+    e = engine()
+    sid = e.create(trip())["id"]
+    e.act(sid, {"type": "select", "place_id": "C0"})
+    res = e._result(e.store.get(sid))
+    res.view["feasibility"].update(status="partial", conflicts=[
+        {"check": "time", "physical": True}, {"check": check, "physical": True}])
+    assert e.draft(sid) is None
     with pytest.raises(NotConfirmable):
         e.confirm(sid)
+
+
+@pytest.mark.parametrize("check", ["time", "per_day", "far_areas", "time_windows", "budget"])
+def test_selection_overload_checks_share_draft_and_confirm_rule(check):
+    e = engine()
+    sid = e.create(trip())["id"]
+    e.act(sid, {"type": "select", "place_id": "C0"})
+    res = e._result(e.store.get(sid))
+    res.view["feasibility"].update(status="partial", conflicts=[{"check": check, "physical": True}])
+    assert e.draft(sid) is not None
+    assert e.draft(sid) == e.confirm(sid)
+
+
+def test_closed_and_hard_failed_selected_places_still_block_handoff():
+    for rec, filters in [(srec("X", hours={"sun": [["08:00", "18:00"]]}), []),
+                         (srec("X", features={"steep_or_stairs": "present"}),
+                          [hard("steep_or_stairs", "present")])]:
+        e = Engine(Data([rec]), CFG, Store(None))
+        sid = e.create(si(context={"days": 1}, hard_filters=filters,
+                          anchors=[{"place_id": "X", "priority": "must"}]).model_dump(mode="json"))["id"]
+        assert e.draft(sid) is None
+        with pytest.raises(NotConfirmable):
+            e.confirm(sid)
 
 
 def test_rethink_back_sends_the_user_to_understanding():

@@ -53,6 +53,8 @@ export type Action =
   | { type: 'relax'; place_id: string; feature: string }
   | { type: 'answer'; qid: string; chip: string }
   | { type: 'undo' }
+  | { type: 'move_chunk'; place_id: string; chunk: number }
+  | { type: 'keep_free_time' }
 
 export interface Fix {
   label: string
@@ -93,6 +95,9 @@ export interface View {
   change: Record<string, Change>
   shortlist: string[]
   selected: string[]
+  chunk_assignments?: Record<string, number>
+  chunks?: { id: number; start_day: number; end_day: number; places: string[]; type_counts: Record<string, number> }[]
+  coverage?: { status: 'sparse' | 'enough' | 'unknown'; selected_experiences: number; target_experiences: number; free_minutes_estimate: number | null; free_time_accepted: boolean }
   locked: string[]
   unverified: { count: number; open: boolean; cards: Card[] }
   excluded: { by_rule: { rule: string; label: string; count: number }[] }
@@ -147,6 +152,7 @@ export interface WhyNot {
 }
 
 export interface DecisionOutput {
+  chunk_assignments?: Record<string, number>
   confirmed: { id: string; name: string; role: 'anchor' | 'locked' | 'selected'; flags: string[]; relaxed: string[] }[]
   backup_pool: { id: string; name: string; for: string | null; reason: string }[]
   wishlist: { id: string; name: string; reason: string }[]

@@ -111,6 +111,7 @@
     ],
     "places": []
    },
+   "checklist": [],
    "id": "v1",
    "itinerary": [
     {
@@ -298,6 +299,7 @@
     "cost_unknown": 8,
     "cost_vnd": 0,
     "exposure_unknown": 8,
+    "extras_max_vnd": 0,
     "pref_risk": 0.0,
     "rain_exposed": 0.0,
     "repeats": 5,

@@ -8,6 +8,7 @@ import unicodedata
 
 from ...ontology import UNKNOWN, Ontology
 from .. import CONTEXT_KEYS
+from ..details_gate import gate_detail
 
 
 class BadAnswer(Exception):
@@ -47,3 +48,20 @@ def gate(answer: dict, refs: dict[str, dict], ont: Ontology):
             else:
                 dropped["proposed_bad_quote"] += 1
     return kept, proposed, dropped
+
+
+def gate_details(answer: dict, refs: dict[str, dict], ont: Ontology):
+    """([(ref, detail)], dropped): the `details` of each review that stand (details_gate.py); a review without the key
+    states none."""
+    kept, dropped = [], collections.Counter()
+    for item in answer["reviews"]:
+        ref = item.get("ref")
+        if ref not in refs:
+            continue  # gate() already counted it
+        for d in item.get("details") or []:
+            out, why = gate_detail(d, refs[ref]["text"], ont)
+            if out is None:
+                dropped[f"detail_{why}"] += 1
+            else:
+                kept.append((ref, out))
+    return kept, dropped

@@ -10,6 +10,7 @@ import { ArtHills, Busy, Empty, go, PlacePhoto } from '../ui/common'
 import { Icon, type IconName } from '../ui/icons'
 import { PlaceInput, type InputRow } from '../ui/PlaceInput'
 import { FlowBar, Page, useTitle } from '../ui/Shell'
+import { LongTripWarning } from '../ui/LongTripWarning'
 import { countRows, PlaceSearch, TicketFull, TicketMenu, type Source, type Turn } from '../ui/Ticket'
 import { TransitPick, transitLabel } from '../ui/TransitPick'
 import { GREET, TripChat, type ChatMsg, type Read } from './TripChat'
@@ -280,8 +281,8 @@ export function Understand() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // The opening question (qid frame) is the conversation itself; it is never dealt again as a card.
-  const talk = chat || ((card?.qid === 'conversation' || card?.qid === 'frame') && !msgs.some((m) => m.who === 'me'))
+  // A conversation card (qid frame at the start, conversation in chat) is the chat itself, whoever has spoken yet.
+  const talk = chat || card?.qid === 'conversation' || card?.qid === 'frame'
   const cardKey = card ? `${card.qid}:${seq}` : 'none'
   // A long conversation leaves the page scrolled down: bring each newly dealt card's top back into view.
   const deck = useRef<HTMLDivElement>(null)
@@ -393,6 +394,7 @@ export function Understand() {
     <>
       <FlowBar step="understand" onAhead={jump} aside={ticket ? <TicketMenu {...ticket} onOpen={openRow} /> : undefined} />
       <Page className="tg-und">
+        <LongTripWarning days={Number(u?.trip.find((row) => row.target === 'days')?.value ?? 0)} />
         <div className="tg-und__grid has-sides">
           <nav className="tg-qrail" aria-label="Những điều mình đã hiểu">
             <h2 className="tg-side__h">Mình đang hiểu</h2>

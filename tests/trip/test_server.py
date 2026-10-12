@@ -10,7 +10,7 @@ from trip.api.engine import Engine
 from trip.api.server import handler
 from trip.infrastructure.sessions import SessionStore
 
-from trip_fixtures import ScriptedChat, ask, fact, reply
+from trip_fixtures import ScriptedChat, fact, reply
 
 
 @pytest.fixture

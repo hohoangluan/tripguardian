@@ -80,3 +80,9 @@
 .tg-pin__note { display: flex; align-items: center; gap: 6px; padding: 12px 10px; color: var(--tg-ink-2); font-size: 0.9rem; }
 .tg-full__edit .tg-pin { align-self: stretch; }
 @media (prefers-reduced-motion: reduce) { .tg-pin__spin { animation: none; } .tg-pin__list { animation: none; } }
+
+/* guest: a slim note on pages that hold trips, and the actions of the guest pages */
+.tg-guest { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 12px 16px; border-radius: var(--tg-r-m); background: var(--tg-pine-soft); border: 1px solid var(--tg-pine-line); color: var(--tg-pine); }
+.tg-guest p { flex: 1; margin: 0; font-size: 0.92rem; color: var(--tg-ink); }
+.tg-guest__act { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 16px; }
+.tg-guest__act.is-left { justify-content: flex-start; }

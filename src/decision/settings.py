@@ -1,6 +1,6 @@
 """Place Decision thresholds (config/decision.yaml)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
@@ -60,6 +60,9 @@ class Settings:
     display_groups: dict
     polarity: dict
     labels: dict
+    shortlist_days: int = 7
+    coach_min_people: int = 9  # a party this big needs a coach or a 16-seater: it counts as the companion `large_group`
+    details_fit: dict = field(default_factory=lambda: {"good_bonus": 0.1, "bad_penalty": 0.2, "feature_bonus": 0.05})
 
 
 def load(path: Path = PATH) -> Settings:

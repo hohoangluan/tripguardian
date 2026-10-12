@@ -19,17 +19,19 @@ const NAV: { to: string; label: string; icon: IconName; exact?: boolean }[] = [
 function Me({ className }: { className: string }) {
   const account = useAccount()
   const initial = initialOf(account)
-  return <Link to="/profile" className={className} aria-label="Hồ sơ của bạn">{account?.avatar ? <img src={account.avatar} alt="" referrerPolicy="no-referrer" /> : initial ? <span>{initial}</span> : <Icon name="user" size={18} />}</Link>
+  return <Link to="/profile" className={className} aria-label={account?.guest ? 'Bạn đang dùng với tư cách khách' : 'Hồ sơ của bạn'}>{account?.avatar ? <img src={account.avatar} alt="" referrerPolicy="no-referrer" /> : initial ? <span>{initial}</span> : <Icon name="user" size={18} />}</Link>
 }
 
 // `path` is the part after /app ('' for Khám phá).
 export function Rail({ path }: { path: string }) {
   const saved = useUi((u) => u.saved.length)
+  const guest = !!useAccount()?.guest
+  const items = guest ? NAV.filter((n) => n.to !== '/today' && n.to !== '/inbox') : NAV // a guest has no Hôm nay or notifications
   return (
     <nav className="tg-rail" aria-label="Điều hướng chính">
       <a href="/" className="tg-rail__logo" aria-label="TripGuardian, về trang giới thiệu" onClick={(e) => { e.preventDefault(); navigate('/') }}><Logo /></a>
       <ul>
-        {NAV.map((n) => {
+        {items.map((n) => {
           const on = n.exact ? path === '' : path.startsWith(n.to)
           return (
             <li key={n.to}>

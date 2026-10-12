@@ -72,6 +72,12 @@ gmaps:
       groups: [nature, garden_farm, attraction, amusement, museum, religious, camping, other]
     - words: ["đặt bàn", "đặt trước"]  # booking
       groups: [restaurant, cafe, bar]
+    - words: ["gửi xe", "xe điện", "thuê đồ", "tháng", "xe 16 chỗ", "lạnh", "sương mù", "một mình", "chó", "xe đẩy", "bà bầu"]  # place details: costs, timing, access, who it fits
+      groups: *experience
+    - words: ["món", "nên gọi"]  # what to order
+      groups: [restaurant, cafe, bar]
+    - words: ["máy sưởi", "nước nóng", "bữa sáng", "thú cưng"]  # lodging details
+      groups: [stay]
   keyword_reviews_per_word: 20  # first hits per word; merged by observe as sample "keywords" (effort / facts only)
   keyword_tabs: 8  # per process (one Python process caps ~8 tabs; shards multiply it). 12 drew a captcha headless (2026-10-05)
   keyword_tabs_start: 10  # first run only
