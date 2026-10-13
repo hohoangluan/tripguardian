@@ -22,6 +22,9 @@ REPLY_NOTE = ("Câu trả lời vừa rồi bị chặn vì: {why}. Viết lại
               "địa điểm mà user chưa nói.")
 RETRY_NOTE = ("Bạn vừa nói đã ghi nhận nhưng chưa gọi record_fact lần nào trong lượt này. Nếu tin nhắn mới nhất có "
               "một fact, hãy gọi record_fact cho fact đó ngay. Nếu không, đừng nói là đã ghi nhận.")
+UNMAPPED_TEXT_NOTE = ("Bạn vừa ghi unmapped cho mong muốn này. Viết ngay một câu ngắn bằng lời user: nhắc lại mong muốn "
+                      "và hỏi đúng MỘT câu tư vấn đưa nó về giá trị ghi được (hai cách hiểu cụ thể gắn với enum của field đó). "
+                      "Không gọi thêm tool nào nữa.")
 
 
 @dataclass
@@ -132,6 +135,7 @@ async def run_loop(chat: Chat, messages: list[dict], tools: TurnTools, on_say: C
     correct it, clarify the rejected field, or call `drop_refusal`. Results remain on `tools`.
     """
     node, steps, reply, retried, clef_retried = GraphNode.AGENT, 0, None, False, False
+    unmapped_nudged = False  # one extra round when unmapped was recorded with no text: the agent must say it back
     while node is not GraphNode.END:
         if node is GraphNode.AGENT:
             if steps >= max_steps:
@@ -178,7 +182,17 @@ async def run_loop(chat: Chat, messages: list[dict], tools: TurnTools, on_say: C
                     result = {"error": "arguments are not a JSON object"}
                 messages.append({"role": "tool", "tool_call_id": call.id,
                                  "content": json.dumps(result, ensure_ascii=False)})
+                if tools.asked is not None:  # a card was asked for: the engine builds it, the turn ends here
+                    node = GraphNode.END
+                    break
                 if tools.unmapped:
+                    if not unmapped_nudged and not (reply.content or "").strip():
+                        # recorded but said nothing: one more round for the consultative question, then it ends
+                        unmapped_nudged = True
+                        tools.log.append("unmapped_without_text")
+                        messages.append({"role": "system", "content": UNMAPPED_TEXT_NOTE})
+                        node = GraphNode.AGENT
+                        break
                     node = GraphNode.END
                     break
             else:

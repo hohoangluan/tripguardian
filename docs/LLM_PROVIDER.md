@@ -5,7 +5,8 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 | Vai trò | Dùng ở | Model hiện tại | Đường mạng |
 |---|---|---|---|
 | ASR | `corpus` (TikTok) | ChunkFormer trên GPU local; ASR2 PhoWhisper-medium | Local |
-| Extractor | `corpus` (observe, filter, qc, kiểm span, `asr_check`, `place_verify`, audit Gemma); `photo_rank` (chấm ảnh gallery cho web, `web/scripts/pick_covers.py`) | Gemma 4 trên host LAN (nhận ảnh); UIT API dự phòng | Mạng nội bộ |
+| Extractor | `corpus` (observe, filter, qc, kiểm span, `asr_check`, `place_verify`, audit Gemma, `style_observe`); `photo_rank` (chấm ảnh gallery cho web, `web/scripts/pick_covers.py`); `trip` `photo_cues` (đọc dấu hiệu trong ảnh user gửi) | Gemma 4 trên host LAN (nhận ảnh); UIT API dự phòng | Mạng nội bộ |
+| Embedder | `corpus index` (offline, 8 GPU), `trip` (câu / ảnh của user, GPU `online_device`) | SigLIP2 so400m (ảnh + chữ ngắn), bge-m3 (span); trọng số ở `.cache/hf`, cấu hình `config/index.yaml` | Local |
 | Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | Gemma 4 trên UIT API, 38 call đồng thời | Mạng UIT |
 | Judge mạnh | giá trị cho phép, quyết định đóng cửa / gộp nơi | như Judge | Mạng UIT |
 | Agent | `trip` (vòng tool, function calling gốc), `decision` (lượt chữ), `planning` (proposal nội bộ) | Model qua 9router (`9ROUTER_MODEL`); Trip cần model có `tools: true` trong `GET /v1/models` | Local 9router |
@@ -86,7 +87,7 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
-Extractor gọi host LAN, Agent gọi 9router local, ASR trên GPU local, Judge gọi UIT (38 call).
+Extractor gọi host LAN, Agent gọi 9router local, ASR và Embedder trên GPU local, Judge gọi UIT (38 call). Agent cần function calling nên không chạy trên UIT (vLLM ở đó trả 400 cho tool call); việc Extractor chạy lâu mà không cần tool (như `style_observe`) chuyển sang UIT bằng `EXTRACTOR_ON_UIT=1` để host LAN còn chỗ cho lượt chat, nhưng chung key 40 call với Judge: chạy cùng Judge thì 429, làm lại phần lỗi trên host LAN với `EXTRACTOR_PARALLEL` thấp.
 
 Task `decision_turn` trả update `select | drop | lock | travel | crowd | price | trip | visited`; gu và mong muốn về chuyến luôn là `trip` (đi sang Trip Understanding qua harness), không có op gu riêng ở Decision. Task `trip_turn` nhận thêm `compared_places` trong `CURRENT CONTEXT` (nơi người dùng so sánh "giống X" kèm nét nổi bật lấy từ catalog) và chỉ được viết soft `inferred` từ đúng các nét đó (`docs/TRIP_UNDERSTANDING.md` §4).
 

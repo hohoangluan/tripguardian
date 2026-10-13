@@ -17,21 +17,47 @@ export interface Card {
   multi: boolean
   single_rows: string[]
   tier: number
-  input: 'none' | 'text' | 'date' | 'place' | 'geo' | 'transit' | 'lodging'
+  input: 'none' | 'text' | 'date' | 'place' | 'geo' | 'lodging' | 'transit' | 'rental' | 'cues' | 'kinds' | 'photo_pick'
   input_field: string | null
-  params?: TransitParams // transit only
   exits: boolean
   custom: boolean
+  params?: Record<string, any> // cues / kinds / photo_pick: see VibeParams
 }
 
-export interface TransitParams {
-  mode: 'plane' | 'bus'
-  from: string // IATA when flying, a province when by coach
-  to: string
-  date: string // YYYY-MM-DD
-  lat?: number // the origin, by coach: the server picks the nearest Vexere province by distance
-  lng?: number
+// One look-alike kind of a look (corpus.index): real places, real photos (src/trip/domain/vibes.py).
+export interface VibeKind {
+  id: string
+  label: string
+  style: string | null
+  count: number
+  places: { id: string; name: string }[]
+  photos: { place_id: string; name: string; url: string }[]
 }
+export interface WebSource { url: string; title: string; domain: string }
+export interface VibeParams {
+  vibe: number
+  phrase?: string
+  cues?: string[]
+  removed?: string[]
+  matched?: number
+  total?: number
+  kinds?: VibeKind[]
+  chosen?: string[]
+  sources?: WebSource[]
+  image?: boolean
+  place?: { id: string; name: string; photo: string | null }
+}
+export interface VibeRow {
+  target: string
+  phrase: string
+  status: 'cues' | 'kinds' | 'done' | 'none'
+  cues: string[]
+  chosen: string[]
+  image: boolean
+  picked: string | null
+  places: number
+}
+export interface Step { id: string; label: string; status: 'run' | 'ok' | 'fail' }
 
 // One coach or flight from a crawl (src/trip/domain/state.py Transit); times are local "YYYY-MM-DDTHH:MM".
 export interface Transit {
@@ -44,12 +70,6 @@ export interface Transit {
   price_vnd: number | null
   source: string
   fetched_at: string
-}
-
-export interface TransitResult {
-  status: 'ready' | 'pending' | 'unavailable'
-  trips: Transit[]
-  book_url: string | null
 }
 
 // A picked point (Trip State Base): origin, a booked lodging.
@@ -136,6 +156,8 @@ export interface Understanding {
   missing: { target: string; label: string }[]
   matching: number // places passing the hard limits now (a fact, not a forecast)
   total: number
+  board: { ids: string[]; vibe: string[] } // the places that fit now, best first (a chosen look's places lead)
+  vibes: VibeRow[]
 }
 
 export interface Turn {
@@ -188,14 +210,14 @@ export type TurnInput =
   | { kind: 'answer'; qid: string; chips: string[]; value?: string | null }
   | { kind: 'edit'; target: string; value: string | null }
   | { kind: 'show' }
-  | { kind: 'to_chat' }
-  | { kind: 'to_quiz' }
+  | { kind: 'image'; value: string; text?: string } // value: a data URL of the photo, ≤ ~45 KB (harness body limit)
 
 export interface Handlers {
   preview?: (d: { fields: { target: string; value: unknown; quote: string }[] }) => void
   say?: (d: { delta?: string; replace?: string }) => void
   state?: (d: { understanding: Understanding }) => void
   card?: (d: Card | null) => void
+  progress?: (d: { steps: Step[]; sources: WebSource[] }) => void
   done?: (d: { search_input: SearchInput }) => void
   error?: (d: { message: string }) => void
 }

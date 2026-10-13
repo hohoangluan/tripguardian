@@ -215,6 +215,38 @@ class Unmapped(Frozen):
     group: bool = False  # a companions group no value holds: dropped once companions is recorded
 
 
+class VibeKind(Frozen):
+    """One look-alike kind of place offered for a vibe (corpus.index clusters): real places and their real photos."""
+    id: str
+    label: str              # the style tag's label, or "Kiểu như <first place>" when no tag holds
+    style: str | None = None
+    places: tuple[str, ...]  # corpus place ids, best first
+    photos: tuple[tuple[str, str], ...] = ()  # (place_id, data-relative photo file)
+
+
+class WebSource(Frozen):
+    url: str
+    title: str
+    domain: str
+
+
+class Vibe(Frozen):
+    """A look the user wants ("vibe retro", a photo they sent). Soft taste only: it ranks places, never removes one.
+    Every place here comes from corpus.index, never from the web or the model."""
+    phrase: str                       # the user's word, or "ảnh bạn gửi"
+    turn: int
+    cues: tuple[str, ...] = ()        # visible signs kept (the agent's guess, edited by the user)
+    removed: tuple[str, ...] = ()     # signs the user took out
+    status: Literal["cues", "kinds", "done", "none"] = "cues"  # cues / kinds: the card is open; none: no kind fits
+    offered: tuple[VibeKind, ...] = ()
+    chosen: tuple[str, ...] = ()      # ids of the offered kinds the user picked
+    places: tuple[str, ...] = ()      # the places this vibe ranks first, best first
+    scope: Literal["any", "cafe", "food", "nature", "sights"] = "any"  # the kind of place the look is about (vibes.SCOPES)
+    image: bool = False               # read from a photo the user sent (the photo itself is never kept)
+    picked: str | None = None         # the corpus place the user's photo shows, once confirmed
+    sources: tuple[WebSource, ...] = ()  # web pages read to understand the word (never evidence about a place)
+
+
 class Ambiguous(Frozen):
     phrase: str
     keys: tuple[str, ...]
@@ -286,6 +318,7 @@ class TripState(Frozen):
     soft: dict[str, Field[Weight]] = {}
     visited: tuple[str, ...] = ()
     unmapped: tuple[Unmapped, ...] = ()
+    vibes: tuple[Vibe, ...] = ()
     meta: Meta = Meta()
 
 
@@ -556,6 +589,14 @@ class AnchorRef(Frozen):
     priority: Literal["must", "want"]
 
 
+class VibeRef(Frozen):
+    """A chosen look for Place Decision: its places rank higher; nothing is filtered by it."""
+    phrase: str
+    cues: tuple[str, ...] = ()
+    styles: tuple[str, ...] = ()
+    places: tuple[str, ...] = ()
+
+
 class SoftWeight(RequirementIntent):
     feature: str
     value: str
@@ -596,3 +637,4 @@ class SearchInput(Frozen):
     liked_groups: tuple[Group, ...] = ()  # kinds of place the user asked for, first said first (Place Decision's tabs)
     activities: dict[str, Activity] = {}
     time_preferences: tuple[TimePreference, ...] = ()
+    vibes: tuple[VibeRef, ...] = ()

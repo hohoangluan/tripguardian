@@ -23,6 +23,9 @@ def _said(events: list[dict]) -> str:
     return out
 
 
+LIVE = ("say", "preview", "progress")  # events streamed while the turn runs (provisional); the rest follow it
+
+
 def _fingerprint(request: Request) -> str:
     raw = json.dumps(request.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()
@@ -86,6 +89,8 @@ class Harness:
             return self._view(self._get(jid, owner), stage=stage)
 
     def read(self, jid: str, stage: Stage, operation: str, payload: dict | None = None, owner: str | None = None) -> dict:
+        if stage == "decision" and operation == "lodging":
+            return self.lodging(jid, owner)
         with self.store.lock(jid):
             session = self._get(jid, owner)
             if stage not in session.sessions:
@@ -117,6 +122,19 @@ class Harness:
             out = {"revision": revision, "status": "ready" if plan["ok"] else "failed", "plan": plan}
         self._event(f"preview.{out['status']}", owner, jid, revision=revision)
         return out
+
+    def lodging(self, jid: str, owner: str | None = None) -> dict:
+        """Lựa chọn's lodging list: served stays around the places chosen so far (Planning ranks them), read under
+        the journey lock and built outside it; nothing in the journey changes. A selection that cannot be confirmed
+        yet still gets its list: where to sleep does not wait for the plan to fit."""
+        with self.store.lock(jid):
+            session = self._get(jid, owner)
+            if session.stage != "decision":
+                raise Conflict("lodging list needs the decision stage")
+            draft = self.tools["decision"].read(session.sessions["decision"], "draft", {"any": True})["output"]
+        if draft is None or not draft["confirmed"]:
+            return {"status": "empty", "candidates": []}
+        return self.tools["planning"].lodging_options({"decision_output": draft})
 
     def trips(self, owner: str) -> list[dict]:
         """One line per journey of the signed-in account, newest first."""
@@ -182,9 +200,6 @@ class Harness:
 
     def lodging_suggest(self, q: str) -> list[dict]:
         return self.tools["planning"].lodging_suggest(q)
-
-    def transit(self, params: dict) -> dict:
-        return self.tools["planning"].transit(params)
 
     def forget_profile(self, user_id: str) -> bool:
         return self.tools["trip"].forget(user_id)
@@ -373,7 +388,7 @@ class Harness:
                 if "first_ms" not in trace and event in ("say", "preview", "view"):  # time to the first SSE event
                     trace["first_ms"] = round((time.monotonic() - trace["t0"]) * 1000)
                 events.append({"event": event, "data": data})
-                if emit and event in ("say", "preview"):
+                if emit and event in LIVE:
                     emit(event, data)
                 if stage == "trip" and event == "done" and "search_input" in data:
                     session.outputs["trip"] = SearchInput.model_validate(data["search_input"]).model_dump(mode="json")
@@ -422,7 +437,7 @@ class Harness:
                 raise
             if emit:
                 for event in events:
-                    if event["event"] not in ("say", "preview"):
+                    if event["event"] not in LIVE:
                         emit(event["event"], event["data"])
             return response
 

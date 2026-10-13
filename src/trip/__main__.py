@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from .agent import openai_chat
 from .api.engine import Engine
 from .api.server import run
+from .api.tools import senses
 from .infrastructure.catalog import Catalog
 from .infrastructure.clef import Judge, route
 from .infrastructure.profile import ProfileStore
@@ -27,9 +28,10 @@ def main() -> None:
     data = ROOT / os.environ.get("DATA_DIR", "data")
     catalog = Catalog.load(data, cfg.n_min)
     engine = Engine(catalog, cfg, SessionStore(data / "trip" / "sessions"),
-                    chat=openai_chat(cfg), route=lambda text, card: route(text, cfg, card),
+                    chat=openai_chat(cfg), route=lambda text, card, hist: route(text, cfg, card, hist),
                     judge=Judge(cfg),
-                    profiles=ProfileStore(ROOT / cfg.patterns.dir, cfg.patterns) if cfg.patterns.enabled else None)
+                    profiles=ProfileStore(ROOT / cfg.patterns.dir, cfg.patterns) if cfg.patterns.enabled else None,
+                    **senses(cfg, catalog))
     agent = os.environ.get("AGENT_MODEL", "policy fallback")
     print(f"Trip Understanding: http://127.0.0.1:{args.port} ({len(catalog.places)} places, model {agent})")
     run(engine, args.port)

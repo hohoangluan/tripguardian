@@ -69,12 +69,24 @@ def _price_norm(rec: dict, cfg) -> float:
     return min(1.0, mid / cfg.price_ref_vnd)
 
 
+def vibe_fit(si) -> dict[str, float]:
+    """place id -> 1..0.5 by its rank among a chosen look's places (Search Input vibes, from corpus.index photos).
+    A place outside every look gets 0: a look only lifts places, it never pushes one down or out."""
+    out: dict[str, float] = {}
+    for v in getattr(si, "vibes", ()):
+        n = max(1, len(v.places) - 1)
+        for i, pid in enumerate(v.places):
+            out[pid] = max(out.get(pid, 0.0), 1.0 - 0.5 * i / n)
+    return out
+
+
 def score(cands: list[Cand], si, profile, cfg) -> None:
     ws = wants(si, profile)
     voices = sorted(c.rec["provenance"].get("voices") or 0 for c in cands)
     top = max(1, len(voices) - 1)
     visited = set(si.novelty.visited) | set(profile.visited)
     nov_of = {"new": -1.0, "familiar": 0.3}
+    vibe = vibe_fit(si)
     for c in cands:
         pref, unc, matches = preference(c.rec, ws, si.activities.get(c.id), c.role)
         pop = min(1.0, bisect_left(voices, c.rec["provenance"].get("voices") or 0) / top)
@@ -83,6 +95,7 @@ def score(cands: list[Cand], si, profile, cfg) -> None:
                    "nov": nov_of.get(si.novelty.level, 0.0) if c.id in visited else 0.0,
                    "exp": pop if exp == "first" else 1 - pop if exp == "returning" else 0.0,
                    "pop": round(pop, 4), "unc": -round(unc, 4),
-                   "price": -round(profile.price_sensitivity * _price_norm(c.rec, cfg), 4)}
-        c.score = round(sum(cfg.weights[k] * v for k, v in c.parts.items()), 4)
+                   "price": -round(profile.price_sensitivity * _price_norm(c.rec, cfg), 4),
+                   "vibe": round(vibe.get(c.id, 0.0), 4)}
+        c.score = round(sum(cfg.weights.get(k, 0.0) * v for k, v in c.parts.items()), 4)
         c.matches = sorted(matches, key=lambda m: (-m[2], m[0]))

@@ -174,14 +174,31 @@ _không có_
 
 ## trip — Trip Understanding: hội thoại ngắn tới Search Input
 
-- file: `src/trip/` (toàn bộ), `config/trip.yaml`, `tests/trip/`, `web/src/user/tu/`, `web/src/user/screens/Understand.tsx`
-- cách kiểm chứng: `python -m pytest -q tests/trip`; `python -m pytest -m live tests/trip/test_live.py` (Gemma thật); `python -m trip serve` + `/app/understand`
+- file: `src/trip/` (toàn bộ), `config/trip.yaml`, `tests/trip/`, `web/src/user/tu/`, `web/src/user/screens/Understand.tsx`, `web/src/user/screens/understand/`, `web/src/user/css/chat.css`, `docker/searxng/`
+- cách kiểm chứng: `python -m pytest -q tests/trip tests/index`; harness + `/app/understand` (Playwright: "vibe retro" → thẻ dấu hiệu → thẻ các kiểu → bảng nơi; gửi ảnh một nơi); `curl 'http://127.0.0.1:8888/search?q=retro&format=json'`
 
-### Hiện tại (2026-10-08, tối)
+### Hiện tại (2026-10-13)
+- hành vi: một khung chat theo `docs/design/desktop/v4-chat-cards/mock.html`, bỏ thanh Trò chuyện / Trắc nghiệm nhanh. Lời agent không hỏi gì (và chuyến đã được kể) thì câu kế tiếp của `quiz_queue` hiện thành nút trả lời nhanh; agent lỗi / Clef trả câu cố định thì chỉ có ô gõ. Gõ khi nút đang mở: other-gate đọc được thì ghi, không thì là tin nhắn chat (bỏ đường vòng `resolving_other`). Thẻ cũ còn trong `quiz_queue` vẫn trả lời được.
+- phong cách và ảnh (`docs/TRIP_UNDERSTANDING.md` §18): tool `ask` (`look` với dấu hiệu + `where`, `this_or_that`), `web_search` / `web_read` (SearXNG tự host trong Docker, cache `data/web_cache`); `Vibe` trong Trip State; thẻ dấu hiệu → thẻ các kiểu (cụm ảnh thật từ `corpus.index`) → `vibes[].places`; ảnh user gửi (`kind: image`) qua Embedder + Extractor `PHOTO_CUES`, khớp rõ một nơi thì hỏi "có phải X?". Trả lời thẻ không gọi model. Search Input thêm `vibes` (chỉ vibe `done`); Decision cộng `vibe` (trọng số 0,8).
+- sự kiện `progress` (các bước, nguồn) phát trực tiếp qua harness; `understanding.board` (24 nơi, nơi của vibe lên đầu) và `understanding.vibes`.
+- web: chat trái (khối các bước co lại, thẻ co thành `✓ câu trả lời`), bảng nơi phải (số nơi chạy số, lọc theo loại, thẻ nơi mở PlaceSheet, ♡ lưu), ô nhắn kèm ảnh thu nhỏ ≤ 448 px; màu hồng `.tg-rose` chỉ cho trang này. Bỏ `TripChat.tsx`.
+- giới hạn: `ask` do Gemma tự quyết (có lượt nó ghi `unmapped` trước rồi mới `ask`); với từ quen ("retro", "wabi sabi") agent không tìm web. Tên kiểu dùng tag phong cách khi đủ nơi mang tag, không thì "Kiểu như <nơi đầu>".
+
+### Trước đó (2026-10-08, tối)
 - hành vi: như bản trước, thêm: (1) câu mở `frame` là khung chat của web: lượt chữ đầu trong lúc nó mở là đã trả lời (`agent/nodes.finalize_text`), kể cả khi không ghi được gì, nên "Đúng rồi, hỏi tiếp" chia câu ngắn đầu tiên còn thiếu, không bao giờ chia lại `frame`; chat bao nhiêu lượt cũng được. (2) Ngân hàng câu hỏi bỏ `base`, `entry_exit` (trùng câu chỗ ở, phương tiện của hậu cần); `times` thành câu hậu cần, chỉ hỏi giờ mà chuyến xe / bay chưa cho (tự đi, bỏ qua chuyến, không có ngày). (3) Viết lại lời các câu gượng (dốc / bậc thang, lọc sức khỏe, giới hạn chưa xác minh, khoảnh khắc → trải nghiệm, chỗ đông, nhịp, chặng di chuyển, ngân sách…). (4) Web: khung chat bỏ bốn nút "cách bắt đầu", thêm đính kèm file chữ (`tu/attach.ts`: .txt, .csv Google Takeout, .json / .geojson, .kml → từng dòng tên nơi hoặc link) và nhắc dán link Maps / TikTok; thẻ câu hỏi nói rõ chọn một hay chọn nhiều (dòng hướng dẫn + dấu tròn / vuông). Kiểm chứng: 182 test trip; chat thật "đà lạt" → "hỏi tiếp" → thẻ Số ngày.
 
-### Trước đó (2026-10-08, chiều)
-- hành vi: như bản trước, thêm hai điểm. (1) Câu có "giống / kiểu / như / tương tự" + tên một nơi trong catalog: `domain/traits.py` lấy tối đa 4 nét nổi bật của nơi đó (giá trị khác phổ biến trong cùng category, theo số người nhắc) đưa vào `compared_places`; guard chỉ nhận soft `inferred` nhắc nơi đó khi giá trị nằm trong các nét ấy, và cho `say` nhắc tên nơi đó. (2) `Engine.refine` / tool `trip.refine`: harness chuyển mong muốn gõ ở Chọn nơi sang, chạy như lượt chữ, giữ thẻ đang mở, compile lại và phát `done`; lời trả lời không kết bằng câu hỏi. (3) Soft suy từ nơi so sánh ghi `place:<id>`, vé hiện "Tránh: …, … (giống X)". (4) Chip của thẻ mang `effect` (+/− số nơi "Đang hợp với bạn" nếu chọn chip đó, `understanding.chip_effects`); màn Hiểu chuyến đi hiện số trên chip, số đếm chạy tới giá trị mới kèm "−N nơi" và bốn lựa chọn gần nhất.
+## corpus-index — Chỉ mục ngữ nghĩa (tag phong cách, vector ảnh và chữ)
+
+- file: `src/corpus/index/` (`embedder.py`, `vectors.py`, `compile.py`, `query.py`), `src/corpus/observe/gmaps/styles.py`, `config/index.yaml`, `config/styles.yaml`, task `STYLE_OBSERVE` / `PHOTO_CUES` (`src/corpus/llm/tasks.py`), `tests/index/`
+- cách kiểm chứng: `python -m pytest -q tests/index`; `python -m corpus gmaps style_observe`; `python -m corpus index`; truy vấn mẫu `Index.load().embed_text("đèn vàng, ghế gỗ, nhạc xưa")` → `search_photos` → `places_by_photos`
+
+### Hiện tại (2026-10-13)
+- hành vi: lớp B (tag phong cách từ ảnh Maps, ngoài ontology để không trích lại corpus) và lớp C (SigLIP2 cho 29.820 ảnh Maps + frame TikTok, bge-m3 cho 476.666 câu trích dẫn) của `docs/CORPUS.md` §Chỉ mục ngữ nghĩa; 8 GPU: ảnh Maps 376 s, frame 203 s, câu trích dẫn 70 s (2026-10-13; ảnh đọc từ ổ mạng là nút thắt, GPU dùng thấp). `compile` ghi `data/index/<version>/` (LanceDB) và `current`. API online: `search_photos`, `places_by_photos`, `similar_places`, `clusters`, `dominant_style`.
+- `style_observe` chạy được trên UIT (`EXTRACTOR_ON_UIT=1`) hoặc host LAN; chung key với Judge thì 429, làm lại phần lỗi.
+- chưa làm (`docs/superpowers/specs/2026-10-12-corpus-semantic-index-design.md`): lớp A (feature tiện ích), mask numpy / ma trận độ giống cho Decision, bộ câu khó để đo precision.
+
+### Trước đó
+- _không có_
 
 ## decision — Place Decision: Search Input tới Decision Output
 
@@ -213,6 +230,21 @@ _không có_
 - sửa: kế hoạch hiện ra là hợp lệ nhưng không xác nhận được (`plan has unresolved violations`) khi bộ xếp lịch đã bỏ ghim giờ của một nơi: `DayResult.unpinned` ghi lại, `validate` tôn trọng. Plan Output đã chốt giữ `day_conditions`, `crowd_tips`. Phát hiện bằng `scripts/journey_sim.py` (mô phỏng 11 kiểu người dùng + hành vi ngẫu nhiên trên dữ liệu thật, không gọi model).
 - giới hạn: thông báo thiên tai và lễ hội nhập tay (chưa có nguồn tự động; `advisories.yaml` rỗng không có nghĩa an toàn); ngưỡng thời tiết, hệ số đông khách là ước lượng chờ pilot; chưa kiểm cửa hàng đóng tạm thời trực tiếp (`place_live_status`).
 
+## planning-schedule-cost — Lịch trình, chi phí và kiểm tra độc lập
+
+- file: `src/planning/{composer,details,timefit,validate}.py`, `tests/planning/test_planning_{composer,details,validate}.py`; contract hiện tại: `docs/PLANNING.md` §Thuật toán và §Vòng người dùng sửa và góp ý.
+- cách kiểm chứng: `python -m pytest -q tests/planning/test_planning_consistency.py tests/planning/test_planning_meal_timing.py tests/planning/test_planning_objectives.py tests/planning/test_planning_output.py tests/planning/test_planning_validate.py tests/planning/test_planning_details.py tests/planning/test_planning_timefit.py tests/planning/test_planning_schedule.py`; thêm `tests/planning/test_planning_composer.py` cho tìm phương án quá tải.
+
+### Hiện tại (2026-10-12)
+- hành vi: tiết kiệm ưu tiên giảm số giá hoàn toàn chưa ước lượng được trước khi so tổng chi phí; đổi một nơi lấy nơi khác vẫn giữ `composer.alpha` giá trị selection. Không nội suy giá từ nhóm khác hay coi giá thiếu là miễn phí.
+- giờ ghé: thưởng/phạt từ review theo tỷ lệ toàn bộ khoảng ghé nằm trong khung tốt/xấu; phần bằng chứng mâu thuẫn triệt tiêu theo từng khoảng giao.
+- validator: lịch đầy đủ kiểm bữa từ visit thực tế, không phụ thuộc `DayResult.order`; visit phải đạt `short`. Cache phụ thuộc record của visit và endpoint travel thực tế, nên đổi thời lượng/giờ mở/chặng không bỏ sót lỗi.
+- kiểm chứng: 136 test tập trung pass, bỏ hai test composer nặng đã pass ở lần chạy trước; gồm 8 test hồi quy mới về giá thiếu, giá trị selection, khoảng giờ ghé và validator/cache. Kiểm tích hợp toàn Planning/Decision/Harness trong workspace đang sửa đồng thời: 838 pass, 105 skip, 28 fail; lần chạy lại nhóm lỗi sau thay đổi nguồn khách sạn có 8 fail (golden, chọn nhánh variants và handoff), 41 pass, 26 skip. Kết quả tích hợp là ảnh chụp tại thời điểm chạy, chưa kết luận toàn repo xanh.
+- giới hạn dữ liệu: giờ mở cửa chưa biết vẫn được xếp kèm cảnh báo; budget kiểm phần giá địa điểm đã biết, chưa chứng minh được tổng chi phí khi còn khoản thiếu. Thời lượng fallback là ước lượng, không phải observation. Chưa có transition/fatigue cá nhân hóa hoặc benchmark hiệu chỉnh từ phản hồi người dùng thật.
+
+### Trước đó
+_không có_
+
 ## landing — Landing 3D (máy tính) + Dùng ứng dụng (điện thoại)
 
 - file: `web/src/user/screens/{Landing,GetApp}.tsx`, `web/src/user/landing/{scene,terrain,device}.ts`, `web/src/user/landing/{places,points,stats}.json` (sinh bằng `web/scripts/pick_landing_places.py`), `web/src/user/css/landing.css`, `web/src/user/UserApp.tsx`; phụ thuộc `three`, `gsap`, `lenis`
@@ -237,19 +269,25 @@ _không có_
 
 ## detail-logistics — Xem chi tiết, hiện hết gợi ý, hỏi hậu cần, chỗ ở theo gu
 
-- file: `web/src/user/ui/{PlaceSheet,PlaceInput,TransitPick}.tsx`, `web/src/user/screens/{Understand,Lodging,Plan}.tsx`, `web/src/user/tu/`, `web/scripts/pick_covers.py`; `src/decision/pipeline.py` (danh sách đầy đủ, cửa sổ, gộp ít xáo trộn); `src/trip/domain/logistics.py`; `src/live/{flights,buses}/`, `src/live/geocode/photon.py`; `src/planning/{logistics,lodging}.py`; `src/harness/server.py` (`/geo`, `/lodging/suggest`, `/transit` + SSE); corpus nhóm `stay` (`config/queries.yaml` `stay:`, `listing.build_stay`); `scripts/prewarm_transit.py`
-- cách kiểm chứng: `python -m pytest -q tests/live tests/planning tests/harness tests/decision tests/trip`; `node web/scripts/shots_sheet.mjs <base> <journey>` (modal, 1440 / 390); `node web/scripts/shots_app.mjs <base>` (toàn luồng: xuất phát → máy bay → chọn chuyến → chưa có chỗ ở → chọn nơi → "Bạn ở đâu?" → lịch)
+- file: `web/src/user/ui/{PlaceSheet,PlaceInput,SelectedBar}.tsx`, `web/src/user/screens/{Understand,Explore,Lodging,Plan}.tsx`, `web/src/user/pd/`, `web/src/user/tu/`, `web/scripts/{pick_covers,export_snapshot}.py`; `src/decision/{session,curation,engine,pipeline,output,contracts,scope}.py`; `src/trip/domain/questions.py`; `src/planning/{logistics,lodging,engine,frame,build,variants}.py`; `src/harness/{dispatch,server}.py`; `src/corpus/crawl/gmaps/listing.py`, `src/corpus/observe/gmaps/extract.py`, `src/corpus/aggregate/place.py`, `src/corpus/serving/record.py`
+- cách kiểm chứng: `python -m pytest -q tests/planning tests/harness tests/decision tests/trip tests/crawl tests/serving tests/aggregate tests/observe`; `cd web && node_modules/.bin/tsc --noEmit -p .`
 
-### Hiện tại (2026-10-08)
+### Hiện tại (2026-10-12)
+- hành vi:
+  - "Xem chi tiết" là modal `PlaceSheet` như trước; Chọn nơi hiện hết ứng viên qua lọc, cuộn tải thêm; lưới không còn dòng "X và Y khá giống nhau".
+  - Hậu cần ở Hiểu chuyến đi: tới Đà Lạt bằng gì, xuất phát từ đâu (mọi chuyến), đã có chỗ ở chưa. Không còn thẻ chọn chuyến bay / xe khách (bỏ `TransitPick`, `/api/harness/transit`).
+  - Chỗ ở: chọn ở tab "Chỗ ở" của Chọn nơi (khi chưa có chỗ ở đã đặt). Danh sách là chỗ ở trong corpus (nhóm `stay`, 1.524 nơi Đà Lạt) quanh các nơi đã chọn, Planning xếp theo gu trước, vị trí sau (`read/decision/lodging`); chọn = Decision `set_lodging`, đi vào Decision Output `lodging`. Planning không cào Maps. Màn "Bạn ở đâu?" trước lịch đã bỏ; "Đổi chỗ ở" quay về tab đó.
+  - Mọi ngày bắt đầu và kết thúc ở chỗ ở (bỏ neo `@entry` / `@exit`).
+  - Không chặn: "Lập lịch" luôn bấm được khi đã chọn ít nhất một nơi; quá tải / vướng / chưa có chỗ ở chỉ hiện thông báo; Planning không bắt buộc chỗ ở.
+  - Giá một đêm của chỗ ở: thẻ danh sách khách sạn Maps (741 / 1.524 nơi có giá) → `list/dalat_stay.json` → `place_facts.price_night` → serving `operation.price_per_night`.
+
+### Trước đó (2026-10-08)
 - hành vi:
   - "Xem chi tiết" là một modal `PlaceSheet` (`?place=<id>`, Back / Esc đóng, ảnh bay vào chỗ bằng View Transitions / FLIP) mở từ đĩa, lưới, anchor, trợ lý, thanh "Đã chọn"; tab Hình ảnh hiện ≤ 12 ảnh/nơi do `pick_covers.py` chọn (YOLO + pHash + Gemma `photo_rank`; 1.704 nơi có gallery), thumbnail WebP cho mọi ảnh mới (`make_thumbs.py`).
   - Chọn nơi hiện hết ứng viên qua lọc: cuộn tải thêm 24 nơi/lần; chat thu hẹp giữ nơi còn khớp đúng chỗ (`docs/PLACE_DECISION.md` §9.2–9.4).
   - Trip Understanding hỏi hậu cần trước `ready` (`docs/TRIP_UNDERSTANDING.md` §Hậu cần); web: ô gõ có gợi ý cho xuất phát / chỗ ở, danh sách chuyến bay / xe khách thật (cache, thiếu thì crawl nền + SSE, lỗi thì mở trang đặt vé + nhập tay giờ), các dòng mới trên vé chuyến.
   - Chỗ ở: corpus có nhóm `stay` chỉ Planning đọc; Planning xếp chỗ ở theo gu trước, vị trí sau (`docs/PLANNING.md` ⓐ); chưa có chỗ ở thì web hiện "Bạn ở đâu?" một lần trước lịch; đã đặt thì lịch neo thẳng vào chỗ đó.
   - Đo 2026-10-08: chuyến bay SGN→DLI `pending` → `ready` sau ~18 s (5 chuyến), lần sau từ cache; xe khách ~1,5 s.
-
-### Trước đó
-- _không có_
 
 ## tiktok-place-poi — Địa điểm TikTok (POI) của từng nơi Maps
 

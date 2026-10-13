@@ -35,6 +35,7 @@ Mỗi field của Search Input (`TRIP_UNDERSTANDING.md` §9) được dùng ở 
 | `soft_weights` | Xếp hạng | Trọng số theo feature id |
 | `pace` + travel / crowd tolerance | Hợp bối cảnh, Đa dạng, Khả thi | Bán kính chấp nhận, cỡ shortlist, số nơi mỗi ngày |
 | `novelty` + danh sách đã đi | Xếp hạng | Giảm hoặc loại nơi đã đi |
+| `vibes` (phong cách user chọn, `TRIP_UNDERSTANDING.md` §18) | Xếp hạng | Nơi của phong cách được cộng `vibe`; không loại nơi nào |
 | `unknowns` | Mọi bước | Không lọc, trọng số 0, gắn cờ khi giải thích |
 
 Search Input có thể đổi giữa chừng (user sửa bản hiểu nhu cầu, trả lời thêm, Session Profile thay đổi). Khi đổi, luồng chạy lại từ bước sớm nhất bị ảnh hưởng (§14); lựa chọn đã khóa được giữ.
@@ -196,6 +197,7 @@ score = w_ctx   · context_fit
       + w_nov   · novelty             theo novelty + Experience History + Exploration Gap
       + w_exp   · experience_fit      visited rỗng: nơi đặc trưng được cộng; có visited: nơi khác visited được cộng
       + w_pop   · popularity          chỉ là một tín hiệu, trọng số nhỏ
+      + w_vibe  · vibe_fit            1 → 0,5 theo thứ hạng trong vibes[].places; nơi ngoài mọi vibe được 0
       − w_unc   · uncertainty         thiếu coverage / UNCERTAIN / OUTDATED ở khía cạnh quan trọng với user
 ```
 
@@ -206,6 +208,7 @@ Quy tắc:
 - Feature `off` cho chuyến này (ví dụ `hiking = off`) → không cộng; không loại trừ khi đó không phải hard filter.
 - `novelty = high` → nơi trong Experience History bị giảm mạnh hoặc loại khỏi khám phá (không loại nếu user đưa vào anchor). Đã đến ≠ đã thích (`Project_Context.md` §11).
 - Thứ tự ưu tiên khi hai nguồn trọng số mâu thuẫn giữ đúng `TRIP_UNDERSTANDING.md` §2.
+- `vibe_fit` chỉ nâng nơi user đã chọn qua ảnh thật (độ giống ảnh không phải bằng chứng nên không bao giờ hạ hay loại nơi nào).
 - Trọng số `w_*` nằm trong config, có version; mỗi điểm lưu kèm từng thành phần để giải thích và debug.
 
 ## 9. Đa dạng và cỡ shortlist
@@ -307,6 +310,9 @@ Giờ / giá / vị trí lấy từ bằng chứng official hoặc Google, khôn
 | So sánh | Mở §10 |
 | Thay | Đổi sang nơi thay thế trong nhóm |
 | Xem thêm giống | Mở rộng nhóm / truy xuất thêm quanh feature đó |
+| Chọn chỗ ở | Cả chuyến có **một** chỗ ở (`view.lodging`: `booked` = đã nói ở Hiểu chuyến đi, `chosen` = chọn ở đây, thay `booked`; `needed` = chưa biết). Tab "Chỗ ở" luôn có: chỗ ở trong corpus quanh các nơi đã chọn (Planning xếp, `docs/PLANNING.md` ⓐ). Chưa có chỗ ở thì chọn ngay; đã có (đã đặt hoặc đã chọn) mà muốn đổi thì Web hỏi xác nhận trước khi gửi action. `set_lodging` `{lodging: {kind: corpus, id}}` (tên, toạ độ, giá một đêm đọc từ bản ghi `stay`) hoặc một điểm từ ô tìm `{kind, text, lat, lng}`; `clear_lodging` bỏ. Không xếp hạng lại nơi nào |
+
+Không thao tác nào bị chặn vì lựa chọn quá tải, vướng điều kiện hay chưa có chỗ ở: Web báo cái giá và để người dùng tự quyết (nút "Lập lịch" luôn bấm được khi đã chọn ít nhất một nơi).
 
 ### 12.2 Tín hiệu và thích nghi trong phiên
 
@@ -382,7 +388,8 @@ Decision Output
 ├── backup_pool    ứng viên cùng nhóm / bị loại vì lý do theo ngữ cảnh, kèm lý do → dùng cho dự phòng
 ├── wishlist       nơi user muốn nhưng vi phạm physical, kèm lý do
 ├── trip_context   Search Input tại thời điểm xác nhận (bản chụp)
-└── decision_log   vì sao chọn, vì sao bỏ, đánh đổi user chấp nhận → để giải thích ở kế hoạch cuối
+├── decision_log   vì sao chọn, vì sao bỏ, đánh đổi user chấp nhận → để giải thích ở kế hoạch cuối
+└── lodging        chỗ ở chọn ở tab "Chỗ ở" {kind, id?, text, lat, lng, price_vnd?} | null → nơi mọi ngày bắt đầu và kết thúc
 ```
 
 `decision_log` giúp kế hoạch cuối trả lời "Vì sao chọn những nơi này?" và "Đã phải hy sinh gì?" (`docs/PLANNING.md` §Plan Output).

@@ -45,6 +45,30 @@ def matching(state: TripState, catalog: Catalog | None) -> int:
                if admissible(c, state.hard, state.activities.get(c.id)) and fits(c))
 
 
+BOARD = 24  # places the Understand screen's board shows
+
+
+def board(state: TripState, catalog: Catalog | None, n: int = BOARD) -> dict:
+    """The places that fit right now, for the board beside the chat: a chosen look's places first (in its order),
+    then the places with most liked features, then the best documented. Ranking only: the count is `matching`,
+    nothing here removes a place."""
+    if catalog is None:
+        return {"ids": [], "vibe": []}
+    fits = to_taste(state)
+    pool = [c for c in catalog.places if admissible(c, state.hard, state.activities.get(c.id)) and fits(c)]
+    rank: dict[str, int] = {}
+    for v in state.vibes:
+        if v.status != "none":
+            for i, pid in enumerate(v.places):
+                rank.setdefault(pid, i)
+    loves = [(k.feature, k.value, k.context) for key, f in state.soft.items()
+             if f.known and WEIGHT_SIGN.get(f.value, 0) > 0 for k in (SoftKey.parse(key),)]
+    pool.sort(key=lambda c: (c.id not in rank, rank.get(c.id, 0),
+                             -sum(c.value(fe, cx) == val for fe, val, cx in loves), -c.weight))
+    top = pool[:n]
+    return {"ids": [c.id for c in top], "vibe": [c.id for c in top if c.id in rank]}
+
+
 def chip_effects(state: TripState, q: Question | None, catalog: Catalog | None) -> dict[str, int]:
     """chip id -> how many places that count gains (+) or loses (−) if this chip alone is chosen now; chips that change
     nothing are left out. Computed on a copy of the state: nothing is written."""
@@ -124,4 +148,10 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
         # the current state, never a forecast; soft values only rank later, this count does not remove anything.
         "matching": matching(state, catalog),
         "total": len(places),
+        "board": board(state, catalog),
+        # looks the user wants (domain/vibes.py): what the ticket says about each
+        "vibes": [{"target": f"vibe:{i}", "phrase": v.phrase, "status": v.status, "cues": list(v.cues),
+                   "chosen": [k.label for k in v.offered if k.id in v.chosen], "image": v.image,
+                   "picked": catalog.by_id[v.picked].name if v.picked and v.picked in catalog.by_id else None,
+                   "places": len(v.places)} for i, v in enumerate(state.vibes)],
     }

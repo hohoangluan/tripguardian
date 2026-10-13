@@ -46,6 +46,11 @@ class Settings:
     airports: tuple = ()  # ({iata, name, lat, lng}, …) with direct flights to the city (config/airports.yaml)
     patterns: PatternSettings = field(default_factory=PatternSettings)
     themes: dict = field(default_factory=dict)  # theme id -> {title, say, soft: [...], groups: [...]} (Khám phá cards)
+    web_base_url: str = ""  # self-hosted SearXNG for the agent's web_search (docker/searxng); "" = no web tools
+    web_timeout_s: float = 6.0
+    web_cache_dir: str = "data/web_cache"
+    web_ttl_days: int = 30
+    looks: bool = True  # corpus.index for looks and photos (needs `python -m corpus index`); False = no photo cards
 
     @property
     def enough(self) -> int:

@@ -47,9 +47,18 @@ def test_the_request_carries_the_message_the_open_card_and_its_questions(cloudfl
     clef.route("tháng 12 lạnh không?", Settings(), "Bạn đi mấy ngày?")
     request, timeout = seen[0]
     body = json.loads(request.data)
-    assert body["state"] == {"user_message": "tháng 12 lạnh không?", "open_question": "Bạn đi mấy ngày?"}
+    assert body["state"] == {"user_message": "tháng 12 lạnh không?", "open_question": "Bạn đi mấy ngày?",
+                             "history": ""}
     assert set(body["questions"]) == {clef.SCOPE, clef.DATA} and timeout == 1.0
     assert request.full_url.endswith("/accounts/acc/ai/run/@cf/cloudflare/clef-flash")
+
+
+def test_the_request_carries_the_recent_exchanges_as_history(cloudflare, monkeypatch):
+    seen = []
+    fake(monkeypatch, [answer(clef.SCOPE, "A", 0.99)], seen)
+    clef.route("kiểu gia đình á", Settings(), "", history="mình: Kiểu bạn bè hay gia đình?\nkhách: anh họ mà thân thiết")
+    body = json.loads(seen[0][0].data)
+    assert "Kiểu bạn bè hay gia đình?" in body["state"]["history"]
 
 
 def test_it_rejects_only_when_sure(cloudflare, monkeypatch):
@@ -90,7 +99,7 @@ def test_it_reads_the_real_reply_where_answers_are_a_dict_keyed_by_question(clou
 def test_data_question_lists_every_lookup_tool():
     from trip.agent.tools import SPECS
     from trip.infrastructure.clef import LOOKUPS
-    assert set(LOOKUPS) == set(SPECS) - {"record_fact", "drop_refusal"}
+    assert set(LOOKUPS) == set(SPECS) - {"record_fact", "drop_refusal", "ask"}  # ask asks with a card, it looks nothing up
 
 
 def test_judge_vetoes_only_when_sure_and_never_when_clef_is_down(cloudflare, monkeypatch):

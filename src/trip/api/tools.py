@@ -15,9 +15,11 @@ from ..domain.card import Question
 from ..domain.state import TripState
 from ..infrastructure.catalog import Catalog
 from ..infrastructure.clef import Judge, route
+from ..infrastructure.looks import Looks, photo_cues
 from ..infrastructure.profile import USER_ID, ProfileStore
 from ..infrastructure.sessions import Session, SessionStore
-from ..infrastructure.settings import ROOT, load
+from ..infrastructure.settings import ROOT, Settings, load
+from ..infrastructure.web import Web
 from .engine import Engine, TurnInput
 
 
@@ -94,4 +96,12 @@ def create_engine(data_root: Path) -> Engine:
     profiles = ProfileStore(ROOT / cfg.patterns.dir, cfg.patterns) if cfg.patterns.enabled else None
     return Engine(catalog, cfg, SessionStore(None), openai_chat(cfg),
                   today=lambda: datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date(), profiles=profiles,
-                  route=lambda text, card: route(text, cfg, card), judge=Judge(cfg))
+                  route=lambda text, card, hist: route(text, cfg, card, hist), judge=Judge(cfg), **senses(cfg, catalog))
+
+
+def senses(cfg: Settings, catalog: Catalog) -> dict:
+    """The engine's looks (corpus.index), web and photo reader, as config/trip.yaml turns them on."""
+    return {"looks": Looks(catalog) if cfg.looks else None,
+            "web": Web(cfg.web_base_url, ROOT / cfg.web_cache_dir, cfg.web_timeout_s, cfg.web_ttl_days)
+            if cfg.web_base_url else None,
+            "see": photo_cues if cfg.looks else None}

@@ -942,6 +942,52 @@ Give a one-sentence reason.""",
 )
 
 
+# Style tags (config/styles.yaml, layer B of corpus.index) from a place's Maps photos. Soft taste only: what the decor or
+# the building visibly is. The gate (corpus.observe.gmaps.styles) keeps known style ids with a photo and a quote.
+STYLE_OBSERVE = Task(
+    name="style_observe",
+    role=EXTRACTOR,
+    max_tokens=1200,
+    schema=PHOTO_OBSERVE.schema,
+    prompt="""You read {count} Google Maps photos of one place in {city}, Vietnam, attached in order and numbered 1-{count}
+(photo i = the i-th image). Say which decor or architecture styles the photos clearly SHOW at this place, for a travel
+product that matches places to the look a traveller wants.
+
+Place: {name} ({category})
+Photos: {photo_list}
+
+Styles (feature = the id, value = "present"; the text lists the visible signs that prove it):
+{allowed}
+
+Rules:
+- One observation per (style, photo). quote = a short plain description of what that photo shows that proves the
+  style ("yellow lamps over old wooden chairs and a record player", "steep tiled roof, yellow walls, green shutters").
+- Only the place's own interior, building or garden. Food, drinks, a menu, a selfie close-up or the street give
+  nothing. One old object in a modern room is not a style.
+- A child style (retro_saigon, vintage_junk, french_colonial) also counts for its parent: report the child only.
+- Unsure, blurry, or could be anywhere -> nothing. Return an empty list when no style is clearly shown.""",
+)
+
+# A traveller's own photo on the Understand screen (src/trip): the visible signs of its look, in short Vietnamese
+# phrases, so they can confirm or edit them. Nothing here is evidence about any place; the photo is not stored.
+PHOTO_CUES = Task(
+    name="photo_cues",
+    role=EXTRACTOR,
+    max_tokens=600,
+    schema={"type": "object", "properties": {
+        "kind": {"type": "string"},
+        "cues": {"type": "array", "items": {"type": "string"}}},
+        "required": ["kind", "cues"], "additionalProperties": False},
+    prompt="""A traveller sent this photo to show the kind of place they want in Đà Lạt. Write what is visible, nothing
+guessed.
+
+- kind: the kind of place in 1-4 Vietnamese words ("quán cà phê", "homestay", "đồi thông"), or "" if unclear.
+- cues: 3-6 visible signs of its look, each 2-5 Vietnamese words, lower case, things a person can point at in the
+  photo ("đèn vàng ấm", "bàn ghế gỗ cũ", "xe đạp treo tường", "mái ngói đỏ"). No feelings ("chill", "đẹp"), no place
+  names, no prices.""",
+)
+
+
 # Gallery photos of one place for the web (web/scripts/pick_covers.py): which ones are the best to show. Scores only
 # order the gallery; nothing here becomes evidence about the place.
 PHOTO_RANK = Task(

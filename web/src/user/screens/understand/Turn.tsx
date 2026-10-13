@@ -1,0 +1,77 @@
+import { useEffect, useState, type CSSProperties } from 'react'
+import type { Card, Step, WebSource } from '../../tu/types'
+import { BotAvatar, Icon } from '../../ui/icons'
+import { CardView, type Answer } from './Cards'
+
+// One message of the conversation. A bot turn shows, in order: what it is doing (steps, from the server's progress
+// events; folded once the turn ends), what it says, and at most one card. An answered card folds into one line.
+
+export type Msg =
+  | { key: string; who: 'me'; text: string; photo?: string; files?: string[] }
+  | { key: string; who: 'bot'; say: string; steps: Step[]; sources: WebSource[]; card: Card | null; answered: string | null
+      live: boolean; t0: number; t1?: number }
+
+export const botMsg = (key: string, patch: Partial<Extract<Msg, { who: 'bot' }>> = {}): Msg =>
+  ({ key, who: 'bot', say: '', steps: [], sources: [], card: null, answered: null, live: false, t0: Date.now(), ...patch })
+
+function Steps({ steps, sources, live, secs }: { steps: Step[]; sources: WebSource[]; live: boolean; secs: number }) {
+  const [open, setOpen] = useState(true)
+  useEffect(() => {
+    if (live) return setOpen(true)
+    const t = window.setTimeout(() => setOpen(false), 700)
+    return () => window.clearTimeout(t)
+  }, [live])
+  return (
+    <div className={`tg-cx__think ${open ? 'is-open' : ''} ${live ? 'is-run' : ''}`}>
+      <button type="button" className="tg-cx__think-h" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="tg-cx__spark"><Icon name="sparkle" size={17} /></span>
+        <span className={live ? 'tg-cx__shimmer' : ''}>{live ? 'Đang tìm hiểu' : `Đã tìm hiểu ${secs} giây`}</span>
+        <Icon name="chevronDown" size={15} className="tg-cx__chev" />
+      </button>
+      <div className="tg-cx__think-b"><div>
+        <ol className="tg-cx__steps">
+          {steps.map((s) => (
+            <li key={s.id} className={`is-${s.status}`}>
+              <i className="tg-cx__dot" aria-hidden="true" />
+              <b>{s.label}</b>
+              {s.id.startsWith('web') && sources.length > 0 && (
+                <span className="tg-cx__det">{sources.map((x, i) => <a key={x.url} className="tg-cx__tag" style={{ '--d': `${i * 120}ms` } as CSSProperties} href={x.url} target="_blank" rel="noopener noreferrer">{x.domain}</a>)}</span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div></div>
+    </div>
+  )
+}
+
+export function Turn({ m, busy, onAnswer, onPhoto }: { m: Msg; busy: boolean; onAnswer: (m: Msg, ...a: Parameters<Answer>) => void; onPhoto: () => void }) {
+  if (m.who === 'me')
+    return (
+      <li className="tg-cx__m is-me">
+        <div className={`tg-cx__bub ${m.photo ? 'is-img' : ''}`}>
+          {m.photo && <img src={m.photo} alt="Ảnh bạn gửi" />}
+          {m.text && <p>{m.text}</p>}
+          {m.files?.length ? <p className="tg-cx__files">{m.files.map((n) => <span key={n}><Icon name="clip" size={13} />{n}</span>)}</p> : null}
+        </div>
+      </li>
+    )
+  const secs = Math.max(1, Math.round(((m.t1 ?? Date.now()) - m.t0) / 1000))
+  const waiting = m.live && !m.say && !m.steps.length
+  return (
+    <li className="tg-cx__m is-bot" aria-busy={m.live}>
+      <BotAvatar size={36} live={m.live} />
+      <div className="tg-cx__stack">
+        {m.steps.length > 0 && <Steps steps={m.steps} sources={m.sources} live={m.live} secs={secs} />}
+        {waiting && <p className="tg-cx__say is-wait"><span className="tg-dots" aria-hidden="true"><i /><i /><i /></span><span className="tg-sr">Đang đọc</span></p>}
+        {m.say && <p className="tg-cx__say">{m.say}</p>}
+        {m.card && m.card.text && m.card.qid !== 'conversation' && (
+          <p className="tg-cx__q">{m.card.text}{m.card.reason && !m.answered && <small>Vì sao hỏi: {m.card.reason}</small>}</p>
+        )}
+        {m.card && m.card.qid !== 'conversation' && (m.answered
+          ? <span className="tg-cx__done-row"><Icon name="check" size={15} />{m.answered}</span>
+          : <CardView card={m.card} busy={busy} onAnswer={(input, shown) => onAnswer(m, input, shown)} onPhoto={onPhoto} />)}
+      </div>
+    </li>
+  )
+}

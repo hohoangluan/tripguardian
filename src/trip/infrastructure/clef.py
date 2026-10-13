@@ -38,6 +38,8 @@ MISSING = "thời tiết, nhiệt độ, giá vé, giá phòng, giờ mở cửa
 QUESTIONS = {
     SCOPE: {"type": "choice",
             "instructions": "Tin nhắn thuộc loại nào? Câu trả lời cho open_question (kể cả rất ngắn như 'có', '3', 'bỏ qua') luôn là A. "
+                            "Câu trả lời cho câu hỏi mà hệ thống vừa hỏi trong lịch sử hội thoại cũng luôn là A, kể cả khi đọc "
+                            "riêng tin nhắn nghe lạc đề. "
                             "Mọi mong muốn, sở thích, tiện nghi, chỗ ở, ăn uống, đi lại, thời tiết, địa điểm cho một chuyến đi cũng là A, "
                             "dù nghe lạ (bồn tắm, hồ bơi, nuôi thú cưng, view đẹp, yên tĩnh). Chỉ chọn B khi hoàn toàn không liên quan "
                             "đến đi chơi; chỉ chọn C khi chắc chắn là phá hoại.",
@@ -108,9 +110,11 @@ def ranked(answers: dict, ids, at_least: float, top: int) -> tuple[str, ...]:
     return tuple(k for p, k in best[:top] if p >= at_least)
 
 
-def route(text: str, cfg: Settings, open_question: str | None = None) -> ClefRoute:
-    """Classify a turn. open_question: the card on screen, so a short answer to it is never judged off topic."""
-    answers = ask({"user_message": text, "open_question": open_question or ""}, QUESTIONS, cfg)
+def route(text: str, cfg: Settings, open_question: str | None = None, history: str = "") -> ClefRoute:
+    """Classify a turn. open_question: the card on screen, so a short answer to it is never judged off topic.
+    history: the last exchanges ("khách: ..." / "mình: ..." lines), so an answer to our own recent question
+    is never judged off topic either."""
+    answers = ask({"user_message": text, "open_question": open_question or "", "history": history}, QUESTIONS, cfg)
     reject = ("off_topic" if prob(answers, SCOPE, "B") >= cfg.clef_reject_min else
               "abuse" if prob(answers, SCOPE, "C") >= cfg.clef_reject_min else None)
     return ClefRoute(reject, prob(answers, DATA, "A") >= cfg.clef_data_min)

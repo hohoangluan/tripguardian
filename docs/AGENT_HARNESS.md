@@ -80,12 +80,11 @@ Bind `127.0.0.1`; Vite proxy `/api/harness` và `/api/auth` đến cổng 8769 (
 | `POST /api/harness/sessions/<id>/request` | Mutation JSON; `Accept: text/event-stream` để nhận SSE |
 | `GET /api/harness/places?q=` | Tra nơi từ serving index |
 | `GET /api/harness/geo?q=` | Ô "Bạn khởi hành từ đâu?": ≤ 6 `{text, address, province, lat, lng, source, fetched_at}` (`live.geosearch` qua Planning); nguồn lỗi → `[]` |
-| `GET /api/harness/lodging/suggest?q=` | Ô chỗ ở: ≤ 6 `{kind, id?, text, address, rating?, lat, lng}` — chỗ ở của mình trước (`corpus`: serving nhóm `stay`; `live`: thẻ Maps đã crawl, tra tên tại chỗ), rồi `address` từ `geosearch`; nguồn tìm lỗi → vẫn trả phần của mình |
-| `GET /api/harness/transit?mode=&from=&to=&date=[&lat=&lng=]` | Thẻ chuyến (`params` của câu hỏi `inbound` / `outbound`): `{status: ready / pending / unavailable, trips: [Transit], book_url}`; `pending` = đang crawl nền, `book_url` = trang đặt vé đã điền sẵn (`docs/PLANNING.md` §Chuyến xe khách, chuyến bay) |
-| `GET /api/harness/transit/events?…` | SSE cùng tham số: một event `{status, trips, book_url}` khi có kết quả; quá 90 giây vẫn chưa xong → `unavailable` |
+| `GET /api/harness/lodging/suggest?q=` | Ô chỗ ở: ≤ 6 `{kind, id?, text, address, rating?, lat, lng}` — chỗ ở của mình trước (`corpus`: serving nhóm `stay`, nhiều đánh giá trước), rồi `address` từ `geosearch`; nguồn tìm lỗi → vẫn trả phần của mình |
 | `GET /api/harness/sessions/<id>/read/decision/compare?a=&b=` | So sánh |
 | `GET /api/harness/sessions/<id>/read/decision/why-not?place=` | Lý do loại |
 | `GET /api/harness/sessions/<id>/read/decision/page?group=` | Trang tiếp của một nhóm hiển thị: cửa sổ đang hiện nối thêm `page_size` nơi, lưu trong phiên → `{view}` (`docs/PLACE_DECISION.md` §9.4) |
+| `GET /api/harness/sessions/<id>/read/decision/lodging` | Chỉ ở stage `decision`: tab "Chỗ ở" của Lựa chọn — harness lấy Decision Output nháp (`draft` với `{any: true}`, kể cả khi lựa chọn chưa đi được) rồi gọi `planning.Tools.lodging_options` ngoài khóa → `{status: booked / empty / ready / unavailable, candidates}`; không đổi revision |
 | `GET /api/harness/sessions/<id>/read/planning/{variants,lodging}` | Đọc phương án / tiến độ chỗ ở |
 | `GET /api/harness/sessions/<id>/read/planning/suggestions` | Đọc gợi ý nền: `{revision, status, token, session_id, items}`; không tăng revision hoặc sửa lịch (`docs/PLANNING.md` §Tính lại và cache) |
 | `GET /api/harness/sessions/<id>/planning/lodging/events` | SSE cập nhật view sau chờ chỗ ở, tối đa khoảng 10 giây |
@@ -109,7 +108,7 @@ Request mẫu:
 
 Response `JourneyView`: `id`, `stage`, `revision`, `sessions`, `outputs`, `result` (view hoặc output của module). Body tối đa 64 KiB (avatar 5 MB); input sai trả 400, phiên không có 404, conflict/router hoặc chưa confirm được trả 409. Lỗi sau khi mở SSE gửi event `error` với `data.status` tương ứng để client không giữ pending request đã bị từ chối.
 
-SSE mutation bọc `request_id`, `stage`, `revision`, `event`, `data`. `say`/`preview` có `provisional: true`, dùng revision trước commit; các event còn lại phát sau commit. Event `journey` cuối stream là receipt hoàn tất. Client lọc metadata không khớp và chỉ handoff khi nhận receipt cuối. SSE chỗ ở dùng stage/revision; đây là stream đọc, không có request mutation. Bốn đường `geo`, `lodging/suggest`, `transit`, `transit/events` không cần journey: Trip Understanding hỏi hậu cần trước khi có phiên Planning, nên harness gọi thẳng `planning.Tools` (Planning là chủ Live Context).
+SSE mutation bọc `request_id`, `stage`, `revision`, `event`, `data`. `say`/`preview`/`progress` (các bước Trip đang làm, `docs/TRIP_UNDERSTANDING.md` §4) phát ngay khi chạy, có `provisional: true`, dùng revision trước commit; các event còn lại phát sau commit. Body request tối đa 64 KB, nên ảnh user gửi ở Hiểu chuyến đi được thu nhỏ ở trình duyệt và không bao giờ lưu (receipt chỉ giữ hash request). Event `journey` cuối stream là receipt hoàn tất. Client lọc metadata không khớp và chỉ handoff khi nhận receipt cuối. SSE chỗ ở dùng stage/revision; đây là stream đọc, không có request mutation. Hai đường `geo`, `lodging/suggest` không cần journey: Trip Understanding hỏi hậu cần trước khi có phiên Planning, nên harness gọi thẳng `planning.Tools` (Planning là chủ Live Context).
 
 ## 5. Ngân sách model và kiểm chứng
 

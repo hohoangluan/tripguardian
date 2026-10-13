@@ -95,6 +95,7 @@ def test_quiz_exhaustion_goes_to_review(catalog, cfg, tmp_path):
     e = make_engine(catalog, cfg, tmp_path)
     sid = e.create("first", "nothing")["id"]
     for target, value in (("days", "3"), ("nights", "2"), ("companions", "solo"), ("arrival_mode", "self"),
+                          ("origin", '{"text": "Hồ Chí Minh", "lat": 10.77, "lng": 106.7, "province": "Hồ Chí Minh"}'),
                           ("mobility", "motorbike"), ("start_date", "2026-12-12"), ("lodging_booked", "no"),
                           ("checkin_at", "14:00"), ("checkout_at", "11:00"), ("purpose", "relax"),
                           ("crowd_tolerance", "avoid"), ("pace", "slow"), ("budget_vnd", "5000000"),

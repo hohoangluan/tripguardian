@@ -39,8 +39,6 @@ SUGGEST = re.compile(BASE + r"/([0-9a-f]{12})/companion/suggest")
 COMPANION = re.compile(BASE + r"/([0-9a-f]{12})/companion")
 NOTE_OPEN = re.compile(r"/api/harness/notifications/([0-9a-f-]{36})/open")
 MAX_BODY = 65536
-TRANSIT_WAIT_S = 90  # a live flight crawl takes ~5-40 s; past this the stream says unavailable
-TRANSIT_POLL_S = 0.5
 COOKIE = "tg_session"
 STATE_COOKIE = "tg_oauth"
 SESSION_MAX_AGE = 30 * 86400
@@ -299,21 +297,6 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return self._call(lambda: harness.geo(query.get("q", "")))
             if path == "/api/harness/lodging/suggest":
                 return self._call(lambda: harness.lodging_suggest(query.get("q", "")))
-            if path == "/api/harness/transit":
-                return self._call(lambda: harness.transit(query))
-            if path == "/api/harness/transit/events":
-                try:
-                    current = harness.transit(query)
-                except (ValueError, ValidationError) as exc:
-                    return self._json(400, {"error": str(exc).splitlines()[0]})
-                self._stream_headers()
-                deadline = time.monotonic() + TRANSIT_WAIT_S
-                while current["status"] == "pending" and time.monotonic() < deadline:
-                    time.sleep(TRANSIT_POLL_S)
-                    current = harness.transit(query)
-                if current["status"] == "pending":
-                    current = {**current, "status": "unavailable"}
-                return self._event(current)
             if path == "/api/harness/trips":
                 return self._call(lambda: harness.trips(owner))
             if m := PREVIEW.fullmatch(path):
@@ -464,7 +447,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False):
                 return self._json(409, {"error": str(exc)})
             self._stream_headers()
             def emit(event, data):
-                provisional = event in ("say", "preview")
+                provisional = event in ("say", "preview", "progress")
                 self._event({"request_id": req.request_id, "stage": req.stage,
                     "revision": req.expected_revision if provisional else req.expected_revision + 1,
                     "provisional": provisional, "event": event, "data": data})

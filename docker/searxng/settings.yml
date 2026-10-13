@@ -1,0 +1,16 @@
+# SearXNG for the Trip agent's web_search (src/trip/infrastructure/web.py). Defaults plus JSON output; local only.
+# The secret comes from the SEARXNG_SECRET environment variable (docker run -e), never from this file.
+use_default_settings: true
+
+server:
+  limiter: false
+  image_proxy: false
+  public_instance: false
+
+search:
+  formats: [html, json]
+  safe_search: 1
+  default_lang: vi-VN
+
+outgoing:
+  request_timeout: 4.0

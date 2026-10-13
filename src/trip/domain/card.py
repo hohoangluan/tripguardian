@@ -28,9 +28,10 @@ class Question(Frozen):
     single_rows: tuple[str, ...] = ()  # rows of a multi question where only one chip may be on
     cost: float = 1.0
     tier: int = 3
-    input: Literal["none", "text", "date", "place", "geo", "transit", "lodging", "rental"] = "none"
+    input: Literal["none", "text", "date", "place", "geo", "transit", "lodging", "rental", "cues", "kinds", "photo_pick"] = "none"
     input_field: str | None = None
-    params: dict = {}  # what the screen needs to fill the input (transit: mode, from, to, date; rental: mode, lat?, lng?, text?)
+    params: dict = {}  # what the screen needs to fill the input (transit: mode, from, to, date; rental: mode, lat?, lng?, text?;
+                       # cues / kinds / photo_pick: the vibe index, its cues, its kinds, the place a photo shows)
     exits: bool = True  # shows "Không chắc" / "Bỏ qua"
     exit_drafts: tuple[Draft, ...] = ()  # written when the user picks an exit
     custom: bool = False  # written by the agent; a chip answer goes back through the agent as text

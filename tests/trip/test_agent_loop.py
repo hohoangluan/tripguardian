@@ -59,10 +59,17 @@ def test_a_model_failure_propagates_after_the_facts_already_written(catalog):
     assert tools.state.days.value == 3
 
 
-def test_an_unmapped_wish_ends_the_loop_without_another_model_call(catalog):
+def test_a_silent_unmapped_gets_one_nudge_for_text_then_ends(catalog):
     chat = ScriptedChat(reply(fact("unmapped", "chó", "chó", op="add")), say("Bạn kể thêm nhé?"))
-    tools, _, _ = run(chat, catalog, text="muốn có chó")
-    assert chat.calls == 1 and tools.unmapped == ["chó"]
+    tools, _, said = run(chat, catalog, text="muốn có chó")
+    assert chat.calls == 2 and tools.unmapped == ["chó"] and "unmapped_without_text" in tools.log
+    assert said == ["Bạn kể thêm nhé?"]
+
+
+def test_an_unmapped_with_text_ends_the_loop_without_another_model_call(catalog):
+    chat = ScriptedChat(reply(fact("unmapped", "chó", "chó", op="add"), text="Muốn có chó đi cùng hả?"))
+    tools, _, said = run(chat, catalog, text="muốn có chó")
+    assert chat.calls == 1 and tools.unmapped == ["chó"] and said == ["Muốn có chó đi cùng hả?"]
 
 
 def test_a_reasoning_block_in_front_of_the_reply_is_never_shown():

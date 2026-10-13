@@ -109,7 +109,7 @@ def test_real_preview_http_enforces_owner_input_and_read_only_revision(client, s
     harness.tools['decision'] = DecisionTools(DecisionEngine(Data(records), load_settings(), Store(None)))
     pt = Tools(Engine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
                      matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050),
-                     lodging_fn=lambda *a: [], background=False))
+                     background=False))
     harness.tools['planning'] = pt
     _, v = call(client, 'POST', '/api/harness/sessions', {})
     v = run(harness, v, 'turn', 'compile', {'kind': 'show'})
@@ -204,32 +204,7 @@ def test_logistics_lookups_need_no_journey(client):
     assert code == 200 and rows[0]["text"] == "Bến Thành" and rows[0]["source"] == "photon"
     code, rows = call(client, "GET", "/api/harness/lodging/suggest?q=Ana")
     assert code == 200 and rows[0]["kind"] == "address"
-    assert call(client, "GET", "/api/harness/transit?mode=boat&from=SGN&to=DLI&date=2026-11-12")[0] == 400
-    code, body = call(client, "GET", "/api/harness/transit?mode=plane&from=SGN&to=DLI&date=2026-11-12")
-    assert code == 200 and body["status"] == "pending" and body["book_url"]
-
-
-def test_transit_events_push_one_event_when_the_crawl_lands(client, monkeypatch):
-    from harness import server
-    monkeypatch.setattr(server, "TRANSIT_POLL_S", 0.01)
-    client.request("GET", "/api/harness/transit/events?mode=plane&from=SGN&to=DLI&date=2026-11-12",
-                   headers=headers(Accept="text/event-stream"))
-    response = client.getresponse()
-    assert response.status == 200 and response.getheader("Content-Type").startswith("text/event-stream")
-    events = [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
-    assert len(events) == 1
-    assert events[0]["status"] == "ready" and events[0]["trips"][0]["carrier"] == "Vietjet"
-
-
-def test_transit_events_give_up_as_unavailable(client, monkeypatch):
-    from harness import server
-    monkeypatch.setattr(server, "TRANSIT_POLL_S", 0.01)
-    monkeypatch.setattr(server, "TRANSIT_WAIT_S", 0.0)
-    client.request("GET", "/api/harness/transit/events?mode=bus&from=S%C3%A0i%20G%C3%B2n&to=L%C3%A2m%20%C4%90%E1%BB%93ng&date=2026-11-12",
-                   headers=headers())
-    response = client.getresponse()
-    events = [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
-    assert events == [{"status": "unavailable", "book_url": "https://book", "trips": []}]
+    assert call(client, "GET", "/api/harness/transit?mode=plane&from=SGN&to=DLI&date=2026-11-12")[0] == 404  # no coach / flight flow
 
 
 def test_every_harness_route_needs_a_session(client):

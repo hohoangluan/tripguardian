@@ -55,3 +55,9 @@ themes:
     say: "ưu tiên nơi ngắm hoàng hôn, có view và yên tĩnh"
     soft: ["sunset_view=present:love", "scenic_view=present:love", "noise=quiet:love"]
     groups: [nature, chill]
+# The agent's web search (docs/TRIP_UNDERSTANDING.md §18): self-hosted SearXNG, see docker/searxng/README.md.
+web_base_url: http://127.0.0.1:8888
+web_timeout_s: 6.0
+web_cache_dir: data/web_cache
+web_ttl_days: 30
+looks: true            # corpus.index for "vibe retro" and photos the user sends

@@ -113,21 +113,20 @@ Tài khoản và User Profile được xin sau khi user đã thấy kết quả 
 
 ## 4. Luồng xử lý
 
-Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự. **Agent quyết định hỏi gì; người dùng quyết định hỏi bằng cách nào (thanh chuyển mode: Trò chuyện / Trắc nghiệm nhanh) và khi nào sang bước sau (nút Next)**; code chỉ kiểm bằng chứng trước khi ghi Trip State và giữ điều kiện tối thiểu của Next.
+Luồng lặp theo từng lượt hội thoại, không phải một form tuần tự. **Một khung chat duy nhất: agent hỏi bằng chữ hoặc bằng thẻ do engine dựng từ dữ liệu thật; người dùng gõ, gửi ảnh, bấm thẻ, và quyết định khi nào sang bước sau (nút Next)**; code chỉ kiểm bằng chứng trước khi ghi Trip State và giữ điều kiện tối thiểu của Next.
 
 ```text
 ① NẠP PRIOR        Mẫu dài hạn đã lưu (nếu có user id, §17) + anchor/link đã có → Trip State nháp
 ② MỞ ĐẦU           Một câu hỏi mở, không chip: kể về chuyến đi mơ ước sắp tới
-③ MỖI LƯỢT         Theo mode user chọn (thanh riêng, luôn hiện từ lượt đầu):
-                    chat  — Agent đọc câu user + CURRENT CONTEXT, gọi tool (ghi fact, tra cứu),
-                            hỏi và làm rõ bằng chữ, không bao giờ phát thẻ
-                    quiz  — thẻ chip tất định, không gọi model (gõ tự do đi qua other-gate,
-                            khó quá thì nhờ chat giải quyết, chip vẫn giữ)
+③ MỖI LƯỢT         Gõ / gửi ảnh → Agent đọc câu user + CURRENT CONTEXT, gọi tool (ghi fact, tra cứu,
+                    tìm web, `ask` thẻ phong cách); lời agent không hỏi gì thì câu kế tiếp của
+                    bộ câu hỏi (`quiz_queue`) hiện ngay dưới dạng nút trả lời nhanh.
+                    Bấm thẻ → ghi thẳng Trip State, không gọi model
 ④ BẢN HIỂU NHU CẦU User xem và sửa trực tiếp (§8); bấm Next khi `ready` (§6)
 ⑤ BIÊN DỊCH        Trip State → Search Input (§9)
 ```
 
-Hai mode chung một Trip State: chat học được gì thì quiz bỏ qua (không hỏi lại field đã biết), quiz bấm được gì thì chat thấy ngay trong CURRENT CONTEXT. Thẻ đang dở khi chuyển mode tính là bỏ qua vĩnh viễn (`declined`, không hỏi lại ở cả hai mode). Quiz hết câu thì sang thẻ review; review vẫn gõ thêm và chuyển mode được. Không còn tự đổ sang quiz: chat kể xong thì ở yên chat cho tới khi user bấm thanh.
+Chữ và nút dùng chung một Trip State: agent học được gì thì bộ câu hỏi bỏ qua (không hỏi lại field đã biết), nút bấm được gì thì agent thấy ngay trong CURRENT CONTEXT. Nút trả lời nhanh chỉ hiện khi chuyến đã được kể (`meta.told`) và lời agent không chứa câu hỏi; agent lỗi hoặc Clef trả câu cố định thì chỉ có ô gõ. Thẻ cũ trong chat vẫn bấm được khi câu đó còn trong `quiz_queue`. Hết câu thì sang thẻ review (`Xong, xem gợi ý`). `meta.phase` chỉ còn nghĩa "thẻ đang mở là nút của bộ câu hỏi" (`quiz`) hay ô gõ (`chat`); `to_chat` / `to_quiz` giữ cho phiên cũ.
 
 Phân vai:
 
@@ -144,13 +143,15 @@ Tool của agent (`agent/tools.py`, function calling gốc trên role Agent, `do
 | `record_fact(field, op, value, quote, how)` | Ghi một fact (cả `budget_scope`, `month_part`, `liked_groups`) | `quote` phải có nguyên văn trong tin nhắn; `values.parse` hợp lệ. Bị từ chối (kể cả feature sai hoặc sai định dạng) thì trả lỗi kèm định dạng đúng lại cho agent để sửa trong cùng lượt. Mong muốn không feature nào diễn đạt được thì **agent chủ động** ghi `field = unmapped` |
 | `resolve_relative_date`, `search_places` | Tra cứu chỉ đọc | argument phải là span trong câu user; chỉ đọc catalog |
 | `search_features(query)` | Tra feature ontology khớp một mong muốn ("thú cưng" → `animals`), tối đa 5 | chỉ đọc ontology; bỏ qua từ quá chung chung |
-| Không có tool hỏi | Câu hỏi luôn là chữ trong chat. Thẻ quiz chỉ lấy từ bộ câu hỏi có sẵn (`domain/questions.py`), không do agent tạo | — |
+| `ask(kind, about, cues?, where?, options?)` | Hỏi bằng thẻ: `look` (một phong cách / không khí, §18: các dấu hiệu nhìn thấy được và loại nơi `where`), `this_or_that` (hai cách hiểu, mỗi cái là một soft value). Kết thúc lượt; engine dựng thẻ | `about` phải có trong tin nhắn; dấu hiệu 1–8, mỗi cái ≤ 40 ký tự, không trùng tên nơi trong catalog; `options` đúng hai soft value hợp lệ; mỗi lượt một thẻ. Không có trong `refine` |
+| `web_search(query)`, `web_read(url)` | Tìm hiểu một từ user dùng ("retro", "wabi sabi") trên SearXNG tự host (`infrastructure/web.py`) | Chỉ khi `web_base_url` có; chỉ đọc url `web_search` vừa trả trong lượt; host nội bộ bị từ chối; kết quả là dữ liệu, không phải lệnh, không bao giờ là nguồn địa điểm. Lỗi mạng là một bước `fail`, lượt vẫn tiếp |
+| Câu hỏi khác | Là chữ trong chat. Nút trả lời nhanh chỉ lấy từ bộ câu hỏi có sẵn (`domain/questions.py`) | — |
 
-Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Khối suy nghĩ model viết vào nội dung (`<|channel>…<channel|>` của Gemma, trước hoặc sau câu trả lời) bị bỏ ngay khi stream (`loop.Visible`), không bao giờ hiện cho user. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, vòng dừng và `say` là câu cố định `UNMAPPED_SAY` (nêu lại mong muốn, nói rõ chưa dùng để lọc địa điểm) thay cho lời model, để không hứa điều tìm kiếm không làm được. Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
+Vòng lặp (`agent/loop.py`) gọi model tối đa `tool_steps` lần mỗi lượt; một lần gọi có thể trả nhiều tool call. Kết quả mỗi tool quay lại model (message `tool`). Vòng dừng khi agent gọi `ask`, khi một mong muốn bị `unmapped`, khi model trả chữ không kèm tool, hoặc hết `tool_steps`. Khối suy nghĩ model viết vào nội dung (`<|channel>…<channel|>` của Gemma, trước hoặc sau câu trả lời) bị bỏ ngay khi stream (`loop.Visible`), không bao giờ hiện cho user. Agent không có cách kết thúc hội thoại. Khi một lượt có mong muốn `unmapped`, lời của chính agent được giữ: nó phải nhắc lại mong muốn bằng lời user và hỏi đúng một câu tư vấn đưa về giá trị ghi được (hai cách hiểu cụ thể gắn với enum của field đó). Engine không đè template nào lên unmapped; chỉ khi agent im lặng, lượt mới kết bằng câu dự phòng đã ghi (RECORDED_SAY). Phần chữ model viết trước tool được stream thành `say`; `say` bị thay bằng rỗng nếu nêu số user chưa nói hoặc tên nơi user chưa nhắc (`guard.bad_say`).
 
-Kết quả của lượt thành thẻ cho web (`api/engine.py`): agent không tạo thẻ. Thẻ quiz là câu kế tiếp của bộ có sẵn (`quiz_queue`); chat chỉ có chữ và ô gõ tự do (`conversation`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent.
+Kết quả của lượt thành thẻ cho web (`api/engine.py`): agent không viết nội dung thẻ. Thẻ là câu kế tiếp của bộ có sẵn (`quiz_queue`), thẻ engine dựng cho `ask` (§18), hoặc ô gõ tự do (`conversation`). Ngay sau bộ từ khóa, engine phát một `state` để bản hiểu nhu cầu và "Còn thiếu" đổi ngay, trước lời agent. Các bước đang làm (tìm web, tách dấu hiệu, đối chiếu ảnh) phát qua sự kiện `progress` `{steps: [{id, label, status: run|ok|fail}], sources: [{url, title, domain}]}` ngay khi chạy; nhãn do code viết, số nơi là số thật của chỉ mục.
 
-Thẻ quiz mở **đóng** khi đã được trả lời (bấm chip ghi drafts thẳng vào state, không qua model). `Bỏ qua` / `Chưa chắc` giữ field `unknown` và không hỏi lại ở cả hai mode. Lượt gõ tự do trong quiz mà other-gate không đọc được thì nhờ chat giải quyết (`resolving_other` trong CURRENT CONTEXT) trong khi chip vẫn giữ; giải quyết xong thì quay lại quiz đúng một thẻ tiếp theo.
+Nút của bộ câu hỏi **đóng** khi đã được trả lời (bấm chip ghi drafts thẳng vào state, không qua model). `Bỏ qua` / `Chưa chắc` giữ field `unknown` và không hỏi lại. Gõ chữ khi nút đang mở: other-gate đọc được cho đúng field thì ghi luôn; không thì đó là một tin nhắn chat bình thường (agent đọc, được hỏi lại bằng chữ), nút phía trên vẫn bấm được.
 
 Trả lời một thẻ:
 
@@ -160,8 +161,11 @@ Trả lời một thẻ:
 | Chọn ngày trên thẻ `input = "date"` | Ghi `start_date` (`source = user`, tool `date_picker`); ngày đã qua bị từ chối | Không |
 | Bấm một lựa chọn agent viết | Nhãn đi lại agent như chữ; không hỏi Clef (một lựa chọn không lạc đề); agent lỗi → `BUSY_SAY` ("chưa ghi được lựa chọn này, bấm lại") và thẻ giữ nguyên, hoặc `NOTED_SAY` nếu agent đã ghi được | Có |
 | Gõ chữ | Như một lượt gõ | Có |
+| Sửa dấu hiệu / chọn kiểu / "có phải nơi này" trên thẻ phong cách (§18) | `{kind: "answer", qid: "vibe:<i>", value: JSON dấu hiệu}` hoặc `chips: [id kiểu] / ["none"] / ["yes" \| "no"]`; ghi `vibes[i]` | Không (chỉ Embedder) |
+| Bấm một trong hai cách hiểu (`this_or_that`) | Ghi soft value đã chọn | Không |
+| Gửi ảnh | `{kind: "image", value: data URL, text?}`, §18 | Extractor đọc dấu hiệu, Embedder |
 
-Lượt chat không có khái niệm "thẻ đang mở" (chat không phát thẻ). Lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng `UNSURE_SAY`, không để trống. Agent lỗi trên lượt gõ (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận `FALLBACK_SAY` ("trợ lý đang bận…"); `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent. Lượt không học được gì (`unsure` vì bỏ qua, `idle` vì không ghi mới) tăng streak trong `meta`; hai lượt liền thì lượt sau mang cờ `stuck` trong CURRENT CONTEXT để agent đổi cách hỏi (đoán một đáp án cụ thể cho khách sửa, hoặc chỉ lên thanh trắc nghiệm), xem §12.
+Lời bị guard từ chối (số liệu user chưa nói, tên nơi chưa nhắc) được thay bằng `UNSURE_SAY`, không để trống. Agent lỗi trên lượt gõ (mạng, hết `total_s`): các fact đã ghi giữ nguyên, user nhận `FALLBACK_SAY` ("trợ lý đang bận…"); `prepass` (từ khóa, link, danh sách nơi) vẫn ghi giá trị ✎ trước khi gọi agent. Lượt không học được gì (`unsure` vì bỏ qua, `idle` vì không ghi mới) tăng streak trong `meta`; hai lượt liền thì lượt sau mang cờ `stuck` trong CURRENT CONTEXT để agent đổi cách hỏi (đoán một đáp án cụ thể cho khách sửa, hoặc không hỏi gì để nút trả lời nhanh hiện), xem §12.
 
 **Thẻ chủ đề** (trang Khám phá, `{kind: "theme", value: <id>}`): ghi nguyên danh sách soft và `liked_groups` cố định của chủ đề (`config/trip.yaml` `themes`, `source = user`, độ tin `medium` nên lời nói sau ghi đè được), trả `THEME_SAY`, không đọc câu nào, không gọi model.
 
@@ -213,6 +217,8 @@ flowchart LR
 ### Hậu cần
 
 `domain/logistics.py` giữ các hàm thuần cho điểm vào / ra và giờ giấc: `entry_road` (đèo theo hướng `origin`, `config/trip.yaml` `entry_roads`), `nearest_airport` (`config/airports.yaml`), `route` (IATA hoặc tỉnh của chuyến tới), `pick_transit` (một `Transit` đã chọn → lưu `inbound` / `outbound` và đặt `entry_point` / `exit_point`; giờ mở ngày đầu và đóng ngày cuối do `compile.day_window` tính khi biên dịch Search Input: không sớm hơn giờ đến + `arrival_buffer_min`, không muộn hơn giờ đi − đệm, và chỉ thu hẹp giờ `checkin_at` / `checkout_at` người dùng muốn, không nới). Không còn thẻ hậu cần cố định: agent hỏi bằng thẻ thường và ghi qua `record_fact` các trường `entry_point`, `exit_point`, `checkin_at`, `checkout_at`, `day_end`, `base`; `origin`, `arrival_mode`, `inbound`, `outbound`, `lodging_booked`, `lodging` chưa có đường ghi từ agent, giữ `unknown` (vé chuyến vẫn sửa / xóa được các dòng này, `{kind: "edit", target, value | null}`).
+
+Thẻ hậu cần của chế độ quiz (`domain/questions.py` `quiz_queue`): `arrival` (tới Đà Lạt bằng gì: tự đi kèm xe, xe khách, máy bay), `origin` (xuất phát từ đâu, thường là nhà; hỏi mọi chuyến, ô tìm `geo`), `lodging` (đã có chỗ ở chưa: gõ tên, hoặc "Chưa đặt chỗ ở" → `lodging_booked = no`, chỗ ở được chọn ở tab "Chỗ ở" của Lựa chọn, `docs/PLACE_DECISION.md` §12). Không hỏi chuyến xe khách / chuyến bay cụ thể; mỗi ngày bắt đầu và kết thúc ở chỗ ở (`docs/PLANNING.md` §Đầu vào).
 
 `Transit` (`state.py`) chỉ đến từ crawl, không bao giờ do model viết: `{mode, carrier, depart_at, arrive_at (giờ VN "YYYY-MM-DDTHH:MM"), from_point, to_point, price_vnd | null, source, fetched_at}`.
 
@@ -332,7 +338,7 @@ Chỉ dùng thông tin user đã cung cấp hoặc thể hiện trong hội tho�
 
 Không có ngân hàng câu hỏi: agent viết câu hỏi và lựa chọn mỗi lượt (`agent/prompt.py`). Nguyên tắc căn cứ nghiên cứu ở `Project_Context.md` §12.1 mà prompt áp: hỏi cách dùng ("chuyến này để làm gì"), không hỏi thuộc tính; chỉ hỏi điều đổi kết quả; một câu mỗi lượt; luôn có thể bỏ qua; không hỏi lại điều đã biết (từ user, anchor hay profile); từ chủ quan thì hỏi nghĩa; câu nhạy cảm nói rõ vì sao hỏi. Lựa chọn của thẻ chỉ là dữ liệu trả lại agent, không ghi thẳng vào Trip State.
 
-Riêng chat mode (không thẻ): hỏi mở bằng chữ trước, chỉ đưa lựa chọn trong chữ khi khách stuck (hai lượt liền không học được gì: `stuck: true` trong CURRENT CONTEXT). Đoán một đáp án cụ thể để khách sửa còn hơn câu hỏi hay; đoán thì nói là đoán. Trỏ lên thanh trắc nghiệm khi chữ đã đuối.
+Agent hỏi bằng chữ: hỏi mở trước, chỉ đưa lựa chọn trong chữ khi khách stuck (hai lượt liền không học được gì: `stuck: true` trong CURRENT CONTEXT). Đoán một đáp án cụ thể để khách sửa còn hơn câu hỏi hay; đoán thì nói là đoán. Chữ đã đuối thì không hỏi gì, để nút trả lời nhanh hiện.
 
 ## 13. Giọng điệu
 
@@ -366,11 +372,11 @@ API độc lập: `python -m trip serve [--port 8766]` bind `127.0.0.1`. Cần `
 POST   /api/trip/sessions          {experience?, start_with?, user_id?, remember?}  → phiên mới + thẻ mở đầu
 DELETE /api/trip/profile/<user_id>  → {forgotten}  xóa mẫu đã lưu của user
 GET    /api/trip/sessions/<id>
-POST   /api/trip/sessions/<id>/turn  SSE: say(delta|replace) · view · done · error
+POST   /api/trip/sessions/<id>/turn  SSE: preview · progress · say(delta|replace) · state · card · done · error
 GET    /api/trip/places?q=<tên>    tra địa điểm cho anchor / nơi đã lưu (chỉ đọc serving index)
 ```
 
-`turn` nhận `{kind: "text", text}`, `{kind: "answer", qid, chips, value?}`, `{kind: "edit", target, value}`, `{kind: "show"}`, `{kind: "theme", value}`. Transcript trong view mang `kind` (user: `text` | `exit` | `answer` | `theme`; agent: `say` | `card` | `done`) để web dựng lại cuộc trò chuyện khi mở lại.
+`turn` nhận `{kind: "text", text}`, `{kind: "answer", qid, chips, value?}`, `{kind: "edit", target, value}`, `{kind: "show"}`, `{kind: "theme", value}`, `{kind: "image", value: data URL ≤ 2 MB, text?}` (§18). Transcript trong view mang `kind` (user: `text` | `exit` | `answer` | `theme` | `image`; agent: `say` | `card` | `done`) để web dựng lại cuộc trò chuyện khi mở lại.
 
 Qua harness, `Tools.apply` nhận thêm operation `refine {text}` (chỉ harness gọi, sau lượt chat ở Chọn nơi): say · state · done, không có card.
 
@@ -392,11 +398,13 @@ src/trip/
     patterns.py     phiếu bầu, phát hiện mẫu, nạp prior vào Trip State (§17)
     readiness.py    điều kiện tối thiểu của Next: `ready`, `missing` (§6)
     budget.py       phạm vi ngân sách, quy ra VND mỗi người mỗi ngày (§Ngân sách)
-    understanding.py bản hiểu nhu cầu (§8)
+    understanding.py bản hiểu nhu cầu (§8), bảng nơi đang hợp (`board`)
+    vibes.py        phong cách và ảnh: thẻ dấu hiệu / các kiểu / "có phải X?", trả lời thẻ (§18)
     compile.py      Trip State → Search Input (§9)
   agent/            loop.py (vòng gọi model + tool), tools.py, prompt.py
   api/              engine.py (một lượt, giao dịch phiên), server.py (HTTP + SSE, cổng 8766), tools.py (adapter harness)
-  infrastructure/   catalog.py, sessions.py, profile.py (§17), settings.py (config/trip.yaml)
+  infrastructure/   catalog.py, sessions.py, profile.py (§17), settings.py (config/trip.yaml),
+                    looks.py (corpus.index cho §18, nạp trong thread), web.py (SearXNG + đọc trang, cache data/web_cache)
 ```
 
 Test: `python -m pytest -q tests/trip`; model được thay bằng `ScriptedChat` (`tests/trip/trip_fixtures.py`), test không gọi mạng.
@@ -473,3 +481,35 @@ Cá nhân hóa cho lần hỏi sau: gu người dùng lặp lại qua nhiều ch
 **Prior trong hội thoại.** Không có thẻ xác nhận riêng: giá trị seed mang `source = profile` trong `CURRENT CONTEXT`, agent coi là mặc định và để lời user ghi đè. Mẫu về nơi (`meta.prior` giữ khóa `place:<id>`) hiện chưa được đưa cho agent.
 
 **Còn mở.** Chưa có giao diện xin `remember` và cho xem / xóa mẫu; mẫu `avoid` cho nơi chưa có nguồn phiếu (Decision `drop` chưa nối vào); ngưỡng `min_sessions`, `agreement` chờ số liệu khảo sát.
+
+## 18. Phong cách và ảnh (vibe)
+
+"Vibe retro", "quán kiểu Hàn", hay một tấm ảnh "muốn đi chỗ như này" không có feature trong ontology. Chúng thành một `Vibe` trong Trip State (`domain/state.py`, `domain/vibes.py`): sở thích mềm, chỉ **xếp hạng**, không bao giờ lọc. Mọi nơi và mọi ảnh trên thẻ lấy từ chỉ mục ngữ nghĩa của corpus (`docs/CORPUS.md` §Chỉ mục ngữ nghĩa) qua `infrastructure/looks.py`; web và model không bao giờ là nguồn địa điểm.
+
+```mermaid
+flowchart LR
+  T[“vibe retro”] -->|ask look + dấu hiệu| C1[thẻ dấu hiệu]
+  P[ảnh user] -->|Embedder + Extractor| K{khớp rõ 1 nơi?}
+  K -->|có| C3[thẻ “có phải X?”]
+  K -->|không| C2
+  C1 -->|sửa dấu hiệu| C2[thẻ ảnh các kiểu]
+  C3 -->|không phải| C2
+  C2 -->|chọn kiểu| V[vibes.places → xếp đầu]
+  C3 -->|đúng| V
+```
+
+| Trường của `Vibe` | Nghĩa |
+|---|---|
+| `phrase`, `cues`, `removed` | Lời user; dấu hiệu nhìn thấy được (agent đoán, user sửa); dấu hiệu user bỏ |
+| `scope` | Loại nơi: `any` \| `cafe` \| `food` \| `nature` \| `sights` → nhóm category (`vibes.SCOPES`) |
+| `offered`, `chosen` | Các kiểu (cụm ảnh thật của nơi thật) đã đưa ra; kiểu user chọn |
+| `places` | Nơi của các kiểu đã chọn, xen kẽ để kiểu nào cũng gần đầu (≤ 60) |
+| `status` | `cues` / `kinds` (thẻ đang mở), `done`, `none` ("Không kiểu nào giống": không xếp gì, không phải "không thích") |
+| `image`, `picked` | Từ ảnh user gửi; nơi trong ảnh khi user xác nhận |
+| `sources` | Trang web agent đã đọc để hiểu từ (chỉ để hiển thị) |
+
+- **Thẻ dấu hiệu** (`input = "cues"`): dấu hiệu bỏ / thêm được, xem trước các kiểu, hộp nguồn web. Trả lời → engine đối chiếu lại dấu hiệu với ảnh corpus (trong các nơi qua được giới hạn cứng và đúng `scope`), ≥ 2 kiểu thì ra **thẻ ảnh các kiểu** (`input = "kinds"`, chọn nhiều); ít hơn thì ghi thẳng `places`.
+- **Ảnh user gửi**: thu nhỏ ở trình duyệt (≤ 448 px, giới hạn 64 KB của request), Embedder tìm ảnh giống trong corpus, Extractor (`PHOTO_CUES`) đọc dấu hiệu, chạy song song. Ảnh khớp rõ một nơi (`config/index.yaml` `place_pick`) → thẻ "có phải X?"; đúng thì `places = X + các nơi giống X`. Ảnh không được lưu ở đâu (transcript ghi "Ảnh bạn gửi").
+- `understanding.board` = 24 nơi đang hợp, nơi của vibe lên đầu (`domain/understanding.board`); `understanding.vibes` cho vé. Vé xóa một vibe bằng `{kind: "edit", target: "vibe:<i>", value: null}`.
+- Search Input chỉ mang vibe `done`: `vibes: [{phrase, cues, styles, places}]`; Place Decision cộng điểm `vibe` theo thứ hạng trong `places` (`docs/PLACE_DECISION.md` §8), không loại nơi nào.
+- Chỉ mục chưa có hoặc chưa nạp xong (embedder cần ~30 giây lúc khởi động) thì thẻ chỉ có dấu hiệu, không có ảnh; phần còn lại của lượt chạy bình thường.

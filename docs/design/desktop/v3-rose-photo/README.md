@@ -50,7 +50,7 @@
 
 Ba màn `02-understand-k-*` là bản cuối, sau 23 bản thử (ở `../_archive/understand-iterations/`). Quy tắc của trang này:
 
-- **Không phải chatbot.** Không bong bóng, không avatar, không nút gửi. Lượt đã trả lời co thành **một dòng** kèm chip đáp án và nút `Sửa`.
+- **Màn Hiểu chuyến đi (ảnh `02-understand-*`) đã thay bằng khung chat có thẻ chọn**: `docs/design/desktop/v4-chat-cards/`, `docs/UI_SPEC_USER_WEB.md` Trang 3.
 - **Ý định, số câu mỗi ý định, và thứ tự ý định đều do agent quyết lúc chạy.** Nên màn hình **không bao giờ** hiện `câu 2/3`, thanh tiến độ chia đoạn, câu hỏi kế tiếp dạng chữ ma, `4 / 8 ý định`, hay danh sách ý định sắp hỏi. Chỉ hiện số thứ tự lượt hiện tại (`câu 3`).
 - **Một ý định = một dòng trên vé**, không phải một dòng mỗi câu hỏi. Chuỗi nhiều câu nằm gọn trong một thẻ bên trái, trả lời xong gộp thành một dòng.
 - **Vé chỉ ghi cái đã có.** Dòng đã ghi nhận: nhãn trái, giá trị phải, **không gạch ngang**. Dấu `—` chỉ dùng cho chỗ chưa có gì. `CÒN CHƯA RÕ` là danh sách động do agent tự đánh dấu, có thể rỗng. Chân vé ghi `đã ghi N mục`, không phải phân số.

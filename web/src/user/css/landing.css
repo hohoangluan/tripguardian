@@ -1,8 +1,8 @@
 /* Landing (/): sticky 3D stage + scroll chapters, then photos, FAQ, CTA. docs/UI_SPEC_LANDING.md */
 .tg-landing { background: var(--tg-bg); }
 /* Landing colour: the soft rose system (blush paper, plum ink, rose accents) over the 3D valley.
-   Only the landing wears it; the app keeps its own tokens. */
-.tg.tg-landing {
+   The landing and the Understand chat (.tg-rose, docs/design/desktop/v4-chat-cards) wear it; the rest keeps its own tokens. */
+.tg.tg-landing, .tg .tg-rose {
   --tg-bg: #fff9f8; --tg-surface: #ffffff; --tg-ink: #3a2b32; --tg-ink-2: #5e4a54; --tg-ink-3: #7d6873;
   --tg-line: #f3e1e4; --tg-line-2: #e8cdd3;
   --tg-pine: #6b3550; --tg-pine-d: #4f2539; --tg-pine-soft: #fceef1; --tg-pine-line: #f0cfd8;
@@ -12,9 +12,9 @@
   --tg-sh-2: 0 2px 6px rgba(58, 43, 50, 0.06), 0 22px 48px -22px rgba(107, 53, 80, 0.42);
 }
 /* Landing type: Lora (display, full Vietnamese set) + Be Vietnam Pro (text, designed for Vietnamese) */
-.tg.tg-landing { --tg-display: 'Lora', Georgia, serif; --tg-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.tg.tg-landing, .tg .tg-rose { --tg-display: 'Lora', Georgia, serif; --tg-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .tg-landing :is(h1, h2, h3) { letter-spacing: -0.015em; }
-.tg-l { --pad: max(48px, calc((100vw - 1260px) / 2 + 48px)); color: var(--tg-ink); }
+.tg-l { --pad: max(48px, calc((100vw - clamp(1260px, 80vw, 1760px)) / 2 + 48px)); color: var(--tg-ink); }
 
 /* nav */
 .tg-ln { position: fixed; z-index: 50; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 28px; padding: 12px var(--pad); background: rgba(255, 249, 248, 0.8); backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid rgba(243, 225, 228, 0.8); }

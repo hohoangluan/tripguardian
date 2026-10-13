@@ -4,7 +4,7 @@ from ..infrastructure.settings import ARRIVAL_BUFFER_MIN, COACH_MIN_PEOPLE
 from .budget import per_person_day
 from .logistics import clock_after
 from .state import (AnchorRef, Context, HardFilter, NoveltySpec, PaceSpec, SearchInput, SoftKey, SoftWeight, TripState,
-                    WEIGHT_SIGN, ontology, pending_signals, unknown_fields)
+                    VibeRef, WEIGHT_SIGN, ontology, pending_signals, unknown_fields)
 
 
 class UnhandledSignal(Exception):
@@ -72,4 +72,7 @@ def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUF
         novelty=NoveltySpec(level=v("novelty"), visited=state.visited),
         unknowns=tuple(unknowns),
         unmapped=tuple(u.phrase for u in state.unmapped),
-        liked_groups=v("liked_groups") or (), activities=state.activities, time_preferences=state.time_preferences)
+        liked_groups=v("liked_groups") or (), activities=state.activities, time_preferences=state.time_preferences,
+        vibes=tuple(VibeRef(phrase=x.phrase, cues=x.cues, places=x.places,
+                            styles=tuple(dict.fromkeys(k.style for k in x.offered if k.id in x.chosen and k.style)))
+                    for x in state.vibes if x.places and x.status == "done"))  # an unanswered guess ranks nothing yet

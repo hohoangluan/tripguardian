@@ -5,7 +5,11 @@ option the agent wrote, run the agent loop (agent/loop.py): the agent records fa
 """
 
 import asyncio
+import base64
+import binascii
+import io
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from datetime import date
@@ -15,19 +19,22 @@ from pydantic import ValidationError, model_validator
 
 from ..agent import AgentError, Chat, TurnTools, build_messages, run_loop
 from ..domain import values
-from ..domain.card import OPENING, Question, conversation_card
+from ..domain import vibes
+from ..domain.card import OPENING, Chip, Question, conversation_card
 from ..domain.compile import UnhandledSignal, compile_search_input
-from ..domain.guard import GROUP_LABEL, bad_say, drop_questions, nearest_group
+from ..domain.guard import bad_say, drop_questions
 from ..domain.logistics import pick_transit
 from ..domain.patterns import Summary, seed, seed_profile, votes_from_state
 from ..domain.prepass import Prepass, prepass
-from ..domain.questions import (FIELD_LABEL, OFFER_QID, OTHER_CHIP, QUIZ_FIELD, REVIEW_QID, TO_QUIZ,
+from ..domain.questions import (FIELD_LABEL, OFFER_QID, OTHER_CHIP, QUIZ_FIELD, REVIEW_QID, SOFT_LABEL, TO_QUIZ,
                                 apply_chip, find_quiz, is_quiz, pending_fields, strictest,
                                 quiz_queue, review_card)
 from ..domain.readiness import missing
 from ..domain.resolve import URL, anchor_for, search
-from ..domain.state import (SCALARS, Evidence, Frozen, Meta, SoftKey, TripState, Update, apply, apply_drafts, pending_signals,
-                            settle, with_meta)
+from ..domain.coverage import admissible
+from ..domain.state import (SCALARS, Draft, Evidence, Frozen, Meta, SoftKey, TripState, Update, Vibe, apply, apply_drafts,
+                            ontology, pending_signals, settle, with_meta)
+from ..domain.text import fold
 from ..domain.traits import compared_places
 from ..domain.understanding import chip_effects, view as understanding
 from ..infrastructure.catalog import Catalog
@@ -51,7 +58,7 @@ def log_turn(sid: str, turn: int, text: str, log: list[str], say: str, card: str
             f.write(json.dumps(line, ensure_ascii=False) + "\n")
     except OSError:
         pass
-Route = Callable[[str, str | None], ClefRoute]
+Route = Callable[[str, str | None, str], ClefRoute]
 
 GREETING = "Chào bạn! Mình hỏi vài câu ngắn để hiểu chuyến Đà Lạt của bạn trước khi chọn chỗ."
 RECORDED_SAY = "Mình đã ghi lại ({got}). Bạn kể thêm gì về chuyến đi không?"
@@ -67,17 +74,9 @@ NODATA_SAY = ("Mình chưa có số liệu thực tế về điều này ở bư
               "Bạn cứ kể tiếp về chuyến đi nhé.")
 NOTED_TEXT_SAY = "Mình ghi lại như dưới đây, bạn xem có đúng không nhé."  # the agent's own words were held back
 UNSURE_SAY = "Mình chưa chắc chắn về thông tin này nên chưa trả lời được ở bước này. Bạn cứ kể tiếp về chuyến đi nhé."
-UNMAPPED_SAY = ("Mình đã ghi lại {wish}, nhưng hiện chưa dùng được điều này để lọc địa điểm. "
-                "Bạn kể thêm về chuyến đi nhé.")
-# a group the companions field does not hold: say which groups the search does filter by
-GROUP_OTHER_SAY = ("Mình đã ghi lại {wish}, nhưng hiện mình chỉ lọc chuyến theo các nhóm: một mình, người yêu, "
-                   "bạn bè, trẻ nhỏ, bố mẹ. Bạn thấy {wish} giống nhóm nào trong đó không?")
-# a group wish close to one value: ask the user to confirm it (nothing is written from the question)
-GROUP_NEAR_SAY = ("Mình đã ghi lại {wish}, nhưng chưa lọc theo nhóm này được. Có phải bạn muốn nói “{label}” không? "
-                  "Nếu không, bạn kể rõ hơn giúp mình nhé.")
 DONE_SAY = "Xong rồi, mình đi tìm chỗ hợp với chuyến này."
 OTHER_TYPE_SAY = "Bạn gõ ý của bạn vào ô bên dưới giúp mình nhé."
-REVIEW_SAY = "Xong trắc nghiệm rồi, mình tóm tắt hiểu biết ở bảng bên cạnh. Bạn muốn chỉnh gì thêm, hay có nơi cụ thể nào phải đến không?"
+REVIEW_SAY = "Mình đã hỏi đủ những điều cần cho chuyến này. Các nơi đang hợp ở bảng bên cạnh."
 BAD_VALUE = "Giá trị này mình chưa đọc được, bạn thử lại nhé."
 EXIT_LABEL = {"skip": "Bỏ qua", "unsure": "Chưa chắc"}  # what the user pressed, as it shows in the chat
 DECLINE_SAY = "Không sao, mình để trống ý này."
@@ -88,6 +87,16 @@ NEXT_MISSING = " Để tìm chỗ, mình còn cần biết {items}; bạn kể g
 NEXT_READY = " Bạn kể thêm điều mình nên biết, hoặc bấm Xem gợi ý khi sẵn sàng."
 THEME_UNKNOWN = "Chủ đề này không còn nữa, bạn chọn chủ đề khác nhé."
 PAST_DATE = "Ngày này đã qua, bạn chọn ngày khác giúp mình nhé."
+# looks (domain/vibes.py): fixed lines, the agent does not run on these answers
+KINDS_SAY = "Mình ghi lựa chọn của bạn: {labels}. Các nơi này lên đầu danh sách."
+NO_KIND_SAY = "Không sao, mình không xếp theo kiểu nào. Bạn kể thêm nơi bạn thích trông thế nào nhé."
+CUES_ONLY_SAY = "Mình ưu tiên nơi có {cues}."
+PHOTO_SAY = "Trong ảnh mình thấy {cues}."
+PHOTO_PLACE_SAY = "Mình sẽ tìm nơi cùng phong cách với {name}."
+PHOTO_NOT_SAY = "Bạn kể thêm nơi này đẹp ở điểm nào nhé."
+PHOTO_BLIND_SAY = "Mình chưa đọc được ảnh này. Bạn kể bằng lời giúp mình nhé."
+BAD_PHOTO = "Ảnh này mình không mở được, bạn thử ảnh JPG hoặc PNG khác nhé."
+MAX_PHOTO_BYTES = 2_000_000
 
 # Prepass proposals allowed straight into the Trip State: high-precision slots only (dates, counts,
 # money, explicit body signals, effort hard filters, single-meaning soft). Everything else arrives as
@@ -97,7 +106,7 @@ APPLIED_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights
 
 
 class TurnInput(Frozen):
-    kind: Literal["text", "answer", "edit", "show", "more", "theme", "to_chat", "to_quiz"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"; to_chat / to_quiz: the mode bar
+    kind: Literal["text", "answer", "edit", "show", "more", "theme", "to_chat", "to_quiz", "image"]  # theme: value = a theme id of config/trip.yaml; more: "Hỏi tiếp"; to_chat / to_quiz: legacy mode bar; image: value = a base64 photo, text = its caption
     text: str = ""
     qid: str = ""
     chips: tuple[str, ...] = ()
@@ -141,12 +150,16 @@ def card(q: Question | None, effects: dict[str, int] | None = None) -> dict | No
 class Engine:
     def __init__(self, catalog: Catalog, cfg: Settings, store: SessionStore, chat: Chat,
                  today: Callable[[], date] = date.today, profiles: ProfileStore | None = None,
-                 route: Route | None = None, judge=None):
+                 route: Route | None = None, judge=None, looks=None, web=None, see=None):
         """chat: one model call with tools (agent/loop.py). profiles: stored patterns (config patterns.enabled);
         None = no long-term learning. route: Clef, asked before the Agent on a typed turn; None = never short-circuits.
-        judge: Clef's yes / no checks on facts, replies and questions (infrastructure.clef.Judge); None = regex guards only."""
+        judge: Clef's yes / no checks on facts, replies and questions (infrastructure.clef.Judge); None = regex guards only.
+        looks: corpus.index for looks and photos (infrastructure.looks.Looks); None = no photo cards.
+        web: infrastructure.web.Web for the agent's web_search / web_read; None = no web tools.
+        see: photo bytes -> {kind, cues} (Extractor PHOTO_CUES); None = a photo is matched by its pixels only."""
         self.catalog, self.cfg, self.store, self.chat, self.today = catalog, cfg, store, chat, today
         self.profiles, self.route, self.judge = profiles, route, judge
+        self.looks, self.web, self.see = looks, web, see
 
     # ---------- reads ----------
 
@@ -224,7 +237,14 @@ class Engine:
                 self.store.save(s)
 
     def _answer(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        if (i := vibes.index_of(inp.qid)) is not None:
+            return self._vibe_answer(s, i, inp, emit)
         q = s.card
+        if (q is None or q.qid != inp.qid) and is_quiz(inp.qid) and not inp.text.strip() \
+                and (old := find_quiz(inp.qid, s.state, self.catalog, self.cfg)) is not None:
+            return self._answer_quiz(s, old, inp, emit)  # an earlier card in the chat, still unanswered: it still counts
+        if q is not None and q.qid == inp.qid and q.qid.startswith("pick:"):
+            return self._answer_pick(s, q, inp, emit)
         if q is None or q.qid != inp.qid:
             emit("error", {"message": "Câu này đã qua, bạn trả lời câu mới nhất nhé."})
             emit("card", self._card(s.state, s.card))
@@ -365,16 +385,15 @@ class Engine:
         return self._quiz_next(s, emit)
 
     def _quiz_typed(self, s: Session, q: Question, text: str, emit: Emit) -> None:
-        """Typed text on a quiz card. Clear (prepass, then Clef + parse) fills the
-        field straight away; unclear goes to the chat phase, whose agent sees
-        resolving_other and clarifies while the chips stay available."""
+        """Typed text while a quick-reply card is open. Clear for the card's field (prepass, then Clef + parse) fills
+        it straight away; anything else is a chat message: the agent reads it, the card stays answerable above."""
         if (filled := self._gate_fill(s, q, text)) is not None:
             turn = self._open_turn(s, text, "text")
             s.state = with_meta(filled, turn=turn, asked=filled.meta.asked + (q.qid,),
                                 other_qid=None, other_text=None)
             emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
             return self._quiz_next(s, emit)
-        s.state = with_meta(s.state, other_qid=q.qid, other_text=text)
+        s.state = with_meta(s.state, phase="chat", other_qid=None, other_text=None)
         self._run(s, text, emit)
 
     def _gate_fill(self, s: Session, q: Question, text: str) -> TripState | None:
@@ -439,7 +458,9 @@ class Engine:
             emit("state", {"understanding": understanding(st, self.catalog, self.cfg)})
         compared = compared_places(text, self.catalog)
         heard = " ".join(t["text"] for t in s.transcript if t["role"] == "user")
-        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, self.judge)
+        tools = TurnTools(st, text, turn, self.catalog, self.today(), compared, self.judge,
+                          web=self.web if may_ask and not quiet else None, cards=may_ask and not quiet,
+                          on_trace=lambda t: emit("progress", t))
         hints = [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote} for p in pre.proposals]
         hints += [{"ambiguous": q, "may_mean": list(k)} for q, k in pre.ambiguous]
         hints += [{"field": p.field, "value": values.jsonable(p.value), "quote": p.quote, "suggested": True}
@@ -464,6 +485,14 @@ class Engine:
 
         clef_log: list[str] = []
         fixed: str | None = None
+        last_say = next((t["text"] for t in reversed(s.transcript)
+                         if t["role"] == "agent" and t.get("kind") == "say" and t.get("text")), None)
+        # the previous turn just parked a wish as unmapped and asked about it: this message likely answers it
+        follows_unmapped = any(u.turn == turn - 1 for u in st.unmapped) and last_say is not None and "?" in last_say
+        # Clef reads the recent exchanges, not just this message: an answer to our own question is on topic
+        recent = [f"{'khách' if t['role'] == 'user' else 'mình'}: {(t.get('text') or '')[:120]}"
+                  for t in s.transcript if t["role"] in ("user", "agent") and t.get("text")]
+        history = "\n".join(recent[-6:])
 
         async def go() -> None:
             nonlocal shown, fixed
@@ -471,7 +500,8 @@ class Engine:
             if self.route is None or not may_ask or answer:  # a pressed option is never off topic
                 shown = True
                 return await agent
-            fixed, _ = await asyncio.to_thread(self._fixed_reply, text, prev, pre, clef_log)
+            fixed, _ = await asyncio.to_thread(self._fixed_reply, text, prev, pre, clef_log, follows_unmapped,
+                                                 history)
             if fixed:
                 agent.cancel()
                 try:
@@ -499,11 +529,10 @@ class Engine:
             log.clear()
         log.extend(clef_log)
         say = "".join(said).strip()
-        model_asked = "?" in say  # the agent's own text asks: fillers added below must not count as its question
         if fixed:  # Clef answered for the Agent: nothing learned, nothing spent, the open question stays
             say = fixed
             emit("say", {"replace": say})
-        if not say and (tools.recorded or "step_cap" in log):  # the agent wrote no reply: never leave the turn silent
+        if not say and (tools.recorded or "step_cap" in log) and tools.asked is None:  # the agent wrote no reply: never leave the turn silent
             got = ", ".join(sorted({FIELD_LABEL.get(f, f) for f in tools.recorded}))
             say = (PARTIAL_SAY if "step_cap" in log else RECORDED_SAY).format(got=got) if got else NOT_DONE_SAY
             emit("say", {"replace": say})
@@ -512,16 +541,9 @@ class Engine:
             if plain != say:
                 say = plain
                 emit("say", {"replace": say})
-        if tools.unmapped and model_asked:
-            # the agent already asked its own clarifying question: keep it, the template below is only the fallback
-            log.append("unmapped_agent_asks")
-        if tools.unmapped and not model_asked:  # fixed reply: the model's own words could promise what the search cannot do
-            wish = ", ".join(f"“{w}”" for w in tools.unmapped)
-            near = nearest_group(tools.unmapped[0]) if tools.group_other else None
-            say = (GROUP_NEAR_SAY.format(wish=wish, label=GROUP_LABEL[near]) if near
-                   else (GROUP_OTHER_SAY if tools.group_other else UNMAPPED_SAY).format(wish=wish))
-            emit("say", {"replace": say})
-        elif why := (bad_say(say, heard, tools.state, self.catalog, {c["id"] for c in compared})
+        # An unmapped wish is the agent's to handle (see UNMAPPED in the prompt): its own text stays, checked
+        # below like any reply. Only a silent turn keeps the recorded-facts fallback above.
+        if why := (bad_say(say, heard, tools.state, self.catalog, {c["id"] for c in compared})
                      or (tools.reply_problem() if say and not fixed else None)):
             log.append(f"say replaced: {why}")
             # never leave a question without a visible reply; a told trip gets an honest pointer to the summary
@@ -530,9 +552,13 @@ class Engine:
         card = None  # questions are plain text: the quiz cards come from the bank, never from the agent
         if say:
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
-        s.transcript.append({"role": "system", "text": "; ".join(log) or "no tools", "turn": turn})
+        s.transcript.append({"role": "system", "text": "; ".join(log) or "no tools", "turn": turn,
+                             "tools": {"recorded": list(tools.recorded), "refused": dict(tools.refusal_notes),
+                                       "unmapped": list(tools.unmapped)}})
         s.state = tools.state
-        if _learned(before, tools.state, tools.recorded):
+        if tools.asked is not None and not fixed and may_ask:
+            card = self._asked(s, tools, turn)
+        if _learned(before, tools.state, tools.recorded) or tools.asked is not None:
             s.state = with_meta(s.state, unsure_streak=0, idle_streak=0)
         elif may_ask and not fixed:
             # an adaptive turn that added nothing: the user may be stuck (surfaced as `stuck` next turn)
@@ -553,9 +579,9 @@ class Engine:
                 resumed = True
             elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg)) is not None:
                 card = qq  # not resolved yet: the chat clarifies, the chips stay available
-        # No auto-advance: the mode bar belongs to the user. Chat stays chat until they switch; the quiz
-        # detour above is the only automatic hop.
-        s.card = card or conversation_card()
+        failed = bool(fixed) or "step_cap" in log or any(x.startswith("agent_error") for x in log)
+        # a fixed reply or a failed agent leaves the text box: the user says it again before anything else is asked
+        s.card = card or (conversation_card() if failed else self._next(s, say))
         st = s.state
         log_turn(s.id, turn, text, log, say, s.card.qid, {
             "companions": sorted(map(str, st.companions.value or ())), "start_date": str(st.start_date.value),
@@ -566,14 +592,20 @@ class Engine:
             return
         self._quiz_next(s, emit)
 
-    def _fixed_reply(self, text: str, prev: Question | None, pre: Prepass, log: list[str]) -> tuple[str | None, ClefRoute]:
+    def _fixed_reply(self, text: str, prev: Question | None, pre: Prepass, log: list[str],
+                     follows_unmapped: bool = False, history: str = "") -> tuple[str | None, ClefRoute]:
         """Clef, next to the Agent (it runs in a thread): off topic / abuse, or a question for figures this step has no data for, get a fixed
         reply and the Agent is not called. A clue the keyword rules read means the message is about the trip; they have
-        already written what they read, so a date framing a figure question is kept."""
+        already written what they read, so a date framing a figure question is kept. An off-topic verdict is also
+        dropped when the message follows a turn that just parked a wish as unmapped and asked about it: the user is
+        likely answering, not wandering off (abuse is still rejected)."""
         if self.route is None:
             return None, ClefRoute()
-        r = self.route(text, prev.text if prev else None)
+        r = self.route(text, prev.text if prev else None, history)
         if r.reject and not (pre.proposals or pre.ambiguous or pre.suggestions):
+            if r.reject == "off_topic" and follows_unmapped:
+                log.append("clef_skip_answer")
+                return None, r
             log.append(f"clef_reject:{r.reject}")
             return REJECT_SAY, r
         if r.asks_data and {p.field for p in pre.proposals} <= {"month", "start_date"}:  # a date only frames the question
@@ -645,10 +677,11 @@ class Engine:
             s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
             emit("say", {"replace": say})
             return self._quiz_next(s, emit)
-        miss = missing(s.state, self.cfg.required)
-        say += NEXT_MISSING.format(items=", ".join(label for _, label in miss)) if miss else NEXT_READY
+        s.card = self._next(s, say)
+        if s.card.qid == "conversation":
+            miss = missing(s.state, self.cfg.required)
+            say += NEXT_MISSING.format(items=", ".join(label for _, label in miss)) if miss else NEXT_READY
         s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
-        s.card = conversation_card()
         emit("say", {"replace": say})
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
         emit("card", self._card(s.state, s.card))
@@ -661,6 +694,15 @@ class Engine:
 
         kind, _, arg = inp.target.partition(":")
         v = inp.value
+        if kind == "vibe":  # the ticket's ✕ on a look: it ranks nothing any more
+            if not arg.isdigit() or int(arg) >= len(s.state.vibes) or v is not None:
+                emit("error", {"message": BAD_VALUE})
+                return
+            gone = list(s.state.vibes)
+            del gone[int(arg)]
+            s.state = s.state.model_copy(update={"vibes": tuple(gone)})
+            emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+            return
         try:
             if kind in SCALARS:
                 if v is None:
@@ -794,6 +836,198 @@ class Engine:
             self.profiles.record(m.user_id, Summary(sid=s.id, day=self.today(), votes=votes))
         except OSError as e:
             s.transcript.append({"role": "system", "text": f"profile not saved: {e}", "turn": m.turn})
+
+    def _next(self, s: Session, say: str) -> Question:
+        """One chat flow: after a reply that asks nothing, the next bank question shows as quick replies under it;
+        a reply that asks something, or a chat where the trip is not told yet, leaves the text box as the answer."""
+        if "?" not in say and s.state.meta.told and s.state.meta.phase != "review":
+            queue = quiz_queue(s.state, self.catalog, self.cfg)
+            if queue:
+                s.state = with_meta(s.state, phase="quiz")
+                return queue[0]
+        if s.state.meta.phase == "quiz":
+            s.state = with_meta(s.state, phase="chat")
+        return conversation_card()
+
+    def _pool(self, st: TripState, scope: str = "any") -> set[str]:
+        """Places past the hard limits now, of the kind a look is about: looks rank inside these, never outside."""
+        groups = vibes.SCOPES.get(scope)
+        return {c.id for c in self.catalog.places if admissible(c, st.hard, st.activities.get(c.id))
+                and (groups is None or c.category_group in groups)}
+
+    def _name(self, pid: str) -> str:
+        c = self.catalog.by_id.get(pid)
+        return c.name if c else (self.looks.name(pid) if self.looks else pid)
+
+    def _match(self, st: TripState, cues: tuple[str, ...], step, scope: str = "any") -> tuple[list[str], list]:
+        """The look's signs against the corpus photos: (places best first, their kinds)."""
+        total = self.looks.total if self.looks else 0
+        step("match", f"Đối chiếu {total:,} nơi".replace(",", "."), "run")
+        places, vec = self.looks.by_cues(list(cues), self._pool(st, scope)) if self.looks else ([], None)
+        kinds = self.looks.kinds(places[:80], vec) if places else []
+        step("match", f"Đối chiếu {total:,} nơi · {len(places)} nơi gần".replace(",", "."), "ok" if self.looks and self.looks.ready() else "fail")
+        return places, kinds
+
+    def _asked(self, s: Session, tools: TurnTools, turn: int) -> Question:
+        """The card the agent asked for with `ask`, built from real data (it only named the look or the readings)."""
+        a = tools.asked
+        if a["kind"] == "this_or_that":
+            ont = ontology().features
+            chips = []
+            for n, o in enumerate(a["options"]):
+                key, _ = values.split_weight(o)
+                k = SoftKey.parse(key)
+                label = SOFT_LABEL.get(key) or ont[k.feature].hint.split(",")[0].split(":")[0].strip().capitalize()
+                chips.append(Chip(id=f"o{n}", label=label, drafts=(Draft(field="soft", op="add", value=(str(k), "love")),)))
+            return Question(qid=f"pick:{turn}", group="G", tier=2, text=f"Ý “{a['about']}” của bạn gần với cái nào hơn?",
+                            chips=tuple(chips), exits=True)
+        tools.step("cues", "Tách thành dấu hiệu nhìn thấy được", "ok")
+        vibe = Vibe(phrase=a["about"], turn=turn, cues=tuple(a["cues"]), scope=a.get("where", "any"),
+                    sources=vibes.sources_of(tools.sources))
+        places, kinds = self._match(s.state, vibe.cues, tools.step, vibe.scope)
+        vibe = vibe.model_copy(update={"offered": tuple(kinds), "places": tuple(places[:vibes.VIBE_PLACES])})
+        s.state, i = vibes.put(s.state, None, vibe)
+        return vibes.cues_card(i, vibe, kinds, len(places), self.looks.total if self.looks else 0, self._name)
+
+    def _answer_pick(self, s: Session, q: Question, inp: TurnInput, emit: Emit) -> None:
+        """this_or_that: the chosen reading's soft value is written as it is, no model call."""
+        picked = [c for c in q.chips if c.id in inp.chips]
+        if not picked:
+            exit_ = next((x for x in ("skip", "unsure") if x in inp.chips), None)
+            return self._decline(s, q, exit_, emit) if exit_ else emit("card", self._card(s.state, s.card))
+        turn = self._open_turn(s, picked[0].label, "answer")
+        s.state = apply_drafts(s.state, picked[0].drafts, turn, tool=f"chip:{q.qid}")
+        self._close_turn(s, f"Mình ghi “{picked[0].label}”.", turn, emit)
+
+    def _vibe_answer(self, s: Session, i: int, inp: TurnInput, emit: Emit) -> None:
+        """An answer on a look's card (signs, kinds, "is it this place?"), from any point of the chat. No model call."""
+        if not 0 <= i < len(s.state.vibes):
+            emit("error", {"message": "Câu này đã qua, bạn trả lời câu mới nhất nhé."})
+            return
+        v = s.state.vibes[i]
+        exit_ = next((x for x in ("skip", "unsure") if x in inp.chips), None)
+        steps: list[dict] = []
+
+        def step(sid, label, status):
+            steps[:] = [x for x in steps if x["id"] != sid] + [{"id": sid, "label": label, "status": status}]
+            emit("progress", {"steps": list(steps), "sources": []})
+
+        say, card = "", None
+        if exit_:
+            turn = self._open_turn(s, EXIT_LABEL[exit_], "exit")
+            v = v.model_copy(update={"status": "none", "places": ()})
+            say = DECLINE_SAY
+        elif inp.value is not None:  # the signs card: kept / removed signs
+            try:
+                kept, removed = vibes.read_cues(inp.value)
+            except ValueError:
+                emit("error", {"message": BAD_VALUE})
+                return
+            turn = self._open_turn(s, "Đúng rồi, xem ảnh các kiểu", "answer")
+            places, kinds = self._match(s.state, kept, step, v.scope)
+            v = v.model_copy(update={"cues": kept, "removed": removed, "offered": tuple(kinds),
+                                     "places": tuple(places[:vibes.VIBE_PLACES]), "chosen": ()})
+            if len(kinds) >= 2:
+                v = v.model_copy(update={"status": "kinds"})
+                card = vibes.kinds_card(i, v, self._name)
+            else:
+                v = v.model_copy(update={"status": "done" if places else "none"})
+                say = CUES_ONLY_SAY.format(cues=", ".join(kept))
+        elif v.status == "cues" and v.picked is None and inp.chips and set(inp.chips) <= {"yes", "no"}:
+            turn = self._open_turn(s, "Đúng nơi này" if "yes" in inp.chips else "Không phải", "answer")
+            pid = (v.places or (None,))[0]
+            if "yes" in inp.chips and pid:
+                v = v.model_copy(update={"picked": pid, "status": "done",
+                                         "places": (pid, *self.looks.similar(pid, self._pool(s.state)))[:vibes.VIBE_PLACES]
+                                         if self.looks else (pid,)})
+                say = PHOTO_PLACE_SAY.format(name=self._name(pid))
+            elif len(v.offered) >= 2:
+                v = v.model_copy(update={"status": "kinds", "places": ()})
+                card = vibes.kinds_card(i, v, self._name)
+            else:
+                v = v.model_copy(update={"status": "none", "places": ()})
+                say = PHOTO_NOT_SAY
+        else:  # the kinds card
+            ids = [c for c in inp.chips if c != "none"]
+            v = vibes.choose(v, ids)
+            labels = [k.label for k in v.offered if k.id in v.chosen]
+            turn = self._open_turn(s, ", ".join(labels) or "Không kiểu nào giống", "answer")
+            say = KINDS_SAY.format(labels=", ".join(labels)) if labels else NO_KIND_SAY
+        s.state, _ = vibes.put(s.state, i, v)
+        s.state = with_meta(s.state, told=True)
+        if card is not None:
+            s.card = card
+            emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+            emit("card", self._card(s.state, s.card))
+            return
+        self._close_turn(s, say, turn, emit)
+
+    def _image(self, s: Session, inp: TurnInput, emit: Emit) -> None:
+        """A photo the user sent: matched against the corpus photos (looks) and read for visible signs (see), in
+        parallel. One clear match -> "is it X?"; else the kinds of the nearest places, or the signs to confirm. The
+        photo is never stored: only the corpus places and the signs stay."""
+        try:
+            raw = (inp.value or "").split(",", 1)[-1]
+            data = base64.b64decode(raw, validate=True)
+            if not 0 < len(data) <= MAX_PHOTO_BYTES:
+                raise ValueError("size")
+            from PIL import Image
+            Image.open(io.BytesIO(data)).verify()
+        except (ValueError, binascii.Error, OSError):
+            emit("error", {"message": BAD_PHOTO})
+            return
+        caption = inp.text.strip()[:200]
+        turn = self._open_turn(s, caption or "Ảnh bạn gửi", "image")
+        steps: list[dict] = []
+
+        def step(sid, label, status):
+            steps[:] = [x for x in steps if x["id"] != sid] + [{"id": sid, "label": label, "status": status}]
+            emit("progress", {"steps": list(steps), "sources": []})
+
+        step("read", "Đọc ảnh", "run")
+        pool = self._pool(s.state)
+        with ThreadPoolExecutor(2) as ex:
+            seen = ex.submit(self.see, data) if self.see else None
+            matched = ex.submit(self.looks.by_photo, data, pool) if self.looks else None
+            try:
+                read = seen.result() if seen else {}
+            except Exception:  # the reader is down: the pixels still match
+                read = {}
+            vec, places, shows = matched.result() if matched else (None, [], None)
+        try:
+            cues = vibes.clean_cues(read.get("cues"), {fold(c.name) for c in self.catalog.places})
+        except ValueError:
+            cues = ()
+        step("read", "Đọc ảnh" + (f" · {read['kind']}" if read.get("kind") else ""), "ok" if cues or places else "fail")
+        total = self.looks.total if self.looks else 0
+        step("match", f"Đối chiếu {total:,} nơi · {len(places)} nơi gần".replace(",", "."), "ok" if places else "fail")
+        ids = [p.place_id for p in places]
+        kinds = self.looks.kinds(ids[:80], vec) if self.looks and ids else []
+        v = Vibe(phrase=caption or "ảnh bạn gửi", turn=turn, cues=cues, image=True, offered=tuple(kinds),
+                 places=tuple(ids[:vibes.VIBE_PLACES]))
+        if shows:
+            step("name", "Kiểm tra tên và địa chỉ", "ok")
+            v = v.model_copy(update={"places": (shows, *[p for p in ids if p != shows])[:vibes.VIBE_PLACES]})
+            s.state, i = vibes.put(s.state, None, v)
+            s.card = vibes.pick_card(i, v, shows, self.looks.best_photo(shows), self._name)
+            say = ""
+        elif len(kinds) >= 2:
+            v = v.model_copy(update={"status": "kinds"})
+            s.state, i = vibes.put(s.state, None, v)
+            s.card = vibes.kinds_card(i, v, self._name)
+            say = PHOTO_SAY.format(cues=", ".join(cues)) if cues else ""
+        elif cues:
+            s.state, i = vibes.put(s.state, None, v)
+            s.card = vibes.cues_card(i, v, kinds, len(ids), total, self._name)
+            say = PHOTO_SAY.format(cues=", ".join(cues))
+        else:
+            return self._close_turn(s, PHOTO_BLIND_SAY, turn, emit)
+        s.state = with_meta(s.state, told=True)
+        if say:
+            s.transcript.append({"role": "agent", "text": say, "turn": turn, "kind": "say"})
+            emit("say", {"replace": say})
+        emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+        emit("card", self._card(s.state, s.card))
 
     def _card(self, state: TripState, q: Question | None) -> dict | None:
         return card(q, chip_effects(state, q, self.catalog))

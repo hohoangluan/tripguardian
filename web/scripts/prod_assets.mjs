@@ -8,7 +8,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { extname, join, resolve } from 'node:path'
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib'
 
-const DIST = resolve(import.meta.dirname, '../dist')
+// PROD_DIST: the staging build ./run.sh prod prepares before copying it over the live dist/
+const DIST = resolve(process.env.PROD_DIST ?? resolve(import.meta.dirname, '../dist'))
 const CACHE = resolve(import.meta.dirname, '../node_modules/.cache/tg-prod')
 const TEXT = new Set(['.html', '.js', '.css', '.json', '.svg', '.txt', '.bin'])
 const DROP_TOP = ['review', 'decisions', 'system', 'build']
