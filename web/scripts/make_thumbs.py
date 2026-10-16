@@ -1,6 +1,7 @@
 """Make the light WebP thumbnails the user web shows in place of the original photos.
 
-Every photo in web/public/data/covers.json and web/src/user/landing/places.json gets a WebP at most 480px wide:
+Every photo in web/public/data/covers.json, web/src/user/landing/places.json and the corpus index (the photos Trip
+cards show: Understand, vibes, drills) gets a WebP at most 480px wide:
 /media/<source>/<rest>.jpg -> data/thumbs/<source>/<rest>.webp, served at /media/thumb/<source>/<rest>.webp by
 web/server.mjs (and the Vite dev server). Sources stay in their own folders. Existing thumbnails are kept, so a
 re-run only does new photos. Run from the repo root:
@@ -9,6 +10,7 @@ re-run only does new photos. Run from the repo root:
 """
 
 import json
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -25,8 +27,20 @@ def srcs() -> set[str]:
     covers = json.loads((ROOT / "web" / "public" / "data" / "covers.json").read_text(encoding="utf-8"))
     landing = json.loads((ROOT / "web" / "src" / "user" / "landing" / "places.json").read_text(encoding="utf-8"))
     out = {c["src"] for cs in covers.values() for c in cs}
+    for f in (ROOT / "web" / "public" / "data" / "covers").glob("*.json"):  # galleries pick_covers.py split out
+        out |= {c["src"] for c in json.loads(f.read_text(encoding="utf-8"))}
     out |= {ph["src"] for p in landing for ph in p.get("photos", [])}
-    return out
+    return out | indexed()
+
+
+def indexed() -> set[str]:
+    """Photos of the current corpus index, as /media URLs. Without the index (no src on the path) only the web's own."""
+    try:
+        from corpus.index import Index
+        from trip.domain.vibes import media_url
+    except ImportError:
+        return set()
+    return {media_url(r["file"]) for r in Index.load().photo_rows}
 
 
 def paths(src: str) -> tuple[Path, Path] | None:
@@ -65,7 +79,8 @@ def main() -> None:
         elif not p[1].is_file():
             jobs.append(p)
     counts: dict[str, int] = {}
-    with ProcessPoolExecutor() as pool:
+    # spawn, not fork: the parent has the index (lancedb) open, and a forked child of it can deadlock
+    with ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn")) as pool:
         for r in pool.map(make, jobs, chunksize=16):
             counts[r] = counts.get(r, 0) + 1
     print(f"thumbs: {counts.get('made', 0)} made, {counts.get('failed', 0)} failed, {missing} originals missing -> {OUT}")

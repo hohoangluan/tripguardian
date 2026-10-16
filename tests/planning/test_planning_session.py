@@ -165,3 +165,54 @@ def test_picking_the_same_variant_again_is_not_a_switch_and_keeps_order_override
     s = apply_act(s, {"type": "reorder", "day": 0, "order": ["b", "a"]}, ctx())
     s = apply_act(s, {"type": "pick_variant", "id": "v1"}, ctx())
     assert s.order_override == {0: ["b", "a"]}
+
+
+def test_extend_days_widens_every_day_window():
+    s = apply_act(State(), {"type": "extend_days", "side": "start", "per_day_min": 45},
+                  ctx(day_windows=[(480, 1260), (480, 1260)]))
+    assert s.day_window_override == {0: (435, 1260), 1: (435, 1260)}
+
+
+def test_extend_days_keeps_every_pick_and_takes_the_main_plan():
+    s = State(chosen_variant="fit", plan_dropped=["c"], order_override={0: ["b", "a"]})
+    s = apply_act(s, {"type": "extend_days", "side": "end", "per_day_min": 30}, ctx(day_windows=[(480, 1200), (480, 1200)]))
+    assert s.day_window_override == {0: (480, 1230), 1: (480, 1230)}
+    assert (s.chosen_variant, s.plan_dropped, s.order_override) == ("main", [], {})
+
+
+def test_extend_days_never_moves_a_fixed_edge_and_refuses_when_no_day_can_move():
+    windows = [(600, 1200), (480, 900)]          # day 0 opens at the arrival, day 1 closes at the departure
+    s = apply_act(State(), {"type": "extend_days", "side": "start", "per_day_min": 30},
+                  ctx(day_windows=windows, fixed_edges=frozenset({(0, "start"), (1, "end")})))
+    assert s.day_window_override == {1: (450, 900)}
+    with pytest.raises(ActionError, match="end later"):
+        apply_act(State(), {"type": "extend_days", "side": "end", "per_day_min": 30},
+                  ctx(day_windows=windows, fixed_edges=frozenset({(0, "end"), (1, "end")})))
+
+
+@pytest.mark.parametrize("action", [{"side": "middle", "per_day_min": 30}, {"side": "start", "per_day_min": 0},
+                                    {"side": "start", "per_day_min": 61}, {"side": "end", "per_day_min": "30"}])
+def test_extend_days_needs_a_side_and_at_most_an_hour(action):
+    with pytest.raises(ActionError, match="extend_days"):
+        apply_act(State(), {"type": "extend_days", **action}, ctx(day_windows=[(480, 1260)]))
+
+
+@pytest.mark.parametrize('side', ['start', 'end'])
+def test_extend_after_choosing_a_dawn_plan_uses_the_window_before_pull_early(side):
+    from plan_fixtures import CENTRE, CFG, FakeLive, decision, LODGING, fake_matrix, no_geocode, spot
+    from planning import Engine
+    recs = [spot('hill', CENTRE, 0, hours=None, features={'cloud_hunting': 'present'})]
+    d = decision(['hill'], days=2, base={'text': 'home', 'lat': CENTRE[0], 'lng': CENTRE[1]}, leave_at='21:00')
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
+               matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), background=False)
+    created = e.create(d)
+    sid = created['id']
+    before = e.load(sid)['view']
+    assert before['state']['chosen_variant'] == 'main'
+    dawn_day = next(k for k, day in enumerate(before['itinerary']) if day['window'][0] < '08:00')
+    original = e._base[sid].trip.ctxs[dawn_day].day
+    after = e.act(sid, {'type': 'extend_days', 'side': side, 'per_day_min': 30})['view']
+    want = (original.start - 30, original.end) if side == 'start' else (original.start, original.end + 30)
+    assert tuple(after['state']['day_window_override'][str(dawn_day)]) == want
+    # Clearing a dawn pin later must recover the extended normal window, rather than a second early start.
+    assert want[0] >= 450

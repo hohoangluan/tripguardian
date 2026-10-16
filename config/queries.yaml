@@ -12,7 +12,7 @@ tiktok:
   tabs_start: 3  # first run only
   cooldown_s: 300  # first cooldown after a block; doubles on back-to-back blocks. Akamai let go within 15 min (2026-10-07)
   max_cooldown_s: 2400
-  downloads: 8  # parallel mp4 downloads (no browser tab needed, not subject to the tab-block limit above)
+  downloads: 16  # parallel mp4 downloads (no browser tab needed, not subject to the tab-block limit above)
   max_videos_per_query: 30
   max_comments_per_video: 200  # comments + replies, in TikTok's order; null = all (slow)
   videos_per_place: 20  # place_search: top search results per Maps place; place_filter keeps those about the place
@@ -31,6 +31,7 @@ tiktok:
                         # after a network switch (UIT) — a soft IP/account block, not a tab-count problem. Capped
                         # at 1 until it's confirmed to hold clean again; raise once a session runs block-free.
   place_search_tabs_start: 6  # first run only
+  place_search_cooldown_s: 30  # place_search: pause after a captcha/block, tabs stay at place_search_tabs (user 2026-10-15)
   place_search_pause_s: [5, 10]  # wait per search tab
   queries:  # groups from docs/CORPUS.md §1
     general: ["{city} có gì chơi", "review du lịch {city}"]
@@ -45,8 +46,7 @@ stay:  # lodging for Planning only (gmaps stay_search -> list/<city>_stay.json, 
   areas: [Phường 1, Phường 2, Phường 3, Phường 4, Phường 5, Phường 6, Phường 7, Phường 8, Phường 9, Phường 10, Phường 11,
           Phường 12, Xuân Thọ, Xuân Trường, Tà Nung, Trạm Hành, Hồ Tuyền Lâm, Lang Biang]
   min_reviews: 30  # same evidence bar as the place list (gmaps.min_reviews)
-  gmaps:  # overrides of the gmaps: block below for the lodging list (<city>_stay); phases relevant / extremes unchanged
-    max_reviews_per_place: 300  # the newest 300 (user 2026-10-08): hotels list thousands; relevant (50) + extremes (30) still add the detailed and the low / high-rated ones
+  gmaps:  # overrides of the gmaps: block below for the lodging list (<city>_stay); none now: lodging is crawled as deep as the places (user 2026-10-13: it was the newest 300, user 2026-10-08)
 
 gmaps:
   pause_s: [0.2, 0.5]  # wait between pages / per place tab
@@ -84,6 +84,10 @@ gmaps:
   photos_per_place: 12  # phase photos: newest gallery photos, at most 3 per poster, none older than 3 years
   photos_per_sight: 30  # same for sights (photo_groups): stairs and paths show in photos more than in reviews
   photo_groups: [nature, garden_farm, attraction, amusement, camping, religious, museum]
+  menu_groups: [restaurant, cafe, dessert, bar]  # phase menu: the Thực đơn tab (dish names by section, "Phổ biến" dishes, menu photos) of these category groups; dish lookup ("bánh bèo") needs it
+  menu_photos: 12  # menu photos kept per place (the viewer is stepped once per photo)
+  menu_tabs: 8  # max parallel menu pages per process (gate.py lowers it on a captcha)
+  stay_price_tabs: 8  # stay_price: parallel stay pages, each in a fresh cookie-less context (pictures blocked); working level in data/gmaps/stay_price_throttle.json
   photo_px: 768  # longest side of the saved image: enough to see stairs, roofs and paths
   photo_tabs: 8  # per process (one Python process caps ~8 tabs; shards multiply it). Photos render many images: 10 headed tabs took ~7.5 GB (2026-10-05), the server has 750 GB
   grid:  # each category searched per map tile over the city area (config/cities.yaml); a tile whose list

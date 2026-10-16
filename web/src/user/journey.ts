@@ -1,9 +1,11 @@
+import type { Readback } from './tu/types'
+
 export type Stage = 'trip' | 'decision' | 'planning'
 export interface JourneyView { id: string; stage: Stage; revision: number; sessions: Partial<Record<Stage, string>>; outputs: Record<string, unknown>; result: unknown }
-type Operation = 'turn' | 'act' | 'advance' | 'back' | 'confirm' | 'recommend'
+type Operation = 'turn' | 'act' | 'advance' | 'back' | 'confirm' | 'recommend' | 'trip'
 interface Request { request_id: string; stage: Stage; operation: Operation; expected_revision: number; payload: unknown }
 export class JourneyError extends Error {
-  constructor(public status: number, public detail = '') { super(`Journey API ${status}: ${detail}`) }
+  constructor(public status: number, public detail = '', public missing?: string[], public readback?: Readback) { super(`Journey API ${status}: ${detail}`) }
 }
 const BASE = '/api/harness/sessions'
 const queues = new Map<string, Promise<unknown>>()
@@ -32,7 +34,7 @@ function persist(id: string, req?: Request) {
   try { if (req) localStorage.setItem(key(id), JSON.stringify(req)); else localStorage.removeItem(key(id)) } catch { /* memory recovery remains available */ }
 }
 export async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) { const body = await res.json().catch(() => ({})); throw new JourneyError(res.status, body.error ?? '') }
+  if (!res.ok) { const body = await res.json().catch(() => ({})); throw new JourneyError(res.status, body.error ?? '', body.missing, body.readback) }
   return res.json()
 }
 export const createJourney = (experience: string | null, start_with: string | null) => fetch(BASE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ experience, start_with }) }).then(json<JourneyView>)
@@ -66,7 +68,7 @@ async function post(id: string, req: Request, handlers?: Record<string, ((data: 
           const e = JSON.parse(data)
           if (e.request_id !== req.request_id || e.stage !== req.stage || e.revision < req.expected_revision || e.revision > req.expected_revision + 1) continue
           if (e.event === 'journey') result = e.data
-          else if (e.event === 'error') throw new JourneyError(e.data.status ?? 500, e.data.message)
+          else if (e.event === 'error') throw new JourneyError(e.data.status ?? 500, e.data.error ?? e.data.message, e.data.missing, e.data.readback)
           else if (active()) handlers[e.event]?.(e.data)
         }
       }

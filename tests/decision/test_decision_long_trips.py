@@ -17,7 +17,7 @@ from decision.settings import default
 def engine():
     records = [srec(str(i), group="cafe" if i < 8 else "nature") for i in range(16)]
     eng = Engine(Data(records), default(), Store(None))
-    sid = eng.create(si(context={"days": 14}).model_dump(mode="json"))["id"]
+    sid = eng.create(si(context={"days": 14}, activities={str(i): "coffee" for i in range(8)}).model_dump(mode="json"))["id"]
     return eng, sid
 
 

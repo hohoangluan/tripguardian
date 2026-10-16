@@ -5,14 +5,17 @@ Code gọi model theo **vai trò**, không gọi thẳng một model cố địn
 | Vai trò | Dùng ở | Model hiện tại | Đường mạng |
 |---|---|---|---|
 | ASR | `corpus` (TikTok) | ChunkFormer trên GPU local; ASR2 PhoWhisper-medium | Local |
-| Extractor | `corpus` (observe, filter, qc, kiểm span, `asr_check`, `place_verify`, audit Gemma); `photo_rank` (chấm ảnh gallery cho web, `web/scripts/pick_covers.py`) | Gemma 4 trên host LAN (nhận ảnh); UIT API dự phòng | Mạng nội bộ |
-| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | Gemma 4 trên UIT API, 38 call đồng thời | Mạng UIT |
+| Extractor | `corpus` (observe, filter, qc, kiểm span, `asr_check`, `place_verify`, audit Gemma, `style_observe`); `photo_rank` (chấm ảnh gallery cho web, `web/scripts/pick_covers.py`); `trip` `photo_cues` (đọc dấu hiệu trong ảnh user gửi) | Gemma 4 trên host LAN (nhận ảnh); UIT API dự phòng | Mạng nội bộ |
+| Embedder | `corpus index` (offline, 8 GPU), `trip` (câu / ảnh của user, GPU `online_device`) | SigLIP2 so400m (ảnh + chữ ngắn), bge-m3 (span); trọng số ở `.cache/hf`, cấu hình `config/index.yaml` | Local |
+| Judge | `corpus` (`judge audit / status / dedup`, kiểm địa điểm của `qc`) | Gemma 4 trên UIT API, 38 call đồng thời cho corpus | Mạng UIT |
 | Judge mạnh | giá trị cho phép, quyết định đóng cửa / gộp nơi | như Judge | Mạng UIT |
-| Agent | `trip` (vòng tool, function calling gốc), `decision` (lượt chữ), `planning` (proposal nội bộ) | Model qua 9router (`9ROUTER_MODEL`); Trip cần model có `tools: true` trong `GET /v1/models` | Local 9router |
+| Agent | `trip` (vòng tool, function calling gốc), `decision` (lượt chữ), `planning` (proposal nội bộ) | `cx/gpt-6.1-sol` qua 9router, reasoning `low` (`AGENT_REASONING_EFFORT`); Trip cần model có `tools: true` trong `GET /v1/models` | Local 9router (`127.0.0.1:20128`) |
 
 Judge khác họ model với Extractor (GPT / Claude / Gemini so với Gemma) nên lỗi hai bên độc lập.
 
 ## Judge (UIT API)
+
+Chat không còn gọi Judge: heuristic chặn tấn công rõ ràng, phần còn lại Agent tự quyết phạm vi theo `CHAT_POLICY`. Cơ chế chặn và phạm vi HTTP ở `docs/AGENT_HARNESS.md` §5.
 
 Ba vai trò Judge (`JUDGE`, `JUDGE_FIRST`, `JUDGE_STRONG`, `roles.py`) dùng `UIT_API_KEY` / `UIT_API_BASE_URL` / `UIT_API_MODEL`, mặc định 38 call đồng thời trên key 40 call. Vì Gemma nhận `response_format`, Judge chạy guided như Extractor. Chỉ `JUDGE_FIRST_MODEL` còn là biến riêng (tên model trên endpoint này; trống = không có first reader). Judge và Extractor cùng họ model nên lỗi không độc lập; precision vẫn đo bằng nhãn mạnh có sẵn (`CORPUS_HANDOFF.md` §Quy tắc đã chốt, mục 3).
 
@@ -77,8 +80,9 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 | `JUDGE_ENGINE`, `JUDGE_FIRST_MODEL` | `gemma`: audit chạy trên Extractor, một vòng; trống: audit chạy trên vai trò Judge. First reader tùy chọn |
 | `UIT_API_KEY`, `UIT_API_BASE_URL`, `UIT_API_MODEL` | Key, endpoint và model UIT cho Judge và Extractor khi bật `EXTRACTOR_ON_UIT` |
 | `AGENT_API_KEY`, `AGENT_BASE_URL`, `AGENT_MODEL` | Key, endpoint và model 9router cho agent Trip/Decision và Planning nội bộ; thiếu hoặc lỗi thì lượt chữ của Trip chỉ giữ phần `prepass` đã đọc, proposal giữ baseline tất định |
+| `AGENT_REASONING_EFFORT` | Mức suy nghĩ gửi cho model Agent (`reasoning_effort`, hiện `low`); trống = không gửi (model không suy nghĩ như Gemma). Có giá trị thì mỗi call kèm `prompt_cache_key = tripguardian-<task>` (`Role.cache_key`) |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Clef (Cloudflare Workers AI) phân loại lượt gõ của Trip trước Agent; thiếu thì Clef không quyết định gì |
-| `CLEF_MODEL`, `CLEF_MODEL_ID`, `CLEF_TIMEOUT_S` | Model, Workers AI model id và timeout của Clef (mặc định `clef-flash`, `@cf/cloudflare/clef-flash`, 1 giây) |
+| `CLEF_MODEL`, `CLEF_MODEL_ID`, `CLEF_TIMEOUT_S` | Model, Workers AI model id và timeout của Clef (mặc định `clef-flash`, `@cf/cloudflare/clef-flash`, 1 giây; `.env` đặt 2 giây: đo 15/10/2026 p50 0,55 s, chậm nhất 1,3 s; quá hạn thì Clef không quyết định gì) |
 | `DATA_DIR` | Gốc dữ liệu thô (mặc định `data`) |
 | `LIVE_CONTACT` | Liên hệ gửi trong User-Agent của request live context (Nominatim yêu cầu) |
 
@@ -86,9 +90,11 @@ Cấu hình nằm trong `.env` ở root repo (đã gitignore), tạo từ mẫu 
 
 `ASR_MODEL`: model ASR (Hugging Face id, hiện `khanhld/chunkformer-ctc-large-vie`), tải về lần đầu dùng. `ASR_ALT_MODEL`: ASR thứ hai, chỉ cho segment ASR chính sai (`asr_alt`, hiện `vinai/PhoWhisper-medium`).
 
-Extractor gọi host LAN, Agent gọi 9router local, ASR trên GPU local, Judge gọi UIT (38 call).
+Extractor gọi host LAN, Agent gọi 9router local, ASR và Embedder trên GPU local, Judge gọi UIT (38 call). Agent cần function calling nên không chạy trên UIT (vLLM ở đó trả 400 cho tool call); việc Extractor chạy lâu mà không cần tool (như `style_observe`) chuyển sang UIT bằng `EXTRACTOR_ON_UIT=1` để host LAN còn chỗ cho lượt chat, nhưng chung key 40 call với Judge: chạy cùng Judge thì 429, làm lại phần lỗi trên host LAN với `EXTRACTOR_PARALLEL` thấp.
 
 Task `decision_turn` trả update `select | drop | lock | travel | crowd | price | trip | visited`; gu và mong muốn về chuyến luôn là `trip` (đi sang Trip Understanding qua harness), không có op gu riêng ở Decision. Task `trip_turn` nhận thêm `compared_places` trong `CURRENT CONTEXT` (nơi người dùng so sánh "giống X" kèm nét nổi bật lấy từ catalog) và chỉ được viết soft `inferred` từ đúng các nét đó (`docs/TRIP_UNDERSTANDING.md` §4).
+
+**Agent trên 9router (sol 6.1, reasoning `low`).** 9router (`npm i -g 9router`) chuyển request chat-completions sang Codex Responses; `./run.sh start` / `./run.sh prod` khởi động nó khi cổng của `AGENT_BASE_URL` chưa trả lời (log `logs/run/9router.log`), không tắt khi dừng stack vì Judge dùng chung. 9router coi `none` / `minimal` là `low`, nên `low` là mức thấp nhất. Đo 15/10/2026 (`logs/bench_trip/converse.py`, 5 người dùng mô phỏng): token đầu khoảng 2–6 s mỗi call; model trả **một** tool call mỗi lần dù bật `parallel_tool_calls`, nên Trip ghi mọi fact trong một `record_fact` (danh sách) để một lượt chỉ tốn khoảng hai call. Prompt cache dùng được: prompt tĩnh (system + tool, ~7k token) đứng đầu, `CURRENT CONTEXT` và câu mới ở cuối, cùng `prompt_cache_key` mỗi task; khoảng 85% token prompt được cache (9router ghi `cached_tokens` trong `~/.9router/db/data.sqlite`, bảng `usageHistory`; chat-completions không trả con số này về client). Thinking của sol không đi qua 9router (stream chỉ có `content`), nên khối "đang suy nghĩ" trên web là các bước tool do code viết (`docs/TRIP_UNDERSTANDING.md` §4).
 
 Vai trò Agent chạy **trong một phiên người dùng**, có ngân sách thời gian: chờ token đầu `first_token_s` giây, cả call `total_s` giây (`config/trip.yaml`, `config/decision.yaml`, `config/planning.yaml`); quá thì Trip/Decision dùng `policy.py`, Planning nội bộ giữ baseline. Runtime chung `agents.run_structured` validate JSON/schema, giới hạn concurrency/queue qua `config/agents.yaml`; quota này chỉ trong tiến trình (`docs/AGENT_HARNESS.md` §5). Guard của module kiểm grounding/quyền; proposal Planning thử trên nháp rồi qua validator và điểm mục tiêu (`docs/PLANNING.md` §Agent đề xuất nội bộ).
 

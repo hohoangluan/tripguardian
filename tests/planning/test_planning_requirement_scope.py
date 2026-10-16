@@ -73,7 +73,7 @@ def test_swap_keeps_eating_activity_for_cafe_and_revalidates_diet(diet, confirma
     d = decision(["meal"], days=1, hard=[VEG])
     d["backup_pool"] = [{"id": "cafe", "for": "meal"}]
     e = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), matrix_fn=fake_matrix,
-               geocode_fn=no_geocode, sun_fn=lambda *a: None, lodging_fn=lambda *a: [], background=False)
+               geocode_fn=no_geocode, sun_fn=lambda *a: None, background=False)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     e.act(sid, {"type": "swap", "place": "meal", "with": "cafe"})
@@ -84,7 +84,7 @@ def test_swap_keeps_eating_activity_for_cafe_and_revalidates_diet(diet, confirma
                    {"type": "set_day_window", "day": 0, "start": "08:00", "end": "21:00"}]:
         e.act(sid, action)
     resumed = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=e.store, matrix_fn=fake_matrix,
-                     geocode_fn=no_geocode, sun_fn=lambda *a: None, lodging_fn=lambda *a: [], background=False)
+                     geocode_fn=no_geocode, sun_fn=lambda *a: None, background=False)
     assert resumed.load(sid)["view"]["state"]["activity_override"] == {"cafe": "eating"}
     e = resumed
     if confirmable:
@@ -103,12 +103,11 @@ def test_adding_a_recommended_coffee_backup_keeps_the_explicit_activity():
                    features={"vegetarian_options": "yes"}, price={"typical_vnd": 50000}),
                rec("cafe", 11.941, 108.45, group="cafe", usable=("experience", "meal", "backup"),
                    features={"vegetarian_options": "no"}, price={"typical_vnd": 100000})]
-    d = decision(["meal"], days=1, hard=[VEG])
+    d = decision(["meal"], days=1, hard=[VEG], leave_at="18:00")      # a cafe is a snack: it needs an afternoon gap
     d["backup_pool"] = [{"id": "cafe", "for": "meal"}]
     d["trip_context"]["activities"] = {"cafe": "coffee"}
     e = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), matrix_fn=fake_matrix,
-               geocode_fn=no_geocode, sun_fn=lambda *a: None, lodging_fn=lambda *a: [],
-               route_fn=lambda *a: None, background=False)
+               geocode_fn=no_geocode, sun_fn=lambda *a: None, route_fn=lambda *a: None, background=False)
     sid = e.create(d, None)["id"]
     picked = e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     assert any(a["id"] == "cafe" and a["activity"] == "coffee"

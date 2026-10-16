@@ -1,15 +1,15 @@
 import pytest
-from plan_fixtures import CENTRE, CFG, FakeLive, decision, fake_lodging, fake_matrix, no_geocode, spot
+from plan_fixtures import CENTRE, CFG, FakeLive, decision, LODGING, fake_matrix, no_geocode, spot
 from test_planning_engine import started
 
 from planning.engine import Engine
 from planning.session import ActionError, State, ActCtx, Store, apply_act
 
 
-def overloaded_started(preset='low_cost', backup=False):
+def overloaded_started(preset='cost', backup=False, days=1):
     records = [spot(f'p{i}', CENTRE, i % 7, price={'typical_vnd': 200000 if i == 7 else 10000},
                     group=f'kind-{i % 4}') for i in range(8)]
-    output = decision([r['id'] for r in records], days=1, leave_at='21:00')
+    output = decision([r['id'] for r in records], days=days, leave_at='21:00')
     output['feasibility'] = {'status': 'infeasible', 'totals': {'needed': 1000, 'available': 600},
                              'conflicts': [{'check': 'time', 'id': 'time'}]}
     for chosen in output['confirmed']:
@@ -17,12 +17,11 @@ def overloaded_started(preset='low_cost', backup=False):
     if backup:
         records.append(spot('backup', CENTRE, 0, price={'typical_vnd': 10000}))
         output['backup_pool'] = [{'id': 'backup', 'name': 'Backup', 'for_places': ['p0']}]
-    engine = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
-                    matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), lodging_fn=fake_lodging,
-                    background=False)
+    engine = Engine(records + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
+                    matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), background=False)
     created = engine.create(output, None)
     variant = next(v for v in created['view']['variants']
-                   if v['preset'] == preset and v['status'] == 'available')
+                   if (v['id'] == 'main' or preset in [v['id'], *v.get('merged', [])]) and v['status'] == 'available')
     engine.act(created['id'], {'type': 'pick_variant', 'id': variant['id']})
     return engine, created['id']
 
@@ -134,18 +133,17 @@ def test_invalid_restore_offers_a_validated_atomic_make_room_action():
     assert room['action']['type'] == 'make_room'
 
 
-def test_keep_all_can_be_selected_confirmed_and_replayed_without_a_profile():
+def test_fitting_main_can_be_confirmed_and_replayed():
     from test_planning_engine import fake_route
-    e, sid = overloaded_started()
+    e, sid = overloaded_started(days=2)
     e.route_fn = fake_route
-    view = e.load(sid)['view']
-    assert view['keep_all']['confirmable']
-    selected = e.act(sid, {'type': 'pick_variant', 'id': 'keep_all'})['view']
+    selected = e.load(sid)['view']
+    assert selected['keep_all'] is None
+    assert selected['state']['chosen_variant'] == 'main'
     assert visit_ids(selected) == {c['id'] for c in e.store.get(sid).decision['confirmed']}
-    assert selected['active_variant']['preset'] is None
     assert selected['active_variant']['confirmable']
     assert not selected['state']['plan_dropped']
-    assert e.confirm(sid)['chosen'] == 'keep_all'
+    assert e.confirm(sid)['chosen'] == 'main'
     e.act(sid, {'type': 'undo'})
     e.act(sid, {'type': 'redo'})
     e._base.clear()
@@ -153,18 +151,23 @@ def test_keep_all_can_be_selected_confirmed_and_replayed_without_a_profile():
     assert visit_ids(e.load(sid)['view']) == visit_ids(selected)
 
 
-def test_invalid_keep_all_is_viewable_but_cannot_be_confirmed():
+def test_keep_all_is_retired_and_an_overfull_edit_cannot_be_confirmed():
     from planning.engine import NotConfirmable
     e, sid = overloaded_started()
-    e.act(sid, {'type': 'pick_variant', 'id': 'keep_all'})
+    with pytest.raises(ActionError, match='variant'):
+        e.act(sid, {'type': 'pick_variant', 'id': 'keep_all'})
+    before = visit_ids(e.load(sid)['view'])
     view = e.act(sid, {'type': 'set_day_window', 'day': 0, 'start': '09:00', 'end': '10:00'})['view']
-    assert view['violations']
+    squeezed = before - visit_ids(view)
+    assert squeezed
+    assert all(p['reason'] == 'no_room' for p in view['unplaced'] if p['place_id'] in squeezed)
+    assert squeezed <= {p['place_id'] for p in view['unplaced']}
     assert not view['active_variant']['confirmable']
     with pytest.raises(NotConfirmable):
         e.confirm(sid)
 
 
-@pytest.mark.parametrize('preset', ['low_cost', 'diverse', 'least_travel'])
+@pytest.mark.parametrize('preset', ['cost', 'fit', 'travel'])
 @pytest.mark.parametrize('kind', ['swap', 'add_from_backup'])
 def test_backup_preview_apply_metrics_and_replay_preserve_selection_value(preset, kind):
     e, sid = overloaded_started(preset, backup=True)

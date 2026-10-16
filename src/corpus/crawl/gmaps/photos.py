@@ -11,6 +11,8 @@ or the gallery ended (stopped growing after END_SCROLLS scrolls: a small gallery
 Sights (photo_groups, config/category_defaults.yaml groups) get photos_per_sight: stairs and paths show in photos more
 than in reviews. A place saved with fewer than it now wants, because it stopped at its old cap (not at the gallery's
 end), is fetched again with the new count. Otherwise written once per place; delete photos.json to fetch again.
+A place whose every photo is older than MAX_AGE_YEARS would have no picture at all: its newest STALE_KEEP old photos are
+kept with `stale: true`. They are for the web cover only; every reader of evidence (observe, styles, vectors) skips them.
 """
 
 import asyncio
@@ -34,6 +36,7 @@ END_SCROLLS = 2
 PER_AUTHOR = 3  # photos kept per poster
 SCAN_FACTOR = 3  # tiles looked at per photo wanted
 MAX_AGE_YEARS = 3  # older photos (taken, else posted) are skipped: the place may have changed
+STALE_KEEP = 4  # a place with no photo newer than that keeps this many old ones, flagged `stale`, for its cover only
 _SIZE = re.compile(r"=w\d+-h\d+[^\"')]*$")
 
 TILES_JS = r"""() => [...document.querySelectorAll('a[data-photo-index]')].map(a => {
@@ -126,7 +129,7 @@ async def scrape_photos(ctx: BrowserContext, place: dict, d, n: int, px: int, pe
     page, img = await ctx.new_page(), await ctx.new_page()
     try:
         await open_page(page, place["url"], "h1.DUwDvf")
-        out, last_id, skipped, by_author, seen = [], None, collections.Counter(), collections.Counter(), set()
+        out, stale, last_id, skipped, by_author, seen = [], [], None, collections.Counter(), collections.Counter(), set()
         tabs, complete = [], True
         (d / "photos").mkdir(exist_ok=True)
         for tab in TABS:
@@ -141,17 +144,23 @@ async def scrape_photos(ctx: BrowserContext, place: dict, d, n: int, px: int, pe
                 if t["url"] in seen:
                     continue
                 seen.add(t["url"])
-                last_id = await _one(page, img, place, d, t, px, per_author, last_id, out, skipped, by_author, oldest)
+                last_id = await _one(page, img, place, d, t, px, per_author, last_id, out, skipped, by_author, oldest, stale)
         complete = complete or len(out) >= n
+        if out:
+            for ph in stale:  # fresh photos exist: the old ones are not needed
+                (d / ph["file"]).unlink(missing_ok=True)
+        else:
+            out = stale
         return {"fetched_at": now(), "wanted": n, "tabs": tabs, "complete": complete, "photos": out,
-                "skipped": dict(skipped)}
+                "skipped": dict(skipped), "stale_fallback": True}
     finally:
         await page.close()
         await img.close()
 
 
 async def _one(page: Page, img: Page, place: dict, d, t: dict, px: int, per_author: int, last_id: str | None,
-               out: list, skipped: collections.Counter, by_author: collections.Counter, oldest: str) -> str | None:
+               out: list, skipped: collections.Counter, by_author: collections.Counter, oldest: str,
+               stale: list) -> str | None:
     """Open one tile, keep its photo; returns the viewer's photo id for the next wait."""
     await page.locator(f'{TILE}[data-photo-index="{t["index"]}"]').first.click()
     meta = await viewer_moved(page, last_id)
@@ -161,9 +170,11 @@ async def _one(page: Page, img: Page, place: dict, d, t: dict, px: int, per_auth
     if any(o["photo_id"] == meta["id"] for o in out):
         return meta["id"]
     when = month(meta["taken"]) or month(meta["posted"])
-    if when and when < oldest:
+    is_old = bool(when and when < oldest)
+    if is_old:
         skipped["too_old"] += 1
-        return meta["id"]
+        if len(stale) >= STALE_KEEP or out:
+            return meta["id"]
     who = author_hash(meta["contributor"]) if meta["contributor"] else None
     if who and by_author[who] >= per_author:
         skipped["same_author"] += 1
@@ -175,11 +186,15 @@ async def _one(page: Page, img: Page, place: dict, d, t: dict, px: int, per_auth
         return meta["id"]
     f = d / "photos" / f"{safe_name(meta['id'])[:80]}.jpg"
     f.write_bytes(await r.body())
+    row = {"photo_id": meta["id"], "file": f"photos/{f.name}", "url": url,
+           "kind": "video" if t["video"] else "photo", "author_hash": who,
+           "owner": bool(meta["name"]) and norm(meta["name"]) == norm(place.get("name")),
+           "posted": meta["posted"], "taken": meta["taken"], "month": when}
+    if is_old:
+        stale.append(row | {"stale": True})
+        return meta["id"]
     by_author[who] += 1
-    out.append({"photo_id": meta["id"], "file": f"photos/{f.name}", "url": url,
-                "kind": "video" if t["video"] else "photo", "author_hash": who,
-                "owner": bool(meta["name"]) and norm(meta["name"]) == norm(place.get("name")),
-                "posted": meta["posted"], "taken": meta["taken"], "month": when})
+    out.append(row)
     return meta["id"]
 
 
@@ -196,6 +211,8 @@ def needs_fetch(f, wanted: int, default: int) -> bool:
         return True
     doc = json.loads(f.read_text(encoding="utf-8"))
     cap = doc.get("wanted", default)
+    if not doc.get("photos") and not doc.get("stale_fallback") and (doc.get("skipped") or {}).keys() & {"too_old", "no_metadata"}:
+        return True  # saved empty before the cover fallback existed (every photo old, or the viewer gave nothing): once more
     return wanted > cap and len(doc.get("photos", [])) >= cap
 
 

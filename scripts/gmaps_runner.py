@@ -5,8 +5,8 @@ import datetime, json, os, pathlib, subprocess, sys, threading, time
 import psutil
 
 PHASES = [("crawl", "throttle.json"), ("relevant", "throttle.json"), ("extremes", "throttle.json"),
-          ("photos", "photos_throttle.json"), ("keywords", "keywords_throttle.json")]  # crawl first: new list places
-STALL_S = 600  # no output this long = hung (photos sat 4.5 h at 1 tab, 2026-10-06): restart the phase
+          ("photos", "photos_throttle.json"), ("keywords", "keywords_throttle.json"), ("menu", "menu_throttle.json")]  # crawl first: new list places
+STALL_S = int(os.environ.get("GMAPS_STALL_S", 600))  # no output this long = hung (photos sat 4.5 h at 1 tab, 2026-10-06): restart the phase; places with thousands of reviews need longer
 LOW = 0.5 * 2**30  # Windows pages before it fails; 0.5 GB (2026-10-06, RAM-tight machine)
 ROOT = pathlib.Path("data/gmaps")
 SHARD = os.environ.get("GMAPS_SHARD")  # "i/n": every phase split across n runners (one Python process caps ~8 tabs)

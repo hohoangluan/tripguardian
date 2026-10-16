@@ -48,6 +48,8 @@ class Cand:
     parts: dict = field(default_factory=dict)
     score: float = 0.0
     matches: list[tuple] = field(default_factory=list)  # (feature, value, contribution, n)
+    wishes: list[tuple] = field(default_factory=list)  # (key, kind, label, contribution): decision.wishes.lift hits
+    dish_source: dict = field(default_factory=dict)  # dish -> best menu source; a Cand outlives runs while its table does
 
     @property
     def id(self) -> str:

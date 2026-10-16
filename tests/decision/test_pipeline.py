@@ -18,7 +18,7 @@ def data():
         srec("FAR", group="attraction", features={"steep_or_stairs": "absent"}, lat=12.4),
         *[srec(f"CAFE{i}", features={"steep_or_stairs": "absent", "cozy_decor": "present"}, lng=108.44 + i / 1000)
           for i in range(4)],
-        srec("MEAL", usable=("meal",), features={"steep_or_stairs": "absent"}),
+        srec("MEAL", group="restaurant", usable=("meal",), features={"steep_or_stairs": "absent"}),
         srec("RENT", usable=()),
     ])
 
@@ -142,3 +142,106 @@ def test_lodging_never_reaches_explore():
     v = run(s, Data([*data().records, hotel]), CFG).view
     shown = {c["id"] for g in v["groups"] for c in g["cards"] if c["id"] == "HOTEL"}
     assert not shown and "HOTEL" not in v["shortlist"]
+
+
+def test_every_card_of_every_group_has_a_reason():  # D5
+    from gen import records, sessions
+    for seed in range(5):
+        recs = records(seed)
+        d = Data(recs)
+        for s in sessions(seed, recs, 6):
+            v = run(s, d, CFG).view
+            cards = [c for g in v["groups"] for c in g["cards"]] + v["unverified"]["cards"]
+            assert all(len(c["why"]) >= 1 for c in cards), s.id
+
+
+def _meals(n):
+    return [srec(f"M{i:02d}", group="restaurant", category="Nhà hàng", usable=("meal",)) for i in range(n)]
+
+
+def _session(search):
+    return Session(id="0" * 12, search_input=search, state=State())
+
+
+def _dish_wish(*ids):
+    return {"dishes": [{"dish": "bánh căn", "quote": "bánh căn", "place_ids": list(ids)}], "kinds": [], "like": []}
+
+
+def test_why_not_names_the_unmet_wish_and_never_says_not_sold():  # D6, D7
+    import dataclasses
+    recs = _meals(8)
+    cfg = dataclasses.replace(CFG, page_size=3)
+    search = si(wishes=_dish_wish("M07"))
+    res = run(_session(search), Data(recs), cfg)
+    out = why_not(res, "M05", search, cfg)  # below the 3-place window (M07, M00, M01)
+    assert out["listed"] and any("xếp thứ" in r for r in out["reasons"])
+    assert "Chưa thấy ghi món bánh căn ở nơi này" in out["reasons"]
+    assert not any("không bán" in r for r in out["reasons"])
+
+
+def test_why_not_puts_a_hard_fail_before_any_wish():  # D8
+    from fixtures import feat
+    recs = _meals(3)
+    recs[0]["service"]["vegetarian_options"] = feat("no", n=5)
+    search = si(hard_filters=[hard("vegetarian_options", "yes", op="eq")], wishes=_dish_wish("M00"))
+    out = why_not(run(_session(search), Data(recs), CFG), "M00", search, CFG)
+    assert out["reasons"][0].startswith("Bị loại") and not any("mong muốn" in r or "món" in r for r in out["reasons"])
+
+
+def test_reasons_name_only_what_the_trip_or_record_holds():  # D9
+    recs = _meals(4)
+    search = si(wishes=_dish_wish("M03"))
+    res = run(_session(search), Data(recs), CFG)
+    texts = [w["text"] for g in res.view["groups"] for c in g["cards"] for w in c["why"]]
+    texts += [r for pid in ("M00", "M01") for r in why_not(res, pid, search, CFG)["reasons"]]
+    for t in texts:
+        if "món" in t or "bạn muốn" in t:
+            assert "bánh căn" in t
+
+
+def test_a_place_without_a_record_gets_no_wish_and_no_wish_reason():  # final review I2
+    search = si(anchors=[{"place_id": "GONE", "priority": "must"}], liked_groups=["sights"],
+                context={"purpose": "explore"},
+                wishes={"dishes": [], "kinds": [{"kind": "view", "quote": "view", "place_ids": ["GONE"]}], "like": []})
+    res = run(_session(search), Data(_meals(2)), CFG)
+    gone = res.cands["GONE"]
+    assert gone.parts["wish"] == 0.0 and gone.wishes == []
+    texts = [w["text"] for w in res.view["groups"][0]["cards"][0]["why"]]
+    assert not any("Vì bạn thích" in t or "Hợp chuyến" in t or "Đúng loại" in t for t in texts)
+
+
+def test_memo_hit_does_not_search_menus_again(monkeypatch):  # final review I3
+    from decision import cards
+    recs = _meals(4)
+    for r in recs:
+        r["menu"] = {"dishes": [{"name": "bánh căn", "name_en": None, "section": None, "popular": False, "price": None}],
+                     "photos": []}
+    s = _session(si(wishes=_dish_wish(*[r["id"] for r in recs])))
+    d, memo = Data(recs), {}
+    run(s, d, CFG, memo)
+    calls = []
+    real = cards.dishes.search
+    monkeypatch.setattr(cards.dishes, "search", lambda *a, **k: calls.append(1) or real(*a, **k))
+    run(s, d, CFG, memo)
+    assert calls == []
+
+
+def test_why_not_tells_a_cafe_it_does_not_list_the_wished_dish():  # user ruling (b): a dish counts wherever it is listed
+    cafes = [srec(f"C{i}", group="cafe", usable=("experience",)) for i in range(3)]
+    search = si(wishes=_dish_wish("C2"))  # another café lists the dish
+    import dataclasses
+    cfg = dataclasses.replace(CFG, page_size=1)  # C1 sits below the window, so why_not explains its rank
+    res = run(_session(search), Data(cafes), cfg)
+    out = why_not(res, "C1", search, cfg)
+    assert any("xếp thứ" in r for r in out["reasons"]) and "Chưa thấy ghi món bánh căn ở nơi này" in out["reasons"]
+
+
+def test_why_not_does_not_tell_the_reference_it_is_unlike_itself():  # final review M1
+    from fixtures import feat
+    kind = {f: feat("present", n=5) for f in ("scenic_view", "photo_spot", "cozy_decor", "live_music")}
+    recs = [srec(p, group="cafe", usable=("experience",), features=kind) for p in ("X", "Y", "Z")]
+    search = si(wishes={"dishes": [], "kinds": [], "like": [{"place_id": "X", "but": [], "quote": "giống X"}]})
+    import dataclasses
+    cfg = dataclasses.replace(CFG, page_size=1)
+    res = run(_session(search), Data(recs), cfg)
+    assert not any("mong muốn" in r for r in why_not(res, "X", search, cfg)["reasons"])

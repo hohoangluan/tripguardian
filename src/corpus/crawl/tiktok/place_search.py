@@ -9,6 +9,7 @@ a search that stalls is retried and, after the last try, logged to errors.jsonl.
 
 import asyncio
 import json
+import time
 from urllib.parse import quote
 
 from playwright.async_api import BrowserContext
@@ -20,6 +21,20 @@ from .page import collect, ensure_login, is_block
 from .search import SEARCH_API, SEARCH_URL, parse_search
 
 ATTEMPTS = 3
+
+
+class SteadyThrottle(Throttle):
+    """Search tabs stay at the ceiling: a block only pauses new tabs for cooldown_s (a person solves the captcha)."""
+
+    def success(self) -> None:
+        pass
+
+    def blocked(self) -> None:
+        if time.monotonic() < self._until:
+            return  # other tabs already reporting this block
+        print(f"blocked: cooling down {self.cooldown_s:.0f}s")
+        self._until = time.monotonic() + self.cooldown_s
+
 LEGACY_CAP = 10  # videos_per_place of the files written before they recorded their cap
 
 
@@ -82,9 +97,9 @@ async def run(city: str, headed: bool = False, profile=open_profile, profile_nam
         todo = [r for idx, r in enumerate(todo) if idx % n == i]  # same source order every run: no overlap between shards
     print(f"place_search {city}: {len(todo)} places left" + (f" (shard {shard[0]}/{shard[1]})" if shard else ""))
     suffix = f"_{profile_name}" if profile_name else ""
-    throttle = Throttle(root / f"place_search_throttle{suffix}.json", start=c.get("place_search_tabs_start", 1),
-                        hi=c.get("place_search_tabs", 1), cooldown_s=c.get("cooldown_s", 60),
-                        max_cooldown_s=c.get("max_cooldown_s", 900))
+    tabs = c.get("place_search_tabs", 1)
+    throttle = SteadyThrottle(root / f"place_search_throttle{suffix}.json", start=tabs, hi=tabs,
+                              cooldown_s=c.get("place_search_cooldown_s", 30))
     async with profile(profile_name or "tiktok", headed) as ctx:
         await ensure_login(ctx)
         try:

@@ -80,14 +80,13 @@ def decision_outputs(records: list[dict], cfg=None) -> list[tuple[str, dict | No
 
 
 def plan_results(decision_output: dict, records: list[dict], planning_cfg=None, live_cfg=None, geocode_fn=None,
-                 matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None) -> dict:
-    """One hidden trip's Decision Output, laid out and measured. background=False: the lodging crawl (itself
-    offline/fixture-driven in tests, real in run()) finishes before create() returns, so ms_total below already
-    includes it -- matching docs/PLANNING.md §Đo's "Độ trễ: dựng 21 phương án · crawl chỗ ở"."""
+                 matrix_fn=None, sun_fn=None, route_fn=None) -> dict:
+    """One hidden trip's Decision Output, laid out and measured. background=False: the lodging ranking finishes
+    before create() returns, so ms_total below already includes it."""
     if not decision_output["confirmed"]:  # Planning would call an empty trip ok with 0 minutes: not a feasible itinerary
         return {"ok": False, "ms_variants": 0, "reason": "no_confirmed_places"}
     eng = Engine(records, cfg=planning_cfg, live_cfg=live_cfg, store=Store(None), geocode_fn=geocode_fn,
-                 matrix_fn=matrix_fn, sun_fn=sun_fn, lodging_fn=lodging_fn, route_fn=route_fn, background=False)
+                 matrix_fn=matrix_fn, sun_fn=sun_fn, route_fn=route_fn, background=False)
     t0 = time.perf_counter()
     created = eng.create(decision_output)
     ms_variants = round((time.perf_counter() - t0) * 1000)
@@ -130,7 +129,7 @@ ROBUSTNESS_LEVELS = ("solid", "feasible", "fragile")  # src/planning/robustness.
 
 
 def evaluate(records: list[dict] | None = None, decision_cfg=None, planning_cfg=None, live_cfg=None,
-             geocode_fn=None, matrix_fn=None, sun_fn=None, lodging_fn=None, route_fn=None) -> dict:
+             geocode_fn=None, matrix_fn=None, sun_fn=None, route_fn=None) -> dict:
     from corpus.serving import load as load_serving
     records = records if records is not None else load_serving()
     rows = []
@@ -138,8 +137,7 @@ def evaluate(records: list[dict] | None = None, decision_cfg=None, planning_cfg=
         if decision_output is None:
             rows.append({"trip": trip_id, "ok": False, "reason": "decision_not_confirmed"})
             continue
-        row = plan_results(decision_output, records, planning_cfg, live_cfg, geocode_fn, matrix_fn, sun_fn,
-                           lodging_fn, route_fn)
+        row = plan_results(decision_output, records, planning_cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, route_fn)
         rows.append({"trip": trip_id, **row})
     ok_rows = [r for r in rows if r["ok"]]
     n = len(rows)

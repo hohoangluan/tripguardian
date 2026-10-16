@@ -311,6 +311,11 @@ def listed_category(item: dict) -> str | None:
     return c if c and not c[0].isdigit() else None
 
 
+def listed_price(item: dict) -> dict | None:
+    """A lodging's price a night from the hotel list it was found in ({vnd, at}): Maps' default dates, a reference."""
+    return {"vnd": item["price_vnd"], "at": item.get("price_at")} if item.get("price_vnd") else None
+
+
 def time_spent(place_dir: Path) -> dict | None:
     f = place_dir / VISIT_FILE
     return parse_time_spent(json.loads(f.read_text(encoding="utf-8")).get("text")) if f.exists() else None
@@ -339,8 +344,9 @@ def read_before(place_dir: Path, previous: dict) -> dict[str, str]:
 
 
 async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str, bad_ids: set[str],
-                        category: str | None = None, previous: dict | None = None) -> dict:
-    """category: used when the place page has none (the search list's category). previous: this place's older file
+                        category: str | None = None, previous: dict | None = None, night: dict | None = None) -> dict:
+    """category: used when the place page has none (the search list's category). night: a lodging's price a night
+    from the hotel list (listed_price). previous: this place's older file
     built with the same prompts and ontology; a review it already read with the same text keeps its observations and
     proposals (no model call, so the Judge's labels on those claims still apply); only new reviews go to the model."""
     place = json.loads((place_dir / "place.json").read_text(encoding="utf-8"))
@@ -448,7 +454,7 @@ async def observe_place(slots: Slots, place_dir: Path, ont: Ontology, city: str,
                             "price": parse_price(place.get("price")), "hours": parse_hours(place.get("hours")),
                             "closure": parse_closure(place.get("status")),
                             "tickets": parse_tickets(place.get("tickets")),
-                            "time_spent": time_spent(place_dir)},
+                            "time_spent": time_spent(place_dir), "price_night": night},
             "read": read,
             "stats": {"reviews": len(reviews), "to_llm": len(to_llm), "reused": len(reuse), "batches": len(parts),
                       "dropped": dict(dropped)}},
@@ -471,10 +477,11 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
     ont = load_ontology()
     dirs = sorted(p.parent for p in (root / "places").glob("*/place.json"))
     items = listed(city)
-    categories = {}
+    categories, nights = {}, {}
     if items is not None:  # the lists are the place inventory: places they dropped are not evidence for anything
         keep = {safe_name(r["fid"]) for r in items}
         categories = {safe_name(r["fid"]): listed_category(r) for r in items}
+        nights = {safe_name(r["fid"]): listed_price(r) for r in items}
         dirs = [d for d in dirs if d.name in keep]
         for stale in out.glob("*.json") if out.exists() else []:
             if stale.stem not in keep:
@@ -494,6 +501,10 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
             old = json.loads(target.read_text(encoding="utf-8"))
             fresh = keep_stale() or (old.get("prompt_hash"), old.get("ontology_version")) == key
             if old.get("input_hash") == h and fresh:
+                if (old.get("place_facts") or {}).get("price_night") != nights.get(d.name):
+                    # the list's price moved: a list fact, not review evidence, so no model call
+                    old = {**old, "place_facts": {**(old.get("place_facts") or {}), "price_night": nights.get(d.name)}}
+                    write_json(target, old)
                 if "voices_targeted" in old:
                     return "cached"
                 write_json(target, tag_samples(old, *load_samples(d), bad_ids))  # built before samples were tagged
@@ -535,7 +546,8 @@ async def run(city: str, limit: int | None = None, wait_relevant: bool = False) 
                 previous = old  # same prompts and ontology: reviews it already read are not asked again
         try:
             async with in_flight:
-                res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name), previous)
+                res = await observe_place(slots, d, ont, name, bad_ids, categories.get(d.name), previous,
+                                          nights.get(d.name))
         except Exception as e:
             if isinstance(e, ExceptionGroup):  # from the TaskGroup: report the first real cause
                 e = e.exceptions[0]

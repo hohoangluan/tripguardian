@@ -1,76 +1,41 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { startGuest, useAccount } from '../account'
 import { track } from '../events'
 import { flushSync } from 'react-dom'
 import { navigate } from '../../router'
-import { prefetchSnapshot, type Cover } from '../../data/store'
+import { canTransition, startTransition } from '../../viewTransition'
+import { prefetchSnapshot } from '../../data/store'
 import { fetchLandscape } from '../landing/bin'
+import { ClipPlayer } from '../landing/clips'
 import { hasGpu } from '../landing/device'
-import raw from '../landing/places.json'
+import { AREAS, DAY, FOCUS, ROAD_FACTOR, ROUTE, SCENE_PLACES, SPEED_KMH, byName } from '../landing/route'
 import stats from '../landing/stats.json'
 import type { DalatScene, ScenePlace, SceneState } from '../landing/scene'
 import { reducedMotion } from '../lib'
+import { STORY_LEN, stateTweens } from '../landing/story'
 import { Photo, thumbOf } from '../ui/common'
 import { Icon, Logo } from '../ui/icons'
+import { FAQ } from '../faq'
 import { useTitle } from '../ui/Shell'
 
-// Desktop landing: one sticky stage with a 3D model of Đà Lạt; scrolling moves the camera through six chapters.
+// Desktop landing: one sticky stage with a living journey map of Đà Lạt and the TripGuardian cloud flying in front of
+// it (landing/scene.ts); scrolling moves the camera through six chapters.
 // Real places copied from the snapshot by web/scripts/pick_landing_places.py.
-interface LPlace extends ScenePlace { id: string; photos: Cover[]; rating?: number; reviews?: number; crowd?: { weekend?: Record<string, number> }; videos?: { url: string; handle: string }[] }
-const PLACES = raw as unknown as LPlace[]
-const byName = (n: string) => PLACES.find((p) => p.name.startsWith(n))!
-
 gsap.registerPlugin(ScrollTrigger)
-// The example day, in visiting order. Times and stays are illustrative; places are real; the minutes between stops use
-// the planner's rough estimate (config/planning.yaml: road_factor, rough_speed_kmh).
-const DAY: { name: string; at: string; stay: string; meal?: string }[] = [
-  { name: 'Thiên Đường Săn Mây', at: '05:30', stay: '1 giờ 30' },
-  { name: 'Tiệm cà phê Thênh Thang', at: '08:45', stay: '1 giờ' },
-  { name: 'Hồ Xuân Hương', at: '11:00', stay: '1 giờ' },
-  { name: 'An - Tuyền Lâm', at: '12:30', stay: '1 giờ', meal: 'Ăn trưa' },
-  { name: 'Hồ Tuyền Lâm', at: '15:00', stay: '1 giờ 30' },
-  { name: 'Hoàng hôn 3000', at: '17:15', stay: '1 giờ 30', meal: 'Ăn tối' },
-]
-const ROUTE = DAY.map((d) => byName(d.name))
-const FOCUS = 1 // the place the reason card shows
-const ROAD_FACTOR = 1.4
-const SPEED_KMH = 25
-const AREAS: ScenePlace[] = [
-  { name: 'Trung tâm', lat: 11.951, lng: 108.452 },
-  { name: 'Langbiang', lat: 12.017, lng: 108.44 },
-  { name: 'Cầu Đất', lat: 11.872, lng: 108.556 },
-  { name: 'Trại Mát', lat: 11.948, lng: 108.505 },
-  { name: 'Tuyền Lâm', lat: 11.884, lng: 108.412 },
-]
-// the example day as postcards in the 3D model, each with its own real photo (the light thumbnail when there is one);
-// the first photo of Hồ Xuân Hương is a night shot, so its postcard uses the daylight one
-const POSTCARD_PHOTO: Record<string, number> = { 'Hồ Xuân Hương': 1 }
-const SCENE_PLACES: ScenePlace[] = ROUTE.map((p) => {
-  const ph = p.photos[POSTCARD_PHOTO[p.name] ?? 0]
-  return { name: p.name, lat: p.lat, lng: p.lng, photo: ph && (thumbOf(ph.src) ?? ph.src) }
-})
 // Beat i is fully in at timeline time i; the rail groups the evidence beat with selection.
 const RAIL: [string, number][] = [['Mở đầu', 0], ['Tìm hiểu', 1], ['Lựa chọn', 2], ['Lịch trình', 4], ['Đánh giá', 5]]
 const BEATS = 6
-const STORY_LEN = 5.5
 const stepOf = (beat: number) => (beat === 3 ? 2 : beat)
-const FEEDBACK: [string, number][] = [['Gợi ý có đúng gu của bạn?', 5], ['Lý do có dễ hiểu?', 4], ['Lịch có thực tế?', 5], ['Bạn tự tin hơn về chuyến đi?', 4]]
-const HINTS = ['Cuộn xuống để xem cách hoạt động', 'Cuộn tiếp: Lựa chọn', 'Cuộn tiếp: lý do từng nơi', 'Cuộn tiếp: Lịch trình', 'Cuộn tiếp: Đánh giá', 'Còn nữa bên dưới: địa điểm thật']
-// The light version uses one frame from the real 3D model for each chapter.
+const HINTS = ['Cuộn xuống để xem cách hoạt động', 'Cuộn tiếp: Lựa chọn', 'Cuộn tiếp: lý do từng nơi', 'Cuộn tiếp: Lịch trình', 'Cuộn tiếp: Đánh giá', 'Cuộn tiếp: ảnh thật của từng chỗ']
+// The light version uses one frame from the live map for each chapter.
 const PLATES = ['/img/landing-poster.webp', '/img/landing-p1.webp', '/img/landing-p2.webp', '/img/landing-p3.webp', '/img/landing-p4.webp', '/img/landing-p5.webp']
 // the four photos of the "Địa điểm thật" section: place, and which of its photos shows the place best (daylight, recognisable)
 const SHOWCASE: [string, number][] = [['Thung lũng Tình Yêu', 3], ['Hồ Xuân Hương', 1], ['Dinh III', 3], ['Thác Datanla', 0]]
+const LATE = ['noon', 'afternoon', 'evening', 'night'] // a crowd peak the example day's 08:45 visit comes before
 const DAYPART: Record<string, string> = { early_morning: 'sáng sớm', morning: 'buổi sáng', noon: 'buổi trưa', afternoon: 'buổi chiều', evening: 'buổi tối', night: 'ban đêm' }
-const FAQ = [
-  ['Có cần tài khoản không?', 'Không. Bạn lên lịch ngay, không cần đăng nhập. Khách không được lưu lịch sử: chuyến bị xóa sau 24 giờ không hoạt động. Đăng nhập Google nếu muốn lưu chuyến, dùng Google Calendar và thông báo.'],
-  ['Mất bao lâu để có lịch?', 'Bạn kể chuyến đi bằng chat hoặc chọn nhanh, rồi TripGuardian xếp lịch từng giờ. Phần kể thường chỉ mất vài phút.'],
-  ['Mang lịch theo được không?', 'Được. Sau khi đăng nhập, bạn thêm lịch vào Google Calendar, xem trước rồi mới xác nhận.'],
-  ['Chưa đặt khách sạn thì sao?', 'Cứ để trống, hoặc nhập nơi bạn dự định ở. TripGuardian dùng nó để tính đường đi và không đặt chỗ giúp bạn. Thiếu thông tin này, lịch ngày đầu và ngày cuối được ghi là ước lượng.'],
-  ['Nếu một nơi thiếu thông tin thì sao?', 'TripGuardian ghi rõ “Chưa có thông tin” thay vì đoán. Điều gì chưa chắc chắn đều được đánh dấu ngay tại chỗ.'],
-]
 // Where the free camera can fly: real places, and how close to look at each
 const FLY: { name: string; lat: number; lng: number; dist: number }[] = [
   { name: 'Trung tâm', lat: 11.9445, lng: 108.4462, dist: 55 },
@@ -88,6 +53,17 @@ const km = (a: ScenePlace, b: ScenePlace) => {
 const legMinutes = (a: ScenePlace, b: ScenePlace) => Math.max(1, Math.round((km(a, b) * ROAD_FACTOR / SPEED_KMH) * 60))
 const shiftFor = (w: number) => (w > 1100 ? 0.2 : w > 900 ? 0.25 : 0) // keep the model right of the text column
 
+// Real screens of the app for the chapters (docs/UI_SPEC_LANDING.md §2): drop `app-<name>.webp` into
+// web/src/user/landing/shots/ and rebuild. Found at build time, so a missing screen costs no request; until it is there
+// the chapter keeps its drawn card.
+const SHOTS = Object.fromEntries(Object.entries(import.meta.glob<string>('../landing/shots/app-*.webp', { eager: true, query: '?url', import: 'default' }))
+  .map(([path, url]) => [path.replace(/^.*app-|\.webp$/g, ''), url]))
+function Shot({ name, label, children }: { name: 'understand' | 'choose' | 'plan' | 'feedback'; label: string; children: ReactNode }) {
+  const src = SHOTS[name]
+  if (!src) return <>{children}</>
+  return <figure className="tg-l3__shot"><img src={src} alt={`Giao diện TripGuardian: ${label}`} decoding="async" /><figcaption>Giao diện thật · {label}</figcaption></figure>
+}
+
 export function Landing() {
   useTitle('TripGuardian · Đà Lạt')
   const story = useRef<HTMLElement>(null)
@@ -96,18 +72,31 @@ export function Landing() {
   const counter = useRef<HTMLSpanElement>(null)
   const areaEls = useRef<HTMLElement[]>([])
   const pinEls = useRef<HTMLElement[]>([])
+  const dayEls = useRef<HTMLElement[]>([])
+  const mascotImg = useRef<HTMLImageElement>(null)
   const lenisRef = useRef<Lenis | null>(null)
   const [still] = useState(reducedMotion)
-  const [flat, setFlat] = useState(() => !hasGpu()) // no GPU (or too slow): chapter pictures instead of the live model
-  const [live, setLive] = useState(false) // the 3D model has drawn its first frame: the poster fades out
+  // video: the story pre-rendered (every machine, no WebGL; paused 2026-10-16 with 3 of 16 clips rendered, so only
+  // with ?clips=on); 3d: the live model; flat: one picture per chapter (reduced motion, no GPU, or a video that
+  // cannot play)
+  const [mode, setMode] = useState<'video' | '3d' | 'flat'>(() => reducedMotion() ? 'flat'
+    : /[?&]clips=on/.test(location.search) ? 'video' : hasGpu() ? '3d' : 'flat')
+  const flat = mode === 'flat'
+  const setFlat = (on: boolean) => { if (on) setMode('flat') }
+  const playerRef = useRef<ClipPlayer | null>(null)
+  const clipHost = useRef<HTMLDivElement>(null)
+  const wantExplore = useRef(false) // the visitor asked to explore before the live model was there
+  const exploreRef = useRef(() => {})
+  const [live, setLive] = useState(false) // the map has drawn its first frame: the poster fades out
   const [active, setActive] = useState(0)
   const sceneRef = useRef<DalatScene | null>(null)
-  const [exploring, setExploring] = useState(false) // free exploration of the 3D model
+  const [exploring, setExploring] = useState(false) // free exploration of the map
   const [leaving, setLeaving] = useState(false) // on its way to the home page
   const exploringRef = useRef(false)
   const [faq, setFaq] = useState(0)
   const account = useAccount()
   const starting = useRef(false)
+  const member = !!account && !account.guest
   const spot = ROUTE[FOCUS]
   const peak = spot.crowd?.weekend ? Object.entries(spot.crowd.weekend).reduce((a, b) => (b[1] > a[1] ? b : a)) : null
   const showcase = SHOWCASE.map(([n, i]) => ({ place: byName(n), photo: byName(n).photos[i] }))
@@ -118,14 +107,20 @@ export function Landing() {
     if (live || flat) prefetchSnapshot()
   }, [live, flat])
 
-  // 3D model + scroll story
+  // the map + scroll story
   useEffect(() => {
     const cv = canvas.current, st = stage.current, sec = story.current
     if (!cv || !st || !sec) return
     let scene: DalatScene | null = null
     let gone = false
-    const state: SceneState = { cam: 0, dots: 1, five: 0, route: 0, travel: 0, areas: 1, shift: shiftFor(innerWidth) }
+    const state: SceneState = { cam: 0, dots: 1, five: 0, route: 0, travel: 0, areas: 1, shift: shiftFor(innerWidth), hour: 0, stamp: 0, lift: 0 }
     const push = () => scene?.set(state)
+    // the itinerary lights the hour the cloud has walked to (the stops' places along the route come from the scene)
+    const markDay = (travel = state.travel, stops = scene?.stops) => {
+      const at = stops ?? DAY.map((_, i) => i / (DAY.length - 1))
+      const now = travel > 0.002 ? at.reduce((n, u, i) => (u <= travel + 0.02 ? i : n), -1) : -1
+      dayEls.current.forEach((el, i) => { el?.classList.toggle('is-now', i === now); el?.classList.toggle('is-past', i < now) })
+    }
 
     const ro = new ResizeObserver(() => {
       state.shift = shiftFor(cv.clientWidth)
@@ -203,18 +198,47 @@ export function Landing() {
     void document.fonts?.ready.then(fit)
     fit()
     // three.js and the 1.7k coordinates load only here, so phones (GetApp) never fetch them
-    if (!flat) Promise.all([import('../landing/scene'), import('../landing/points.json'), fetchLandscape()]).then(([{ DalatScene }, { default: points }, land]) => {
+    // the pre-rendered story: labels and the itinerary follow each frame of the video
+    let player: ClipPlayer | null = null
+    let unplay = () => {}
+    if (mode === 'video' && clipHost.current) {
+      player = new ClipPlayer(clipHost.current, BEATS)
+      playerRef.current = player
+      const box = { w: 1, h: 1 }
+      const measure = () => { box.w = st.clientWidth; box.h = st.clientHeight }
+      measure()
+      addEventListener('resize', measure)
+      unplay = () => { removeEventListener('resize', measure); player?.dispose(); playerRef.current = null }
+      const place = (el: HTMLElement | undefined, l: [number, number, number] | undefined) => {
+        if (!el || !l) return
+        const p = player!.place(l[0], l[1], box)
+        el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`
+        el.style.opacity = String(l[2])
+      }
+      player.onFrame = (f, track) => {
+        pinEls.current.forEach((el, i) => place(el, f.l[i]))
+        areaEls.current.forEach((el, i) => place(el, f.l[pinEls.current.length + i]))
+        markDay(f.tr, track.stops)
+      }
+      player.onReady = () => { if (!gone) setLive(true) }
+      player.start().catch(() => { if (!gone) setMode('flat') })
+    }
+    if (mode === '3d') Promise.all([import('../landing/scene'), import('../landing/points.json'), fetchLandscape()]).then(([{ DalatScene }, { default: points }, land]) => {
       if (gone) return
       performance.mark('tg-scene-start')
       scene = DalatScene.create(cv, { points: points as [number, number][], five: SCENE_PLACES, focus: FOCUS, land }, still)
       performance.mark('tg-scene-built')
       if (!scene) { setFlat(true); return }
-      scene.onReady = () => { performance.mark('tg-scene-first-frame'); setLive(true) }
+      scene.onReady = () => {
+        performance.mark('tg-scene-first-frame')
+        setLive(true)
+        if (wantExplore.current) { wantExplore.current = false; window.setTimeout(() => exploreRef.current(), 50) }
+      }
       scene.onGiveUp = () => { setFlat(true); setLive(false); scene?.setRunning(false); sceneRef.current = null }
       sceneRef.current = scene
       scene.bindLabels('five', pinEls.current)
       scene.bindLabels('area', areaEls.current, AREAS)
-      if (still) Object.assign(state, { cam: 5, dots: 0.4, five: 1, route: 1, areas: 0 })
+      if (still) Object.assign(state, { cam: 5, dots: 0.4, five: 1, route: 1, travel: 1, areas: 0, hour: 1, stamp: 1 })
       scene.resize(cv.clientWidth, cv.clientHeight)
       push()
       ro.observe(st)
@@ -240,37 +264,32 @@ export function Landing() {
         const leave = { autoAlpha: 0, y: -36, duration: 0.25, ease: 'power1.in' }
         const timeline = gsap.timeline({
           defaults: { ease: 'none' },
-          onUpdate: () => { push(); setActive(Math.min(BEATS - 1, Math.round(timeline.time()))) },
+          onUpdate: () => {
+            const beat = Math.min(BEATS - 1, Math.round(timeline.time()))
+            if (player) player.go(beat)
+            else { push(); markDay() }
+            setActive(beat)
+          },
           scrollTrigger: { trigger: sec, start: 'top top', end: 'bottom bottom', scrub: 0.8 },
         })
         gsap.set(chapters.slice(1), { autoAlpha: 0, y: 36 })
-        timeline.to(state, { cam: 1, duration: 1 }, 0)
-          .to(chapters[0], leave, 0)
-          .to(state, { areas: 0, duration: 0.4 }, 0.1)
+        stateTweens(timeline, state)
+        timeline.to(chapters[0], leave, 0)
           .to(chapters[1], enter, 0.6)
           .from(chapters[1].querySelectorAll('.tg-stamp'), { x: -60, autoAlpha: 0, stagger: 0.06, duration: 0.2 }, 0.62)
           .from(chapters[1].querySelectorAll('.tg-chip'), { x: 60, autoAlpha: 0, stagger: 0.05, duration: 0.2 }, 0.68)
           .to(chapters[1], leave, 1.2)
-          .to(state, { cam: 2, duration: 1 }, 1.1)
-          .to(state, { dots: 0, duration: 0.6 }, 1.3)
           .to(count, { value: ROUTE.length, duration: 0.65, onUpdate: writeCount }, 1.3)
-          .to(state, { five: 1, duration: 0.5 }, 1.45)
           .to(chapters[2], enter, 1.6)
-          .to(state, { route: 1, duration: 0.4 }, 1.55)
           .to(chapters[2], leave, 2.2)
-          .to(state, { cam: 3, duration: 1 }, 2.1)
           .to(chapters[3], enter, 2.6)
-          .fromTo(chapters[3].querySelector('.tg-l3__fill'), { scaleX: 0 }, { scaleX: 1, duration: 0.3 }, 2.65)
-          .from(chapters[3].querySelectorAll('.tg-l3__clip'), { y: 40, autoAlpha: 0, stagger: 0.06, duration: 0.2 }, 2.7)
+          .from(chapters[3].querySelectorAll('.tg-l3__why'), { y: 24, autoAlpha: 0, stagger: 0.08, duration: 0.2 }, 2.66)
           .to(chapters[3], leave, 3.2)
-          .to(state, { cam: 4, duration: 1 }, 3.1)
           .to(chapters[4], enter, 3.6)
-          .from(chapters[4].querySelectorAll('.tg-l3__day li'), { x: 30, autoAlpha: 0, stagger: 0.06, duration: 0.2 }, 3.62)
-          .to(state, { travel: 1, duration: 0.8 }, 3.7)
+          .from(chapters[4].querySelectorAll('.tg-l3__day li'), { x: 30, autoAlpha: 0, stagger: 0.04, duration: 0.16 }, 3.6)
           .to(chapters[4], leave, 4.2)
-          .to(state, { cam: 5, duration: 1 }, 4.1)
           .to(chapters[5], enter, 4.6)
-          .from(chapters[5].querySelectorAll('.tg-l3__rate li'), { x: 30, autoAlpha: 0, stagger: 0.06, duration: 0.2 }, 4.62)
+          .from(chapters[5].querySelectorAll('.tg-l3__memo'), { y: 24, autoAlpha: 0, duration: 0.25 }, 4.66)
           .to({}, { duration: 0.01 }, STORY_LEN - 0.01)
         gsap.from('.tg-l4__tile', { y: 60, opacity: 0, stagger: 0.08, duration: 0.7, ease: 'power2.out', scrollTrigger: { trigger: '.tg-l4', start: 'top 72%' } })
         return () => { gsap.ticker.remove(tick); lenis?.destroy(); lenisRef.current = null }
@@ -294,24 +313,51 @@ export function Landing() {
       document.removeEventListener('visibilitychange', onVis)
       st.removeEventListener('pointermove', onMove)
       scene?.dispose()
+      unplay()
     }
-  }, [still])
+  }, [still, mode])
 
   // "Lên lịch chuyến của bạn" opens the app as a guest when there is no session yet (no sign-in wall; if the guest
   // cannot start, /app shows the sign-in page); the questions start there, when the visitor says what the trip is.
-  // The landing leans in and fades while the browser cross-fades to the app (View Transitions where it has them).
-  const begin = async () => {
+  // The camera rises into the haze and the words fade, then three pieces fly to their place in the app (View
+  // Transitions, docs/UI_SPEC_LANDING.md §3): the stage (or the closing box) into the home hero, the cloud into the
+  // rail's logo, the pressed button into `Tạo chuyến đi`. `from` is that button.
+  // `asGuest`: someone signed in who wants a guest session instead: always a new, empty one, their account is left alone.
+  const begin = async (from: HTMLElement | null, asGuest = false) => {
     if (leaving || starting.current) return
     starting.current = true
     const utm = Object.fromEntries([...new URLSearchParams(location.search)].filter(([k]) => k.startsWith('utm_')))
     track('landing_cta', utm)
-    if (!account) await startGuest().catch(() => {})
+    if (!account || asGuest) {
+      try { await startGuest() } catch { if (asGuest) { starting.current = false; return } }
+    }
     starting.current = false
     const go = () => { navigate('/app'); window.scrollTo(0, 0) }
-    const vt = (document as Document & { startViewTransition?: (cb: () => void) => unknown }).startViewTransition
-    if (still || !vt) return go()
+    if (still || !canTransition()) return go()
+    // the pressed button and its containers stay while everything around them fades (css: .is-keep, .is-from)
+    from?.classList.add('is-from')
+    for (let el = from?.parentElement; el && !el.matches('.tg-l, .tg-l3__stage, .tg-cta'); el = el.parentElement) el.classList.add('is-keep')
     setLeaving(true)
-    window.setTimeout(() => vt.call(document, () => flushSync(go)), 380)
+    sceneRef.current?.set({ lift: 1 })
+    window.setTimeout(() => handOff(from, go), 380)
+  }
+  const handOff = (from: HTMLElement | null, go: () => void) => {
+    const seen = (el: HTMLElement | null) => { if (!el) return 0; const r = el.getBoundingClientRect(); return Math.max(0, Math.min(innerHeight, r.bottom) - Math.max(0, r.top)) }
+    const st = stage.current, box = document.getElementById('tg-cta')
+    const frame = from?.closest<HTMLElement>('.tg-cta') ? box : seen(st) >= seen(box) ? st : box
+    if (frame && seen(frame) > 0) frame.style.viewTransitionName = 'tg-l2h-frame'
+    if (from?.isConnected && seen(from) > 0) from.style.viewTransitionName = 'tg-l2h-cta'
+    // the 3D cloud hands over to a picture of the logo standing exactly where it stands
+    const sc = sceneRef.current, img = mascotImg.current, cv = canvas.current
+    const at = frame !== st ? null : sc ? sc.mascotRect() : st && playerRef.current ? playerRef.current.mascot({ w: st.clientWidth, h: st.clientHeight }) : null
+    if (at && img && cv && at.h > 8) {
+      const box = cv.getBoundingClientRect(), size = at.h / 0.86
+      Object.assign(img.style, { left: `${box.left + at.x - size / 2}px`, top: `${box.top + at.y - size / 2}px`, width: `${size}px`, height: `${size}px`, viewTransitionName: 'tg-l2h-mascot' })
+      img.hidden = false
+      sc?.hideMascot(true)
+    }
+    // one frame for the canvas to draw without its cloud, then the browser takes the picture of this page
+    requestAnimationFrame(() => { if (!startTransition(() => flushSync(go), 'tg-l2h')) go() })
   }
 
   // Free exploration: the page stops scrolling, the first screen's text steps aside, the visitor drives the camera
@@ -324,13 +370,18 @@ export function Landing() {
   }
   const explore = () => {
     const sc = sceneRef.current
-    if (!sc) return
+    if (!sc) {
+      // the story plays as video: the live model loads only now, for free flight, and opens once it has drawn
+      if (mode === 'video') { wantExplore.current = true; setLive(false); setMode('3d') }
+      return
+    }
     // the page is about to stop scrolling: bring the model and its exit button fully on screen first
     if (lenisRef.current) lenisRef.current.scrollTo(0, { immediate: true })
     else window.scrollTo(0, 0)
     sc.setExplore(true)
     lock(true)
   }
+  exploreRef.current = explore
   const leaveExplore = () => {
     sceneRef.current?.setExplore(false)
     lock(false)
@@ -377,21 +428,23 @@ export function Landing() {
   return (
     <div className={`tg-l ${still ? 'is-still' : ''} ${leaving ? 'is-leaving' : ''}`}>
       <nav className="tg-ln" aria-label="Trang giới thiệu">
-        <a href="/" className="tg-ln__logo"><Logo size={30} /><span>TripGuardian</span></a>
+        <a href="/app" className="tg-ln__logo" aria-label="Vào TripGuardian" onClick={(e) => { e.preventDefault(); navigate('/app') }}><Logo size={30} /></a>
         <div className="tg-ln__links">
           <button type="button" onClick={() => toChapter(1)}>Cách hoạt động</button>
           <button type="button" onClick={() => toId('tg-photos')}>Địa điểm</button>
           <button type="button" onClick={() => toId('tg-faq')}>Hỏi nhanh</button>
         </div>
         <a href="/app/login" className="tg-ln__login" onClick={(e) => { e.preventDefault(); navigate('/app/login') }}>Đăng nhập</a>
-        <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={begin}>Lên lịch chuyến của bạn</button>
+        {member && <button type="button" className="tg-ln__login" onClick={(e) => void begin(e.currentTarget, true)} title="Phiên mới, không đụng tới tài khoản của bạn">Dùng thử khách</button>}
+        <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={(e) => void begin(e.currentTarget)}>Lên lịch chuyến của bạn</button>
       </nav>
 
       <section className="tg-l3" ref={story} aria-label="Cách TripGuardian lên một chuyến Đà Lạt">
-        <div className={`tg-l3__stage ${flat ? 'is-flat' : ''} ${live ? 'is-live' : ''} ${exploring ? 'is-exploring' : ''}`} ref={stage}>
+        <div className={`tg-l3__stage ${flat ? 'is-flat' : ''} ${mode === 'video' ? 'is-video' : ''} ${live ? 'is-live' : ''} ${exploring ? 'is-exploring' : ''}`} ref={stage}>
           <div className="tg-l3__poster" aria-hidden="true" />
           {flat && <div className="tg-l3__plates" aria-hidden="true">{PLATES.map((src, i) => <img key={src} src={src} alt="" decoding="async" loading={i ? 'lazy' : 'eager'} className={i === Math.min(active, PLATES.length - 1) ? 'is-on' : ''} />)}</div>}
-          <canvas ref={canvas} className="tg-l3__cv" role="img" aria-label={`Mô hình 3D Đà Lạt theo địa hình thật, kéo để xoay 360 độ: ${num(stats.places)} địa điểm trong dữ liệu`} />
+          <div ref={clipHost} className="tg-l3__clips" aria-hidden="true" />
+          <canvas ref={canvas} className="tg-l3__cv" role="img" aria-label={`Bản đồ hành trình Đà Lạt theo dữ liệu thật, kéo để xoay: ${num(stats.places)} địa điểm trong dữ liệu`} />
           <div className="tg-l3__veil" aria-hidden="true" />
           <div className="tg-l3__labels" aria-hidden="true">
             {AREAS.map((a, i) => <span key={a.name} className="tg-l3__area" ref={(el) => { if (el) areaEls.current[i] = el }}><span>{a.name}</span></span>)}
@@ -403,86 +456,99 @@ export function Landing() {
               <div className="tg-l3__in">
               <p className="tg-kicker">TripGuardian · Đà Lạt</p>
               <h1>Lịch trình Đà Lạt <em>vừa với bạn.</em></h1>
-              <p className="tg-l3__sub">Kể chuyến đi trong 2 phút. TripGuardian chọn từ <b>{num(stats.places)}</b> nơi có thật và xếp lịch từng giờ.</p>
+              <p className="tg-l3__sub">Kể chuyến đi trong vài phút. TripGuardian lọc trong <b>{num(stats.places)}</b> chỗ ở Đà Lạt, giữ lại chỗ hợp gu và xếp lịch từng giờ cho bạn.</p>
               <div className="tg-l3__start">
-                <button type="button" className="tg-btn tg-btn--primary tg-l3__cta" onClick={begin}>{cta}</button>
+                <button type="button" className="tg-btn tg-btn--primary tg-l3__cta" onClick={(e) => void begin(e.currentTarget)}>{cta}</button>
                 <button type="button" className="tg-l3__how" onClick={() => toChapter(1)}>Xem cách hoạt động <Icon name="chevronDown" size={18} /></button>
               </div>
               <ul className="tg-l3__ticks">
                 <li><Icon name="check" size={14} />Miễn phí</li>
                 <li><Icon name="check" size={14} />Không cần tài khoản</li>
-                <li><Icon name="check" size={14} />Chỉ gồm nơi có thật</li>
+                <li><Icon name="check" size={14} />Chỗ nào cũng có thật</li>
               </ul>
               </div>
             </div>
 
+            {/* 1 · the visitor talks, TripGuardian writes down what it heard */}
             <article className="tg-l3__ch" aria-labelledby="tg-ch1">
               <p className="tg-kicker">Tìm hiểu</p>
-              <h2 id="tg-ch1">Tách rõ điều bắt buộc và điều mong muốn.</h2>
-              <p className="tg-muted">Điều bắt buộc giữ chắc, điều mong muốn để nhẹ như sương.</p>
-              <div className="tg-l3__ticket">
-                <h3 className="tg-ticket__h">Thông tin chuyến đi</h3>
-                <dl>{[['Thời gian', '3 ngày'], ['Số người', '2 người'], ['Phương tiện', 'Xe máy']].map(([label, value]) => <div key={label} className="tg-ticket__row"><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-                <div className="tg-l3__zone"><h4>Bắt buộc</h4><div><span className="tg-stamp"><Icon name="lock" size={14} />Tránh nơi quá đông</span><span className="tg-stamp"><Icon name="lock" size={14} />Mỗi chặng ≤ 45 phút</span></div></div>
-                <div className="tg-l3__zone"><h4>Mong muốn</h4><div>{['chill', 'cà phê', 'săn mây'].map((chip) => <span key={chip} className="tg-chip tg-chip--dash">{chip}</span>)}</div></div>
-              </div>
+              <h2 id="tg-ch1">Cứ kể như kể với bạn đi cùng.</h2>
+              <p className="tg-muted">Không có form phải điền. Bạn nói, TripGuardian ghi lại điều nào phải giữ, điều nào có thì vui.</p>
+              <Shot name="understand" label="màn Tìm hiểu"><div className="tg-l3__talk">
+                <p className="tg-l3__say"><small>Bạn</small>Tụi mình đi 2 người, 3 ngày, chạy xe máy. Đừng dẫn <mark>chỗ đông quá</mark>, cũng <mark>đừng bắt chạy xa</mark>. Thích <mark>ngồi cà phê chill</mark>, có buổi <mark>săn mây</mark> thì càng tốt.</p>
+                <div className="tg-l3__memo">
+                  <p className="tg-l3__memo-h"><img src="/img/gen/bot-avatar.webp" alt="" width="28" height="28" />TripGuardian ghi lại<span>2 người · 3 ngày · xe máy</span></p>
+                  <div className="tg-l3__memo-row"><h4>Phải giữ</h4><div><span className="tg-stamp"><Icon name="lock" size={14} />Tránh chỗ quá đông</span><span className="tg-stamp"><Icon name="lock" size={14} />Mỗi lần chạy xe dưới 45 phút</span></div></div>
+                  <div className="tg-l3__memo-row"><h4>Có thì vui</h4><div>{['cà phê chill', 'săn mây'].map((chip) => <span key={chip} className="tg-chip tg-chip--dash">{chip}</span>)}</div></div>
+                </div>
+              </div></Shot>
             </article>
 
             <article className="tg-l3__ch" aria-labelledby="tg-ch2">
               <p className="tg-kicker">Lựa chọn</p>
-              <h2 id="tg-ch2" aria-label={`Còn lại ${ROUTE.length} nơi hợp với bạn, lọc từ ${num(stats.places)} địa điểm`}><span aria-hidden="true">Còn lại <span ref={counter} className="tg-l3__count">{still ? ROUTE.length : num(stats.places)}</span> nơi hợp với bạn.</span></h2>
-              <p className="tg-muted">Giữa hàng nghìn ánh đèn, chỉ những nơi hợp chuyến đi sáng lên.</p>
+              <h2 id="tg-ch2" aria-label={`Bạn chọn ra ${ROUTE.length} chỗ trong ${num(stats.places)} địa điểm`}><span aria-hidden="true">Chọn ra <span ref={counter} className="tg-l3__count">{still ? ROUTE.length : num(stats.places)}</span> chỗ, không phải lục cả nghìn.</span></h2>
+              <p className="tg-muted">TripGuardian xếp chỗ hợp với điều bạn vừa kể lên đầu, kèm lý do. Bạn chỉ việc bấm Thêm những chỗ muốn đi.</p>
               <ul className="tg-l3__legend">
-                <li><i className="is-all" />Mỗi chấm là một địa điểm trong dữ liệu</li>
-                <li><i className="is-five" />Nơi được chọn, nối thành tuyến đi</li>
+                <li><i className="is-all" />Mỗi chấm là một chỗ ở Đà Lạt</li>
+                <li><i className="is-five" />Tấm ảnh là chỗ được giữ, đường chấm là thứ tự đi</li>
               </ul>
             </article>
 
+            {/* 2 · one place, recommended the way a friend would: why it fits you, what to know before going */}
             <article className="tg-l3__ch" aria-labelledby="tg-ch3">
-              <p className="tg-kicker">Lựa chọn · lý do</p>
-              <h2 id="tg-ch3">Chọn nơi nào cũng có lý do.</h2>
-              <p className="tg-muted">Dữ liệu thật cho biết nơi nào hợp bạn và điều gì cần biết trước.</p>
-              <div className="tg-l3__ev">
-                <div className="tg-l3__claim">
-                  <b>{spot.name}</b>
-                  <span>View đồi thông, hợp “chill” và “cà phê”</span>
-                  <small className="tg-faint">{spot.rating && spot.reviews ? `${spot.rating.toLocaleString('vi-VN')}★ từ ${num(spot.reviews)} đánh giá Google` : 'Tổng hợp từ dữ liệu địa điểm'}</small>
-                  <div className="tg-l3__bar" aria-hidden="true"><i className="tg-l3__fill" style={{ width: `${peak?.[1] ?? 58}%` }} /></div>
+              <p className="tg-kicker">Lựa chọn · vì sao</p>
+              <h2 id="tg-ch3">Chỗ nào cũng có lý do.</h2>
+              <p className="tg-muted">Không phải danh sách “top 10”. Mỗi chỗ đi kèm lý do hợp với bạn và điều nên biết trước khi tới.</p>
+              <Shot name="choose" label="thẻ một chỗ ở bước Lựa chọn"><div className="tg-l3__rec">
+                <div className="tg-l3__rec-h">
+                  {spot.photos[0] && <img src={thumbOf(spot.photos[0].src) ?? spot.photos[0].src} alt="" width="56" height="56" />}
+                  <span><b>{spot.name}</b><small>{spot.rating && spot.reviews ? `${spot.rating.toLocaleString('vi-VN')}★ · ${num(spot.reviews)} đánh giá Google` : 'Quán cà phê'}</small></span>
                 </div>
-                <div className="tg-l3__clips" style={{ gridTemplateColumns: `repeat(${Math.min(2, spot.videos?.length ?? 1)}, minmax(0, 120px))` }}>{(spot.videos ?? []).slice(0, 2).map((video) => <a key={video.url} className="tg-l3__clip" href={video.url} target="_blank" rel="noreferrer"><Photo photo={spot.photos[1] ?? spot.photos[0]} alt="" /><span><Icon name="play" size={20} /><b>@{video.handle}</b><small>TikTok</small></span></a>)}</div>
-                {peak && <p className="tg-l3__quote">Cuối tuần đông nhất {DAYPART[peak[0]] ?? peak[0]}; lịch ví dụ đặt trước giờ cao điểm.</p>}
-              </div>
+                <p className="tg-l3__why"><Icon name="heart" size={16} /><span><b>Hợp bạn vì</b>Bạn muốn ngồi cà phê chill, quán này có view đồi thông.</span></p>
+                {peak && <p className="tg-l3__why is-know"><Icon name="clock" size={16} /><span><b>Nên biết</b>{LATE.includes(peak[0]) ? `Cuối tuần quán đông nhất vào ${DAYPART[peak[0]] ?? peak[0]}, nên lịch cho bạn tới lúc ${DAY[FOCUS].at}, trước khi đông.` : `Cuối tuần quán đông nhất vào ${DAYPART[peak[0]] ?? peak[0]}; lịch tránh khung giờ đó.`}</span></p>}
+                {!!spot.videos?.length && <div className="tg-l3__clips"><span>Người ta quay ở đây</span>{spot.videos.slice(0, 2).map((video) => <a key={video.url} className="tg-l3__clip" href={video.url} target="_blank" rel="noreferrer"><Icon name="play" size={12} />@{video.handle}</a>)}</div>}
+              </div></Shot>
             </article>
 
             <article className="tg-l3__ch" aria-labelledby="tg-ch4">
-              <p className="tg-kicker">Lịch trình <span className="tg-tag tg-tag--warn">Ví dụ minh họa</span></p>
-              <h2 id="tg-ch4">Một ngày đi kịp từng điểm.</h2>
-              <p className="tg-muted">Từ bình minh trên đồi đến hoàng hôn bên hồ, không vội mà vẫn kịp.</p>
-              <ol className="tg-l3__day">
-                {DAY.map((item, i) => <li key={item.name}><time>{item.at}</time><span><b>{item.name}</b>{item.meal && <em>{item.meal}</em>}{i > 0 && <small className="tg-faint">~{legMinutes(ROUTE[i - 1], ROUTE[i])} phút từ điểm trước</small>}</span></li>)}
+              <p className="tg-kicker">Lịch trình <span className="tg-tag tg-tag--warn">Ví dụ</span></p>
+              <h2 id="tg-ch4">Cả ngày xếp sẵn, bạn chỉ việc đi.</h2>
+              <p className="tg-muted">Săn mây lúc trời vừa sáng, ngắm hoàng hôn cuối ngày. Không lần nào phải chạy xe quá 45 phút.</p>
+              <Shot name="plan" label="lịch một ngày"><ol className="tg-l3__day">
+                {DAY.map((item, i) => <li key={item.name} ref={(el) => { if (el) dayEls.current[i] = el }}><time>{item.at}</time><span><b>{item.name}</b>{item.meal && <em>{item.meal}</em>}</span>{i > 0 && <small title="Thời gian chạy xe từ chỗ trước">{legMinutes(ROUTE[i - 1], ROUTE[i])} phút xe</small>}</li>)}
               </ol>
-              <div className="tg-bar is-ready tg-l3__ready"><span className="tg-bar__status"><i />Đã kiểm tra</span><span className="tg-bar__stats"><span>Mỗi chặng ≤ 45 phút</span><span>Né giờ đông</span></span></div>
+              <p className="tg-l3__ok"><Icon name="check" size={14} />Đã kiểm tra: đường đi vừa sức, không ghé chỗ nào lúc đông nhất.</p></Shot>
             </article>
 
+            {/* 3 · after the trip: a few words back, and what TripGuardian keeps for next time */}
             <article className="tg-l3__ch" aria-labelledby="tg-ch5">
               <p className="tg-kicker">Đánh giá</p>
-              <h2 id="tg-ch5">Chuyến sau hợp gu hơn chuyến này.</h2>
-              <p className="tg-muted">Về rồi, kể lại vài điều. Lần sau Đà Lạt sẽ hiểu bạn hơn.</p>
-              <ul className="tg-l3__rate">{FEEDBACK.map(([question, value]) => <li key={question}><span>{question}</span><span className="tg-l3__scale" role="img" aria-label={`${value} trên 5`}>{[1, 2, 3, 4, 5].map((n) => <i key={n} className={n <= value ? 'is-on' : ''} />)}</span></li>)}</ul>
-              <button type="button" className="tg-btn tg-btn--primary tg-l3__go" onClick={begin}>{cta}</button>
+              <h2 id="tg-ch5">Đi về, kể lại vài câu.</h2>
+              <p className="tg-muted">Chỗ nào thích, chỗ nào không. TripGuardian nhớ để chuyến sau hợp gu bạn hơn.</p>
+              <Shot name="feedback" label="màn Đánh giá"><div className="tg-l3__talk">
+                <p className="tg-l3__say"><small>Bạn</small>Săn mây đáng dậy sớm lắm. Hồ Tuyền Lâm hơi đông, lần sau bỏ cũng được.</p>
+                <div className="tg-l3__memo">
+                  <p className="tg-l3__memo-h"><img src="/img/gen/bot-avatar.webp" alt="" width="28" height="28" />Đã nhớ cho chuyến sau</p>
+                  <ul className="tg-l3__keep">
+                    <li><Icon name="heart" size={14} />Thích cảnh lúc bình minh</li>
+                    <li><Icon name="minus" size={14} />Bớt chỗ đông khách</li>
+                  </ul>
+                </div>
+              </div></Shot>
+              <button type="button" className="tg-btn tg-btn--primary tg-l3__go" onClick={(e) => void begin(e.currentTarget)}>{cta}</button>
             </article>
           </div>
 
           {active === 0 && (!flat || window.__tgGL !== 'none') && (
             <div className="tg-l3__note">
               {!flat
-                ? <button type="button" className="tg-l3__roam" disabled={!live} onClick={explore}><Icon name="compass" size={36} /><span><b>Xoay thử Đà Lạt 3D</b><small>Kéo chuột để xoay, cuộn để phóng to</small></span></button>
-                : <button type="button" className="tg-l3__roam" onClick={() => { location.search = '?3d=on' }}><Icon name="compass" size={36} /><span><b>Xoay thử Đà Lạt 3D</b><small>Máy của bạn không có card đồ họa, bản 3D có thể chậm</small></span></button>}
+                ? <button type="button" className="tg-l3__roam" disabled={!live && mode === '3d'} onClick={explore}><Icon name="compass" size={36} /><span><b>Khám phá bản đồ Đà Lạt</b><small>{hasGpu() ? 'Kéo chuột để xoay, cuộn để phóng to' : 'Máy của bạn không có card đồ họa, bản đồ động có thể chậm'}</small></span></button>
+                : <button type="button" className="tg-l3__roam" onClick={() => { location.search = '?3d=on' }}><Icon name="compass" size={36} /><span><b>Khám phá bản đồ Đà Lạt</b><small>Máy của bạn không có card đồ họa, bản đồ động có thể chậm</small></span></button>}
             </div>
           )}
 
           {exploring && (
-            <div className="tg-l3__ex" role="group" aria-label="Khám phá Đà Lạt 3D">
+            <div className="tg-l3__ex" role="group" aria-label="Khám phá bản đồ Đà Lạt">
               <div className="tg-l3__ex-top">
                 <div className="tg-l3__ex-title"><p className="tg-kicker">Khám phá tự do</p><p>Kéo để xoay · Cuộn để phóng to · Chuột phải để dịch chuyển</p></div>
                 <button type="button" className="tg-btn tg-btn--ghost tg-l3__ex-exit" onClick={leaveExplore} autoFocus>Thoát<Icon name="x" size={18} /></button>
@@ -505,7 +571,7 @@ export function Landing() {
       </section>
 
       <section className="tg-l4" id="tg-photos" aria-labelledby="tg-l4-h">
-        <div className="tg-l__head tg-rv"><h2 id="tg-l4-h">Địa điểm thật, trải nghiệm thật</h2><p className="tg-muted">{num(stats.withPhotos)} nơi có ảnh chụp thực tế từ Google Maps, ghi rõ tên và nguồn. Không dùng ảnh minh họa cho một địa điểm cụ thể.</p></div>
+        <div className="tg-l__head tg-rv"><h2 id="tg-l4-h">Ảnh thật của chỗ thật</h2><p className="tg-muted">{num(stats.withPhotos)} chỗ có ảnh chụp từ Google Maps, ghi nguồn ngay dưới ảnh. Không có ảnh minh họa nào đứng tên một chỗ có thật.</p></div>
         <div className="tg-l4__grid">{showcase.map(({ place, photo }, i) => <figure key={place.id} className={`tg-l4__tile t${i} tg-rv`} data-delay={i * 0.08}><Photo photo={photo} alt={place.name} sizes={i ? '(max-width: 900px) 50vw, 440px' : '(max-width: 900px) 100vw, 900px'} /><figcaption><b>{place.name}</b><span>Ảnh: {photo.credit}</span></figcaption></figure>)}</div>
       </section>
 
@@ -519,10 +585,11 @@ export function Landing() {
 
       <section className="tg-cta tg-rv" id="tg-cta" aria-labelledby="tg-cta-h">
         <div className="tg-cta__img" aria-hidden="true" />
-        <div className="tg-cta__in"><h2 id="tg-cta-h">Bắt đầu chuyến Đà Lạt của bạn.</h2><button type="button" className="tg-btn tg-btn--sun tg-cta__btn" onClick={begin}>{cta}</button><p>Miễn phí · Không cần tài khoản · Đăng nhập Google để lưu chuyến</p></div>
+        <div className="tg-cta__in"><h2 id="tg-cta-h">Bắt đầu chuyến Đà Lạt của bạn.</h2><button type="button" className="tg-btn tg-btn--primary tg-cta__btn" onClick={(e) => void begin(e.currentTarget)}>{cta}</button><p>Miễn phí · Không cần tài khoản · Đăng nhập để lưu chuyến</p>{member && <button type="button" className="tg-link tg-cta__guest" onClick={(e) => void begin(e.currentTarget, true)}>Hoặc dùng thử với tư cách khách (phiên mới, tài khoản của bạn giữ nguyên)</button>}</div>
       </section>
 
-      <footer className="tg-lf"><Logo size={26} dark /><span>TripGuardian Đà Lạt</span><span className="tg-lf__sp" /><span>Giờ giấc và quãng đường là ước tính; địa hình theo dữ liệu thật, cây và mái nhà chỉ là biểu tượng. Số liệu theo bản dữ liệu {stats.asOf?.split('-').reverse().join('/')}: {num(stats.places)} nơi, {num(stats.withPhotos)} nơi có ảnh thật.</span></footer>
+      <img ref={mascotImg} className="tg-l__mascot" src="/img/brand/mark.webp" alt="" aria-hidden="true" hidden />
+      <footer className="tg-lf"><Logo size={26} dark /><span className="tg-lf__sp" /><span>Giờ giấc và quãng đường là ước tính; bản đồ vẽ từ dữ liệu thật (độ cao SRTM, OpenStreetMap). Số liệu theo bản dữ liệu {stats.asOf?.split('-').reverse().join('/')}: {num(stats.places)} nơi, {num(stats.withPhotos)} nơi có ảnh thật.</span></footer>
     </div>
   )
 }

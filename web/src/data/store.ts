@@ -1,8 +1,114 @@
 import { useEffect, useState } from 'react'
-import type { DayKey, Place, PriceRange, Signal, Snapshot } from './types'
+import type { DayKey, Place, PriceRange, Quote, Signal, Snapshot } from './types'
 
 let cache: Promise<Snapshot> | null = null
 let ready: Snapshot | null = null
+const admin = window.location.pathname.startsWith('/admin')
+const wholeUrl = admin ? '/data/snapshot-admin.json' : '/data/snapshot.json'
+
+// The snapshot is read by a worker and arrives in batches (snapshotWorker.ts), so no single task blocks the page for
+// long; where workers are missing the file is fetched and parsed here instead.
+function readSnapshot(url: string): Promise<Snapshot> {
+  if (typeof Worker === 'undefined') return fetchSnapshot(url)
+  return new Promise<Snapshot>((resolve, reject) => {
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./snapshotWorker.ts', import.meta.url), { type: 'module' })
+    } catch {
+      return fetchSnapshot(url).then(resolve, reject)
+    }
+    let head: Omit<Snapshot, 'places'> | null = null
+    const places: Place[] = []
+    worker.onmessage = (e: MessageEvent) => {
+      const m = e.data
+      if (m.head) head = m.head
+      else if (m.places) places.push(...m.places)
+      else if (m.done && head) { worker.terminate(); resolve({ ...head, places } as Snapshot) }
+      else if (m.error) { worker.terminate(); reject(new Error(m.error)) }
+    }
+    worker.onerror = () => { worker.terminate(); fetchSnapshot(url).then(resolve, reject) }
+    worker.postMessage({ url })
+  })
+}
+
+const fetchSnapshot = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`snapshot ${r.status}`)
+    return r.json() as Promise<Snapshot>
+  })
+
+// ---------- loading in the order the visitor sees things ----------
+// The page reads snapshot-lite.json first (every place without its evidence), then the evidence in chunks
+// (detail/NNN.json, most-reviewed places first; scripts/split_snapshot.mjs). Whatever is on screen asks for its chunk
+// through useDetail / prioritize and goes to the front of the queue; the rest keeps loading behind it. Where the
+// split files are missing (a dev tree, /admin) the whole snapshot is read and every place is complete at once.
+let tiered = false
+const chunkLoaded = new Set<number>()
+const chunkLoading = new Set<number>()
+const wanted: number[] = [] // asked for by what is on screen, newest request first
+let chunkTotal = 0
+const CONCURRENT = 3
+const listeners = new Set<() => void>()
+let notifyTimer: ReturnType<typeof setTimeout> | undefined
+const notify = () => {
+  if (notifyTimer) return
+  notifyTimer = setTimeout(() => { notifyTimer = undefined; listeners.forEach((f) => f()) }, 200)
+}
+const chunkOf = (id: string) => byId.get(id)?.ck
+
+function pump() {
+  while (chunkLoading.size < CONCURRENT) {
+    let next = wanted.find((c) => !chunkLoaded.has(c) && !chunkLoading.has(c))
+    if (next === undefined) for (let c = 0; c < chunkTotal; c++) if (!chunkLoaded.has(c) && !chunkLoading.has(c)) { next = c; break }
+    if (next === undefined) return
+    const c = next
+    chunkLoading.add(c)
+    fetch(`/data/detail/${String(c).padStart(3, '0')}.json`)
+      .then((r) => { if (!r.ok) throw new Error(`detail ${r.status}`); return r.json() as Promise<Record<string, Partial<Place>>> })
+      .then((body) => {
+        for (const [id, heavy] of Object.entries(body)) { const p = byId.get(id); if (p) Object.assign(p, heavy) }
+        chunkLoaded.add(c)
+      })
+      .catch(() => { chunkLoaded.add(c) }) // a chunk that will not load leaves its places without evidence; the page says so rather than waiting
+      .finally(() => { chunkLoading.delete(c); notify(); pump() })
+  }
+}
+
+// Evidence of these places first (anything on screen that needs it).
+export function prioritize(ids: string[]) {
+  if (!tiered) return
+  const cs = [...new Set(ids.map(chunkOf).filter((c): c is number => c !== undefined && !chunkLoaded.has(c)))]
+  if (!cs.length) return
+  for (const c of cs) { const i = wanted.indexOf(c); if (i >= 0) wanted.splice(i, 1) }
+  wanted.unshift(...cs)
+  pump()
+}
+
+// True when the evidence (signals, clips, details) of every one of these places is in. Asks for it first.
+export function isDetailed(id: string) {
+  if (!tiered) return true
+  const c = chunkOf(id)
+  return c === undefined || chunkLoaded.has(c)
+}
+
+// Ask for the evidence of what is shown, without re-rendering when it lands (a list that only shows basics).
+export function useWarm(ids: string[]) {
+  const key = ids.join(',')
+  useEffect(() => { prioritize(ids) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+export function useDetail(ids: string | string[]) {
+  const [, tick] = useState(0)
+  const list = Array.isArray(ids) ? ids : [ids]
+  const key = list.join(',')
+  useEffect(() => {
+    prioritize(list)
+    const f = () => tick((n) => n + 1)
+    listeners.add(f)
+    return () => { listeners.delete(f) }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return list.every(isDetailed)
+}
 
 // Both files are fetched at once; the snapshot is published only after the covers are in.
 export function loadSnapshot() {
@@ -10,24 +116,28 @@ export function loadSnapshot() {
   const c = fetch('/data/covers.json')
     .then((r) => (r.ok ? r.json() : {}))
     .then((x) => (covers = x), () => {})
-  cache = fetch('/data/snapshot.json')
-    .then((r) => {
-      if (!r.ok) throw new Error(`snapshot ${r.status}`)
-      return r.json() as Promise<Snapshot>
-    })
-    .then(async (s) => {
-      await c
-      ready = s
-      byId = new Map(s.places.map((p) => [p.id, p]))
-      return s
-    })
+  const read = admin
+    ? readSnapshot(wholeUrl)
+    : readSnapshot('/data/snapshot-lite.json').then(
+        (s) => { tiered = true; chunkTotal = (s as Snapshot & { chunks?: number }).chunks ?? 0; for (const p of s.places) { p.features = []; p.videos = [] }; return s },
+        () => readSnapshot(wholeUrl),
+      )
+  cache = read.then(async (s) => {
+    await c
+    ready = s
+    byId = new Map(s.places.map((p) => [p.id, p]))
+    if (tiered) pump()
+    return s
+  })
   return cache
 }
 
 // Warm the snapshot while the user is still reading (landing): the next screens need it.
-export function prefetchSnapshot() {
+// `now`: start at once (a signed-in app screen is open and its next pages need the data) instead of when the browser is idle.
+export function prefetchSnapshot(now = false) {
   const run = () => void loadSnapshot().catch(() => { cache = null })
-  if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 2500 })
+  if (now) run()
+  else if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 2500 })
   else setTimeout(run, 1200)
 }
 
@@ -64,6 +174,23 @@ export function useGallery(id: string): Cover[] {
     return () => { coverSubs.delete(f) }
   }, [id])
   return coversOf(id)
+}
+
+// Every written review of a place (export_reviews.py), fetched once when its Đánh giá tab opens: the snapshot itself
+// carries only a few quotes per signal. null while loading and when the place has no file.
+const reviewFiles = new Map<string, Quote[] | null>()
+export function useAllReviews(id: string): Quote[] | null {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (reviewFiles.has(id)) { tick((n) => n + 1); return }
+    let live = true
+    fetch(`/data/reviews/${id.replace(/:/g, '_')}.json`)
+      .then((r) => (r.ok && r.headers.get('content-type')?.includes('json') ? (r.json() as Promise<[string, number | null, string][]>) : null))
+      .then((rows) => rows?.map(([text, , when]) => ({ text, when, date: null, source: 'gmaps_review' })) ?? null, () => null)
+      .then((all) => { reviewFiles.set(id, all); if (live) tick((n) => n + 1) })
+    return () => { live = false }
+  }, [id])
+  return reviewFiles.get(id) ?? null
 }
 
 export function useSnapshot() {

@@ -68,8 +68,10 @@ def test_the_understanding_view_shows_what_a_chip_recorded():
 
 def test_the_agent_may_write_both_fields_and_is_told_how():
     from trip.agent.prompt import system_prompt
-    from trip.agent.tools import SPECS
+    from typing import get_args
 
-    allowed = SPECS["record_fact"]["function"]["parameters"]["properties"]["field"]["enum"]
+    from trip.domain.guard import FieldName
+
+    allowed = get_args(FieldName)
     assert {"entry_point", "exit_point"} <= set(allowed)
     assert "entry_point" in system_prompt() and "exit_point" in system_prompt()

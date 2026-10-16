@@ -149,9 +149,15 @@ def small_trip(**kw):
     return decision([r["id"] for r in recs], days=1, **kw), recs
 
 
-def fake_lodging(center, radius_km, check_in, check_out, price_max, live_cfg):
-    cands = [{"id": "h1", "name": "Homestay 1", "lat": CENTRE[0] + 0.001, "lng": CENTRE[1], "rating": 4.5,
-             "reviews": 20, "price_vnd": 300000, "amenities": ["wifi"]},
-            {"id": "h2", "name": "Homestay 2", "lat": CENTRE[0] - 0.001, "lng": CENTRE[1], "rating": 4.2,
-             "reviews": 15, "price_vnd": 900000, "amenities": []}]
-    return [c for c in cands if price_max is None or c["price_vnd"] <= price_max]
+def stay(pid, lat, lng, *, name=None, rating=4.5, voices=20, price=None, features=None):
+    """A served `stay` record: Planning's only lodging candidates. price: Maps' hotel-list price a night."""
+    r = rec(pid, lat, lng, group="stay", usable=(), features=features, name=name or pid)
+    r["provenance"] = {"voices": voices, "as_of": "2026-10-01", "rating_trend": {"recent_mean": rating}}
+    r["operation"]["price_per_night"] = ({"value": price, "status": "VERIFIED", "as_of": "2026-10-08",
+                                          "source": "gmaps_list", "kind": "estimate"} if price else None)
+    return r
+
+
+# two homestays next to CENTRE, one cheap and one dear
+LODGING = [stay("h1", CENTRE[0] + 0.001, CENTRE[1], name="Homestay 1", rating=4.5, voices=20, price=300000),
+           stay("h2", CENTRE[0] - 0.001, CENTRE[1], name="Homestay 2", rating=4.2, voices=15, price=900000)]

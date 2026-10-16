@@ -39,6 +39,11 @@ class Companion:
         with self.pool.connection() as conn:
             return sync(conn, journey_id, user_id, plan)
 
+    def forget(self, journey_id: str) -> None:
+        """Drops the trip row of a journey its owner removed; stops and check-ins go with it."""
+        with self.pool.connection() as conn:
+            conn.execute("DELETE FROM trips WHERE journey_id = %s", (journey_id,))
+
     def _trip(self, conn, journey_id: str) -> dict:
         trip = conn.execute("SELECT * FROM trips WHERE journey_id = %s", (journey_id,)).fetchone()
         if not trip:

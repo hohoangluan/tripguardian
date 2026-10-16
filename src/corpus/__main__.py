@@ -1,4 +1,4 @@
-"""python -m corpus {login <source> | <source> <phase> | judge <phase> | review | aggregate | serving} --city <key>
+"""python -m corpus {login <source> | <source> <phase> | judge <phase> | review | aggregate | serving | snapshot | index} --city <key>
 
 Phases per source, each reading only earlier phases' files: tiktok search -> list -> filter -> crawl, then per Maps
 place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify
@@ -15,11 +15,13 @@ from .aggregate import run as aggregate_run
 from .serving import run as serving_run
 from . import build, judge
 from .review import server as review_server
-from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, keywords as gmaps_keywords, visit as gmaps_visit, search as gmaps_search
+from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, keywords as gmaps_keywords, visit as gmaps_visit, search as gmaps_search, stay_price as gmaps_stay_price
 from .observe import gmaps as gmaps_observe
 from .observe.gmaps import photos as gmaps_photo_observe
+from .observe.gmaps import styles as gmaps_style_observe
 from .observe import tiktok as tiktok_observe
 from .crawl.gmaps import photos as gmaps_photos
+from .crawl.gmaps import menu as gmaps_menu
 from .crawl.official import pages as official_pages
 from .observe import official as official_observe
 from .observe import reports as reports_observe
@@ -41,11 +43,12 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "comments_crawl": (tiktok_comments_crawl.run, True),
                "observe": (tiktok_observe.run, False)},
     "gmaps": {"search": (gmaps_search.run, True), "stay_search": (gmaps_search.run_stay, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
-              "list": (gmaps_list.run, False),
+              "list": (gmaps_list.run, False), "stay_price": (gmaps_stay_price.run, True),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "extremes": (gmaps_extremes.run, True),
               "keywords": (gmaps_keywords.run, True), "visit": (gmaps_visit.run, True),
-              "photos": (gmaps_photos.run, True), "qc": (gmaps_qc.run, False),
-              "observe": (gmaps_observe.run, False), "photo_observe": (gmaps_photo_observe.run, False)},
+              "photos": (gmaps_photos.run, True), "menu": (gmaps_menu.run, True), "qc": (gmaps_qc.run, False),
+              "observe": (gmaps_observe.run, False), "photo_observe": (gmaps_photo_observe.run, False),
+              "style_observe": (gmaps_style_observe.run, False)},
     "official": {"pages": (official_pages.run, True), "observe": (official_observe.run, False)},
     "reports": {"observe": (reports_observe.run, False)},  # travellers' reports -> evidence (corpus.observe.reports)
 }
@@ -61,15 +64,17 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
         if browser_phase and source == "tiktok":
             out = fn(city, headed, profile_name=profile, **({"shard": shard} if p in SHARDABLE else {}),
                      **({"limit": limit} if p in ("place_crawl", "poi_crawl") else {}))
-        elif source == "gmaps" and p in ("crawl", "relevant", "extremes", "keywords", "photos"):
-            out = fn(city, headed, **({"limit": limit} if p in ("extremes", "keywords", "photos") else {}),
+        elif source == "gmaps" and p in ("crawl", "relevant", "extremes", "keywords", "photos", "menu"):
+            out = fn(city, headed, **({"limit": limit} if p in ("extremes", "keywords", "photos", "menu") else {}),
                      shard=shard, profile_name=profile)
-        elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages"):
+        elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages", "stay_price"):
             out = fn(city, headed, limit=limit)
         elif browser_phase:
             out = fn(city, headed)
         elif p == "observe" and source == "gmaps":
             out = fn(city, limit=limit, wait_relevant=wait_relevant)
+        elif p == "style_observe":
+            out = fn(city, limit=limit, shard=shard)
         elif p in ("observe", "photo_observe"):
             out = fn(city, limit=limit)
         elif source == "tiktok" and p in ("asr", "asr_alt", "asr_check", "place_verify"):
@@ -91,6 +96,15 @@ def main() -> None:
     rp.add_argument("--port", type=int, default=8765)
     sub.add_parser("aggregate", help="every source's observations -> data/intel/places/").add_argument("--city", default="dalat")
     sub.add_parser("serving", help="intel -> data/serving/places.json for Place Decision").add_argument("--city", default="dalat")
+    sub.add_parser("snapshot", help="data/serving/places.json -> data/snapshot/<version>/ (what online reads)").add_argument("--city", default="dalat")
+    np = sub.add_parser("normalize", help="normalize saved inputs; optionally build and publish an offline release")
+    np.add_argument("--city", default="dalat")
+    np.add_argument("--rebuild", action="store_true")
+    np.add_argument("--publish", action="store_true")
+    ip = sub.add_parser("index", help="semantic index: per-place vectors (GPU) -> data/index/<version>/ (docs/CORPUS.md)")
+    ip.add_argument("phase", nargs="?", default="all", choices=["vectors", "compile", "all"])
+    ip.add_argument("--city", default="dalat")
+    ip.add_argument("--kinds", nargs="*", default=None, help="vectors: photos frames spans (default: all)")
     bp = sub.add_parser("build", help="incremental build: qc -> observe -> judge -> aggregate -> serving")
     bp.add_argument("--city", default="dalat")
     bp.add_argument("--every", type=float, help="repeat the build every N minutes (while crawls add data)")
@@ -115,8 +129,10 @@ def main() -> None:
                                              "place_search/place_crawl run in parallel under a second --profile; asr / asr_alt: one GPU each; asr_check / place_verify: one process per Gemma endpoint")
         if source == "gmaps":  # one Python process saturates one core at ~8 tabs: browser phases split across processes
             sp.add_argument("--profile", help="crawl / relevant / extremes / keywords / photos: browser profile, one copy per process")
-            sp.add_argument("--shard", help="i/n: this process's 1/n share of the todo list (crawl / relevant / extremes / keywords / photos)")
+            sp.add_argument("--shard", help="i/n: this process's 1/n share of the todo list (crawl / relevant / extremes / keywords / photos / style_observe)")
     args = ap.parse_args()
+    if args.cmd == "normalize" and args.publish and not args.rebuild:
+        ap.error("--publish requires --rebuild")
     try:
         if args.cmd == "login":
             asyncio.run(browser.login(args.source, args.profile))
@@ -124,8 +140,27 @@ def main() -> None:
             review_server.run(args.city, args.port)
         elif args.cmd == "aggregate":
             aggregate_run(args.city)
+        elif args.cmd == "normalize":
+            import json
+            if args.rebuild:
+                from .releases import rebuild
+                result = rebuild(args.city, publish=args.publish)
+                print(json.dumps({"release_id": result["release_id"], "quality": result["quality"]}, ensure_ascii=False))
+            else:
+                from .normalize import normalize
+                result = normalize(args.city)
+                print(json.dumps({"normalization_id": result.id, "summary": result.manifest["summary"]}, ensure_ascii=False))
         elif args.cmd == "serving":
             serving_run(args.city)
+        elif args.cmd == "snapshot":
+            from .snapshot import compile_snapshot
+            compile_snapshot(args.city)
+        elif args.cmd == "index":
+            from . import index
+            if args.phase in ("vectors", "all"):
+                index.embed_vectors(tuple(args.kinds) if args.kinds else index.vectors.KINDS)
+            if args.phase in ("compile", "all"):
+                index.compile_index(args.city)
         elif args.cmd == "build":
             build.run(args.city, args.every, set(args.skip))
         elif args.cmd == "judge":

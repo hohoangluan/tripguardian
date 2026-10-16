@@ -1,4 +1,4 @@
-import type { Action, ActPreview, ActResult, PlanOutput, ProgressEvent, Suggestions, View } from './types'
+import type { Action, ActPreview, ActResult, DayRoute, PlanOutput, ProgressEvent, Suggestions, View } from './types'
 import { acceptsRevision, loadJourney, mutateJourney, readJourney, resumeJourney } from '../journey'
 import { setOptimized } from '../store'
 export { JourneyError as PlanningError } from '../journey'
@@ -6,6 +6,7 @@ export const loadPlanning = async (id: string) => { await resumeJourney(id); con
 export const act = async (id: string, a: Action) => { const j = await mutateJourney(id, 'planning', 'act', a); return { ...(j.result as ActResult), revision: j.revision } }
 export const readSuggestions = (id: string) => readJourney<Suggestions & { revision: number }>(id, 'planning/suggestions')
 export const previewAct = (id: string, action: Action) => readJourney<ActPreview & { revision: number }>(id, `planning/preview-act?action=${encodeURIComponent(JSON.stringify(action))}`)
+export const readRoutes = (id: string) => readJourney<{ days: DayRoute[] }>(id, 'planning/routes')
 export { acceptsRevision }
 export const confirm = async (id: string) => (await mutateJourney(id, 'planning', 'confirm')).result as PlanOutput
 // GET + SSE: this route takes no body, so the native EventSource works (unlike /turn above).

@@ -77,6 +77,21 @@ def test_a_visit_in_the_best_time_scores_better_than_in_the_time_to_avoid():
     assert visit_score(c, 540, 600, cx)[0] == visit_score(b, 540, 600, cx)[0]  # both at once: they cancel
 
 
+def test_review_timing_scores_the_whole_visit_across_a_period_boundary():
+    detail = {"timing": timing(best_time={"by_time_of_day": {"morning": 2}},
+                               avoid_time={"by_time_of_day": {"noon": 2}})}
+    cx = day_ctx([rec("a", 11.94, 108.45, details=detail)])
+    # 10:30-11:30 spends half the visit in each period.
+    penalty = visit_score(cx.places["a"], 630, 690, cx)[0]
+    assert penalty == (CFG.time_suitability["timing_penalty"] - CFG.time_suitability["timing_bonus"]) / 2
+
+
+def test_review_timing_bonus_only_covers_the_part_inside_the_best_period():
+    detail = {"timing": timing(best_time={"by_time_of_day": {"morning": 2}})}
+    cx = day_ctx([rec("a", 11.94, 108.45, details=detail)])
+    assert visit_score(cx.places["a"], 630, 690, cx)[0] == -CFG.time_suitability["timing_bonus"] / 2
+
+
 def last_entry(time, source):
     return {"timing": timing(last_entry={"time": time, "source": source})}
 

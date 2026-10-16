@@ -37,7 +37,7 @@ def main() -> None:
     try:
         data = Data.load()
     except FileNotFoundError:
-        sys.exit("no data/serving/places.json: run python -m corpus serving first")
+        sys.exit("no data/snapshot/current: run python -m corpus snapshot first")
     missing = [k for k in ("AGENT_API_KEY", "AGENT_BASE_URL", "AGENT_MODEL") if not os.environ.get(k)]
     agent = None
     if missing:
@@ -45,7 +45,7 @@ def main() -> None:
     else:
         agent = lambda fields, on_say: run_agent(fields, on_say, cfg)  # noqa: E731
     engine = Engine(data, cfg, Store(data_root() / "decision" / "sessions"), agent)
-    print(f"Place Decision: http://127.0.0.1:{args.port} ({len(data.records)} places, "
+    print(f"Place Decision: http://127.0.0.1:{args.port} ({len(data.region.ids)} places, "
           f"agent {os.environ.get('AGENT_MODEL') if agent else 'off'})")
     run(engine, args.port)
 

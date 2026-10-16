@@ -5,7 +5,7 @@ def test_the_shipped_config_loads_with_minutes_not_clock_strings():
     cfg = settings.load(settings.PATH)
     assert cfg.version == 1
     assert (cfg.day_start, cfg.day_end, cfg.leave_at) == (480, 1260, 900)
-    assert cfg.meal_windows["lunch"] == (690, 810)
+    assert cfg.meal_windows["lunch"] == (660, 810)
     assert cfg.pins["live_music"]["from"] == 1080 and cfg.pins["sunset_view"]["anchor"] == "sunset"
     assert cfg.visit_key == {"slow": "long", "normal": "typical", "packed": "short"}
     assert cfg.exact_n == 7 and cfg.max_days == 7 and cfg.max_clusters == 8

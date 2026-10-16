@@ -20,11 +20,11 @@ def test_photo_garden_and_nightlife_are_scored_at_actual_visit_time():
     assert not result.violations
 
 
-def test_coffee_prefers_midday_but_lunch_is_a_meal():
+def test_coffee_is_an_afternoon_snack_never_a_lunch():
     cx = day_ctx([rec("coffee", 11.94, 108.45, group="cafe")])
     result = simulate(["coffee"], cx)
     item = next(i for i in result.items if i.kind == "visit")
-    assert 690 <= item.start < 870
+    assert 870 <= item.start < 1050
     assert result.time_details[0]["source"] == "heuristic"
 
 
@@ -50,6 +50,9 @@ def test_soft_time_never_blocks_hours_or_day_end_and_never_shrinks_below_short()
 
 def test_competing_morning_visits_can_move_to_the_next_day():
     records = [rec(x, 11.94, 108.45, visit=(90, 150, 180), group="museum") for x in ("a", "b")]
+    for record in records:
+        record["operation"]["visit_minutes"]["source"] = "reviews"
+        record["operation"]["visit_minutes"]["n"] = 3
     d = decision(["a", "b"], days=2, leave_at="21:00")
     d["trip_context"]["time_preferences"] = [{"period": "morning", "weight": 3}]
     sched = schedule_trip(prepared(d, records))
@@ -75,7 +78,7 @@ def test_optional_gap_suggestions_use_real_pool_and_diet_checks():
                    features={"vegetarian_options": "yes"}),
                rec("bad", 11.942, 108.45, group="restaurant", usable=("meal", "backup"),
                    features={"vegetarian_options": "no"})]
-    d = decision(["garden"], days=1, hard=[veg])
+    d = decision(["garden"], days=1, hard=[veg], leave_at="18:00")     # a snack needs an afternoon gap to fill
     d["backup_pool"] = [{"id": "good"}, {"id": "bad"}, {"id": "invented"}]
     d["trip_context"]["activities"] = {"good": "eating"}
     trip = prepared(d, records)
@@ -120,7 +123,7 @@ def test_explicit_coffee_activity_is_not_reinterpreted_as_a_photo_visit():
     cafe = replace(cx.places["cafe"], activity="coffee", activity_explicit=True)
     cx = replace(cx, places={"cafe": cafe}, purpose="photo",
                  time_preferences=({"activity": "photography", "period": "evening"},))
-    assert windows_for(cafe, cx)[0].reason == "midday_break"
+    assert windows_for(cafe, cx)[0].reason == "light_snack"      # a cafe is an afternoon snack, not a photo visit
 
 
 def test_disabling_time_suitability_removes_its_penalties():

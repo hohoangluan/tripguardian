@@ -83,6 +83,7 @@ def cost_of(op: dict, details: dict | None = None, people: int = 1) -> int | Non
 
 
 def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place], list[Unplaced]]:
+    from .roles import meal_kind     # roles imports parse_hours from here
     places, unplaced = [], []
     people = decision.get("trip_context", {}).get("context", {}).get("people") or 1
     for c in decision["confirmed"]:
@@ -97,7 +98,7 @@ def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place
         activity = activity_for(rec, (decision.get("trip_context", {}).get("activities") or {}).get(pid), kind)
         if activity == "eating":
             kind = "meal"
-        elif kind is not None and (decision.get("trip_context", {}).get("activities") or {}).get(pid):
+        elif kind is not None and activity in {"coffee", "drinking", "sightseeing", "shopping", "tasting"}:
             kind = "experience"
         if kind is None:
             unplaced.append(Unplaced(pid, name, "not_plannable"))
@@ -107,16 +108,26 @@ def build_places(decision: dict, by_id: dict, cfg: Settings) -> tuple[list[Place
             unplaced.append(Unplaced(pid, name, "no_visit_time"))
         else:
             hours = op.get("hours")
+            visit = op['visit_minutes']
+            if visit.get('source') == 'category_default':
+                policy = cfg.duration_profiles
+                bounds = policy.get('activity_ranges', {}).get(activity)
+                if bounds is None and ident.get('category_group') in policy.get('activity_groups', []):
+                    bounds = policy.get('activity_range')
+                if bounds:
+                    visit = {**visit, **dict(zip(('short', 'typical', 'long'), bounds)),
+                             'source': 'planning_default', 'original_source': 'category_default'}
             places.append(Place(
                 id=pid, name=ident.get("name") or name, kind=kind, role=c.get("role", "selected"),
                 lat=float(ident["lat"]), lng=float(ident["lng"]), area=ident.get("area"),
                 dup_group=rec.get("near_duplicate_group"),
                 hours=parse_hours(hours["value"]) if hours else None,
                 hours_status=hours["status"] if hours else None,
-                visit=op["visit_minutes"], cost_vnd=cost_of(op, rec.get("details"), people),
+                visit=visit, cost_vnd=cost_of(op, rec.get("details"), people),
                 pins=tuple(f for f in cfg.pins if (feature(rec, f) or {}).get("value") == "present"),
                 flags=tuple(c.get("flags") or ()), relaxed=tuple(c.get("relaxed") or ()), rec=rec, activity=activity,
-                activity_explicit=pid in (decision.get("trip_context", {}).get("activities") or {})))
+                activity_explicit=pid in (decision.get("trip_context", {}).get("activities") or {}),
+                meal_kind=meal_kind(rec, cfg)))
     return places, unplaced
 
 

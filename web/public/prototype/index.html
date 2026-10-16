@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TripGuardian — Landing Page & Auth Experience Prototype</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    
+    :root {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    /* 3D Stages */
+    .perspective-stage {
+      perspective: 1400px;
+    }
+    .preserve-3d {
+      transform-style: preserve-3d;
+    }
+    
+    /* Cloud drift for auth pages */
+    @keyframes cloudDrift {
+      0% { transform: translate3d(0, 0, 0); }
+      50% { transform: translate3d(25px, -15px, 0); }
+      100% { transform: translate3d(0, 0, 0); }
+    }
+    .animate-cloud-drift {
+      animation: cloudDrift 18s ease-in-out infinite;
+    }
+
+    /* Soft glowing aura behind 3D stage */
+    .glow-radial-warm {
+      background: radial-gradient(circle at 50% 50%, rgba(244, 201, 174, 0.45) 0%, rgba(253, 251, 247, 0) 70%);
+    }
+
+    /* HUD frames - Terracotta Accent */
+    .hud-bracket {
+      border-left: 2px solid #b4532a;
+      border-top: 2px solid #b4532a;
+    }
+    .hud-bracket-bottom {
+      border-right: 2px solid #b4532a;
+      border-bottom: 2px solid #b4532a;
+    }
+
+    /* Miniature Journey Map Island - Tờ bản đồ giấy kem Đà Lạt tươi sáng chuẩn TripGuardian */
+    .map-island-bg {
+      background: radial-gradient(ellipse at 50% 40%, #ffffff 0%, #fbf6ec 55%, #f1e5d3 100%);
+      border: 1.5px solid #dfd3c0;
+      box-shadow: 0 25px 60px -10px rgba(130, 95, 60, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+
+    /* Destination Pin Pulse */
+    @keyframes pinPulse {
+      0% { transform: scale(0.95); opacity: 0.85; }
+      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 8px rgba(180, 83, 42, 0.8)); }
+      100% { transform: scale(0.95); opacity: 0.85; }
+    }
+    .animate-pin-pulse {
+      animation: pinPulse 2s ease-in-out infinite;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(180, 83, 42, 0.25);
+      border-radius: 9999px;
+    }
+
+    /* Cinematic View Transition (GSAP-like easing) */
+    .view-enter {
+      animation: viewEnter 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes viewEnter {
+      from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.985);
+        filter: blur(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    /* Interactive Map Sonar Ping */
+    @keyframes sonarPing {
+      0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+    }
+    .animate-sonar-ping {
+      animation: sonarPing 0.75s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+    }
+
+    /* Ambient Cursor Glow - Warm Sunlight */
+    #ambientCursorGlow {
+      background: radial-gradient(circle, rgba(232, 89, 12, 0.12) 0%, rgba(244, 201, 174, 0.08) 45%, transparent 70%);
+      will-change: transform;
+    }
+
+    /* Waypoint Beacon Pulse */
+    @keyframes beaconGlow {
+      0%, 100% { filter: drop-shadow(0 0 3px #b4532a); }
+      50% { filter: drop-shadow(0 0 14px #b4532a); }
+    }
+    .beacon-active {
+      animation: beaconGlow 1.2s ease-in-out infinite;
+    }
+
+    /* Respect Reduced Motion Accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .view-enter {
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="h-full bg-[#FAF7F2] text-[#1B2A2F] antialiased select-none overflow-x-hidden">
+
+  <!-- Ambient Magnetic Cursor Glow Follower -->
+  <div id="ambientCursorGlow" class="fixed top-0 left-0 w-80 h-80 rounded-full pointer-events-none z-40 blur-3xl -translate-x-1/2 -translate-y-1/2 opacity-0 md:opacity-100 transition-opacity duration-300"></div>
+
+  <!-- Top Prototype Control Bar (Switch between Landing, Login, Register) -->
+  <header class="fixed top-3 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur-md border border-[#E7E1D6] rounded-full px-4 py-2 shadow-xl shadow-amber-950/5 flex items-center gap-2">
+    <span class="text-xs font-semibold text-[#b4532a] uppercase tracking-widest pl-1 mr-1 flex items-center gap-1.5">
+      <span class="w-2 h-2 rounded-full bg-[#b4532a] animate-ping"></span>
+      Prototype
+    </span>
+    <div class="h-4 w-[1px] bg-[#E7E1D6]"></div>
+    <div class="flex items-center gap-1 bg-[#F4EFE6] p-1 rounded-full border border-[#E2D9C8]">
+      <button id="navLandingBtn" onclick="switchView('landing')" class="px-3.5 py-1 text-xs font-semibold rounded-full transition-all duration-200 bg-[#0F5F5A] text-white shadow-sm flex items-center gap-1.5">
+        <span>✨ Landing Page (3D Map Roam)</span>
+      </button>
+      <button id="navLoginBtn" onclick="switchView('login')" class="px-3.5 py-1 text-xs font-semibold rounded-full transition-all duration-200 text-[#4A5A60] hover:text-[#1B2A2F] flex items-center gap-1.5">
+        <span>🔑 Đăng Nhập</span>
+      </button>
+      <button id="navRegisterBtn" onclick="switchView('register')" class="px-3.5 py-1 text-xs font-semibold rounded-full transition-all duration-200 text-[#4A5A60] hover:text-[#1B2A2F] flex items-center gap-1.5">
+        <span>📝 Đăng Ký</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- 1. LANDING PAGE (Animated 3D Showcase with Walking Map Mascot)          -->
+  <!-- ========================================================================= -->
+  <section id="viewLanding" class="relative min-h-screen w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#FFFDF9] via-[#FAF6F0] to-[#F1EAE0] transition-opacity duration-300">
+    
+    <!-- Ambient Canvas Particles & Morning Sun Radiance -->
+    <canvas id="ambientCanvas" class="absolute inset-0 pointer-events-none z-0"></canvas>
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_75%_45%,rgba(244,201,174,0.35)_0%,transparent_65%)] pointer-events-none"></div>
+
+    <!-- Navigation Header -->
+    <nav class="relative z-20 w-full max-w-7xl mx-auto px-6 pt-16 md:pt-6 pb-4 flex items-center justify-between">
+      <!-- Brand -->
+      <div class="flex items-center gap-3 cursor-pointer" onclick="switchView('landing')">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-md shadow-amber-500/20 flex items-center justify-center overflow-hidden">
+          <img src="assets/acorn_mascot.png" alt="TripGuardian Mark" class="w-full h-full object-cover object-top scale-110" />
+        </div>
+        <div>
+          <span class="text-xl font-extrabold tracking-tight text-[#1B2A2F] flex items-center gap-1">
+            TripGUARDIAN
+            <span class="text-[#b4532a] text-sm">✦</span>
+          </span>
+          <span class="block text-[10px] uppercase tracking-widest text-[#0F5F5A] -mt-1 font-semibold">Travel with ease · Đà Lạt thật</span>
+        </div>
+      </div>
+
+      <!-- Center Menu -->
+      <div class="hidden lg:flex items-center gap-8 text-sm font-medium text-[#4A5A60]">
+        <a href="#destinations" onclick="setSlide(0)" class="hover:text-[#0F5F5A] transition-colors">Điểm đến Đà Lạt</a>
+        <a href="#planner" onclick="setSlide(1)" class="hover:text-[#0F5F5A] transition-colors">AI Lên lịch</a>
+        <a href="#curation" onclick="setSlide(2)" class="hover:text-[#0F5F5A] transition-colors">Tiêu chí thật</a>
+        <a href="#companion" onclick="setSlide(3)" class="hover:text-[#0F5F5A] transition-colors">Linh vật đồng hành</a>
+      </div>
+
+      <!-- Right Actions -->
+      <div class="flex items-center gap-3">
+        <button class="w-9 h-9 rounded-full bg-white/80 border border-[#E7E1D6] text-[#4A5A60] hover:text-[#1B2A2F] flex items-center justify-center transition hover:bg-white shadow-sm" title="Tìm kiếm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </button>
+        <button onclick="switchView('login')" class="px-4 py-2 text-xs font-semibold text-[#1B2A2F] hover:text-[#0F5F5A] transition">
+          Đăng nhập
+        </button>
+        <button onclick="switchView('register')" class="px-4 py-2 text-xs font-semibold rounded-full bg-[#0F5F5A] text-white hover:bg-[#13746e] transition shadow-md shadow-[#0F5F5A]/25">
+          Đăng ký
+        </button>
+      </div>
+    </nav>
+
+    <!-- Hero Content Showcase -->
+    <div class="relative z-10 w-full max-w-7xl mx-auto px-6 py-4 md:py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center flex-1">
+      
+      <!-- Left Column: Typography, HUD Lines & Story -->
+      <div class="lg:col-span-5 flex flex-col justify-center space-y-5">
+        
+        <!-- Framing Header Tagline with Accent Lines -->
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-[2px] bg-[#b4532a]"></div>
+          <span class="text-xs uppercase tracking-[0.25em] font-bold text-[#b4532a]" id="heroCategoryTag">
+            BEAUTY OF DA LAT · AI TRAVEL COMPANION
+          </span>
+        </div>
+
+        <!-- Giant Bold Typography -->
+        <div class="space-y-1">
+          <h1 id="heroMainTitle" class="text-4xl md:text-6xl font-extrabold tracking-tight text-[#1B2A2F] uppercase leading-[1.05]">
+            KHÁM PHÁ
+          </h1>
+          <h2 id="heroSubTitle" class="text-xl md:text-2xl font-bold text-[#0F5F5A]">
+            Lịch trình Đà Lạt vừa vặn với bạn
+          </h2>
+        </div>
+
+        <!-- Description Paragraph -->
+        <p id="heroDescription" class="text-sm text-[#4A5A60] leading-relaxed max-w-lg font-normal">
+          Một chuyến đi thảnh thơi kể trong 2 phút. Nhận lịch trình từng giờ gồm 100% nơi có thật, né khung giờ đông, tối ưu cung đường đèo dốc và đồng hành cùng linh vật cầm bản đồ dẫn lối.
+        </p>
+
+        <!-- Stats Highlights -->
+        <div class="grid grid-cols-3 gap-3 pt-3 border-t border-[#E7E1D6] max-w-md">
+          <div>
+            <div class="text-2xl font-extrabold text-[#b4532a]">84+</div>
+            <div class="text-[10px] text-[#6B787D] uppercase tracking-wider font-medium">Nơi đã kiểm tra</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-[#0F5F5A]">0%</div>
+            <div class="text-[10px] text-[#6B787D] uppercase tracking-wider font-medium">Không bịa đặt</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-[#E8590C]">100%</div>
+            <div class="text-[10px] text-[#6B787D] uppercase tracking-wider font-medium">Thời gian thực</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap items-center gap-3 pt-2">
+          <button onclick="switchView('register')" class="px-6 py-3 rounded-full bg-[#b4532a] hover:bg-[#9c441f] text-white font-bold text-xs tracking-wide shadow-xl shadow-[#b4532a]/20 hover:shadow-[#b4532a]/35 transition-all duration-300 transform hover:-translate-y-0.5 flex items-center gap-2">
+            <span>Lên lịch chuyến của bạn</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </button>
+          <button onclick="switchView('login')" class="px-5 py-3 rounded-full bg-white hover:bg-amber-50/60 border border-[#E7E1D6] text-[#1B2A2F] font-semibold text-xs transition shadow-sm flex items-center gap-1.5">
+            <span>Màn Đăng nhập mẫu</span>
+            <span class="text-xs text-[#b4532a] font-bold">🔑</span>
+          </button>
+        </div>
+
+        <!-- Social Media Links -->
+        <div class="pt-2 flex items-center gap-4 text-xs text-[#6B787D]">
+          <span>Theo dõi TripGuardian:</span>
+          <div class="flex items-center gap-2 text-[#4A5A60]">
+            <span class="w-6 h-6 rounded-full bg-white border border-[#E7E1D6] shadow-2xs flex items-center justify-center hover:text-[#0F5F5A] hover:border-[#0F5F5A] cursor-pointer transition text-[11px] font-bold">fb</span>
+            <span class="w-6 h-6 rounded-full bg-white border border-[#E7E1D6] shadow-2xs flex items-center justify-center hover:text-[#0F5F5A] hover:border-[#0F5F5A] cursor-pointer transition text-[11px] font-bold">yt</span>
+            <span class="w-6 h-6 rounded-full bg-white border border-[#E7E1D6] shadow-2xs flex items-center justify-center hover:text-[#0F5F5A] hover:border-[#0F5F5A] cursor-pointer transition text-[11px] font-bold">tt</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Interactive 3D Miniature Map Stage with Walking Mascot -->
+      <div class="lg:col-span-7 relative flex flex-col items-center justify-center">
+        
+        <!-- 3D Stage Container (Smooth Lerp Tilt on Mouse Move) -->
+        <div id="stage3DContainer" class="perspective-stage w-full max-w-[620px] min-h-[500px] relative flex flex-col items-center justify-center">
+          
+          <!-- Decorative HUD Framing Lines -->
+          <div class="absolute -top-3 -left-3 w-10 h-10 hud-bracket opacity-70 pointer-events-none"></div>
+          <div class="absolute -bottom-3 -right-3 w-10 h-10 hud-bracket-bottom opacity-70 pointer-events-none"></div>
+          
+          <div class="absolute top-0 right-2 text-[10px] font-mono tracking-widest text-[#b4532a] border border-[#b4532a]/30 px-2.5 py-0.5 rounded-full bg-white/90 shadow-2xs flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#b4532a] animate-pulse"></span>
+            <span>BẢN ĐỒ HÀNH TRÌNH ĐÀ LẠT · 60 FPS LERP</span>
+          </div>
+
+          <!-- Ambient Glow behind Stage -->
+          <div class="absolute inset-0 glow-radial-warm rounded-full filter blur-3xl pointer-events-none"></div>
+
+          <!-- 3D Island & Map Canvas Layer (Tờ bản đồ giấy kem Đà Lạt) -->
+          <div id="mapIsland" class="relative w-full h-[460px] md:h-[500px] map-island-bg rounded-[36px] overflow-hidden p-4 flex flex-col justify-between cursor-crosshair shadow-2xl transition-transform duration-75 ease-out">
+            
+            <!-- Trail Canvas (Renders walking footsteps & dotted route) -->
+            <canvas id="trailCanvas" class="absolute inset-0 pointer-events-none z-0"></canvas>
+
+            <!-- Map Background Vector Graphic (Hồ Xuân Hương, Đèo Prenn, Đồi Thông) -->
+            <svg class="absolute inset-0 w-full h-full pointer-events-none opacity-85 z-0" xmlns="http://www.w3.org/2000/svg">
+              <!-- Lake Contour (Hồ Xuân Hương phẳng lặng xám xanh) -->
+              <path d="M 120,240 C 180,210 240,260 300,230 C 360,200 420,270 480,240 C 490,260 440,310 380,300 C 310,290 260,330 190,310 Z" fill="#c6d4dc" stroke="#8ea3b0" stroke-width="1.8" />
+              <!-- Elevation Contours (Đồi thông xanh rêu nhẹ nhàng & đường đồng mức) -->
+              <circle cx="160" cy="120" r="80" fill="none" stroke="#4a7c59" stroke-width="1" opacity="0.3" stroke-dasharray="3,4" />
+              <circle cx="160" cy="120" r="50" fill="none" stroke="#4a7c59" stroke-width="1" opacity="0.4" />
+              <circle cx="480" cy="130" r="90" fill="none" stroke="#4a7c59" stroke-width="1" opacity="0.3" stroke-dasharray="3,4" />
+              <circle cx="480" cy="130" r="60" fill="none" stroke="#4a7c59" stroke-width="1" opacity="0.4" />
+              <!-- Inner elevation lines on paper -->
+              <path d="M 30,180 Q 150,140 280,180 T 560,190" fill="none" stroke="#b8a892" stroke-width="0.8" opacity="0.4" stroke-dasharray="4,6" />
+              <!-- Road Paths / Tuyến hành trình chấm đất nung nổi bật -->
+              <path id="scenicPath" d="M 90,140 C 150,80 280,100 360,110 C 440,120 520,160 500,240 C 480,310 370,320 280,280 C 200,250 110,290 90,220 Z" fill="none" stroke="#b4532a" stroke-width="2.8" stroke-dasharray="6,8" opacity="0.85" />
+            </svg>
+
+            <!-- Clickable Checkpoint Waypoints -->
+            <div id="checkpointsContainer" class="absolute inset-0 pointer-events-auto z-10">
+              <!-- Pin 1: Hồ Xuân Hương -->
+              <div id="pin-xuanhuong" onclick="mascotWalkTo(260, 240, 'Hồ Xuân Hương')" class="checkpoint-pin absolute cursor-pointer group transition-all duration-300" style="left: 260px; top: 240px; transform: translate(-50%, -100%);">
+                <div class="px-2.5 py-1 rounded-full bg-white/95 border border-[#8ea3b0] text-[10px] font-bold text-[#1B2A2F] shadow-md group-hover:scale-110 transition whitespace-nowrap flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-[#5b8da8]"></span>
+                  <span>Hồ Xuân Hương</span>
+                </div>
+                <div class="w-3.5 h-3.5 mx-auto mt-0.5 rounded-full bg-[#5b8da8] animate-pin-pulse shadow-[0_0_12px_#5b8da8]"></div>
+              </div>
+
+              <!-- Pin 2: Đồi Chè & Săn Mây -->
+              <div id="pin-caudat" onclick="mascotWalkTo(480, 110, 'Đồi Chè Cầu Đất')" class="checkpoint-pin absolute cursor-pointer group transition-all duration-300" style="left: 480px; top: 110px; transform: translate(-50%, -100%);">
+                <div class="px-2.5 py-1 rounded-full bg-white/95 border border-[#4a7c59] text-[10px] font-bold text-[#1B2A2F] shadow-md group-hover:scale-110 transition whitespace-nowrap flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-[#4a7c59]"></span>
+                  <span>Săn Mây Cầu Đất</span>
+                </div>
+                <div class="w-3.5 h-3.5 mx-auto mt-0.5 rounded-full bg-[#4a7c59] animate-pin-pulse shadow-[0_0_12px_#4a7c59]"></div>
+              </div>
+
+              <!-- Pin 3: Cà phê Hoàng Hôn -->
+              <div id="pin-hoanghon" onclick="mascotWalkTo(120, 110, 'Tiệm Cà Phê Hoàng Hôn')" class="checkpoint-pin absolute cursor-pointer group transition-all duration-300" style="left: 120px; top: 110px; transform: translate(-50%, -100%);">
+                <div class="px-2.5 py-1 rounded-full bg-white/95 border border-[#b4532a] text-[10px] font-bold text-[#1B2A2F] shadow-md group-hover:scale-110 transition whitespace-nowrap flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-[#b4532a]"></span>
+                  <span>Cà Phê Ngắm Đồi</span>
+                </div>
+                <div class="w-3.5 h-3.5 mx-auto mt-0.5 rounded-full bg-[#b4532a] animate-pin-pulse shadow-[0_0_12px_#b4532a]"></div>
+              </div>
+
+              <!-- Pin 4: Chợ Đêm Đà Lạt -->
+              <div id="pin-chodem" onclick="mascotWalkTo(420, 290, 'Chợ Đêm Đà Lạt')" class="checkpoint-pin absolute cursor-pointer group transition-all duration-300" style="left: 420px; top: 290px; transform: translate(-50%, -100%);">
+                <div class="px-2.5 py-1 rounded-full bg-white/95 border border-[#b42318] text-[10px] font-bold text-[#1B2A2F] shadow-md group-hover:scale-110 transition whitespace-nowrap flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-[#b42318]"></span>
+                  <span>Chợ Đêm Đà Lạt</span>
+                </div>
+                <div class="w-3.5 h-3.5 mx-auto mt-0.5 rounded-full bg-[#b42318] animate-pin-pulse shadow-[0_0_12px_#b42318]"></div>
+              </div>
+            </div>
+
+            <!-- THE WALKING MASCOT HOLDING MAP (BÉ HẠT DẺ TO LỚN & ĐÁNG YÊU) -->
+            <div id="mascotWalker" class="absolute z-20 pointer-events-none will-change-transform" style="left: 200px; top: 200px; transform: translate(-50%, -85%);">
+              
+              <!-- Soft Dynamic Ground Shadow -->
+              <div id="walkerShadow" class="absolute left-1/2 bottom-2 -translate-x-1/2 w-40 md:w-48 h-7 bg-amber-950/25 rounded-[50%] filter blur-[3px] pointer-events-none"></div>
+
+              <!-- Character Sprite with Stepping Bob & Waddling Tilt -->
+              <div id="walkerSpriteContainer" class="relative">
+                <img id="walkerImg" src="assets/acorn_holding_map.webp" alt="Bé Hạt Dẻ cầm map đi dạo" class="w-52 md:w-64 max-h-[300px] object-contain drop-shadow-[0_18px_28px_rgba(140,80,40,0.32)] filter contrast-105" />
+                
+                <!-- Open Map Badge -->
+                <div class="absolute -bottom-1 -right-1 bg-[#b4532a] text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full shadow-md">
+                  MAP
+                </div>
+              </div>
+
+              <!-- Floating Companion Speech Bubble attached to Mascot -->
+              <div id="walkerSpeechBubble" class="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 bg-white/95 backdrop-blur-md border border-[#E7E1D6] text-[#1B2A2F] text-xs rounded-2xl px-3.5 py-2.5 shadow-xl w-max max-w-[260px] pointer-events-none transition-all duration-200">
+                <div class="flex items-center gap-1.5 mb-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#b4532a] animate-ping"></span>
+                  <span class="text-[9px] font-bold text-[#b4532a] uppercase tracking-wider">Bé Hạt Dẻ dẫn đường</span>
+                </div>
+                <p id="walkerSpeechText" class="text-[11px] leading-tight font-medium italic text-[#1B2A2F]">
+                  “Cầm bản đồ trên tay, cùng Bé Hạt Dẻ vi vu Đà Lạt không sợ lạc!”
+                </p>
+                <div class="w-2.5 h-2.5 bg-white border-r border-b border-[#E7E1D6] rotate-45 absolute -bottom-1.5 left-1/2 -translate-x-1/2"></div>
+              </div>
+
+            </div>
+
+            <!-- Island Header Tag -->
+            <div class="relative z-10 flex items-center justify-between text-[11px] text-[#6B787D] font-mono">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-[#0F5F5A]"></span>
+                ĐỊA HÌNH 3D ĐÀ LẠT
+              </span>
+              <span class="text-[#b4532a] font-semibold">Bấm bất kỳ đâu trên bản đồ để Bé Hạt Dẻ đi tới</span>
+            </div>
+
+            <!-- Island Footer: Locomotion Mode Controls -->
+            <div class="relative z-10 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E7E1D6] bg-[#FAF6F0]/90 backdrop-blur-sm -mx-4 -mb-4 px-4 py-2.5">
+              <div class="flex items-center gap-1.5">
+                <button id="btnAutoRoam" onclick="toggleAutoRoam()" class="px-3 py-1 text-xs font-semibold rounded-full bg-[#0F5F5A] text-white hover:bg-[#13746e] transition shadow flex items-center gap-1">
+                  <span id="autoRoamIcon">⏸</span>
+                  <span id="autoRoamLabel">Tự đi vòng vòng</span>
+                </button>
+                <button onclick="setWalkSpeed(1)" class="speed-btn px-2.5 py-1 text-xs font-semibold rounded-full bg-white text-[#0F5F5A] border border-[#0F5F5A]/30 shadow-2xs hover:bg-[#0F5F5A]/10 transition">
+                  🚶 Thong thả
+                </button>
+                <button onclick="setWalkSpeed(2.2)" class="speed-btn px-2.5 py-1 text-xs font-semibold rounded-full bg-white text-[#4A5A60] border border-[#E7E1D6] hover:text-[#1B2A2F] transition">
+                  🏃 Đi nhanh
+                </button>
+              </div>
+
+              <!-- Poses Switcher -->
+              <div class="flex items-center gap-1">
+                <button onclick="switchMascotCostume('map')" class="pose-btn px-2 py-0.5 text-[11px] font-semibold rounded-full bg-[#b4532a]/10 text-[#b4532a] border border-[#b4532a]/40">
+                  🗺️ Cầm Map
+                </button>
+                <button onclick="switchMascotCostume('greet')" class="pose-btn px-2 py-0.5 text-[11px] font-semibold rounded-full text-[#4A5A60] hover:text-[#1B2A2F]">
+                  👋 Vẫy tay
+                </button>
+                <button onclick="switchMascotCostume('idle')" class="pose-btn px-2 py-0.5 text-[11px] font-semibold rounded-full text-[#4A5A60] hover:text-[#1B2A2F]">
+                  ✨ Thở êm
+                </button>
+                <button onclick="switchMascotCostume('clean')" class="pose-btn px-2 py-0.5 text-[11px] font-semibold rounded-full text-[#4A5A60] hover:text-[#1B2A2F]">
+                  🌰 Hạt Dẻ
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom Coordinates & Hint -->
+          <div class="w-full flex items-center justify-between text-[11px] text-[#6B787D] mt-3 font-mono px-2">
+            <span>TOẠ ĐỘ: <span id="mascotCoordText" class="text-[#b4532a] font-bold">X: 200, Y: 200</span></span>
+            <span class="text-[#6B787D] italic">Rê chuột để nghiêng 3D mượt mà · Click trên bản đồ để di chuyển</span>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Vertical Dots Pagination on Far Right -->
+    <div class="fixed right-6 top-1/2 -translate-y-1/2 z-30 hidden md:flex flex-col items-center gap-4 bg-white/70 backdrop-blur-sm p-2 rounded-full border border-[#E7E1D6] shadow-sm">
+      <div class="text-[9px] font-mono text-[#b4532a] -rotate-90 tracking-widest uppercase mb-3 font-bold">NAV</div>
+      <button onclick="setSlide(0)" class="slide-dot group flex items-center gap-2">
+        <span class="dot-label text-[11px] font-bold text-[#b4532a] opacity-0 group-hover:opacity-100 transition duration-200">Khám phá</span>
+        <span class="w-3 h-3 rounded-full border-2 border-[#b4532a] bg-[#b4532a] shadow-[0_0_10px_#b4532a] transition"></span>
+      </button>
+      <button onclick="setSlide(1)" class="slide-dot group flex items-center gap-2">
+        <span class="dot-label text-[11px] font-bold text-[#4A5A60] opacity-0 group-hover:opacity-100 transition duration-200">Tìm hiểu</span>
+        <span class="w-2.5 h-2.5 rounded-full border border-[#D1C7B7] bg-[#E7E1D6] transition group-hover:bg-[#4A5A60]"></span>
+      </button>
+      <button onclick="setSlide(2)" class="slide-dot group flex items-center gap-2">
+        <span class="dot-label text-[11px] font-bold text-[#4A5A60] opacity-0 group-hover:opacity-100 transition duration-200">Lựa chọn</span>
+        <span class="w-2.5 h-2.5 rounded-full border border-[#D1C7B7] bg-[#E7E1D6] transition group-hover:bg-[#4A5A60]"></span>
+      </button>
+      <button onclick="setSlide(3)" class="slide-dot group flex items-center gap-2">
+        <span class="dot-label text-[11px] font-bold text-[#4A5A60] opacity-0 group-hover:opacity-100 transition duration-200">Lịch trình</span>
+        <span class="w-2.5 h-2.5 rounded-full border border-[#D1C7B7] bg-[#E7E1D6] transition group-hover:bg-[#4A5A60]"></span>
+      </button>
+    </div>
+
+    <!-- Footer HUD Bar -->
+    <footer class="relative z-10 w-full max-w-7xl mx-auto px-6 py-3 border-t border-[#E7E1D6] flex flex-wrap items-center justify-between text-xs text-[#6B787D]">
+      <div class="flex items-center gap-4">
+        <span>© 2026 TripGuardian AI</span>
+        <span>·</span>
+        <span class="text-[#0F5F5A] font-semibold font-mono">Dalat Intelligence Engine</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span>Cuộn chuột hoặc bấm chấm bên phải để chuyển chương</span>
+        <span class="animate-bounce inline-block text-[#b4532a] font-bold">↓</span>
+      </div>
+    </footer>
+
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 2. LOGIN SCREEN (Exact recreation of Screen Recording 2026-10-16 092756) -->
+  <!-- ========================================================================= -->
+  <section id="viewLogin" class="hidden relative min-h-screen w-full flex items-center justify-center p-4 md:p-8 overflow-hidden bg-gradient-to-b from-[#bfe3f7] via-[#d5ecf9] to-[#edf6fc] perspective-stage">
+    
+    <!-- Animated Soft Sky Clouds in Background -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden">
+      <div class="absolute -top-12 -left-20 w-[550px] h-[350px] bg-white/45 rounded-full filter blur-3xl animate-cloud-drift"></div>
+      <div class="absolute top-1/3 -right-24 w-[600px] h-[400px] bg-white/50 rounded-full filter blur-3xl animate-cloud-drift" style="animation-delay: -6s;"></div>
+      <div class="absolute -bottom-20 left-1/4 w-[700px] h-[400px] bg-white/60 rounded-full filter blur-3xl animate-cloud-drift" style="animation-delay: -12s;"></div>
+    </div>
+
+    <!-- Top Left Circular Back Button (Exactly like recording) -->
+    <button onclick="switchView('landing')" class="absolute top-6 left-6 z-30 w-12 h-12 bg-white/90 hover:bg-white text-slate-800 rounded-full shadow-lg hover:shadow-xl border border-white/60 flex items-center justify-center transition-all duration-200 transform hover:-translate-x-1" title="Quay lại Landing Page">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+    </button>
+
+    <!-- Centered Modal Card (Floating Glassmorphic Container with 3D Tilt) -->
+    <div id="loginCard" class="relative z-20 w-full max-w-[940px] bg-white rounded-[32px] shadow-[0_25px_70px_rgba(20,50,75,0.18)] border border-white/80 overflow-hidden grid grid-cols-1 md:grid-cols-2 preserve-3d will-change-transform">
+      
+      <!-- Left Column: Living 3D Animated Mascot Scene (Matches Yeti Animation in user recording) -->
+      <div class="p-3 md:p-4">
+        <div class="relative w-full h-[460px] md:h-full min-h-[460px] rounded-[24px] overflow-hidden shadow-inner group bg-gradient-to-b from-[#8ed1fc] via-[#a3d8f7] to-[#d8f0ff]">
+          
+          <!-- Scenic Highland Meadow Backdrop: Drifting Clouds, Sun Rays, Pine Hills -->
+          <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <!-- Sun Glow -->
+            <div class="absolute -top-16 -left-16 w-64 h-64 bg-amber-100/40 rounded-full filter blur-2xl"></div>
+            
+            <!-- Drifting Clouds -->
+            <div class="absolute top-6 -left-12 w-48 h-24 bg-white/70 rounded-full filter blur-lg animate-cloud-drift"></div>
+            <div class="absolute top-16 -right-10 w-56 h-28 bg-white/60 rounded-full filter blur-xl animate-cloud-drift" style="animation-delay: -7s;"></div>
+
+            <!-- Distant Da Lat Pine Hill Silhouette -->
+            <svg class="absolute bottom-16 inset-x-0 w-full h-32 opacity-25 text-teal-900" viewBox="0 0 400 120" preserveAspectRatio="none">
+              <path fill="currentColor" d="M0,120 L0,60 Q50,40 100,55 Q160,75 220,45 Q280,15 340,50 Q380,70 400,60 L400,120 Z"></path>
+            </svg>
+
+            <!-- Meadow Grass Foreground Hill where Mascot stands -->
+            <div class="absolute -bottom-12 -inset-x-6 h-36 bg-gradient-to-t from-[#3e6b47] via-[#528d5e] to-[#71a97e] rounded-[50%] filter blur-[0.5px] shadow-lg"></div>
+            <div class="absolute bottom-6 left-8 w-2 h-2 rounded-full bg-amber-200 opacity-80"></div>
+            <div class="absolute bottom-8 left-16 w-1.5 h-1.5 rounded-full bg-white opacity-90"></div>
+            <div class="absolute bottom-5 right-12 w-2 h-2 rounded-full bg-rose-200 opacity-80"></div>
+          </div>
+
+          <!-- The Living 3D Animated Mascot Character (Breathing, Waving, Blinking Loop) -->
+          <div class="absolute inset-0 flex items-center justify-center pt-2">
+            <!-- Ground Contact Shadow that scales with bobbing -->
+            <div class="absolute bottom-12 w-56 md:w-64 h-9 bg-emerald-950/35 rounded-[50%] filter blur-md animate-shadow-pulse pointer-events-none"></div>
+
+            <!-- Animated Mascot: WebP loop or Video (Bé Hạt Dẻ to lớn lấp đầy khung cảnh) -->
+            <img id="loginMascotAnim" src="assets/acorn_greet.webp" alt="TripGuardian Animated Mascot" class="relative z-10 w-80 md:w-96 max-h-[470px] scale-110 md:scale-120 object-contain drop-shadow-[0_24px_36px_rgba(15,40,30,0.35)] transform-gpu transition-all duration-300" />
+            <video id="loginMascotVideo" src="assets/acorn_animated_demo.mp4" autoplay loop muted playsinline class="hidden relative z-10 w-full h-full object-cover rounded-[24px]"></video>
+          </div>
+
+          <!-- Bottom Dark Gradient Overlay for Crisp Text Contrast -->
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent pointer-events-none"></div>
+
+          <!-- Top Badge + Interactive Mood Switcher -->
+          <div class="absolute top-4 inset-x-4 flex items-center justify-between z-20">
+            <div class="bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="text-[11px] font-bold text-slate-800 tracking-wide uppercase">AI Companion 3D</span>
+            </div>
+
+            <!-- Pose Switcher Buttons in Card -->
+            <div class="flex items-center gap-1 bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/20">
+              <button onclick="setAuthMascot('greet', 'login')" class="auth-btn-login px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-400 text-slate-950 shadow" title="Vẫy tay chào">👋</button>
+              <button onclick="setAuthMascot('idle', 'login')" class="auth-btn-login px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Thở nhẹ">✨</button>
+              <button onclick="setAuthMascot('map', 'login')" class="auth-btn-login px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Cầm bản đồ">🗺️</button>
+              <button onclick="setAuthMascot('clean', 'login')" class="auth-btn-login px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Bé Hạt Dẻ">🌰</button>
+              <button onclick="setAuthMascot('video', 'login')" class="auth-btn-login px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Video loop">🎬</button>
+            </div>
+          </div>
+
+          <!-- Slogan Typography (Matched to "EXPLORE. LEARN. GROW." in Yeti reference video) -->
+          <div class="absolute bottom-6 left-6 right-6 text-white z-20">
+            <h3 class="text-3xl md:text-4xl font-extrabold uppercase tracking-tight leading-none drop-shadow-md">
+              EXPLORE.<br>PLAN. TRAVEL.
+            </h3>
+            <p class="text-xs text-slate-100 font-medium mt-2 flex items-center gap-1 drop-shadow">
+              <span class="text-teal-300">✦</span> Đà Lạt không bịa đặt · Lên lịch cùng AI
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Welcome Back Auth Form -->
+      <div class="p-8 md:p-12 flex flex-col justify-center">
+        
+        <div class="flex flex-col items-center text-center mb-6">
+          <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 shadow-sm flex items-center justify-center p-1 mb-2">
+            <img src="assets/acorn_mascot.png" alt="Logo" class="w-full h-full object-contain" />
+          </div>
+          <span class="text-xs font-extrabold uppercase tracking-[0.2em] text-slate-400">TRIPGUARDIAN</span>
+          <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mt-1 uppercase">
+            WELCOME BACK
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">
+            Enter your email and password to access your account
+          </p>
+        </div>
+
+        <form onsubmit="handleAuthSubmit(event, 'login')" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Email
+            </label>
+            <input type="email" required placeholder="Enter your email" class="w-full px-4 py-3 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 outline-none transition text-slate-900 placeholder-slate-400" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Password
+            </label>
+            <div class="relative">
+              <input id="loginPasswordInput" type="password" required placeholder="Enter your password" class="w-full px-4 py-3 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 outline-none transition text-slate-900 placeholder-slate-400 pr-10" />
+              <button type="button" onclick="togglePasswordVisibility('loginPasswordInput', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
+                <svg class="w-4 h-4 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs pt-1">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-600 select-none">
+              <input type="checkbox" checked class="w-4 h-4 rounded text-slate-900 focus:ring-slate-800 border-slate-300" />
+              <span>Remember me</span>
+            </label>
+            <a href="#" class="font-medium text-slate-600 hover:text-slate-900 transition">
+              Forgot Password
+            </a>
+          </div>
+
+          <button type="submit" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl shadow-lg shadow-slate-900/15 hover:shadow-slate-900/25 transition duration-200 transform active:scale-[0.99] mt-2">
+            Sign In
+          </button>
+
+          <button type="button" onclick="handleGoogleAuth()" class="w-full py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-sm rounded-xl shadow-sm hover:shadow transition flex items-center justify-center gap-2.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Sign in with Google</span>
+          </button>
+        </form>
+
+        <div class="text-center mt-6 text-xs text-slate-500">
+          <span>Don't have an account?</span>
+          <button onclick="switchView('register')" class="ml-1 font-bold text-slate-900 hover:underline">
+            Sign up
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 3. REGISTER SCREEN (Matching Design with Mascot Theme & Complete Fields) -->
+  <!-- ========================================================================= -->
+  <section id="viewRegister" class="hidden relative min-h-screen w-full flex items-center justify-center p-4 md:p-8 overflow-hidden bg-gradient-to-b from-[#bfe3f7] via-[#d5ecf9] to-[#edf6fc] perspective-stage">
+    
+    <div class="absolute inset-0 pointer-events-none overflow-hidden">
+      <div class="absolute -top-12 -right-20 w-[550px] h-[350px] bg-white/45 rounded-full filter blur-3xl animate-cloud-drift"></div>
+      <div class="absolute bottom-1/4 -left-24 w-[600px] h-[400px] bg-white/50 rounded-full filter blur-3xl animate-cloud-drift" style="animation-delay: -8s;"></div>
+    </div>
+
+    <button onclick="switchView('landing')" class="absolute top-6 left-6 z-30 w-12 h-12 bg-white/90 hover:bg-white text-slate-800 rounded-full shadow-lg hover:shadow-xl border border-white/60 flex items-center justify-center transition-all duration-200 transform hover:-translate-x-1" title="Quay lại Landing Page">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+    </button>
+
+    <div id="registerCard" class="relative z-20 w-full max-w-[960px] bg-white rounded-[32px] shadow-[0_25px_70px_rgba(20,50,75,0.18)] border border-white/80 overflow-hidden grid grid-cols-1 md:grid-cols-2 preserve-3d will-change-transform">
+      
+      <!-- Left Column: Living 3D Animated Mascot Scene (Matches Yeti Animation in user recording) -->
+      <div class="p-3 md:p-4">
+        <div class="relative w-full h-[460px] md:h-full min-h-[480px] rounded-[24px] overflow-hidden shadow-inner group bg-gradient-to-b from-[#8ed1fc] via-[#a3d8f7] to-[#d8f0ff]">
+          
+          <!-- Scenic Highland Meadow Backdrop -->
+          <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="absolute -top-16 -right-16 w-64 h-64 bg-amber-100/40 rounded-full filter blur-2xl"></div>
+            <div class="absolute top-6 -left-12 w-48 h-24 bg-white/70 rounded-full filter blur-lg animate-cloud-drift"></div>
+            <div class="absolute top-16 -right-10 w-56 h-28 bg-white/60 rounded-full filter blur-xl animate-cloud-drift" style="animation-delay: -9s;"></div>
+
+            <!-- Da Lat Pine Hill Silhouette -->
+            <svg class="absolute bottom-16 inset-x-0 w-full h-32 opacity-25 text-teal-900" viewBox="0 0 400 120" preserveAspectRatio="none">
+              <path fill="currentColor" d="M0,120 L0,60 Q50,40 100,55 Q160,75 220,45 Q280,15 340,50 Q380,70 400,60 L400,120 Z"></path>
+            </svg>
+
+            <!-- Meadow Grass Hill -->
+            <div class="absolute -bottom-12 -inset-x-6 h-36 bg-gradient-to-t from-[#3e6b47] via-[#528d5e] to-[#71a97e] rounded-[50%] filter blur-[0.5px] shadow-lg"></div>
+            <div class="absolute bottom-6 left-12 w-2 h-2 rounded-full bg-amber-200 opacity-80"></div>
+            <div class="absolute bottom-8 right-16 w-1.5 h-1.5 rounded-full bg-white opacity-90"></div>
+          </div>
+
+          <!-- Living Animated Character -->
+          <div class="absolute inset-0 flex items-center justify-center pt-2">
+            <div class="absolute bottom-12 w-56 md:w-64 h-9 bg-emerald-950/35 rounded-[50%] filter blur-md animate-shadow-pulse pointer-events-none"></div>
+
+            <img id="registerMascotAnim" src="assets/acorn_greet.webp" alt="TripGuardian Greeting" class="relative z-10 w-80 md:w-96 max-h-[470px] scale-110 md:scale-120 object-contain drop-shadow-[0_24px_36px_rgba(15,40,30,0.35)] transform-gpu transition-all duration-300" />
+            <video id="registerMascotVideo" src="assets/acorn_animated_demo.mp4" autoplay loop muted playsinline class="hidden relative z-10 w-full h-full object-cover rounded-[24px]"></video>
+          </div>
+
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent pointer-events-none"></div>
+
+          <!-- Top Badge + Quick Switcher -->
+          <div class="absolute top-4 inset-x-4 flex items-center justify-between z-20">
+            <div class="bg-teal-500/90 text-white backdrop-blur-md px-3 py-1.5 rounded-full shadow-md text-[11px] font-bold tracking-wide uppercase">
+              ✦ New Adventurer
+            </div>
+
+            <div class="flex items-center gap-1 bg-black/40 backdrop-blur-md p-1 rounded-full border border-white/20">
+              <button onclick="setAuthMascot('greet', 'register')" class="auth-btn-reg px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-400 text-slate-950 shadow" title="Vẫy tay chào">👋</button>
+              <button onclick="setAuthMascot('idle', 'register')" class="auth-btn-reg px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Thở nhẹ">✨</button>
+              <button onclick="setAuthMascot('map', 'register')" class="auth-btn-reg px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Cầm bản đồ">🗺️</button>
+              <button onclick="setAuthMascot('clean', 'register')" class="auth-btn-reg px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Bé Hạt Dẻ">🌰</button>
+              <button onclick="setAuthMascot('video', 'register')" class="auth-btn-reg px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20" title="Video loop">🎬</button>
+            </div>
+          </div>
+
+          <!-- Slogan -->
+          <div class="absolute bottom-6 left-6 right-6 text-white z-20">
+            <h3 class="text-3xl md:text-4xl font-extrabold uppercase tracking-tight leading-none drop-shadow-md">
+              START.<br>JOURNEY. PROTECT.
+            </h3>
+            <p class="text-xs text-slate-100 font-medium mt-2 flex items-center gap-1 drop-shadow">
+              <span class="text-teal-300">✦</span> Tạo tài khoản để lưu lịch trình và chia sẻ cùng bạn bè
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-8 md:p-12 flex flex-col justify-center">
+        
+        <div class="flex flex-col items-center text-center mb-5">
+          <div class="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 shadow-sm flex items-center justify-center p-1 mb-2">
+            <img src="assets/acorn_mascot.png" alt="Logo" class="w-full h-full object-contain" />
+          </div>
+          <span class="text-xs font-extrabold uppercase tracking-[0.2em] text-slate-400">TRIPGUARDIAN</span>
+          <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mt-1 uppercase">
+            CREATE ACCOUNT
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">
+            Join TripGuardian to plan your authentic Da Lat journey
+          </p>
+        </div>
+
+        <form onsubmit="handleAuthSubmit(event, 'register')" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Full Name
+            </label>
+            <input type="text" required placeholder="Enter your full name" class="w-full px-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 outline-none transition text-slate-900 placeholder-slate-400" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Email
+            </label>
+            <input type="email" required placeholder="Enter your email" class="w-full px-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 outline-none transition text-slate-900 placeholder-slate-400" />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Password
+              </label>
+              <input id="regPasswordInput" type="password" required placeholder="Min 8 chars" class="w-full px-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 outline-none transition text-slate-900 placeholder-slate-400" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Confirm
+              </label>
+              <input type="password" required placeholder="Repeat password" class="w-full px-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:border-slate-800 focus:ring-2 focus:ring-slate-800/10 outline-none transition text-slate-900 placeholder-slate-400" />
+            </div>
+          </div>
+
+          <div class="pt-1">
+            <label class="flex items-start gap-2 cursor-pointer text-xs text-slate-600 select-none leading-relaxed">
+              <input type="checkbox" required class="w-4 h-4 rounded text-slate-900 focus:ring-slate-800 border-slate-300 mt-0.5" />
+              <span>I agree to the <a href="#" class="font-semibold text-slate-900 underline">Terms of Service</a> and <a href="#" class="font-semibold text-slate-900 underline">Privacy Policy</a></span>
+            </label>
+          </div>
+
+          <button type="submit" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-xl shadow-lg shadow-slate-900/15 hover:shadow-slate-900/25 transition duration-200 transform active:scale-[0.99] mt-2">
+            Create Account
+          </button>
+
+          <button type="button" onclick="handleGoogleAuth()" class="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-sm rounded-xl shadow-sm hover:shadow transition flex items-center justify-center gap-2.5">
+            <svg class="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Sign up with Google</span>
+          </button>
+        </form>
+
+        <div class="text-center mt-5 text-xs text-slate-500">
+          <span>Already have an account?</span>
+          <button onclick="switchView('login')" class="ml-1 font-bold text-slate-900 hover:underline">
+            Sign In
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+  <!-- Interactive 60fps Smooth Motion Script -->
+  <script>
+    // -------------------------------------------------------------
+    // 1. Navigation View Switcher (Landing <-> Login <-> Register)
+    // -------------------------------------------------------------
+    function switchView(viewName) {
+      const views = {
+        landing: document.getElementById('viewLanding'),
+        login: document.getElementById('viewLogin'),
+        register: document.getElementById('viewRegister')
+      };
+      const buttons = {
+        landing: document.getElementById('navLandingBtn'),
+        login: document.getElementById('navLoginBtn'),
+        register: document.getElementById('navRegisterBtn')
+      };
+
+      Object.keys(views).forEach(k => {
+        if (k === viewName) {
+          views[k].classList.remove('hidden');
+          views[k].classList.remove('view-enter');
+          void views[k].offsetWidth; // trigger reflow
+          views[k].classList.add('view-enter');
+          buttons[k].className = 'px-3.5 py-1 text-xs font-semibold rounded-full transition-all duration-200 bg-teal-500 text-slate-950 shadow-sm flex items-center gap-1.5';
+        } else {
+          views[k].classList.add('hidden');
+          views[k].classList.remove('view-enter');
+          buttons[k].className = 'px-3.5 py-1 text-xs font-semibold rounded-full transition-all duration-200 text-slate-300 hover:text-white flex items-center gap-1.5';
+        }
+      });
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // -------------------------------------------------------------
+    // 2. High-Precision 60fps Locomotion Physics & Map Patrol
+    // -------------------------------------------------------------
+    const mascotWalker = document.getElementById('mascotWalker');
+    const walkerSprite = document.getElementById('walkerSpriteContainer');
+    const walkerImg = document.getElementById('walkerImg');
+    const walkerShadow = document.getElementById('walkerShadow');
+    const walkerSpeech = document.getElementById('walkerSpeechText');
+    const mascotCoord = document.getElementById('mascotCoordText');
+    const mapIsland = document.getElementById('mapIsland');
+
+    // Locomotion state
+    let posX = 200, posY = 220;
+    let targetX = 200, targetY = 220;
+    let currentVelX = 0, currentVelY = 0;
+    let walkPhase = 0;
+    let isMoving = false;
+    let facingDirection = 1; // 1 = right, -1 = left
+    let autoRoam = true;
+    let roamT = 0;
+    let walkSpeedMultiplier = 1.0;
+
+    // Scenic Waypoints for Auto Patrol Loop
+    const patrolWaypoints = [
+      { x: 120, y: 110, name: "Tiệm Cà Phê Hoàng Hôn", quote: "“Tới quán cà phê trên đồi rồi! Không khí lành lạnh uống cacao ấm cực đã.”" },
+      { x: 260, y: 240, name: "Hồ Xuân Hương", quote: "“Mặt hồ Xuân Hương phẳng lặng như gương. Đạp vịt hay đi dạo đều chill!”" },
+      { x: 420, y: 290, name: "Chợ Đêm Đà Lạt", quote: "“Bánh tráng nướng và sữa đậu nành nóng hổi ở chợ đêm thơm nức mũi!”" },
+      { x: 480, y: 110, name: "Săn Mây Cầu Đất", quote: "“Biển mây trắng bồng bềnh dưới thung lũng đồi chè Cầu Đất tuyệt đẹp!”" }
+    ];
+    let currentWaypointIdx = 0;
+
+    // Trail footsteps canvas
+    const trailCanvas = document.getElementById('trailCanvas');
+    const trailCtx = trailCanvas ? trailCanvas.getContext('2d') : null;
+    const footprints = [];
+
+    function resizeTrailCanvas() {
+      if (!trailCanvas || !mapIsland) return;
+      trailCanvas.width = mapIsland.clientWidth;
+      trailCanvas.height = mapIsland.clientHeight;
+    }
+    window.addEventListener('resize', resizeTrailCanvas);
+    setTimeout(resizeTrailCanvas, 100);
+
+    // Sonar Ping on Click
+    function spawnSonarPing(x, y) {
+      if (!mapIsland) return;
+      const ping = document.createElement('div');
+      ping.className = 'absolute pointer-events-none rounded-full border border-teal-300 bg-teal-400/25 animate-sonar-ping z-10 shadow-[0_0_12px_#2dd4bf]';
+      ping.style.left = `${x}px`;
+      ping.style.top = `${y}px`;
+      ping.style.width = '28px';
+      ping.style.height = '28px';
+      mapIsland.appendChild(ping);
+      setTimeout(() => ping.remove(), 750);
+    }
+
+    // Click anywhere on map to send mascot there!
+    mapIsland.addEventListener('click', (e) => {
+      const rect = mapIsland.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      
+      // Keep inside bounds
+      const clampedX = Math.max(60, Math.min(rect.width - 60, clickX));
+      const clampedY = Math.max(70, Math.min(rect.height - 60, clickY));
+
+      spawnSonarPing(clampedX, clampedY);
+      autoRoam = false;
+      updateAutoRoamButton();
+      mascotWalkTo(clampedX, clampedY, "Điểm bạn vừa chọn");
+    });
+
+    function mascotWalkTo(x, y, placeName) {
+      targetX = x;
+      targetY = y;
+      isMoving = true;
+      spawnSonarPing(x, y);
+      if (placeName) {
+        walkerSpeech.textContent = `“Đang đi tới ${placeName}! Để Bé Hạt Dẻ xem bản đồ dẫn lối nhé...”`;
+      }
+    }
+
+    function toggleAutoRoam() {
+      autoRoam = !autoRoam;
+      updateAutoRoamButton();
+      if (autoRoam) {
+        walkerSpeech.textContent = "“Tiếp tục tự đi vòng vòng tuần tra Đà Lạt cùng bản đồ nè!”";
+      } else {
+        walkerSpeech.textContent = "“Đã tạm dừng dạo bước. Bấm vào bất kỳ đâu trên bản đồ để mình đi tới nhé!”";
+      }
+    }
+
+    function updateAutoRoamButton() {
+      const icon = document.getElementById('autoRoamIcon');
+      const label = document.getElementById('autoRoamLabel');
+      if (autoRoam) {
+        icon.textContent = "⏸";
+        label.textContent = "Tự đi vòng vòng";
+      } else {
+        icon.textContent = "▶";
+        label.textContent = "Bật tự đi tuần tra";
+      }
+    }
+
+    function setWalkSpeed(speed) {
+      walkSpeedMultiplier = speed;
+      document.querySelectorAll('.speed-btn').forEach(b => {
+        if ((speed === 1 && b.textContent.includes('Thong thả')) || (speed > 1 && b.textContent.includes('Đi nhanh'))) {
+          b.className = 'speed-btn px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-800 text-teal-300 hover:text-white transition';
+        } else {
+          b.className = 'speed-btn px-2.5 py-1 text-xs font-semibold rounded-full text-slate-400 hover:text-white transition';
+        }
+      });
+    }
+
+    function switchMascotCostume(costume) {
+      const costumes = {
+        map: { src: "assets/acorn_holding_map.webp", quote: "“Cầm bản đồ trên tay, cùng Bé Hạt Dẻ vi vu Đà Lạt không sợ lạc!”" },
+        greet: { src: "assets/acorn_greet.webp", quote: "“Xin chào bạn đồng hành! Bé Hạt Dẻ sẵn sàng đưa bạn đi khắp ngõ ngách Đà Lạt!”" },
+        idle: { src: "assets/acorn_idle.webp", quote: "“Hít một hơi thật sâu trong không khí mát lành của rừng thông nha!”" },
+        clean: { src: "assets/acorn_mascot.png", quote: "“Bé Hạt Dẻ đây! Chiếc mũ quả sồi và áo choàng lá thông luôn sẵn sàng!”" }
+      };
+
+      const c = costumes[costume];
+      if (!c) return;
+
+      walkerImg.src = c.src;
+      walkerSpeech.textContent = c.quote;
+
+      document.querySelectorAll('.pose-btn').forEach(b => {
+        if (b.getAttribute('onclick').includes(costume)) {
+          b.className = 'pose-btn px-2 py-0.5 text-[11px] font-semibold rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/40';
+        } else {
+          b.className = 'pose-btn px-2 py-0.5 text-[11px] font-semibold rounded-full text-slate-400 hover:text-white';
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 3. Ultra-Smooth 60 FPS Main Render Loop
+    // -------------------------------------------------------------
+    let lastTime = performance.now();
+    let stepTimer = 0;
+
+    function renderLocomotion(timestamp) {
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // cap delta
+      lastTime = timestamp;
+
+      // Auto patrol along waypoints
+      if (autoRoam) {
+        roamT += dt * 0.45 * walkSpeedMultiplier;
+        const targetPt = patrolWaypoints[currentWaypointIdx];
+        const distToWp = Math.hypot(targetPt.x - posX, targetPt.y - posY);
+        
+        targetX = targetPt.x;
+        targetY = targetPt.y;
+
+        if (distToWp < 18) {
+          walkerSpeech.textContent = targetPt.quote;
+          currentWaypointIdx = (currentWaypointIdx + 1) % patrolWaypoints.length;
+        }
+      }
+
+      // Smooth Lerp Physics
+      const lerpSpeed = 3.8 * walkSpeedMultiplier;
+      const dx = targetX - posX;
+      const dy = targetY - posY;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > 2) {
+        isMoving = true;
+        // Direction
+        if (Math.abs(dx) > 1) {
+          facingDirection = dx > 0 ? 1 : -1;
+        }
+
+        posX += dx * (1 - Math.exp(-lerpSpeed * dt));
+        posY += dy * (1 - Math.exp(-lerpSpeed * dt));
+
+        walkPhase += dt * 9.5 * walkSpeedMultiplier;
+        stepTimer += dt * walkSpeedMultiplier;
+
+        // Leave subtle glowing footsteps
+        if (stepTimer > 0.22 && trailCtx) {
+          stepTimer = 0;
+          footprints.push({
+            x: posX,
+            y: posY + 2,
+            alpha: 0.65,
+            r: 3
+          });
+        }
+      } else {
+        isMoving = false;
+        // subtle breathing when standing still
+        walkPhase += dt * 1.8;
+      }
+
+      // Calculate smooth walking bob & waddle
+      let bob = 0;
+      let waddle = 0;
+      let shadowScale = 1.0;
+
+      if (isMoving) {
+        // Natural stepping rhythm: bounce twice per footstep cycle
+        bob = -Math.abs(Math.sin(walkPhase)) * 11;
+        waddle = Math.sin(walkPhase) * 5 * facingDirection;
+        shadowScale = 0.82 + Math.abs(Math.cos(walkPhase)) * 0.25;
+      } else {
+        // Gentle breathing bobbing
+        bob = Math.sin(walkPhase) * 3;
+        waddle = Math.sin(walkPhase * 0.5) * 1.5;
+        shadowScale = 0.95 + Math.sin(walkPhase) * 0.05;
+      }
+
+      // Apply transforms
+      mascotWalker.style.transform = `translate3d(${posX}px, ${posY}px, 0) translate(-50%, -85%)`;
+      walkerSprite.style.transform = `translateY(${bob}px) rotate(${waddle}deg) scaleX(${facingDirection})`;
+      walkerShadow.style.transform = `translateX(-50%) scale(${shadowScale})`;
+
+      if (mascotCoord) {
+        mascotCoord.textContent = `X: ${Math.round(posX)}, Y: ${Math.round(posY)}`;
+      }
+
+      // Proximity check to Da Lat landmark waypoints
+      const landmarks = [
+        { id: 'pin-xuanhuong', x: 260, y: 240 },
+        { id: 'pin-caudat', x: 480, y: 110 },
+        { id: 'pin-hoanghon', x: 120, y: 110 },
+        { id: 'pin-chodem', x: 420, y: 290 }
+      ];
+      landmarks.forEach(lm => {
+        const d = Math.hypot(lm.x - posX, lm.y - posY);
+        const pinEl = document.getElementById(lm.id);
+        if (pinEl) {
+          if (d < 36) {
+            pinEl.classList.add('beacon-active');
+          } else {
+            pinEl.classList.remove('beacon-active');
+          }
+        }
+      });
+
+      // Render footstep trail
+      if (trailCtx && trailCanvas) {
+        trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+        for (let i = footprints.length - 1; i >= 0; i--) {
+          const fp = footprints[i];
+          fp.alpha -= dt * 0.35;
+          if (fp.alpha <= 0) {
+            footprints.splice(i, 1);
+            continue;
+          }
+          trailCtx.beginPath();
+          trailCtx.arc(fp.x, fp.y, fp.r, 0, Math.PI * 2);
+          trailCtx.fillStyle = `rgba(180, 83, 42, ${fp.alpha * 0.75})`;
+          trailCtx.shadowColor = '#b4532a';
+          trailCtx.shadowBlur = 5;
+          trailCtx.fill();
+        }
+      }
+
+      requestAnimationFrame(renderLocomotion);
+    }
+    requestAnimationFrame(renderLocomotion);
+
+    // -------------------------------------------------------------
+    // 4. Smooth 3D Mouse Parallax on Stage with Inertia (Damping)
+    // -------------------------------------------------------------
+    const stage3D = document.getElementById('stage3DContainer');
+    let targetTiltX = 0, targetTiltY = 0;
+    let currentTiltX = 0, currentTiltY = 0;
+
+    window.addEventListener('mousemove', (e) => {
+      if (!stage3D) return;
+      const rect = stage3D.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const normX = (e.clientX - centerX) / (window.innerWidth / 2);
+      const normY = (e.clientY - centerY) / (window.innerHeight / 2);
+
+      targetTiltY = normX * 14;  // max 14 deg
+      targetTiltX = -normY * 12; // max 12 deg
+    });
+
+    stage3D.addEventListener('mouseleave', () => {
+      targetTiltX = 0;
+      targetTiltY = 0;
+    });
+
+    function renderStageTilt() {
+      // Damped lerp for silky smooth 3D tilting
+      currentTiltX += (targetTiltX - currentTiltX) * 0.08;
+      currentTiltY += (targetTiltY - currentTiltY) * 0.08;
+
+      if (mapIsland) {
+        mapIsland.style.transform = `rotateX(${currentTiltX}deg) rotateY(${currentTiltY}deg)`;
+      }
+      requestAnimationFrame(renderStageTilt);
+    }
+    requestAnimationFrame(renderStageTilt);
+
+    // -------------------------------------------------------------
+    // 4b. Ambient Magnetic Cursor Glow Interpolation
+    // -------------------------------------------------------------
+    let mouseScrX = window.innerWidth / 2, mouseScrY = window.innerHeight / 2;
+    let currCursorX = mouseScrX, currCursorY = mouseScrY;
+    const ambientGlow = document.getElementById('ambientCursorGlow');
+
+    window.addEventListener('pointermove', (e) => {
+      mouseScrX = e.clientX;
+      mouseScrY = e.clientY;
+      if (ambientGlow) ambientGlow.style.opacity = '1';
+    });
+
+    function updateCursorGlow() {
+      currCursorX += (mouseScrX - currCursorX) * 0.12;
+      currCursorY += (mouseScrY - currCursorY) * 0.12;
+      if (ambientGlow) {
+        ambientGlow.style.transform = `translate3d(${currCursorX}px, ${currCursorY}px, 0) translate(-50%, -50%)`;
+      }
+      requestAnimationFrame(updateCursorGlow);
+    }
+    requestAnimationFrame(updateCursorGlow);
+
+    // -------------------------------------------------------------
+    // 4c. Living 3D Auth Card Mouse Parallax (Matches Yeti Video)
+    // -------------------------------------------------------------
+    let authTargetTiltX = 0, authTargetTiltY = 0;
+    let authCurrentTiltX = 0, authCurrentTiltY = 0;
+    const loginCard = document.getElementById('loginCard');
+    const registerCard = document.getElementById('registerCard');
+    const loginAnim = document.getElementById('loginMascotAnim');
+    const regAnim = document.getElementById('registerMascotAnim');
+
+    window.addEventListener('pointermove', (e) => {
+      const isLoginVisible = !document.getElementById('viewLogin').classList.contains('hidden');
+      const isRegVisible = !document.getElementById('viewRegister').classList.contains('hidden');
+      const activeCard = isLoginVisible ? loginCard : (isRegVisible ? registerCard : null);
+      if (!activeCard) return;
+
+      const rect = activeCard.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const nx = (e.clientX - cx) / (window.innerWidth / 2);
+      const ny = (e.clientY - cy) / (window.innerHeight / 2);
+
+      authTargetTiltY = nx * 8; // subtle 8 deg max
+      authTargetTiltX = -ny * 6; // subtle 6 deg max
+    });
+
+    function renderAuthTilt() {
+      authCurrentTiltX += (authTargetTiltX - authCurrentTiltX) * 0.08;
+      authCurrentTiltY += (authTargetTiltY - authCurrentTiltY) * 0.08;
+
+      const isLoginVisible = !document.getElementById('viewLogin').classList.contains('hidden');
+      const isRegVisible = !document.getElementById('viewRegister').classList.contains('hidden');
+
+      if (isLoginVisible && loginCard) {
+        loginCard.style.transform = `rotateX(${authCurrentTiltX}deg) rotateY(${authCurrentTiltY}deg)`;
+        if (loginAnim) {
+          loginAnim.style.transform = `translate3d(${-authCurrentTiltY * 2.5}px, ${authCurrentTiltX * 2}px, 0)`;
+        }
+      } else if (isRegVisible && registerCard) {
+        registerCard.style.transform = `rotateX(${authCurrentTiltX}deg) rotateY(${authCurrentTiltY}deg)`;
+        if (regAnim) {
+          regAnim.style.transform = `translate3d(${-authCurrentTiltY * 2.5}px, ${authCurrentTiltX * 2}px, 0)`;
+        }
+      }
+
+      requestAnimationFrame(renderAuthTilt);
+    }
+    requestAnimationFrame(renderAuthTilt);
+
+    // -------------------------------------------------------------
+    // 5. Canvas Floating Ambient Dust & Fireflies
+    // -------------------------------------------------------------
+    const canvas = document.getElementById('ambientCanvas');
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      let w = canvas.width = window.innerWidth;
+      let h = canvas.height = window.innerHeight;
+
+      window.addEventListener('resize', () => {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      });
+
+      const particles = [];
+      for (let i = 0; i < 45; i++) {
+        particles.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          r: Math.random() * 2 + 0.6,
+          vx: (Math.random() - 0.5) * 0.35,
+          vy: -Math.random() * 0.45 - 0.2,
+          alpha: Math.random() * 0.7 + 0.2
+        });
+      }
+
+      function renderParticles() {
+        ctx.clearRect(0, 0, w, h);
+        for (let p of particles) {
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.y < 0) p.y = h;
+          if (p.x < 0) p.x = w;
+          if (p.x > w) p.x = 0;
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(195, 120, 60, ${p.alpha * 0.35})`;
+          ctx.fill();
+        }
+        requestAnimationFrame(renderParticles);
+      }
+      renderParticles();
+    }
+
+    // -------------------------------------------------------------
+    // 6. Interactive Slides
+    // -------------------------------------------------------------
+    const slideData = [
+      {
+        tag: "BEAUTY OF DA LAT · AI TRAVEL COMPANION",
+        title: "KHÁM PHÁ",
+        sub: "Lịch trình Đà Lạt vừa vặn với bạn",
+        desc: "Một chuyến đi thảnh thơi kể trong 2 phút. Nhận lịch trình từng giờ gồm 100% nơi có thật, né khung giờ đông, tối ưu cung đường đèo dốc và đồng hành cùng linh vật cầm bản đồ dẫn lối.",
+        target: { x: 260, y: 240, name: "Hồ Xuân Hương" }
+      },
+      {
+        tag: "STEP 1 · UNDERSTAND · HIỂU GU CỦA BẠN",
+        title: "LẮNG NGHE",
+        sub: "Cứ kể tự nhiên như kể với bạn đi cùng",
+        desc: "Không khảo sát dài dòng. Nói bạn đi mấy người, thích săn mây hay ngồi cà phê yên tĩnh, AI sẽ trích xuất gu, số ngày và ưu tiên của bạn.",
+        target: { x: 480, y: 110, name: "Săn Mây Cầu Đất" }
+      },
+      {
+        tag: "STEP 2 · CURATE · CHỌN LỌC MINH BẠCH",
+        title: "CHỌN LỌC",
+        sub: "Chỗ nào cũng có lý do và khung giờ nên né",
+        desc: "Không gợi ý hời hợt. Mỗi địa điểm đều có bằng chứng: hình ảnh thật, đánh giá thực chất, và cảnh báo giờ đông cao điểm để chuyến đi luôn trọn vẹn.",
+        target: { x: 120, y: 110, name: "Tiệm Cà Phê Hoàng Hôn" }
+      },
+      {
+        tag: "STEP 3 · SCHEDULE · LỊCH TRÌNH TỐI ƯU",
+        title: "TỐI ƯU",
+        sub: "Cả ngày xếp sẵn, bạn chỉ việc thảnh thơi đi",
+        desc: "Phân bổ hợp lý theo cụm toạ độ, thời gian di chuyển thực tế. Không chạy đua check-in, luôn có thời gian nghỉ chân ngắm hoa và thưởng thức khí trời.",
+        target: { x: 420, y: 290, name: "Chợ Đêm Đà Lạt" }
+      }
+    ];
+
+    function setSlide(idx) {
+      const data = slideData[idx];
+      document.getElementById('heroCategoryTag').textContent = data.tag;
+      document.getElementById('heroMainTitle').textContent = data.title;
+      document.getElementById('heroSubTitle').textContent = data.sub;
+      document.getElementById('heroDescription').textContent = data.desc;
+
+      if (data.target) {
+        mascotWalkTo(data.target.x, data.target.y, data.target.name);
+      }
+
+      // Update right vertical dots
+      const dots = document.querySelectorAll('.slide-dot');
+      dots.forEach((dot, i) => {
+        const ring = dot.querySelector('span:last-child');
+        const label = dot.querySelector('.dot-label');
+        if (i === idx) {
+          ring.className = 'w-3 h-3 rounded-full border-2 border-teal-400 bg-teal-400 shadow-[0_0_10px_#2dd4bf] transition';
+          if (label) label.className = 'dot-label text-[11px] font-bold text-teal-300 opacity-100 transition duration-200';
+        } else {
+          ring.className = 'w-2.5 h-2.5 rounded-full border border-slate-500 bg-slate-700/60 transition group-hover:bg-slate-400';
+          if (label) label.className = 'dot-label text-[11px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition duration-200';
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 7. Auth Screens Living Mascot Switcher
+    // -------------------------------------------------------------
+    function setAuthMascot(mode, screen) {
+      const isLogin = screen === 'login';
+      const img = document.getElementById(isLogin ? 'loginMascotAnim' : 'registerMascotAnim');
+      const video = document.getElementById(isLogin ? 'loginMascotVideo' : 'registerMascotVideo');
+      if (!img || !video) return;
+
+      if (mode === 'video') {
+        img.classList.add('hidden');
+        video.classList.remove('hidden');
+        video.currentTime = 0;
+        video.play().catch(() => {});
+      } else {
+        video.classList.add('hidden');
+        video.pause();
+        img.classList.remove('hidden');
+
+        const sources = {
+          greet: 'assets/acorn_greet.webp',
+          idle: 'assets/acorn_idle.webp',
+          map: 'assets/acorn_holding_map.webp',
+          clean: 'assets/acorn_mascot.png'
+        };
+        if (sources[mode]) {
+          img.src = sources[mode];
+        }
+      }
+
+      // Update button active state
+      const btnClass = isLogin ? '.auth-btn-login' : '.auth-btn-reg';
+      document.querySelectorAll(btnClass).forEach(b => {
+        if (b.getAttribute('onclick').includes(mode)) {
+          b.className = `${btnClass.slice(1)} px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-400 text-slate-950 shadow`;
+        } else {
+          b.className = `${btnClass.slice(1)} px-2 py-0.5 text-[10px] font-bold rounded-full text-white hover:bg-white/20`;
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 8. Form Helpers
+    // -------------------------------------------------------------
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = `<svg class="w-4 h-4 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"></path></svg>`;
+      } else {
+        input.type = 'password';
+        btn.innerHTML = `<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>`;
+      }
+    }
+
+    function handleAuthSubmit(e, type) {
+      e.preventDefault();
+      alert(`✦ [Demo Prototype] Đã ghi nhận thao tác ${type === 'login' ? 'Đăng nhập' : 'Đăng ký'} thành công!\nBạn có thể quay lại trải nghiệm Landing Page bất kỳ lúc nào.`);
+      switchView('landing');
+    }
+
+    function handleGoogleAuth() {
+      alert("✦ [Demo Prototype] Đăng nhập nhanh bằng Google OAuth được kích hoạt thành công!");
+      switchView('landing');
+    }
+  </script>
+</body>
+</html>

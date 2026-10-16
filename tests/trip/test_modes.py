@@ -63,7 +63,9 @@ def test_quiz_learning_is_visible_to_the_chat(catalog, cfg, tmp_path):
     run(e, sid, kind="text", text="ok")
     context = next(m["content"] for m in chat.seen[0][0] if m["content"].startswith("CURRENT CONTEXT"))
     assert '"days": {"value": 3' in context
-    assert '"still_needed": {"companions": "đi cùng ai", "mobility": "đi lại bằng gì", "when": "ngày hoặc tháng đi"}' in context
+    import json
+    assert list(json.loads(context.removeprefix("CURRENT CONTEXT\n"))["still_needed"]) == [
+        "trip", "companions", "mobility", "care", "pace", "budget", "lodging"]
 
 
 def test_two_declines_in_a_row_marks_the_next_turn_stuck(catalog, cfg, tmp_path):
@@ -95,6 +97,7 @@ def test_quiz_exhaustion_goes_to_review(catalog, cfg, tmp_path):
     e = make_engine(catalog, cfg, tmp_path)
     sid = e.create("first", "nothing")["id"]
     for target, value in (("days", "3"), ("nights", "2"), ("companions", "solo"), ("arrival_mode", "self"),
+                          ("origin", '{"text": "Hồ Chí Minh", "lat": 10.77, "lng": 106.7, "province": "Hồ Chí Minh"}'),
                           ("mobility", "motorbike"), ("start_date", "2026-12-12"), ("lodging_booked", "no"),
                           ("checkin_at", "14:00"), ("checkout_at", "11:00"), ("purpose", "relax"),
                           ("crowd_tolerance", "avoid"), ("pace", "slow"), ("budget_vnd", "5000000"),

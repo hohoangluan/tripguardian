@@ -25,6 +25,7 @@ import unicodedata
 
 from ...review import decisions
 from ..common.files import STAY, data_dir, load_config, now, write_json
+from .stay_price import load_prices
 from .tiles import in_area
 
 KEEP = ("yes", "unsure")
@@ -151,12 +152,13 @@ def build(search_dir, area, top: int | None = 100, kept: set[str] | None = None,
 
 
 def build_stay(search_dirs, area, city: str | None = None, min_reviews: int = 0, same_name_m: float = 0,
-               counts: dict[str, dict] | None = None) -> dict:
+               counts: dict[str, dict] | None = None, detail_prices: dict[str, tuple[str, int]] | None = None) -> dict:
     """The lodging list (docs/CORPUS.md §Phạm vi, group `stay`): every lodging-category place in the area seen by any
     search (the stay queries of search.run_stay and the lodging the place searches met), min_reviews or more reviews,
-    one row per place. Only Planning reads it; places of other categories never enter it, whatever list they were in."""
+    one row per place; detail_prices (stay_price.load_prices) fills the places no hotel-list card priced. Only Planning reads it; places of other categories never enter it, whatever list they were in."""
     best: dict[str, dict] = {}
     queries: dict[str, set[str]] = {}
+    prices: dict[str, tuple[str, int]] = {}  # fid -> (at, VND a night) of the newest hotel-list card with a price
     raw = 0
     for d in search_dirs:
         for f in sorted(d.glob("*.jsonl")) if d.exists() else []:
@@ -169,8 +171,15 @@ def build_stay(search_dirs, area, city: str | None = None, min_reviews: int = 0,
                         continue
                     raw += 1
                     queries.setdefault(r["fid"], set()).add(rec["query"])
+                    if r.get("price_vnd") and (r["fid"] not in prices or rec["at"] > prices[r["fid"]][0]):
+                        prices[r["fid"]] = (rec["at"], r["price_vnd"])
                     if r["fid"] not in best or (r.get("reviews") or 0) > (best[r["fid"]]["reviews"] or 0):
                         best[r["fid"]] = {k: r.get(k) for k in KEYS}
+    for fid, priced in (detail_prices or {}).items():  # a stay page's price, only where no hotel-list card had one
+        if fid in best and fid not in prices:
+            prices[fid] = priced
+    for fid, (at, vnd) in prices.items():  # Maps' default-date price: a reference, not the trip's dates
+        best[fid] = {**best[fid], "price_vnd": vnd, "price_at": at}
     for fid, n in (counts or {}).items():
         if fid in best and n.get("reviews") is not None:
             best[fid] = {**best[fid], "rating": n["rating"], "reviews": n["reviews"]}
@@ -199,7 +208,8 @@ def run(city: str) -> dict:
     write_json(root / "list" / f"{city}.json", lst)
     print(f"list {city}: {lst['stats']}")
     stay = build_stay([root / "search" / city, root / "search" / f"{city}{STAY}"], cfg.get("area"), name,
-                      cfg.get("stay", {}).get("min_reviews", 0), g.get("same_name_m", 0), counts)
+                      cfg.get("stay", {}).get("min_reviews", 0), g.get("same_name_m", 0), counts,
+                      load_prices(root / "stay_price" / f"{city}.jsonl"))
     write_json(root / "list" / f"{city}{STAY}.json", stay)
     print(f"list {city}{STAY}: {stay['stats']}")
     return lst["stats"]

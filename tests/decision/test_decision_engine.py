@@ -21,7 +21,7 @@ def data():
 
 
 def trip(**over):
-    return si(hard_filters=[hard("steep_or_stairs", "present")], soft_weights=[love("scenic_view")], **over).model_dump(mode="json")
+    return si(activities={f"C{i}": "coffee" for i in range(6)}, hard_filters=[hard("steep_or_stairs", "present")], soft_weights=[love("scenic_view")], **over).model_dump(mode="json")
 
 
 class FakeAgent:
@@ -291,3 +291,38 @@ def test_agent_sees_every_shown_place_but_reasons_only_for_the_first_page():
     lines = agent.calls[0]["places"].splitlines()
     assert len(lines) == 2 * CFG.page_size
     assert sum(1 for x in lines if x.endswith("| ")) == CFG.page_size
+
+
+def test_a_lodging_picked_at_lua_chon_goes_into_the_output_and_ranks_nothing_again():
+    hotel = srec("H", name="Khách sạn Đồi Thông", group="stay", category="Khách sạn", usable=(), lat=11.95, lng=108.45,
+                 features={"steep_or_stairs": "absent"})
+    hotel["operation"]["price_per_night"] = {"value": 467000, "status": "VERIFIED", "as_of": "2026-10-08",
+                                             "source": "gmaps_list", "kind": "estimate"}
+    e = Engine(Data(data().records + [hotel]), CFG, Store(None))
+    sid = e.create(trip())["id"]
+    e.act(sid, {"type": "select", "place_id": "C0"})
+    assert e.load(sid)["view"]["lodging"] == {"booked": None, "chosen": None, "needed": True}
+    with pytest.raises(ActionError):
+        e.act(sid, {"type": "set_lodging", "lodging": {"kind": "corpus", "id": "C1"}})  # a café is not a lodging
+    out = e.act(sid, {"type": "set_lodging", "lodging": {"kind": "corpus", "id": "H", "text": "spoofed", "lat": 0, "lng": 0}})
+    assert out["diff"]["scope"]["from"] is None  # no step re-runs: where the user sleeps is Planning's
+    assert out["view"]["lodging"]["chosen"] == {"kind": "corpus", "id": "H", "text": "Khách sạn Đồi Thông", "lat": 11.95,
+                                                "lng": 108.45, "price_vnd": 467000}  # read from the record, not the client
+    assert e.confirm(sid)["lodging"]["id"] == "H"
+    e.act(sid, {"type": "set_lodging", "lodging": {"kind": "address", "text": "12 Bùi Thị Xuân", "lat": 11.94, "lng": 108.44}})
+    assert e.draft(sid)["lodging"]["text"] == "12 Bùi Thị Xuân"
+    with pytest.raises(ActionError):
+        e.act(sid, {"type": "set_lodging", "lodging": {"kind": "address", "text": "", "lat": 11.9, "lng": 108.4}})
+    e.act(sid, {"type": "clear_lodging"})
+    assert e.draft(sid)["lodging"] is None
+
+
+def test_a_booked_lodging_needs_no_pick_and_any_state_draft_is_still_given():
+    booked = {"lodging_booked": "yes", "lodging": {"text": "Ana Mandara", "lat": 11.93, "lng": 108.42}}
+    e = engine()
+    sid = e.create(trip(context={**si().context.model_dump(mode="json"), **booked}))["id"]
+    assert e.load(sid)["view"]["lodging"] == {"booked": {"id": None, "text": "Ana Mandara", "lat": 11.93, "lng": 108.42},
+                                              "chosen": None, "needed": False}
+    res = e._result(e.store.get(sid))
+    res.view["feasibility"].update(status="infeasible", conflicts=[{"check": "hours", "physical": True}])
+    assert e.draft(sid) is None and e.draft(sid, any_state=True) is not None

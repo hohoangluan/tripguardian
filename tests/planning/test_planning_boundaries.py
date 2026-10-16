@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "planning"
-ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm"}  # corpus.llm: the agent call sits at the module edge (RULE §2)
+ALLOWED_CORPUS = {"corpus.serving", "corpus.ontology", "corpus.llm", "corpus.releases", "corpus.snapshot", "corpus.retrieval"}
 WRITTEN_BY_CORPUS = ("data/intel", "data/serving", "data/gmaps", "data/tiktok", "data/review")
 
 
@@ -49,7 +49,7 @@ def test_no_module_names_a_directory_only_the_corpus_writes(path):
 
 def test_the_public_api_is_the_plan_builder_and_its_settings():
     import planning
-    assert set(planning.__all__) == {"Engine", "Settings", "build_lodging_variants", "build_plan", "build_variants",
+    assert set(planning.__all__) == {"Engine", "TripIncomplete", "Settings", "build_lodging_variants", "build_plan", "build_variants",
                                      "load_settings", "render_lodging_variants", "render_text", "render_variants",
                                      "run_server", "PlanningProposal", "Tools", "create_engine", "run_proposal"}
     for name in planning.__all__:

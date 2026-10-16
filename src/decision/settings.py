@@ -53,16 +53,17 @@ class Settings:
     history_max: int
     unverified_show: int
     page_size: int
-    keep_factor: float
     replace_below: float
     first_token_s: float
     total_s: float
     display_groups: dict
+    tabs: dict
     polarity: dict
     labels: dict
     shortlist_days: int = 7
     coach_min_people: int = 9  # a party this big needs a coach or a 16-seater: it counts as the companion `large_group`
     details_fit: dict = field(default_factory=lambda: {"good_bonus": 0.1, "bad_penalty": 0.2, "feature_bonus": 0.05})
+    wish: dict = field(default_factory=lambda: {"a": {}, "like_min": 1.0, "purpose": {}})  # config/decision.yaml wish
 
 
 def load(path: Path = PATH) -> Settings:

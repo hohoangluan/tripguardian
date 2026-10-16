@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useState } from 'react'
-import { fmtMin, fmtVnd } from '../lib'
+import { fmtMin, fmtVnd, info } from '../lib'
 import { useDecision } from '../pd/decision'
 import type { Conflict, Diff, Fix, PreviewVariant } from '../pd/types'
 import { PlacePhoto } from './common'
@@ -46,14 +46,16 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
   }, [diff])
   if (!view || !f || (!view.selected.length && level !== 'blocked')) return null
   const t = f.totals
-  const names = new Map(view.groups.flatMap((g) => g.cards).map((c) => [c.id, c.name]))
+  const names = new Map([...view.groups.flatMap((g) => g.cards), ...view.unverified.cards].map((c) => [c.id, c.name]))
+  // A chosen place may sit outside the groups on screen (a stay, a place from chat): the corpus still knows its name.
+  const nameOf = (id: string) => names.get(id) ?? info(id)?.name ?? ''
   const failed = 'plan' in preview && preview.status === 'failed' ? preview.plan?.back_to_decision?.places ?? [] : []
   const needs = level === 'attention' || level === 'blocked'
   const overload = f.conflicts.length > 0 && f.conflicts.every((c) => PLANNING_CAN_RESOLVE.has(c.check))
-  const canGo = (f.status === 'feasible' || f.status === 'unknown' || overload) &&
-    view.selected.length > 0 && !busy && !failed.length
+  // Lựa chọn never stops the user: what needs attention is said above, the choice to go on stays theirs.
+  const canGo = view.selected.length > 0 && !busy
   const nConflicts = f.conflicts.length + (failed.length ? 1 : 0)
-  const go2plan = async () => { if (await toPlan()) setOpen(false) }
+  const go2plan = async () => { setOpen(false); await toPlan() }
   return (
     <>
       {needs && (
@@ -61,7 +63,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
           <button type="button" className="tg-notice__head" onClick={() => setStrip((v) => !v)} aria-expanded={strip}>
             <Icon name={level === 'blocked' ? 'x' : 'warn'} size={18} />
             <b>{level === 'blocked' ? 'Bộ nơi này chưa đi được' : `${nConflicts || 1} chỗ cần chú ý`}</b>
-            <span>{overload ? `Bạn đã chọn hơi nhiều nơi. Vào Planning để xem ba hướng cắt giảm và tự chọn.` : level === 'blocked' ? (f.known_days ? `Cần khoảng ${fmtMin(t.needed)}, chuyến đi có ${fmtMin(t.available)}` : 'Bỏ bớt vài nơi để lịch đi được') : 'Sửa trước khi xếp lịch. Bạn vẫn chọn tiếp được.'}</span>
+            <span>{overload ? `Bạn đã chọn hơi nhiều nơi. Chọn chỗ ở rồi xem các hướng lập lịch.` : level === 'blocked' ? (f.known_days ? `Cần khoảng ${fmtMin(t.needed)}, chuyến đi có ${fmtMin(t.available)}` : 'Bỏ bớt vài nơi để lịch đi được') : 'Nên xem trước khi lập lịch. Bạn vẫn lập lịch được, quyết định là của bạn.'}</span>
             <Icon name={strip ? 'chevronDown' : 'chevronUp'} size={18} />
           </button>
           {strip && (
@@ -103,7 +105,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
             <Icon name="chevronUp" size={18} />
           </button>
           <button type="button" className="tg-btn tg-btn--primary" disabled={!canGo} onClick={go2plan}>
-            {busy ? 'Đang xếp…' : overload ? 'Xem 3 hướng lập lịch' : f.status === 'partial' ? 'Sửa chỗ cần chú ý trước' : 'Xem lịch trình'}<Icon name="arrow" size={18} />
+            {busy ? 'Đang xếp…' : 'Lập lịch'}<Icon name="arrow" size={18} />
           </button>
         </div>
       </div>
@@ -115,7 +117,8 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
             <ul>
               {view.selected.map((id) => {
                 const isLocked = view.locked.includes(id)
-                const name = names.get(id) ?? id
+                const name = nameOf(id)
+                if (!name) return null // never show a raw id
                 return (
                   <li key={id}>
                     <PlacePhoto id={id} name={name} className="tg-listpanel__ph" />
@@ -129,7 +132,7 @@ export function SelectedBar({ onRelax }: { onRelax: () => void }) {
               })}
             </ul>
             {f.warnings.length > 0 && <ul className="tg-listpanel__warn">{f.warnings.map((w) => <li key={w}><Icon name="warn" size={14} />{w}</li>)}</ul>}
-            <footer><span className="tg-faint">Giờ giấc và đường đi là ước tính.{f.known_days ? ` Chuyến đi có ${fmtMin(t.available)}.` : ' Chưa biết số ngày.'}</span><button type="button" className="tg-btn tg-btn--primary" disabled={!canGo} onClick={go2plan}>Xem lịch trình <Icon name="arrow" size={18} /></button></footer>
+            <footer><span className="tg-faint">Giờ giấc và đường đi là ước tính.{f.known_days ? ` Chuyến đi có ${fmtMin(t.available)}.` : ' Chưa biết số ngày.'}</span><button type="button" className="tg-btn tg-btn--primary" disabled={!canGo} onClick={go2plan}>Chọn chỗ ở và lập lịch <Icon name="arrow" size={18} /></button></footer>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

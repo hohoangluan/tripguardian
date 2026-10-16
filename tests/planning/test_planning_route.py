@@ -24,7 +24,7 @@ def test_an_order_without_violations_beats_a_shorter_one_with_a_violation():
     morning_only = rec("a", 1, 1, hours=all_days("08:00", "10:00"))
     travel = flat_travel(["h", "a", "b"], 60, h_a=30, h_b=5)
     cx = day_ctx([morning_only, rec("b", 1, 1)], start_node="h", extra_nodes=["h"], travel=travel)
-    assert simulate(["b", "a"], cx).end < simulate(["a", "b"], cx).end      # b first is quicker but misses a's hours
+    assert simulate(["b", "a"], cx).key[2] < simulate(["a", "b"], cx).key[2]      # b first is quicker but misses a's hours
     r = order_day(["a", "b"], cx)
     assert r.order == ("a", "b") and r.violations == ()
 

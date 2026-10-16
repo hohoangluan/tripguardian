@@ -237,7 +237,7 @@ def test_attributes_and_place_facts(tmp_path, monkeypatch):
     assert res["place_facts"] == {"popular_times": {"sun": {"9": 40}},
                                   "price": {"min_vnd": 1, "max_vnd": 100000, "per": "person", "reports": 9},
                                   "hours": {"mon": [["07:00", "21:00"]]}, "closure": "temporary", "tickets": None,
-                                  "time_spent": None}
+                                  "time_spent": None, "price_night": None}
     assert res["place"] == {"category": "Quán cà phê", "lat": 11.9, "lng": 108.4, "address": None}
     assert res["voices"] == 0
     assert calls == []
@@ -692,3 +692,18 @@ def test_detail_schema_puts_quote_last():
     det = item["properties"]["details"]["items"]
     assert "details" in item["required"] and list(det["properties"])[-1] == "quote" and det["required"][-1] == "quote"
     assert det["properties"]["amount_vnd"] == {"type": "integer"} and det["properties"]["months"]["items"] == {"type": "integer"}
+
+
+def test_lodging_price_a_night_comes_from_the_list_and_moves_without_the_model(tmp_path, monkeypatch):
+    calls, out = setup(tmp_path, monkeypatch, REVIEWS, QC)
+    lst = tmp_path / "gmaps" / "list"
+    lst.mkdir(parents=True)
+    item = {"fid": "0xF:0x1", "category": "Khách sạn", "price_vnd": 467000, "price_at": "2026-10-08T16:00:00+00:00"}
+    (lst / "dalat_stay.json").write_text(json.dumps({"items": [item]}), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    assert json.loads(out.read_text(encoding="utf-8"))["place_facts"]["price_night"] == {
+        "vnd": 467000, "at": "2026-10-08T16:00:00+00:00"}
+    (lst / "dalat_stay.json").write_text(json.dumps({"items": [{**item, "price_vnd": 500000}]}), encoding="utf-8")
+    asyncio.run(extract.run("dalat"))
+    assert json.loads(out.read_text(encoding="utf-8"))["place_facts"]["price_night"]["vnd"] == 500000
+    assert len(calls) == 1

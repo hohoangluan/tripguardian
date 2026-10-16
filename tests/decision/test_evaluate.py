@@ -9,7 +9,7 @@ def test_evaluate_counts_violations_unknowns_and_fill(monkeypatch):
     safe = srec("S", group="nature", features={"steep_or_stairs": "absent", "scenic_view": "present"})
     disputed = srec("D", group="nature", features={"steep_or_stairs": feat("absent", dist={"absent": 3, "present": 1})})
     steep = srec("X", group="nature", features={"steep_or_stairs": "present"})
-    meal = srec("M", features={"steep_or_stairs": "absent"}, usable=("meal",))
+    meal = srec("M", group="restaurant", features={"steep_or_stairs": "absent"}, usable=("meal",))
     res = ev.evaluate([safe, disputed, steep, meal])
     row = res["trips"][0]
     assert row["shortlist"] == ["S"] and (row["unverified"], row["excluded"]) == (1, 1)

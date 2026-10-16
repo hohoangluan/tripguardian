@@ -6,9 +6,10 @@
 // Speed: .br/.gz made by web/scripts/prod_assets.mjs are sent to clients that accept them (the tunnel carries
 // compressed bytes); every file has an ETag, so a revisit costs a 304; the harness is reached over keep-alive.
 // usage: npm run build:prod --prefix web && node web/server.mjs [port, default 28899]
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, realpathSync, statSync } from 'node:fs'
 import { Agent, createServer, request } from 'node:http'
 import { extname, resolve, sep } from 'node:path'
+import { isIP } from 'node:net'
 
 const PORT = Number(process.argv[2] ?? process.env.PORT ?? 28899)
 const HARNESS = { host: '127.0.0.1', port: Number(process.env.HARNESS_PORT ?? 8769), agent: new Agent({ keepAlive: true, maxSockets: 64 }) }
@@ -40,7 +41,8 @@ function inside(root, rel) {
   const file = resolve(root, '.' + rel)
   if (!file.startsWith(root + sep)) return null
   try {
-    return statSync(file).isFile() ? file : null
+    const actual = realpathSync(file)
+    return actual.startsWith(realpathSync(root) + sep) && statSync(actual).isFile() ? actual : null
   } catch {
     return null
   }
@@ -93,20 +95,43 @@ function sendRange(req, res, file) {
   return req.method === 'HEAD' ? res.end() : createReadStream(file, { start, end }).pipe(res)
 }
 
+let proxyActive = 0
 function proxy(req, res) {
-  const up = request({ ...HARNESS, method: req.method, path: req.url, headers: { ...req.headers, host: `${HARNESS.host}:${HARNESS.port}` } }, (r) => {
+  if (proxyActive >= HARNESS.agent.maxSockets) {
+    res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '1' })
+    return res.end(JSON.stringify({ error: 'server busy' }))
+  }
+  proxyActive++
+  let released = false
+  const release = () => { if (!released) { released = true; proxyActive-- } }
+  // Cloudflare overwrites CF-Connecting-IP; only the loopback tunnel can reach this server.
+  const candidate = String(req.headers['cf-connecting-ip'] ?? '')
+  const headers = { ...req.headers, host: `${HARNESS.host}:${HARNESS.port}`, 'x-tg-client-ip': isIP(candidate) ? candidate : req.socket.remoteAddress }
+  delete headers['x-forwarded-for']
+  delete headers['cf-connecting-ip']
+  const up = request({ ...HARNESS, method: req.method, path: req.url, headers }, (r) => {
     res.writeHead(r.statusCode ?? 502, r.headers)
+    r.on('aborted', () => { release(); res.destroy() })
+    r.on('error', () => { release(); res.destroy() })
     r.pipe(res) // streams SSE through unbuffered
   })
   up.on('error', () => {
+    release()
     if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'journey server unavailable' }))
   })
+  res.on('close', () => { release(); up.destroy() })
+  up.setTimeout(180_000, () => up.destroy(new Error('upstream timeout')))
   req.pipe(up)
 }
 
-createServer((req, res) => {
-  const path = decodeURIComponent((req.url ?? '/').split('?')[0])
+const server = createServer((req, res) => {
+  let path
+  try { path = decodeURIComponent((req.url ?? '/').split('?')[0]) } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' })
+    return res.end('Invalid URL')
+  }
+  if (path.split('/').some(part => part.startsWith('.')) || path.endsWith('.map')) return notFound(res)
   if (path.startsWith('/api/harness/') || path.startsWith('/api/auth/')) return proxy(req, res)
   if (path.startsWith('/api') || path === '/admin' || path.startsWith('/admin/')) return notFound(res)
   if (req.method !== 'GET' && req.method !== 'HEAD') return notFound(res)
@@ -120,11 +145,15 @@ createServer((req, res) => {
     return file ? sendFile(req, res, file, 'public, max-age=604800, stale-while-revalidate=86400') : notFound(res)
   }
   const file = inside(DIST, path)
-  if (file) return sendFile(req, res, file, path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : path.startsWith('/data/') ? DATA_CACHE : path.startsWith('/img/') || path.startsWith('/world/') ? 'public, max-age=86400' : 'no-cache')
+  if (file && TYPES[extname(path).toLowerCase()]) return sendFile(req, res, file, path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : path.startsWith('/data/') ? DATA_CACHE : path.startsWith('/img/') || path.startsWith('/world/') ? 'public, max-age=86400' : 'no-cache')
   if (extname(path)) return notFound(res)
   // SPA routes (/, /app/...): the shell page
   sendFile(req, res, resolve(DIST, 'index.html'), 'no-cache')
-}).listen(PORT, '127.0.0.1', () => {
+})
+server.headersTimeout = 15_000
+server.requestTimeout = 30_000
+server.maxRequestsPerSocket = 100
+server.listen(PORT, '127.0.0.1', () => {
   if (!existsSync(resolve(DIST, 'index.html'))) console.warn('web/dist is missing: run npm run build --prefix web')
   console.log(`TripGuardian public web: http://127.0.0.1:${PORT} (harness ${HARNESS.host}:${HARNESS.port})`)
 })

@@ -1,5 +1,5 @@
 import { Component, useEffect, type ReactNode } from 'react'
-import { useSnapshot } from '../data/store'
+import { prefetchSnapshot, useSnapshot } from '../data/store'
 import { match, query } from '../router'
 import { useAccount } from './account'
 import { setEventJourney, track } from './events'
@@ -22,9 +22,11 @@ import { Inbox } from './screens/Inbox'
 import { Today } from './screens/Today'
 import { Understand } from './screens/Understand'
 import { TripProvider, useTrip } from './trip'
-import { Busy, Empty, ArtHills, go, Toast } from './ui/common'
+import { Busy, Empty, Loading, ArtHills, go, Toast } from './ui/common'
 import { PlaceSheet } from './ui/PlaceSheet'
-import { Rail } from './ui/Shell'
+import { Frame } from './home/Frame'
+import { Recent } from './screens/Recent'
+import { Support } from './screens/Support'
 import './css/tokens.css'
 import './css/base.css'
 import './css/shell.css'
@@ -34,11 +36,19 @@ import './css/assistant.css'
 import './css/disc.css'
 import './css/sheet.css'
 import './css/understand.css'
+import './css/chat.css'
+import './css/ask.css'
 import './css/screens.css'
 import './css/plan.css'
+import './css/itinerary.css'
 import './css/landing.css'
 import './css/app.css'
 import './css/today.css'
+import './css/home.css'
+import './css/motion.css'
+import './css/blog.css'
+import './css/gate.css'
+import './css/workspace.css'
 
 // docs/Role_Web_Functional_Design.md §6: one surface for the landing (/) and the app (/app/...).
 // Phones get the app download page on every user page (/, /app/..., shared links): the web is built for a computer.
@@ -48,6 +58,11 @@ export default function UserApp({ path }: { path: string }) {
     return () => document.body.classList.remove('tg-body')
   }, [])
   const clean = path.split('?')[0].replace(/\/$/, '')
+  const scaled = !isPhone() && clean.startsWith('/app')
+  useEffect(() => {
+    document.documentElement.classList.toggle('tg-scaled', scaled)
+    return () => document.documentElement.classList.remove('tg-scaled')
+  }, [scaled])
   useEffect(() => { if (!isPhone()) track('page_view', { route: clean || '/' }) }, [clean])
   if (isPhone()) return <div className="tg tg-root tg-landing"><GetApp /></div>
   if (!clean.startsWith('/app')) {
@@ -75,6 +90,9 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
   const { snap, error } = useSnapshot()
   useEffect(() => { window.scrollTo({ top: 0 }) }, [p, !account])
   const signedIn = !!account && !account.needs_consent
+  // Lựa chọn needs the place data (tens of MB): read it in the background while the visitor is still in Tìm hiểu,
+  // so moving on does not wait for it.
+  useEffect(() => { if (signedIn) prefetchSnapshot(true) }, [signedIn])
   const guest = !!account?.guest
   useEffect(() => { if (signedIn && !guest && p === '/login') go('/', { replace: true }) }, [signedIn, guest, p])
   let m: Record<string, string> | null
@@ -88,31 +106,37 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
   } else if (p === '/login' && guest) { screen = <Auth next="/app" />; rail = false } // a guest who wants to keep the trips
   else if (p === '/login') { screen = <div className="tg-page"><Busy text="Đang vào…" /></div>; rail = false }
   else if (p === '/understand') { screen = <Understand />; rail = false } // talks to the harness only: never waits for the snapshot
+  // These pages need none of the place data (Discover's place-count chip shows when it has loaded): they open at once.
+  else if (p === '') screen = <Discover />
+  else if (p === '/trips') screen = <Trips />
+  else if (p === '/support') screen = <Support />
+  else if (p === '/inbox') screen = guest ? <GuestGate what="Thông báo" /> : <Inbox />
+  else if (p === '/profile') screen = guest ? <GuestProfile /> : <Account />
   else if (!snap) {
     screen = error ? (
       <Empty art={<ArtHills />} title="Chưa tải được dữ liệu địa điểm" body={`(${error}) Chạy web/scripts/export_snapshot.py rồi tải lại trang.`} action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => location.reload()}>Tải lại</button>} />
     ) : (
-      <div className="tg-page"><Busy text="Đang tải dữ liệu Đà Lạt…" /></div>
+      <Loading />
     )
-  } else if (p === '') screen = <Discover />
-  else if (p === '/explore') { screen = <Explore />; rail = false }
+  } else if (p === '/explore') { screen = <Explore />; rail = false }
   else if ((m = match(p, '/explore/place/:id'))) { screen = <PlaceDetail id={m.id} key={m.id} />; rail = false }
   else if ((m = match(p, '/explore/compare/:ids'))) { screen = <Compare ids={m.ids.split(',')} key={m.ids} />; rail = false }
   else if (p === '/plan') { screen = <PlanningProvider><Plan /></PlanningProvider>; rail = false }
   else if (p === '/done') { screen = <Done />; rail = false }
   else if (p === '/today') screen = guest ? <GuestGate what="Hôm nay" /> : <Today />
-  else if (p === '/inbox') screen = guest ? <GuestGate what="Thông báo" /> : <Inbox />
-  else if (p === '/trips') screen = <Trips />
   else if (p === '/saved') screen = <Saved />
-  else if (p === '/profile') screen = guest ? <GuestProfile /> : <Account />
+  else if (p === '/recent') screen = <Recent />
   else screen = <Empty art={<ArtHills />} title="Không có trang này" body="Đường dẫn này không còn dùng nữa." action={<button type="button" className="tg-btn tg-btn--primary" onClick={() => go('/')}>Về Khám phá</button>} />
   return (
     <div className="tg tg-root">
       <a className="tg-skip" href="#tg-main" onClick={(e) => { e.preventDefault(); document.getElementById('tg-main')?.focus() }}>Bỏ qua điều hướng</a>
-      <div className={`tg-app ${rail ? 'has-rail' : ''}`}>
-        {rail && <Rail path={p} />}
-        <main id="tg-main" tabIndex={-1} key={p} className="tg-stage"><Guard>{screen}</Guard></main>
-      </div>
+      {rail ? (
+        <Frame path={p}><main id="tg-main" tabIndex={-1} key={p} className="tg-hf__main tg-flow"><Guard>{screen}</Guard></main></Frame>
+      ) : (
+        <div className="tg-app">
+          <main id="tg-main" tabIndex={-1} key={p} className="tg-flow"><Guard>{screen}</Guard></main>
+        </div>
+      )}
       {sheet && snap && <PlaceSheet id={sheet} key={sheet} modal />}
       <Toast />
     </div>

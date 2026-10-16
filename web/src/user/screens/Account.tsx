@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
-import { featureLabel, valueLabel } from '../../data/labels'
 import { deleteAccount, refreshAccount, signOut, updateProfile, uploadAvatar, useAccount, type Companions, type Me, type Mobility } from '../account'
 import { calendarDisconnect } from '../today'
 import { track } from '../events'
 import { enablePush, KIND_LABEL, loadPrefs, pushSupported, savePrefs, type Prefs } from '../notify'
+import { useWarm } from '../../data/store'
 import { dateRange, info } from '../lib'
-import { tripSummaries } from '../pd/api'
+import { deleteTrip, tripSummaries } from '../pd/api'
 import { useDecision } from '../pd/decision'
+import { useFriends } from '../social'
 import type { TripSummary } from '../pd/types'
-import { toast, toggleSaved, useUi } from '../store'
-import { hasTrip, STEPS, stepOf, useTrip } from '../trip'
+import { toast, toggleSaved, toggleTheme, useUi } from '../store'
+import { STEPS, useTrip } from '../trip'
 import { ArtCup, ArtHills, ArtRoute, Busy, Empty, go, Link, placeHref, PlacePhoto } from '../ui/common'
-import { HeartFill, Icon } from '../ui/icons'
+import { HeartFill, Icon, type IconName } from '../ui/icons'
 import { Page, useTitle } from '../ui/Shell'
-import { useBegin } from './Discover'
+import { openShare, openTheme, useBegin } from '../home/dialogs'
+import { themeOf } from '../home/themes'
 import { GuestNotice } from './Guest'
 
 const STAGE_STEP = { trip: 0, decision: 1, planning: 2 } as const
@@ -31,11 +33,13 @@ function kindOf(t: TripSummary): Kind {
 // Journeys of the signed-in account; the server answers with one summary line each.
 export function Trips() {
   useTitle('Chuyến của tôi')
-  const { dispatch } = useTrip()
+  const { trip, dispatch } = useTrip()
   const begin = useBegin()
   const [list, setList] = useState<TripSummary[] | null>(null)
   const [err, setErr] = useState(false)
   const [tab, setTab] = useState<Kind>('building')
+  const account = useAccount()
+  const member = !!account && !account.guest
   useEffect(() => {
     tripSummaries().then((l) => {
       setList(l)
@@ -47,6 +51,18 @@ export function Trips() {
     dispatch({ type: 'reset' })
     dispatch({ type: 'set', patch: { journeyId: t.id, decisionId: t.stage === 'trip' ? null : t.id, planningId: t.stage === 'planning' ? t.id : null } })
     go(to ?? STEPS[STAGE_STEP[t.stage]].path)
+  }
+  const [asking, setAsking] = useState<string | null>(null) // the trip waiting for the user's yes to be removed
+  const [removing, setRemoving] = useState(false)
+  const remove = (t: TripSummary) => {
+    setRemoving(true)
+    deleteTrip(t.id).then(() => {
+      setList((l) => l && l.filter((x) => x.id !== t.id))
+      try { localStorage.removeItem(`tg.journey.pending.${t.id}`) } catch { /* nothing stored */ }
+      if (trip.journeyId === t.id) dispatch({ type: 'reset' })
+      setAsking(null)
+      toast('Đã xóa chuyến')
+    }, () => toast('Chưa xóa được, bạn thử lại nhé')).finally(() => setRemoving(false))
   }
   const shown = (list ?? []).filter((t) => kindOf(t) === tab)
   return (
@@ -75,8 +91,12 @@ export function Trips() {
                     {k === 'building' && <div className="tg-prog" aria-label={`Bước ${step + 1} trên ${STEPS.length}`}>{STEPS.map((s, i) => <span key={s.id} className={i < step ? 'is-done' : i === step ? 'is-now' : ''}><i />{s.label}</span>)}</div>}
                     <div className="tg-trip__act">
                       {k === 'building' && <button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => open(t)}>Đi tiếp <Icon name="arrow" size={16} /></button>}
-                      {k === 'confirmed' && <><button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => go(`/today?journey=${t.id}`)}>Hôm nay</button><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => open(t, '/plan')}>Xem lịch</button><button type="button" className="tg-link" onClick={() => open(t, '/plan')}>Sửa lại</button></>}
+                      {k === 'confirmed' && <><button type="button" className="tg-btn tg-btn--primary tg-btn--sm" onClick={() => open(t, '/plan')}>Xem lịch</button><button type="button" className="tg-link" onClick={() => open(t, '/plan')}>Sửa lại</button></>}
                       {k === 'done' && <><button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => open(t, '/plan')}>Xem lại lịch</button><button type="button" className="tg-link" onClick={() => open(t, '/done')}>Phản hồi</button></>}
+                      {member && t.stage !== 'trip' && <button type="button" className="tg-link" onClick={() => openShare(t)}><Icon name="send" size={14} /> Gửi cho bạn bè</button>}
+                      {asking === t.id ? (
+                        <span className="tg-trip__ask" role="alertdialog" aria-label="Xóa chuyến này?">Xóa chuyến này?<button type="button" className="tg-btn tg-btn--sm tg-del__yes" disabled={removing} onClick={() => remove(t)}>{removing ? 'Đang xóa…' : 'Xóa'}</button><button type="button" className="tg-link" disabled={removing} onClick={() => setAsking(null)}>Giữ lại</button></span>
+                      ) : <button type="button" className="tg-trip__del" aria-label="Xóa chuyến này" title="Xóa chuyến này" onClick={() => setAsking(t.id)}><Icon name="trash" size={15} /></button>}
                     </div>
                   </div>
                 </article>
@@ -93,14 +113,26 @@ const GROUPS: [string, string][] = [['all', 'Tất cả'], ['sight', 'Tham quan 
 export function Saved() {
   useTitle('Đã lưu')
   const saved = useUi((u) => u.saved)
+  const themes = useUi((u) => u.savedThemes).map(themeOf).filter((t) => t !== undefined)
   const { view, act, busy } = useDecision()
   const [f, setF] = useState('all')
+  useWarm(saved)
   const cards = new Map(view?.groups.flatMap((g) => g.cards).map((c) => [c.id, c]) ?? [])
   const items = saved.filter((id) => f === 'all' || info(id)?.group === f)
   const count = (k: string) => saved.filter((id) => k === 'all' || info(id)?.group === k).length
   return (
     <Page>
-      <header className="tg-head"><div><p className="tg-kicker">Đã lưu</p><h1>Địa điểm bạn đã lưu</h1><p>Lưu trên trình duyệt này. Nơi đã lưu không tự vào lịch; thêm vào chuyến khi nơi đó nằm trong gợi ý.</p></div></header>
+      <header className="tg-head"><div><p className="tg-kicker">Đã lưu</p><h1>Địa điểm bạn đã lưu</h1><p>Lưu theo tài khoản, mở được trên mọi máy. Nơi đã lưu không tự vào lịch; thêm vào chuyến khi nơi đó nằm trong gợi ý.</p></div></header>
+      {themes.length > 0 && (
+        <section className="tg-sv-themes" aria-label="Chủ đề đã lưu">
+          {themes.map((t) => (
+            <article key={t.id} className="tg-sv-theme">
+              <button type="button" onClick={() => openTheme(t.id)}><img src={t.photo} alt="" /><span><b>{t.short}</b><small>{t.category}</small></span></button>
+              <button type="button" className="tg-pc__save is-on" onClick={() => toggleTheme(t.id, t.short)} aria-label={`Bỏ lưu ${t.short}`}><HeartFill size={16} /></button>
+            </article>
+          ))}
+        </section>
+      )}
       <div className="tg-tabs" role="tablist" aria-label="Nhóm">
         {GROUPS.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={f === k} className="tg-tab" onClick={() => setF(k)}>{l}<b>{count(k)}</b></button>)}
       </div>
@@ -126,31 +158,45 @@ export function Saved() {
   )
 }
 
-const MOBILITY: [Mobility, string][] = [['motorbike', 'Xe máy'], ['car', 'Ô tô tự lái'], ['walk', 'Khác (không dùng xe riêng)']]
-const WHO: [Companions, string][] = [['solo', 'Đi một mình'], ['partner', 'Với người yêu / vợ chồng'], ['friends', 'Với bạn bè'], ['kids', 'Với con nhỏ'], ['parents', 'Với bố mẹ']]
+const MOBILITY: [Mobility, string, IconName][] = [['motorbike', 'Xe máy', 'route'], ['car', 'Ô tô', 'map'], ['walk', 'Không dùng xe riêng', 'pin']]
+const WHO: [Companions, string][] = [['solo', 'Đi một mình'], ['partner', 'Với người yêu'], ['friends', 'Với bạn bè'], ['kids', 'Với con nhỏ'], ['parents', 'Với bố mẹ']]
+const FORM_ERR = (e: Error) => e.message.includes('too long') ? 'Có trường dài quá, rút gọn lại nhé.' : e.message === 'nickname is taken' ? 'Nickname này đã có người dùng.' : e.message.startsWith('nickname') ? 'Nickname 3–24 ký tự: chữ thường không dấu, số, dấu chấm, gạch dưới.' : 'Chưa lưu được, thử lại nhé.'
 
 export function Account() {
   useTitle('Hồ sơ')
   const account = useAccount()
-  const { trip } = useTrip()
-  const { view } = useDecision()
-  const prefs = trip.searchInput?.soft_weights.filter((w) => w.weight !== 0) ?? []
+  const friends = useFriends(!!account && !account.guest)
+  const savedN = useUi((u) => u.saved.length + u.savedThemes.length)
+  const [trips, setTrips] = useState<TripSummary[] | null>(null)
+  // The numbers are the server's, read again every half minute and when the tab comes back; a failed read keeps the
+  // last numbers (or shows a dash), never a made-up zero.
+  useEffect(() => {
+    const pull = () => { if (document.visibilityState === 'visible') tripSummaries().then(setTrips, () => {}) }
+    pull()
+    const t = setInterval(pull, 30_000)
+    document.addEventListener('visibilitychange', pull)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', pull) }
+  }, [])
   if (!account) return null
+  const done = trips?.filter((t) => t.confirmed).length ?? 0
   return (
     <Page>
-      <header className="tg-head"><div><p className="tg-kicker">Hồ sơ và dữ liệu</p><h1>Bạn và dữ liệu của bạn</h1><p>Mọi trường đều tùy chọn. Hồ sơ chỉ là gợi ý ban đầu; điều bạn nói cho chuyến này luôn thắng.</p></div></header>
-      <section className="tg-who">
+      <header className="tg-head"><div><p className="tg-kicker">Hồ sơ</p><h1>Hồ sơ của bạn</h1><p>Bạn bè thấy tên, nickname, giới thiệu và ảnh. Gu đi chơi chỉ là gợi ý ban đầu cho chuyến mới; điều bạn nói trong chuyến luôn thắng.</p></div></header>
+      <section className="tg-card tg-me" aria-label="Tài khoản">
         <AvatarPicker account={account} />
-        <div><b>{account.name || 'Bạn'}</b><span className="tg-muted">{account.email}</span></div>
+        <div className="tg-me__id"><b>{account.name || 'Bạn'}</b>{account.nickname && <span className="tg-muted">@{account.nickname}</span>}<span className="tg-faint">{account.email}</span></div>
+        <dl className="tg-me__stats">
+          <div><dt>Chuyến</dt><dd><Link to="/trips">{trips ? trips.length : '–'}</Link></dd></div>
+          <div><dt>Đã chốt lịch</dt><dd>{trips ? done : '–'}</dd></div>
+          <div><dt>Đã lưu</dt><dd><Link to="/saved">{savedN}</Link></dd></div>
+          <div><dt>Bạn bè</dt><dd>{friends ? friends.friends.length : '–'}</dd></div>
+        </dl>
         <button type="button" className="tg-btn tg-btn--ghost tg-btn--sm" onClick={() => { void signOut(); go('/login') }}>Đăng xuất</button>
       </section>
       <div className="tg-prof">
         <ProfileForm account={account} />
-        <section className="tg-card tg-prof__c" aria-labelledby="tg-inf-h"><h2 id="tg-inf-h">Sở thích của chuyến hiện tại</h2><p className="tg-faint">Đây là điều bạn nói hoặc mình suy ra cho chuyến này, không phải cài đặt. Sửa ở vé chuyến.</p>
-          {prefs.length === 0 ? <p className="tg-muted">Chưa có sở thích nào được ghi.</p> : prefs.map((w) => <div key={w.feature + w.value} className="tg-prof__row"><div><span className="tg-chip tg-chip--dash">{w.weight < 0 ? 'Tránh: ' : ''}{featureLabel(w.feature)}{w.value !== 'present' ? `: ${valueLabel(w.value)}` : ''}</span><span className="tg-faint"> {w.source === 'profile' ? 'từ hồ sơ' : 'từ lời bạn'}</span></div></div>)}
-        </section>
+        <TasteCard account={account} />
       </div>
-      {hasTrip(trip) && <section className="tg-card tg-prof__trip"><div><b>Chuyến đi đang lập</b><span className="tg-muted">{trip.searchInput?.context.days ? `${trip.searchInput.context.days} ngày · ` : ''}{view?.selected.length ?? trip.selected.length} nơi đã chọn</span></div><button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={() => go(stepOf(trip).path)}>Mở tiếp</button></section>}
       <NotifyPrefs />
       {account.calendar && <CalendarLink />}
       <DeleteAccount />
@@ -180,31 +226,59 @@ function AvatarPicker({ account }: { account: Me }) {
   )
 }
 
+// What friends see: name, nickname, a line about you. One small form.
 function ProfileForm({ account }: { account: Me }) {
   const [name, setName] = useState(account.name)
-  const [city, setCity] = useState(account.home_city ?? '')
-  const [mobility, setMobility] = useState<string>(account.usual_mobility ?? '')
-  const [who, setWho] = useState<string>(account.usual_companions ?? '')
+  const [nick, setNick] = useState(account.nickname ?? '')
+  const [bio, setBio] = useState(account.bio)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const dirty = name !== account.name || city !== (account.home_city ?? '') || mobility !== (account.usual_mobility ?? '') || who !== (account.usual_companions ?? '')
+  const dirty = name !== account.name || nick !== (account.nickname ?? '') || bio !== account.bio
   const save = () => {
     setBusy(true); setErr(null)
-    updateProfile({ display_name: name, home_city: city, usual_mobility: (mobility || null) as Mobility | null, usual_companions: (who || null) as Companions | null })
-      .then(() => toast('Đã lưu hồ sơ'), (e: Error) => setErr(e.message.includes('too long') ? 'Có trường dài quá, rút gọn lại nhé.' : 'Chưa lưu được, thử lại nhé.'))
-      .finally(() => setBusy(false))
+    updateProfile({ display_name: name, nickname: nick || null, bio }).then(() => toast('Đã lưu hồ sơ'), (e: Error) => setErr(FORM_ERR(e))).finally(() => setBusy(false))
   }
   return (
     <section className="tg-card tg-prof__c" aria-labelledby="tg-me-h">
-      <h2 id="tg-me-h">Hồ sơ</h2><p className="tg-faint">Dùng làm gợi ý ban đầu cho chuyến mới, hiện với nhãn “từ hồ sơ”.</p>
+      <h2 id="tg-me-h">Bạn bè nhìn thấy</h2>
       <form className="tg-pform" onSubmit={(e) => { e.preventDefault(); save() }}>
-        <label className="tg-auth__f"><span>Tên hiển thị</span><input className="tg-input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoComplete="nickname" /></label>
-        <label className="tg-auth__f"><span>Thành phố bạn hay xuất phát</span><input className="tg-input" value={city} maxLength={80} onChange={(e) => setCity(e.target.value)} placeholder="Ví dụ: Hồ Chí Minh" autoComplete="address-level2" /></label>
-        <label className="tg-auth__f"><span>Phương tiện hay dùng ở Đà Lạt</span><select className="tg-input" value={mobility} onChange={(e) => setMobility(e.target.value)}><option value="">Chưa chọn</option>{MOBILITY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-        <label className="tg-auth__f"><span>Hay đi với ai</span><select className="tg-input" value={who} onChange={(e) => setWho(e.target.value)}><option value="">Chưa chọn</option>{WHO.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <label className="tg-auth__f"><span>Tên hiển thị</span><input className="tg-input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>
+        <label className="tg-auth__f"><span>Nickname</span><input className="tg-input" value={nick} maxLength={24} onChange={(e) => setNick(e.target.value.toLowerCase())} placeholder="ví dụ: an.nguyen" autoComplete="nickname" /><small className="tg-faint">Bạn bè tìm và kết bạn bằng nickname.</small></label>
+        <label className="tg-auth__f"><span>Giới thiệu ngắn</span><input className="tg-input" value={bio} maxLength={160} onChange={(e) => setBio(e.target.value)} placeholder="Ví dụ: Mê cà phê và săn mây" /></label>
         {err && <small className="tg-auth__err" role="alert">{err}</small>}
-        <button type="submit" className="tg-btn tg-btn--primary tg-btn--sm" disabled={!dirty || busy}>{busy ? 'Đang lưu…' : 'Lưu hồ sơ'}</button>
+        <button type="submit" className="tg-btn tg-btn--primary tg-btn--sm" disabled={!dirty || busy}>{busy ? 'Đang lưu…' : 'Lưu'}</button>
       </form>
+    </section>
+  )
+}
+
+// Where the user usually starts, how they get around, who they go with: a prior for a new trip (shown as "từ hồ sơ"
+// and replaced by anything said in the trip). A tap saves; tapping the chosen one again clears it.
+function TasteCard({ account }: { account: Me }) {
+  const [city, setCity] = useState(account.home_city ?? '')
+  const [busy, setBusy] = useState(false)
+  const save = (patch: Parameters<typeof updateProfile>[0], done?: string) => {
+    setBusy(true)
+    updateProfile(patch).then(() => { if (done) toast(done) }, (e: Error) => toast(FORM_ERR(e))).finally(() => setBusy(false))
+  }
+  return (
+    <section className="tg-card tg-prof__c" aria-labelledby="tg-taste-h">
+      <h2 id="tg-taste-h">Gu đi chơi của bạn</h2>
+      <p className="tg-faint">Mình dùng để hỏi ít hơn khi bạn lên chuyến mới. Bạn vẫn đổi được ngay trong từng chuyến.</p>
+      <div className="tg-taste">
+        <form className="tg-taste__row" onSubmit={(e) => { e.preventDefault(); save({ home_city: city }, 'Đã lưu nơi xuất phát') }}>
+          <label htmlFor="tg-city">Bạn hay xuất phát từ đâu?</label>
+          <div className="tg-taste__line"><input id="tg-city" className="tg-input" value={city} maxLength={80} onChange={(e) => setCity(e.target.value)} placeholder="Ví dụ: Hồ Chí Minh" autoComplete="address-level2" /><button type="submit" className="tg-btn tg-btn--soft tg-btn--sm" disabled={busy || city === (account.home_city ?? '')}>Lưu</button></div>
+        </form>
+        <div className="tg-taste__row" role="group" aria-labelledby="tg-mob">
+          <span id="tg-mob">Ở Đà Lạt bạn hay đi bằng</span>
+          <div className="tg-basics__chips">{MOBILITY.map(([v, l, ic]) => <button key={v} type="button" className="tg-chip" aria-pressed={account.usual_mobility === v} disabled={busy} onClick={() => save({ usual_mobility: account.usual_mobility === v ? null : v })}><Icon name={ic} size={14} /> {l}</button>)}</div>
+        </div>
+        <div className="tg-taste__row" role="group" aria-labelledby="tg-who">
+          <span id="tg-who">Bạn hay đi với ai</span>
+          <div className="tg-basics__chips">{WHO.map(([v, l]) => <button key={v} type="button" className="tg-chip" aria-pressed={account.usual_companions === v} disabled={busy} onClick={() => save({ usual_companions: account.usual_companions === v ? null : v })}>{l}</button>)}</div>
+        </div>
+      </div>
     </section>
   )
 }
@@ -223,7 +297,7 @@ function NotifyPrefs() {
   }
   const toggle = (k: string) => save({ enabled_kinds: p.enabled_kinds.includes(k) ? p.enabled_kinds.filter((x) => x !== k) : [...p.enabled_kinds, k] })
   return (
-    <div className="tg-prof">
+    <div className="tg-prof is-one">
       <section className="tg-card tg-prof__c" aria-labelledby="tg-np-h">
         <h2 id="tg-np-h">Thông báo</h2>
         <p className="tg-faint">{p.push_devices ? `Đang nhận trên ${p.push_devices} trình duyệt.` : 'Chưa bật trên trình duyệt nào; vẫn có trong Hộp thông báo.'} Không nhắn từ {p.quiet_start} đến {p.quiet_end}.</p>
@@ -232,11 +306,6 @@ function NotifyPrefs() {
           {p.kinds.map((k) => <label key={k}><input type="checkbox" checked={p.enabled_kinds.includes(k)} disabled={busy || p.paused} onChange={() => toggle(k)} /> {KIND_LABEL[k] ?? k}</label>)}
         </div>
         {pushSupported() && Notification.permission === 'default' && <button type="button" className="tg-btn tg-btn--soft tg-btn--sm" onClick={async () => { const r = await enablePush(); if (r === 'granted') { toast('Đã bật thông báo'); loadPrefs().then(setP) } }}>Bật trên trình duyệt này</button>}
-      </section>
-      <section className="tg-card tg-prof__c" aria-labelledby="tg-a2hs-h">
-        <h2 id="tg-a2hs-h">Thêm TripGuardian vào màn hình chính</h2>
-        <p className="tg-faint">Trên iPhone, thông báo chỉ đến khi TripGuardian nằm trên màn hình chính:</p>
-        <ol className="tg-a2hs"><li>Mở trang này bằng Safari.</li><li>Bấm nút Chia sẻ.</li><li>Chọn “Thêm vào MH chính”, rồi mở TripGuardian từ biểu tượng mới.</li></ol>
       </section>
     </div>
   )

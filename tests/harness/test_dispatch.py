@@ -85,13 +85,6 @@ class Tools:
     def lodging_suggest(self, q):
         return [{"kind": "address", "text": q, "address": "", "lat": 11.94, "lng": 108.45}]
 
-    def transit(self, params):
-        if params.get("mode") not in ("plane", "bus"):
-            raise ValueError("mode must be plane or bus")
-        self.calls += 1  # pending on the first two polls, then the crawl "lands"
-        ready = self.calls > 2
-        return {"status": "ready" if ready else "pending", "book_url": "https://book",
-                "trips": [{"mode": "plane", "carrier": "Vietjet"}] if ready else []}
 
 
 def file_store(root):
@@ -238,6 +231,7 @@ def test_real_decision_overload_can_preview_and_advance_without_losing_selection
     draft = preview["plan"]["input"]
     assert draft["feasibility"]["status"] == "infeasible"
     assert [p["id"] for p in draft["confirmed"]] == [f"P{i}" for i in range(6)]
+    assert draft["trip_context"]["activities"] == {f"P{i}": "coffee" for i in range(6)}
     assert h.load(v["id"])["revision"] == before["revision"]
     v = run(h, v, "advance", "overload-to-planning")
     assert v["stage"] == "planning"
@@ -256,6 +250,29 @@ def test_preview_says_blocked_or_empty_and_needs_the_decision_stage():
     assert h.preview(v["id"])["status"] == "empty"
 
 
+def test_the_lodging_list_reads_any_draft_and_leaves_the_journey_as_it_was():
+    from harness import Conflict
+    h, tools = make()
+    with pytest.raises(Conflict):
+        h.read(h.create()["id"], "decision", "lodging")
+    v = decision(h)
+    asked = []
+    tools["decision"].read = lambda sid, op, payload: asked.append((op, payload)) or {"output": {"confirmed": [{"id": "p"}]}}
+    tools["planning"].lodging_options = lambda payload, offset=0, limit=None: {
+        "status": "ready", "candidates": [{"id": "h1"}], "input": payload["decision_output"], "page": (offset, limit)}
+    out = h.read(v["id"], "decision", "lodging")
+    assert asked == [("draft", {"any": True})]  # a selection that does not fit yet still gets its lodging list
+    assert out["candidates"] == [{"id": "h1"}] and out["input"] == {"confirmed": [{"id": "p"}]}
+    assert h.load(v["id"])["revision"] == v["revision"]
+    assert h.read(v["id"], "decision", "lodging", {"offset": "18", "limit": "18"})["page"] == (18, 18)
+    tools["decision"].read = lambda sid, op, payload: {"output": {"confirmed": []}}
+    assert h.read(v["id"], "decision", "lodging")["candidates"] == [{"id": "h1"}]  # nothing chosen yet: still a list
+    tools["decision"].read = lambda sid, op, payload: {"output": None}
+    assert h.read(v["id"], "decision", "lodging") == {"status": "empty", "candidates": [], "total": 0}
+    with pytest.raises(ValueError):
+        h.read(v["id"], "decision", "lodging", {"limit": "500"})
+
+
 def test_summaries_list_only_the_asked_journeys_with_their_places():
     h, _ = make()
     v = run(h, decision(h), "advance", "to-planning")
@@ -264,6 +281,28 @@ def test_summaries_list_only_the_asked_journeys_with_their_places():
     assert [s["id"] for s in out] == [v["id"], other["id"]]
     assert out[0]["stage"] == "planning" and out[0]["days"] == 2 and out[0]["places"] == ["place-1"]
     assert out[1]["places"] == [] and out[1]["days"] is None and not out[1]["confirmed"]
+
+
+def test_chat_title_is_the_first_line_the_user_said_cut_short():
+    from harness.dispatch import CHAT_TITLE_MAX, chat_title
+    assert chat_title([]) is None
+    assert chat_title([{"role": "agent", "text": "Chào bạn"}, {"role": "user", "text": ""}]) is None
+    said = [{"role": "agent", "text": "Chào bạn"}, {"role": "user", "text": "  Đi Đà Lạt\n  hai   ngày  \nHồ Xuân Hương"}]
+    assert chat_title(said) == "Đi Đà Lạt"  # only the first line: an attached list is part of the text
+    long = chat_title([{"role": "user", "text": "săn mây " * 30}])
+    assert long is not None and len(long) == CHAT_TITLE_MAX and long.endswith("…")
+
+
+def test_summaries_carry_the_chat_title_or_none():
+    h, _ = make()
+    assert h.summaries([h.create()["id"]])[0]["title"] is None
+
+
+def test_trips_of_an_account_are_all_listed_not_the_first_twenty():
+    h, _ = make()
+    ids = {h.create(owner="u1")["id"] for _ in range(23)}
+    h.create(owner="u2")
+    assert {t["id"] for t in h.trips("u1")} == ids  # the profile counts these: a cap would show 20 for 23
 
 
 def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path, store_kind):
@@ -325,3 +364,51 @@ def test_a_trip_wish_without_a_trip_session_still_finishes_the_turn():
     h.store.save(j)
     out = run(h, v, "turn", "chat-4", {"text": "muốn yên tĩnh hơn"})
     assert out["stage"] == "decision" and "rebased" not in tools["decision"].states[j.sessions["decision"]]
+
+
+def test_copy_makes_an_independent_journey_for_another_account():
+    h, tools = make()
+    v = run(h, decision(h), "advance", "to-planning")
+    owner, other = "a" * 32, "b" * 32
+    session = h.store.get(v["id"])
+    session.user_id = owner
+    h.store.save(session)
+    out = h.copy(v["id"], owner, other)
+    assert out["id"] != v["id"] and out["stage"] == "planning"
+    copied = h.load(out["id"], owner=other)
+    assert set(copied["sessions"]) == set(v["sessions"])
+    assert not set(copied["sessions"].values()) & set(v["sessions"].values())
+    assert copied["outputs"]["decision"] == v["outputs"]["decision"]
+    assert h.owns(out["id"], other) and not h.owns(out["id"], owner) and h.owns(v["id"], owner)
+    with pytest.raises(KeyError):
+        h.copy(v["id"], other, other)  # only from the account that owns it
+    before = tools["planning"].states[v["sessions"]["planning"]]["value"]
+    run(h, copied, "act", "edit-copy", {"type": "x"})
+    assert tools["planning"].states[v["sessions"]["planning"]]["value"] == before
+
+
+def test_discard_takes_the_journey_away_from_its_owner_and_no_one_else_can_do_it():
+    h, _ = make()
+    v = h.create()
+    owner, other = "a" * 32, "b" * 32
+    session = h.store.get(v["id"])
+    session.user_id = owner
+    h.store.save(session)
+    with pytest.raises(KeyError):
+        h.discard(v["id"], other)
+    assert h.owns(v["id"], owner)
+    h.discard(v["id"], owner)
+    assert not h.owns(v["id"], owner)
+    with pytest.raises(KeyError):
+        h.load(v["id"], owner=owner)
+
+
+def test_one_journey_that_cannot_be_restored_never_empties_the_history_list():
+    h, tools = make()
+    ids = {h.create(owner="u1")["id"] for _ in range(3)}
+    h._loaded.clear()  # a restart: the next read restores every module from its snapshot
+
+    def old_snapshot(_snapshot):  # a trip saved by an older build, its fields no longer valid
+        raise ValueError("old snapshot")
+    tools["trip"].restore = old_snapshot
+    assert {t["id"] for t in h.trips("u1")} == ids  # still listed: title and places come from the saved copy

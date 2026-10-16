@@ -8,9 +8,9 @@
 
 /* ---- discover ---- */
 .tg-hero { position: relative; min-height: min(78vh, 720px); display: grid; align-items: center; overflow: hidden; isolation: isolate; }
-.tg-hero__img { position: absolute; inset: -20px; z-index: -2; background: linear-gradient(120deg, #f8e6d2, #e3efe9) , url(/img/gen/hero.webp) center / cover; background-blend-mode: normal; transition: transform 300ms var(--tg-ease); will-change: transform; }
-.tg-hero__img { background-image: url(/img/gen/hero.webp), linear-gradient(120deg, #f8e6d2, #dcebe4); background-size: cover; background-position: center 40%; }
-.tg-hero__veil { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(250, 247, 242, 0.92) 0%, rgba(250, 247, 242, 0.62) 38%, rgba(250, 247, 242, 0) 68%), linear-gradient(180deg, transparent 70%, var(--tg-bg) 100%); }
+.tg-hero__img { position: absolute; inset: -20px; z-index: -2; background: linear-gradient(120deg, #ececec, #f5f5f5) , url(/img/gen/hero.webp) center / cover; background-blend-mode: normal; transition: transform 300ms var(--tg-ease); will-change: transform; }
+.tg-hero__img { background-image: url(/img/gen/hero.webp), linear-gradient(120deg, #ececec, #f5f5f5); background-size: cover; background-position: center 40%; }
+.tg-hero__veil { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(246, 246, 246, 0.92) 0%, rgba(246, 246, 246, 0.62) 38%, rgba(246, 246, 246, 0) 68%), linear-gradient(180deg, transparent 70%, var(--tg-bg) 100%); }
 .tg-hero__in { width: 100%; max-width: calc(var(--tg-max) + var(--tg-gutter) * 2); margin: 0 auto; padding: 56px var(--tg-gutter) 72px; display: grid; gap: 22px; }
 .tg-hero h1 { font-size: clamp(2.8rem, 5.2vw, 4.8rem); max-width: 14ch; line-height: 1.04; }
 .tg-hero h1 em { font-style: italic; color: var(--tg-pine); font-weight: 500; }
@@ -55,7 +55,7 @@
 .tg-theme__ph { position: absolute; inset: 0; z-index: -2; transition: transform 800ms var(--tg-ease); }
 .tg-theme__ph img { height: 100%; }
 .tg-theme:hover .tg-theme__ph { transform: scale(1.06); }
-.tg-theme__shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8, 20, 22, 0.08) 30%, rgba(8, 20, 22, 0.82)); }
+.tg-theme__shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 30%, rgba(0, 0, 0, 0.82)); }
 .tg-theme__txt { display: grid; gap: 4px; padding: 24px; }
 .tg-theme__txt em { font: 600 0.72rem var(--tg-sans); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; font-style: normal; }
 .tg-theme__txt b { font: 600 1.55rem/1.15 var(--tg-display); }
@@ -107,7 +107,7 @@
 .tg-clips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .tg-clip { display: grid; gap: 6px; align-content: start; padding: 10px; border-radius: 14px; border: 1px solid var(--tg-line); transition: border-color 150ms; }
 .tg-clip:hover { border-color: var(--tg-pine); }
-.tg-clip__ph { display: grid; place-items: center; aspect-ratio: 9 / 12; border-radius: 10px; background: linear-gradient(160deg, #1d3a3f, #0f5f5a); color: #fff; }
+.tg-clip__ph { display: grid; place-items: center; aspect-ratio: 9 / 12; border-radius: 10px; background: linear-gradient(160deg, #3a3a3a, #111111); color: #fff; }
 .tg-clip small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tg-why-here { padding: 18px 20px; border-radius: 16px; background: var(--tg-surface); display: grid; gap: 10px; }
 .tg-why-here h3 { font: 700 0.95rem var(--tg-sans); letter-spacing: 0; }
@@ -118,7 +118,7 @@
 /* ---- compare ---- */
 .tg-cmp { display: grid; gap: 0; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 22px; overflow: hidden; box-shadow: var(--tg-sh-1); }
 .tg-cmp__col { display: grid; gap: 6px; align-content: start; padding: 18px; border-left: 1px solid var(--tg-line); }
-.tg-cmp__ph { aspect-ratio: 16 / 10; border-radius: 12px; }
+.tg-cmp__ph { aspect-ratio: 16 / 10; max-height: 32vh; border-radius: 12px; }
 .tg-cmp__name { display: inline-flex; align-items: center; gap: 4px; text-align: left; font: 600 1.25rem/1.2 var(--tg-display); }
 .tg-cmp__name:hover { color: var(--tg-pine); }
 .tg-cmp__label { padding: 16px 18px; font-weight: 600; font-size: 0.88rem; color: var(--tg-ink-2); border-top: 1px solid var(--tg-line); background: var(--tg-bg); position: sticky; left: 0; }
@@ -146,10 +146,11 @@
 .tg-done__form .tg-done__act { justify-content: flex-start; }
 
 /* ---- account ---- */
-.tg-trips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.tg-trips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
 .tg-trip { display: flex; flex-direction: column; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 22px; overflow: hidden; box-shadow: var(--tg-sh-1); transition: transform 260ms var(--tg-ease), box-shadow 260ms; }
 .tg-trip:hover { transform: translateY(-4px); box-shadow: var(--tg-sh-2); }
 .tg-trip__ph { aspect-ratio: 16 / 9; }
+.tg-trip__ph.tg-hero__img { position: relative; inset: auto; z-index: auto; } /* placeholder: the hero art as a normal 16:9 block */
 .tg-trip__body { display: grid; gap: 8px; padding: 20px 22px 22px; justify-items: start; }
 .tg-trip__body h2 { font-size: 1.5rem; }
 .tg-trip__body .tg-prog { width: 100%; }
@@ -165,7 +166,7 @@
 .tg-saved__n { margin-top: 24px; font-size: 0.82rem; }
 .tg-who { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-bottom: 20px; border-radius: 18px; background: var(--tg-surface); border: 1px solid var(--tg-line); }
 .tg-who > div { flex: 1; display: grid; }
-.tg-who__av { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--tg-sun-soft); color: var(--tg-sun-ink); font: 700 1.2rem var(--tg-display); border: 1.5px solid #f4c9a8; }
+.tg-who__av { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--tg-sun-soft); color: var(--tg-sun-ink); font: 700 1.2rem var(--tg-display); border: 1.5px solid #d4d4d4; }
 .tg-avpick { display: grid; gap: 4px; }
 .tg-avpick__btn { position: relative; cursor: pointer; overflow: visible; }
 .tg-avpick__btn img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
@@ -190,35 +191,83 @@
 .tg-prof__trip > div { display: grid; }
 .tg-prof__fine { display: flex; gap: 8px; align-items: center; margin-top: 22px; font-size: 0.82rem; }
 
-/* ---- auth ---- */
-.tg-auth { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; }
-.tg-auth__art { position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 48px; color: #fff; isolation: isolate; overflow: hidden; }
-.tg-auth__img { position: absolute; inset: 0; z-index: -2; background: linear-gradient(180deg, rgba(14, 40, 42, 0.1), rgba(14, 40, 42, 0.7)), url(/img/gen/hero.webp) 60% 50% / cover, #2b5a56; }
-.tg-auth__logo { display: flex; align-items: center; gap: 12px; font: 600 1.3rem var(--tg-display); }
-.tg-auth__art p { font: 500 clamp(1.8rem, 3vw, 2.6rem)/1.2 var(--tg-display); max-width: 18ch; }
-.tg-auth__art em { opacity: 0.9; }
-.tg-auth__main { display: grid; place-items: center; padding: 40px 24px; }
-.tg-auth__card { width: min(420px, 100%); display: grid; gap: 16px; }
-.tg-auth__card h1 { font-size: 2.2rem; }
-.tg-auth__try { min-height: 56px; margin-top: 10px; }
+/* ---- auth: split card, mascot scene left, form right (look of web/public/prototype) ---- */
+.tg-auth { --sky-top: #bfe3f7; --sky-mid: #d5ecf9; --sky-low: #edf6fc; --scene-top: #8ed1fc; --scene-low: #d8f0ff; --meadow-d: #3e6b47; --meadow-l: #71a97e;
+  position: relative; min-height: 100vh; display: grid; place-items: center; padding: 32px 24px; background: linear-gradient(180deg, var(--sky-top), var(--sky-mid) 55%, var(--sky-low)); overflow: hidden; }
+.tg-auth__back { position: absolute; top: 24px; left: 24px; z-index: 2; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: var(--tg-ink); box-shadow: var(--tg-sh-1); transition: transform 0.2s var(--tg-ease); }
+.tg-auth__back:hover { transform: translateX(-3px); }
+.tg-auth__card { position: relative; z-index: 1; width: min(940px, 100%); display: grid; grid-template-columns: 1fr 1fr; background: var(--tg-surface); border-radius: 32px; box-shadow: 0 25px 70px rgba(20, 50, 75, 0.18); overflow: hidden; }
+.tg-auth__art { padding: 14px; display: flex; }
+.tg-auth__scene { --lx: 0px; --ly: 0px; position: relative; flex: 1; min-height: 520px; border-radius: 24px; overflow: hidden; isolation: isolate; background: linear-gradient(180deg, var(--scene-top), var(--scene-low)); }
+.tg-auth__hill { position: absolute; z-index: -3; left: -24px; right: -24px; bottom: -48px; height: 150px; border-radius: 50%; background: linear-gradient(0deg, var(--meadow-d), var(--meadow-l)); }
+/* the mascot (animated webp) also breathes and sways, leans to the pointer; the ground shadow pulses with it */
+.tg-auth__mascot { position: absolute; left: 50%; bottom: 62px; width: 84%; max-height: 82%; object-fit: contain; transform: translate(calc(-50% + var(--lx)), var(--ly)); transform-origin: 50% 100%; transition: transform 0.35s var(--tg-ease); filter: drop-shadow(0 24px 36px rgba(15, 40, 30, 0.35)); animation: tg-auth-bob 3.6s ease-in-out infinite; }
+.tg-auth__shadow { position: absolute; left: 50%; bottom: 52px; width: 58%; height: 30px; margin-left: -29%; border-radius: 50%; background: rgba(6, 40, 24, 0.35); filter: blur(9px); animation: tg-auth-shadow 3.6s ease-in-out infinite; }
+.tg-auth__cloud { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.7); filter: blur(14px); animation: tg-auth-cloud 18s ease-in-out infinite; }
+.tg-auth__cloud--a { top: 36px; left: -40px; width: 190px; height: 80px; }
+.tg-auth__cloud--b { top: 110px; right: -50px; width: 220px; height: 90px; background: rgba(255, 255, 255, 0.6); animation-delay: -8s; }
+@keyframes tg-auth-bob { 0%, 100% { margin-bottom: 0; rotate: -1deg; scale: 1 1; } 50% { margin-bottom: 10px; rotate: 1.2deg; scale: 1.015 0.99; } }
+@keyframes tg-auth-shadow { 0%, 100% { opacity: 0.9; scale: 1 1; } 50% { opacity: 0.55; scale: 0.88 1; } }
+@keyframes tg-auth-cloud { 0%, 100% { translate: 0 0; } 50% { translate: 28px -10px; } }
+@media (prefers-reduced-motion: reduce) { .tg-auth__mascot, .tg-auth__shadow, .tg-auth__cloud { animation: none; transition: none; } }
+.tg-auth__main { padding: 40px 44px; display: grid; align-content: center; gap: 12px; }
+.tg-auth__mark { justify-self: center; width: 48px; height: 48px; object-fit: contain; }
+.tg-auth__main h1 { font-size: 1.8rem; text-align: center; }
+.tg-auth__main > .tg-muted { text-align: center; font-size: 0.9rem; margin-bottom: 4px; }
+.tg-auth__switch { text-align: center; font-size: 0.9rem; color: var(--tg-ink-3); }
+.tg-auth__switch .tg-link { font-weight: 700; color: var(--tg-ink); }
+.tg-auth__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tg-auth__pw { position: relative; display: block; }
+.tg-auth__pw .tg-input { width: 100%; padding-right: 44px; }
+.tg-auth__eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; display: grid; place-items: center; color: var(--tg-ink-3); }
+.tg-auth__eye[aria-pressed='true'] { color: var(--tg-ink); }
+.tg-auth__main > .tg-link--quiet { justify-self: center; }
+.tg-auth__main > .tg-btn { width: 100%; }
 .tg-auth__terms { list-style: disc; margin: 4px 0 16px; padding-left: 20px; display: grid; gap: 8px; color: var(--tg-ink-2); font-size: 0.92rem; line-height: 1.5; }
 .tg-auth__check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; font-size: 0.92rem; cursor: pointer; }
 .tg-auth__check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--tg-pine); }
 .tg-auth__or { display: flex; align-items: center; gap: 14px; color: var(--tg-ink-3); font-size: 0.85rem; }
 .tg-auth__or::before, .tg-auth__or::after { content: ''; flex: 1; height: 1px; background: var(--tg-line-2); }
-.tg-auth__google { min-height: 52px; }
-.tg-auth__alt { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tg-auth__google { min-height: 52px; gap: 10px; }
 .tg-auth__foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.9rem; }
 .tg-auth__f { display: grid; gap: 6px; font-weight: 600; font-size: 0.88rem; margin-bottom: 12px; }
 .tg-auth form { display: grid; }
 
+/* wide screens: one more column instead of larger cards */
+@media (min-width: 1600px) {
+  .tg-trips { grid-template-columns: repeat(4, minmax(0, 1fr)); } .tg-saved { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 @media (max-width: 1180px) {
   .tg-active__card { grid-template-columns: 220px 1fr; } .tg-active__side { display: none; }
   .tg-starts { grid-template-columns: repeat(2, 1fr); } .tg-themes, .tg-trips { grid-template-columns: repeat(2, 1fr); } .tg-saved { grid-template-columns: repeat(3, 1fr); }
   .tg-detail__cols { grid-template-columns: 1fr; }
 }
 @media (max-width: 860px) {
-  .tg-auth { grid-template-columns: 1fr; } .tg-auth__art { display: none; }
+  .tg-auth__card { grid-template-columns: 1fr; } .tg-auth__art { display: none; } .tg-auth__main { padding: 32px 24px; }
   .tg-prof, .tg-themes, .tg-trips { grid-template-columns: 1fr; } .tg-saved { grid-template-columns: repeat(2, 1fr); }
-  .tg-hero__veil { background: linear-gradient(180deg, rgba(250, 247, 242, 0.85), rgba(250, 247, 242, 0.5) 60%, var(--tg-bg)); }
+  .tg-hero__veil { background: linear-gradient(180deg, rgba(246, 246, 246, 0.85), rgba(246, 246, 246, 0.5) 60%, var(--tg-bg)); }
 }
+
+/* removing a trip: a quiet icon at the end of the row, then one question in place */
+.tg-trip__act { flex-wrap: wrap; }
+.tg-trip__del { margin-left: auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: var(--tg-ink-3); transition: background 150ms, color 150ms; }
+.tg-trip__del:hover, .tg-trip__del:focus-visible { background: var(--tg-pine-soft); color: var(--tg-pine); }
+.tg-trip__ask { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--tg-ink-2); }
+
+/* profile: who you are with a few numbers, what friends see, your usual way of travelling */
+.tg-me { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px 24px; padding: 20px 24px; margin-bottom: 20px; }
+.tg-me .tg-who__av { width: 76px; height: 76px; font-size: 1.8rem; }
+.tg-me__id { display: grid; gap: 2px; min-width: 0; }
+.tg-me__id b { font: 700 1.25rem var(--tg-display); color: var(--tg-pine-d); overflow-wrap: anywhere; }
+.tg-me__stats { display: flex; gap: 6px; margin: 0; }
+.tg-me__stats > div { display: grid; gap: 2px; min-width: 76px; padding: 8px 14px; border-radius: 14px; background: var(--tg-pine-soft); text-align: center; }
+.tg-me__stats dt { font-size: 0.72rem; color: var(--tg-ink-3); }
+.tg-me__stats dd { margin: 0; font: 700 1.2rem var(--tg-mono); color: var(--tg-pine-d); }
+.tg-me__stats dd a { color: inherit; }
+.tg-prof.is-one { grid-template-columns: 1fr; }
+.tg-taste { display: grid; gap: 18px; }
+.tg-taste__row { display: grid; gap: 8px; }
+.tg-taste__row > label, .tg-taste__row > span { font-weight: 600; font-size: 0.92rem; }
+.tg-taste__line { display: flex; gap: 8px; }
+.tg-taste__line .tg-input { flex: 1; min-width: 0; }
+@media (max-width: 1000px) { .tg-me { grid-template-columns: auto minmax(0, 1fr); } .tg-me__stats { grid-column: 1 / -1; } }

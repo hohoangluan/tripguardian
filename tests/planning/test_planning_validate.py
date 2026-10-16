@@ -125,3 +125,40 @@ def test_unknown_ne_is_fail_closed_unless_user_chose_flag():
     assert kinds(run(cx, result(visit("unknown", 600, 660)), hard=hard)) == ["hard"]
     hard[0]["unknown_policy"] = "flag"
     assert run(cx, result(visit("unknown", 600, 660)), hard=hard) == []
+
+
+def test_required_meals_are_checked_from_visits_even_when_order_metadata_is_empty():
+    cx = replace(day_ctx([rec("a", 1, 1)]), require_meals=True)
+    violations = run(cx, result(visit("a", 600, 660)))
+    assert {v.detail for v in violations if v.kind == "meal_missing"} == {
+        "missing breakfast", "missing lunch", "missing dinner"}
+
+
+def test_full_itinerary_rejects_a_visit_shorter_than_its_estimate_minimum():
+    cx = replace(day_ctx([rec("a", 1, 1)]), require_meals=True)
+    violations = run(cx, result(visit("a", 600, 610)))
+    assert [(v.place_id, v.minutes) for v in violations if v.kind == "visit_duration"] == [("a", 20)]
+
+
+def test_cached_validation_tracks_visit_estimates_without_order_metadata():
+    cx = replace(day_ctx([rec("a", 1, 1)]), require_meals=True)
+    res = result(visit("a", 600, 640))
+    cache = {}
+    before = validate([cx], [res], [], set(), None, None, day_cache=cache)
+    assert not any(v.kind == "visit_duration" for v in before)
+    changed = replace(cx, places={"a": replace(cx.places["a"], visit={"short": 60, "typical": 60, "long": 90})})
+    actual = validate([changed], [res], [], set(), None, None, day_cache=cache)
+    assert actual == run(changed, res)
+    assert any(v.kind == "visit_duration" and v.minutes == 20 for v in actual)
+
+
+def test_cached_validation_tracks_travel_endpoints_without_order_metadata():
+    from plan_fixtures import flat_travel
+    cx = day_ctx([rec("a", 1, 1), rec("b", 1, 1)], minutes=10)
+    res = result(Item("travel", 600, 620, from_id="a", to_id="b", mode="motorbike"))
+    cache = {}
+    assert not validate([cx], [res], [], set(), None, None, day_cache=cache)
+    changed = replace(cx, travel=flat_travel(["a", "b"], 30))
+    actual = validate([changed], [res], [], set(), None, None, day_cache=cache)
+    assert actual == run(changed, res)
+    assert [(v.kind, v.minutes) for v in actual] == [("travel", 10)]

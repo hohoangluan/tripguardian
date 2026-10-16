@@ -46,11 +46,11 @@ def test_route_of_day_needs_at_least_two_points():
 def test_cost_adds_a_known_lodging_price_and_counts_an_unknown_one_separately():
     m = {"cost_vnd": 300000, "cost_unknown": 1}
     known = cost(m, 500000, 2)
-    assert known == {"known_vnd": 300000 + 500000 * 2, "unknown_items": 1, "lodging_known": True}
+    assert known == {"known_vnd": 300000 + 500000 * 2, "unknown_items": 1, "lodging_known": True, "unknown_meals": 0}
     unknown = cost(m, None, 2)
-    assert unknown == {"known_vnd": 300000, "unknown_items": 2, "lodging_known": False}
+    assert unknown == {"known_vnd": 300000, "unknown_items": 2, "lodging_known": False, "unknown_meals": 0}
     no_stay = cost(m, None, 0)
-    assert no_stay == {"known_vnd": 300000, "unknown_items": 1, "lodging_known": True}   # 0 nights: nothing to know
+    assert no_stay == {"known_vnd": 300000, "unknown_items": 1, "lodging_known": True, "unknown_meals": 0}   # 0 nights: nothing to know
 
 
 def test_build_assembles_the_plan_output_shape():

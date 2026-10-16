@@ -104,7 +104,7 @@ export function AssistantFloat() {
       {!a.open && (
         <div className="tg-asst-fab">
           {a.nudge && <div className="tg-nudge" role="status"><span>{a.nudge}</span><button type="button" className="tg-link" onClick={() => openAssistant(true)}>Xem</button><button type="button" className="tg-icon-btn" onClick={dismissNudge} aria-label="Tắt gợi ý"><Icon name="x" size={16} /></button></div>}
-          <button type="button" className="tg-fab" onClick={() => openAssistant(true)} aria-keyshortcuts="/" aria-label="Hỏi TripGuardian" title="Hỏi TripGuardian  ( / )"><Icon name="sparkle" size={22} />{a.nudge && <i className="tg-fab__dot" aria-hidden="true" />}</button>
+          <button type="button" className="tg-fab" onClick={() => openAssistant(true)} aria-keyshortcuts="/" aria-label="Hỏi TripGuardian: lọc địa điểm theo ý bạn" title="Hỏi TripGuardian: lọc địa điểm theo ý bạn  ( / )"><Icon name="sparkle" size={22} /><span className="tg-fab__label">Hỏi TripGuardian · lọc nơi theo ý bạn</span>{a.nudge && <i className="tg-fab__dot" aria-hidden="true" />}</button>
         </div>
       )}
       {a.open && !a.pinned && (

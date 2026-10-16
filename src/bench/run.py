@@ -52,7 +52,7 @@ class Sim:
         self.trip = TripTools(trip_engine(data))
         self.decision = DecisionTools(decision_engine(data))
         self.planning = PlanningTools(PlanningEngine(self.records, geocode_fn=lambda t: None, matrix_fn=offline,
-                                                     lodging_fn=lambda *a: [], background=False, conditions_fn=calendar))
+                                                     background=False, conditions_fn=calendar))
         self.harness = Harness(self.trip, self.decision, self.planning, Store(out / "sessions"))
 
 

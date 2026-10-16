@@ -28,10 +28,11 @@ def test_intent_cannot_put_diet_on_sightseeing_or_hide_an_access_constraint():
     t = TurnTools(TripState(), "ăn chay, không leo dốc", 1, Catalog(()), date(2026, 10, 10))
     for value, quote, scope in [("vegetarian_options=yes", "ăn chay", "sightseeing"),
                                 ("steep_or_stairs!=present", "không leo dốc", "eating")]:
-        assert "error" in t.run("record_fact", {"field": "hard", "op": "add", "value": value, "quote": quote,
-                                               "how": "said", "requirement": {"meaning": quote, "scope": scope,
-                                                                               "subject": "traveler"}})
-    assert not t.state.hard
+        result = t.run("record_fact", {"field": "hard", "op": "add", "value": value, "quote": quote,
+                                        "how": "said", "requirement": {"meaning": quote, "scope": scope,
+                                                                        "subject": "traveler"}})
+        assert result["ok"] is True and result["note"].startswith("warning:")
+    assert [(h.feature, h.scope) for h in t.state.hard] == [("vegetarian_options", None), ("steep_or_stairs", None)]
 
 
 def test_soft_intent_and_evidence_survive_compile():

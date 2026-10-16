@@ -4,12 +4,14 @@ the one question the rules may open (pattern, gap, rethink). Pure: apply() retur
 from collections import Counter
 from functools import cache
 
+from pydantic import ValidationError
+
 from corpus.ontology import load
 from corpus.serving import feature
 
 from .cards import phrase
 from .model import FIRM
-from .session import Chip, Drop, Pending, SoftAdd, State
+from .session import Chip, Drop, Lodging, Pending, SoftAdd, State
 
 REASONS = ("far", "crowded", "pricey", "dislike", "visited")
 PLACE_ACTIONS = {"select", "drop", "lock", "unlock", "swap", "relax", "wishlist", "move_chunk"}
@@ -64,6 +66,13 @@ def apply(state: State, act: dict, known, alternatives: dict[str, list[str]], pe
         s.chunk_assignments[pid] = act["chunk"]
     elif t == "keep_free_time":
         s.free_time = True
+    elif t == "set_lodging":
+        try:
+            s.lodging = Lodging.model_validate(act.get("lodging"))
+        except ValidationError as e:
+            raise ActionError(f"bad lodging: {e.errors()[0]['msg']}") from None
+    elif t == "clear_lodging":
+        s.lodging = None
     elif t == "lock":
         _select(s, pid)
         if pid not in s.locked:
@@ -113,7 +122,9 @@ def apply(state: State, act: dict, known, alternatives: dict[str, list[str]], pe
         if not pending or qid != pending.qid or chip not in [c.id for c in pending.chips]:
             raise ActionError(f"no open question {qid!r} with chip {chip!r}")
         s.answered.append(qid)
-        if qid.startswith("pattern:") and chip == "yes":
+        if qid.startswith("meal:"):
+            s.activities[pending.data['place_id']] = 'eating' if chip == 'yes' else 'sightseeing'
+        elif qid.startswith("pattern:") and chip == "yes":
             f, v = qid[len("pattern:"):].split("=", 1)
             s.profile.soft.append(SoftAdd(feature=f, value=v, weight=-1))
         elif qid.startswith("gap:") and chip == "similar":

@@ -1,0 +1,14 @@
+# Online request protection; process-local quotas, edge DDoS rules are configured separately.
+chat:
+  max_chars: 4000
+photo:
+  max_bytes: 2000000
+  max_pixels: 16000000
+  max_side: 2048
+http:
+  per_ip_minute: 120
+  per_user_minute: 60
+  max_active: 32
+  max_connections: 128
+  read_timeout_s: 15
+  max_keys: 10000

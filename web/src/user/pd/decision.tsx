@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { mutateJourney, requestStageEntry } from '../journey'
-import { runRecommend } from '../planning/api'
-import type { View as PlanView } from '../planning/types'
 import { useTrip } from '../trip'
 import { go } from '../ui/common'
 import * as api from './api'
 import type { Action, DecisionOutput, Diff, PlanPreview, View } from './types'
+import type { Readback } from '../tu/types'
+import { ReadbackSheet } from '../ui/ReadbackSheet'
 
 // "building" while the background schedule for the current selection is being made (Planning, not confirmed).
 export type PreviewState = { status: 'idle' | 'building' } | PlanPreview
@@ -20,7 +20,7 @@ interface DecisionCtx {
   say: (text: string, onSay: (soFar: string) => void) => Promise<Diff | null>
   toPlan: () => Promise<boolean>
   reload: () => void
-  more: (group: string) => Promise<void>
+  more: (group: string, n?: number) => Promise<void> // page n (1 = first) of a tab, or its next page
   loadingMore: string | null
 }
 
@@ -36,6 +36,7 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
   const [diff, setDiff] = useState<Diff | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [gate, setGate] = useState<{ readback: Readback; missing: string[]; key: number } | null>(null)
   const [tick, setTick] = useState(0)
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
   const seq = useRef(0)
@@ -57,6 +58,7 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
   }, [id])
 
   useEffect(() => {
+    setGate(null)
     setView(null)
     setPreview({ status: 'idle' })
     if (!id) return
@@ -144,7 +146,7 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
     [id, dispatch, refreshPreview],
   )
 
-  // Confirm the selection and hand it to Planning (journey decision -> planning), then ask for one proposal.
+  // Planning owns the gate; choosing places stays available until the user asks to schedule.
   const toPlan = useCallback(async () => {
     if (!id) return false
     setBusy(true)
@@ -152,9 +154,9 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
     try {
       const created = await mutateJourney(id, 'decision', 'advance')
       const out = created.outputs.decision as DecisionOutput
-      const planView = (created.result as { view: PlanView }).view
-      if (!planView.overload) await runRecommend(created.id, planView)
       if (origin !== location.pathname + location.search) return false
+      setGate(null)
+      setError(null)
       dispatch({
         type: 'set',
         patch: { selected: out.confirmed.map((c) => c.id), locked: out.confirmed.filter((c) => c.role !== 'selected').map((c) => c.id), planningId: created.id },
@@ -162,20 +164,24 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
       go('/plan')
       return true
     } catch (e) {
-      setError(e instanceof api.DecisionError ? `Chưa xếp lịch được: ${e.detail || e.status}` : OFFLINE)
+      if (origin !== location.pathname + location.search) return false
+      if (e instanceof api.DecisionError && e.status === 409 && e.readback && (e.detail === 'trip_incomplete' || e.missing !== undefined)) {
+        setGate({ readback: e.readback, missing: e.missing ?? e.readback.missing ?? [], key: Date.now() })
+        setError(null)
+      } else setError(e instanceof api.DecisionError ? `Chưa xếp lịch được: ${e.detail || e.status}` : OFFLINE)
       return false
     } finally {
       setBusy(false)
     }
   }, [id, dispatch])
 
-  // The next page of one display group; one request per group at a time however fast the user scrolls.
-  const more = useCallback(async (group: string) => {
+  // One page of a tab; one request per tab at a time however fast the user clicks.
+  const more = useCallback(async (group: string, n?: number) => {
     if (!id || loading.current === group) return
     loading.current = group
     setLoadingMore(group)
     try {
-      const r = await api.morePlaces(id, group)
+      const r = await api.gotoPage(id, group, n)
       setView(r.view)
     } catch {
       setError(OFFLINE)
@@ -186,7 +192,9 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
   }, [id])
 
   return (
-    <Ctx.Provider value={{ view, diff, error, busy, preview, act, say, toPlan, reload: () => setTick((t) => t + 1), more, loadingMore }}>{children}</Ctx.Provider>
+    <Ctx.Provider value={{ view, diff, error, busy, preview, act, say, toPlan, reload: () => setTick((t) => t + 1), more, loadingMore }}>{children}
+      {id && gate && <ReadbackSheet key={gate.key} id={id} initial={gate.readback} missing={gate.missing} onClose={() => setGate(null)} onAdvance={toPlan} onView={next => { setView(next); dispatch({ type: 'set', patch: { planningId: null } }); refreshPreview() }} />}
+    </Ctx.Provider>
   )
 }
 

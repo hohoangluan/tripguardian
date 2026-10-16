@@ -119,7 +119,7 @@ def test_day_load_counts_buffers_and_meals_so_six_places_do_not_fit_one_day():
     cx = day_ctx([rec(f"p{i}", 1, 1) for i in range(6)])
     six = day_load([f"p{i}" for i in range(6)], cx.places, CFG, "normal")
     assert six == load_of([f"p{i}" for i in range(6)], cx.places, CFG, "normal") + 6 * CFG.buffer_min["normal"] \
-        + CFG.meals_per_day * CFG.meal_min
+        + sum(CFG.meal_durations[n] for n in CFG.meal_windows)
     assert six > int(CFG.fill_ratio * (1260 - 480))
 
 

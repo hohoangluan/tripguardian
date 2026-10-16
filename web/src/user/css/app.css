@@ -33,11 +33,11 @@
 /* explore, bar */
 .tg-narrow__why { flex-basis: 100%; font-size: 0.8rem; }
 .tg-xnote { display: flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 0.86rem; }
-.tg-diff__undo { margin-left: 6px; color: #9fd8d0; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.tg-diff__undo { margin-left: 6px; color: #d4d4d4; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .tg-diff.is-bad { background: var(--tg-danger); }
 .tg-diff.is-bad svg { color: #fff; }
-.tg-listpanel__name { font-weight: 600; text-align: left; }
-.tg-listpanel__warn { display: grid; gap: 6px; padding: 4px 24px 12px; font-size: 0.84rem; color: var(--tg-warn); }
+.tg-listpanel__name { font-weight: 600; font-size: 1.15rem; text-align: left; }
+.tg-listpanel__warn { display: grid; gap: 6px; padding: 4px 32px 12px; font-size: 0.9rem; color: var(--tg-warn); }
 .tg-listpanel__warn li { display: flex; gap: 8px; align-items: flex-start; }
 
 /* detail, compare */

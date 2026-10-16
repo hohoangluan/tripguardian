@@ -1,7 +1,7 @@
 """End to end: create -> background lodging -> pick a variant -> edit -> undo -> confirm. If this breaks, something
 in the P6 chain broke even though every task's own tests still pass in isolation."""
 
-from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, sample_trip
+from plan_fixtures import CFG, FakeLive, LODGING, fake_matrix, no_geocode, sample_trip
 
 from planning.engine import Engine
 from planning.session import Store
@@ -13,8 +13,8 @@ def fake_route(points, mode, live_cfg):
 
 def test_a_full_session_from_create_to_confirm():
     d, recs = sample_trip(days=2)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
 
     created = e.create(d, None)
     sid = created["id"]

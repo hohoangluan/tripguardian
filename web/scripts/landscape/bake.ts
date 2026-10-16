@@ -4,20 +4,21 @@ import { coverAt, fbm, groundAt, heightAt, HOUSES, inBounds, lakeAt, LAKES, LAND
 
 // Bakes the Đà Lạt landscape into web/public/world/dalat.bin (see src/user/landing/terrain.ts for the layout).
 // Run with `npm run bake:landscape`; the output is deterministic (seeded), so it only changes when the data or the
-// palette below changes. The palette is the landing's soft rose system (css/landing.css).
+// palette below changes. The palette is warm and natural: cream sand to earth brown to grey rock, dark pine forest;
+// the scene's light (hour of the day) does the rest.
 
-const HORIZON = '#fbd9d6' // the colour the map edge melts into; matches the scene's fog
+const HORIZON = '#f3e6d3' // the colour the map edge melts into; between the scene's dawn, noon and sunset fog
 const BANDS: [number, string][] = [
-  [0.5, '#f1d9d2'],
-  [TOWN_Y - 0.4, '#f4d6d2'],
-  [TOWN_Y + 1.2, '#ecc0c3'],
-  [6.5, '#dba3b0'],
-  [10, '#c487a0'],
-  [15, '#a96d8c'],
-  [26, '#e9cdd8'],
+  [0.5, '#efe4d2'],
+  [TOWN_Y - 0.4, '#f1e7d6'],
+  [TOWN_Y + 1.2, '#e4d4ba'],
+  [6.5, '#d2bc9b'],
+  [10, '#c3a885'],
+  [15, '#b59a7a'],
+  [26, '#d9d2c6'],
 ]
 // land cover over the relief: forest, farmland and greenhouses, town, park
-const COVER_TINT: Record<number, [string, number]> = { 1: ['#8a4f6c', 0.7], 2: ['#f7dde6', 0.65], 3: ['#f8e4dc', 0.7], 4: ['#f0bfc6', 0.55] }
+const COVER_TINT: Record<number, [string, number]> = { 1: ['#5f7a64', 0.7], 2: ['#f2efe7', 0.65], 3: ['#f3ebe0', 0.7], 4: ['#c5cfae', 0.55] }
 const TREES = 15000
 const ROAD_Q = 20 // road points in 5 cm steps
 const HSCALE = 50 // heights in 0.02 steps

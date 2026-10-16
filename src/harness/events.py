@@ -16,6 +16,7 @@ CLIENT = {
     "landing_cta": {"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"},
     "card_impression": {"place_id", "group", "rank"},
     "detail_open": {"place_id", "from"},
+    "theme_open": {"theme"},
     "evidence_play": {"place_id", "video_id"},
     "compare_open": {"a", "b"},
     "outbound_click": {"kind", "place_id"},

@@ -5,10 +5,10 @@ import type { HardRow, SoftRow } from './types'
 
 export const FIELD_LABEL: Record<string, string> = {
   dates: 'Ngày đi', start_date: 'Ngày đi', month: 'Tháng', days: 'Số ngày', nights: 'Số đêm', companions: 'Đi với ai', people: 'Số người',
-  base: 'Chỗ ở', mobility: 'Đi lại', arrive_at: 'Ngày đầu tới', leave_at: 'Ngày cuối rời', day_end: 'Mỗi ngày xong trước',
+  base: 'Nơi lưu trú', mobility: 'Đi lại', arrive: 'Lúc tới', leave: 'Lúc rời', checkin_at: 'Ngày đầu từ', checkout_at: 'Ngày cuối xong', day_end: 'Mỗi ngày xong trước',
   purpose: 'Mục đích', pace: 'Nhịp độ', max_leg_min: 'Mỗi chặng tối đa', crowd_tolerance: 'Chỗ đông', novelty: 'Mới hay quen',
   budget_vnd: 'Ngân sách', origin: 'Xuất phát', arrival_mode: 'Tới Đà Lạt bằng', inbound: 'Chuyến đi', outbound: 'Chuyến về',
-  lodging_booked: 'Chỗ ở', lodging: 'Chỗ ở',
+  lodging_booked: 'Nơi lưu trú', lodging: 'Nơi lưu trú', trip: 'Chuyến đi', care: 'Cần lưu ý', budget: 'Ngân sách', driver: 'Người lái', budget_unlimited: 'Không giới hạn',
 }
 export const ARRIVAL_LABEL: Record<string, string> = { self: 'Tự đi (xe máy, ô tô)', bus: 'Xe khách', plane: 'Máy bay' }
 const LODGING_BOOKED_LABEL: Record<string, string> = { yes: 'Đã đặt', no: 'Chưa có, nhờ gợi ý' }
@@ -17,6 +17,7 @@ export const PURPOSE_LABEL: Record<string, string> = {
   relax: 'Nghỉ ngơi', bond: 'Gắn kết', photo: 'Chụp ảnh', food_culture: 'Ẩm thực, văn hóa', nature: 'Thiên nhiên',
   explore: 'Khám phá', adventure: 'Mạo hiểm',
 }
+export const BUDGET_SCOPE_LABEL: Record<string, string> = { trip_total: 'cả nhóm, cả chuyến', per_day: 'cả nhóm mỗi ngày', per_person: 'mỗi người cả chuyến', per_person_day: 'mỗi người mỗi ngày' }
 export const PACE_LABEL: Record<string, string> = { slow: 'Thong thả', normal: 'Vừa phải', packed: 'Đi nhiều' }
 export const CROWD_LABEL: Record<string, string> = { avoid: 'Tránh', ok_if_worth: 'Nếu đáng', fine: 'Không ngại' }
 export const NOVELTY_LABEL: Record<string, string> = { familiar: 'Quen', new: 'Mới', mix: 'Trộn' }
@@ -36,8 +37,16 @@ export function valueText(target: string, v: any): string {
   if (target === 'lodging_booked') return LODGING_BOOKED_LABEL[v] ?? v
   // a chosen coach / flight: "Vietjet Air 06:10 → 07:05"
   if (target === 'inbound' || target === 'outbound') return `${v.carrier} ${hhmm(v.depart_at)} → ${hhmm(v.arrive_at)}`
+  if (target === 'arrive' || target === 'leave') return `${v.at.slice(11, 16)} (${({ plane: 'máy bay', bus: 'xe khách', self: 'tự đi' } as Record<string, string>)[v.how] ?? v.how})`
+  if (target === 'care') return v === 'none' ? 'Không có lưu ý' : 'Có điều cần lưu ý'
+  if (target === 'driver') return v === 'hired' ? 'có tài xế' : 'tự lái'
+  if (target === 'budget_unlimited') return v ? 'Không giới hạn' : ''
   if (target === 'max_leg_min') return `${v} phút`
-  if (target === 'budget_vnd') return `${Math.round(v / 1000)} nghìn / người / ngày`
+  if (target === 'budget_vnd') {
+    const amount = typeof v === 'number' ? v : v.amount
+    const money = amount >= 1_000_000 ? `${(amount / 1_000_000).toLocaleString('vi-VN')} triệu` : `${amount.toLocaleString('vi-VN')} đồng`
+    return `${money} · ${BUDGET_SCOPE_LABEL[typeof v === 'number' ? 'per_person_day' : v.scope] ?? 'chưa rõ phạm vi'}`
+  }
   if (target === 'purpose') return PURPOSE_LABEL[v] ?? v
   if (target === 'pace') return PACE_LABEL[v] ?? v
   if (target === 'crowd_tolerance') return CROWD_LABEL[v] ?? v

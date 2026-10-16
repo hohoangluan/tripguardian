@@ -4,8 +4,9 @@ the same split. Past max_days / max_clusters it falls back to a greedy split and
 
 from .conditions import crowd_sensitive, hazard
 from .places import windows_on
-from .schedule import DayCtx, pin_window
-from .traits import exposure, kind_group
+from .roles import takes_meal_slot
+from .schedule import DayCtx, pin_window, _meal_slots, meal_fit
+from .traits import exposure, kind_group, visit_minutes
 from .timefit import period_load
 
 
@@ -22,14 +23,20 @@ def _tour(ids: list[str], ctx: DayCtx) -> int:
     return total
 
 
-def load_of(ids: list[str], places: dict, cfg, pace: str) -> int:
+def load_of(ids: list[str], places: dict, cfg, pace: str, prefs: dict | None = None) -> int:
     """Minutes a set of places asks of a day before travel between clusters: visits plus moving inside the cluster."""
-    return sum(places[i].visit[cfg.visit_key[pace]] + cfg.intra_leg_min for i in ids)
+    return sum(visit_minutes(places[i], cfg, pace, prefs) + cfg.intra_leg_min for i in ids)
 
 
-def day_load(ids: list[str], places: dict, cfg, pace: str) -> int:
+def day_load(ids: list[str], places: dict, cfg, pace: str, ctx: DayCtx | None = None) -> int:
     """load_of plus what a real day also spends: the buffer after each stop and the meals."""
-    return load_of(ids, places, cfg, pace) + len(ids) * cfg.buffer_min[pace] + cfg.meals_per_day * cfg.meal_min
+    if ctx is None:
+        meals = sum(cfg.meal_durations.get(n, cfg.meal_min) for n in list(cfg.meal_windows)[:cfg.meals_per_day])
+    else:
+        _, free = _meal_slots(sorted(ids), ctx)
+        meals = sum(meal_fit(n, ctx, max(ctx.day.start, cfg.meal_windows[n][0])) for n in free
+                    if cfg.meal_windows[n][1] >= ctx.day.start)
+    return load_of(ids, places, cfg, pace, ctx.prefs if ctx else None) + len(ids) * cfg.buffer_min[pace] + meals
 
 
 def _can_start(p, ctx: DayCtx) -> bool:
@@ -58,7 +65,8 @@ def isolate_constrained(clusters: list[list[str]], ctxs: list[DayCtx]) -> list[l
     day it fits instead of dragging its neighbours there (or giving up on all of them)."""
     out = []
     for c in clusters:
-        loose = [i for i in c if 0 < sum(not _can_start(ctxs[0].places[i], cx) for cx in ctxs) < len(ctxs)]
+        loose = [i for i in c if takes_meal_slot(ctxs[0].places[i])
+                 or 0 < sum(not _can_start(ctxs[0].places[i], cx) for cx in ctxs) < len(ctxs)]
         rest = [i for i in c if i not in loose]
         out += ([rest] if rest else []) + [[i] for i in loose]
     return sorted(out, key=lambda c: c[0])
@@ -70,8 +78,10 @@ def day_cost(ids: list[str], ctx: DayCtx) -> float:
     if not ids:
         return w["count"] * target
     closed = blocked(ids, ctx)
+    claimed, _ = _meal_slots(sorted(ids), ctx)
+    closed += sum(takes_meal_slot(ctx.places[pid]) and pid not in claimed for pid in ids)
     tour = _tour(ids, ctx)
-    over = max(0, day_load(ids, ctx.places, cfg, ctx.pace) + tour - (ctx.day.end - ctx.day.start))
+    over = max(0, day_load(ids, ctx.places, cfg, ctx.pace, ctx) + tour - (ctx.day.end - ctx.day.start))
     shorter = 0.001 * len(ids) * (1440 - (ctx.day.end - ctx.day.start))     # equal costs: the longer day takes more
     return (w["travel"] * tour + w["overflow"] * over + w["count"] * abs(len(ids) - target) + w["closed"] * closed
             + shorter + w.get("exposed", 0) * exposed_risk(ids, ctx) + w.get("repeat", 0) * repeats(ids, ctx)
@@ -161,7 +171,9 @@ def _greedy(clusters: list[list[str]], ctxs: list[DayCtx]) -> list[list[str]]:
     size = lambda c: load_of(c, cx.places, cx.cfg, cx.pace)
     out = [[] for _ in ctxs]
     for c in sorted(clusters, key=lambda c: (-size(c), c[0])):
-        d = min(range(len(ctxs)), key=lambda k: (blocked(c, ctxs[k]),
+        d = min(range(len(ctxs)), key=lambda k: (blocked(c, ctxs[k]) +
+                sum(takes_meal_slot(ctxs[k].places[pid]) and pid not in _meal_slots(sorted(out[k] + c), ctxs[k])[0]
+                    for pid in out[k] + c),
                 load_of(out[k], cx.places, cx.cfg, cx.pace)
                 + cx.cfg.time_suitability.get("overload_weight", 0) * period_load(out[k] + c, ctxs[k]), k))
         out[d] += c

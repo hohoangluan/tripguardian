@@ -16,10 +16,20 @@ class TripDay:
     day_type: str | None  # weekday | weekend
     start: int
     end: int
+    busy: tuple[tuple[int, int], ...] = ()
 
 
 def trip_days(ctx, cfg) -> list[TripDay]:
     """ctx: trip.SearchInput.context. Missing days -> cfg.default_days (the caller flags it)."""
+    if frame := getattr(ctx, "frame", None):
+        out = []
+        for i, day in enumerate(frame.days):
+            wd = DAYS[day.date.weekday()]
+            start = to_min(day.start)
+            out.append(TripDay(i, day.date, wd, "weekend" if wd in ("sat", "sun") else "weekday",
+                               start, start if day.intensity == "free" else to_min(day.end),
+                               tuple((to_min(b.start), to_min(b.end)) for b in day.busy)))
+        return out
     n = ctx.days or cfg.default_days
     start, end = to_min(cfg.day_start), to_min(ctx.day_end or cfg.day_end)
     first = max(start, to_min(ctx.checkin_at)) if ctx.checkin_at else start

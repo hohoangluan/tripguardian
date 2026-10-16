@@ -42,6 +42,8 @@ def feature_status(sig: dict) -> tuple[str, str | None]:
     if sig.get("needs_review"):
         return "NEEDS_REVIEW", "unchecked"  # a value that widens a choice, not yet checked
     if sig.get("status") == "uncertain":
+        if sig.get("normalization_issue"):
+            return "UNCERTAIN", sig["normalization_issue"]
         return "UNCERTAIN", "conflict" if sig.get("authority") is None and len(sig["distribution"]) > 1 else "low_agreement"
     if not sig.get("servable"):
         return "UNCERTAIN", "unmeasured_precision"
@@ -76,6 +78,15 @@ def _hours(op: dict, as_of: date, built: date) -> dict | None:
         if op.get("hours_conflict"):
             fact["status"], fact["conflict"] = "UNCERTAIN", op["hours_conflict"]
     return fact
+
+
+def _night(night: dict | None, built: date) -> dict | None:
+    """A lodging's price a night from Maps' hotel list: a reference for Maps' default dates, never the trip's price."""
+    if not night or not night.get("at"):
+        return None
+    as_of = date.fromisoformat(night["at"][:10])
+    return {"value": night["vnd"], "status": "OUTDATED" if (built - as_of).days > _window("price") else "VERIFIED",
+            "as_of": as_of.isoformat(), "source": "gmaps_list", "kind": "estimate"}
 
 
 def place_status(closure: str | None, judged: str | None) -> tuple[str, str | None]:
@@ -115,6 +126,7 @@ def build(intel: dict, built: date | None = None, judged: str | None = None, qua
             "hours": _hours(op, as_of, built),
             "price_per_person": _fact({k: price.get(k) for k in ("min_vnd", "max_vnd", "level") if k in price}
                                       if price else None, as_of, built, "price"),
+            "price_per_night": _night(op.get("price_night"), built),
             "entry_fee": {**est["entry_fee"], "kind": "fact" if est["entry_fee"]["source"] == "official" else "estimate"}
             if est.get("entry_fee") else None,
             "visit_minutes": {**est["visit_minutes"], "kind": "estimate"} if est.get("visit_minutes") else None,

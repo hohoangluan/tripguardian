@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from trip import contains, squash
 
@@ -21,9 +21,21 @@ class Frozen(BaseModel):
 
 class PlanUpdate(Frozen):
     op: Op
-    place: str
-    value: str
+    place: str = ""
+    value: str = ""
     quote: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _tolerant(cls, data):
+        """The live model (sol via 9router) does not hold to the JSON schema: it writes the op as "type" or "action"
+        and drops empty keys (2026-10-16: every chat turn fell back). The guard still checks every quote and alias."""
+        if isinstance(data, dict):
+            data = dict(data)
+            if "op" not in data:
+                data["op"] = data.get("type") or data.get("action")
+            data = {k: v for k, v in data.items() if k in cls.model_fields}
+        return data
 
 
 class TurnPlan(Frozen):

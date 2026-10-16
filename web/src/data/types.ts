@@ -12,6 +12,7 @@ export interface Quote {
   text: string
   date: string | null
   source: string
+  when?: string // Google's own wording ("2 tuần trước") where no exact date is known
 }
 
 export interface Signal {
@@ -138,6 +139,7 @@ export interface Place {
   priceRange?: PriceRange | null
   crowdByTime?: CrowdTable | null
   ratingTrend?: { recent_mean: number | null; older_mean: number | null; direction: Trend; recent_n: number; older_n: number } | null
+  ck?: number // detail chunk of this place (snapshot-lite.json; data/store.ts)
   features: Signal[]
   details?: PlaceDetails
   proposed?: { label: string; count: number; authors: number }[]

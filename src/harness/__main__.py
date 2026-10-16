@@ -8,13 +8,17 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from accounts import Accounts, GoogleClient
+from accounts import Accounts, GoogleClient, Library
+from agents import ChatSafety
 from companion import Calendar, Companion
 from corpus.serving import load as serving_records
+from corpus.releases import Binding, bind
+from corpus.retrieval import RetrievalEngine
 from db import pool
 from notify import Notify
 from decision import Tools as DecisionTools, create_engine as decision_engine
 from planning import Tools as PlanningTools, create_engine as planning_engine
+from social import Social
 from trip import Tools as TripTools, create_engine as trip_engine
 
 from . import Harness, PgStore, import_files
@@ -56,14 +60,28 @@ def main():
         data = root / data
     version = app_version(root)
     accounts = Accounts(pool(), GoogleClient.from_env(), data / "accounts" / "avatars", os.environ.get("TOKEN_ENC_KEY"))
-    companion = Companion(pool(), serving_records())
-    harness = Harness(TripTools(trip_engine(data)), DecisionTools(decision_engine(data)),
-        PlanningTools(planning_engine(data)), PgStore(pool(), version), EventLog(pool(), version), companion,
+    binding = bind(data)
+
+    def tools_for_binding(pinned: Binding | None):
+        # A saved legacy journey keeps the standalone artifacts; it never adopts today's active release.
+        selected = pinned if pinned is not None else bind(data, legacy=True)
+        retrieval = RetrievalEngine.open(data_root=data, binding=selected)
+        tools = {"trip": TripTools(trip_engine(data, binding=selected, retrieval=retrieval)),
+                 "decision": DecisionTools(decision_engine(data, binding=selected, retrieval=retrieval)),
+                 "planning": PlanningTools(planning_engine(data, binding=selected, retrieval=retrieval))}
+        if pinned is None:
+            for tool in tools.values():
+                tool.engine.corpus_binding = None
+        return tools
+
+    tools = tools_for_binding(binding)
+    companion = Companion(pool(), tools["planning"].engine.records)
+    harness = Harness(tools["trip"], tools["decision"], tools["planning"], PgStore(pool(), version), EventLog(pool(), version), companion,
         Calendar(pool(), accounts, companion.records, os.environ.get("APP_BASE_URL", "")),
-        Notify(pool(), companion.records))
+        Notify(pool(), companion.records), safety=ChatSafety(), corpus_binding=binding, tools_for_binding=tools_for_binding)
     test_login = os.environ.get("TG_TEST_LOGIN") == "1"  # walk-throughs only; refused when APP_BASE_URL is https
     print(f"Journey harness: http://127.0.0.1:{args.port} (app {version})")
-    run(harness, accounts, args.port, os.environ.get("APP_BASE_URL", ""), test_login)
+    run(harness, accounts, args.port, os.environ.get("APP_BASE_URL", ""), test_login, Social(pool()), Library(pool()))
 
 
 if __name__ == "__main__":

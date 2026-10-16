@@ -182,7 +182,7 @@ Không có dữ liệu → hành vi hiện tại.
 - `web/scripts/export_snapshot.py`: xuất `details` + feature mới vào `snapshot.json`.
 - `PlaceSheet` tab Tổng quan: "Nổi tiếng vì …" dưới tên (kèm số người nhắc); khối Tổng tiền; Gọi món gì / Làm gì; Giờ & mùa đẹp; Đường đi; Trời xấu; Đi cùng ai (mọi x có dữ liệu kèm lý do, x của chuyến hiện lên đầu, "đi một mình" là một dòng); Chuẩn bị; Cảnh báo (khâu bị chặt); Nơi tương tự (vắng hơn / đông hơn, mở nơi đó). Mục thiếu → "Chưa có thông tin". Mỗi dòng xem được quote nguồn.
 - Tab Gợi ý lịch trình + thẻ lịch trình: checklist chuẩn bị, cảnh báo tháng / giờ, `extras_max_vnd`.
-- Thiết kế bằng `/ui-ux-pro-max` trước khi code; màu chỉ từ token; chỉ desktop.
+- Màu chỉ từ token; chỉ desktop.
 
 ## 5. Kiểm thử
 

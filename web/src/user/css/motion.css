@@ -1,0 +1,24 @@
+/* Moving between pages (viewTransition.ts, router.ts): the browser keeps the old page on screen until the new one has rendered,
+   then cross-fades them. Only <html class="tg-nav"> is styled here; the photo flights have their own names (tg-hero, tg-trip-start).
+   The UA's own fade keyframes are used so old and new add up to full brightness (no dip to grey in the middle). */
+:root.tg-nav::view-transition-old(root) { animation-name: -ua-view-transition-fade-out; animation-duration: 200ms; animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+:root.tg-nav::view-transition-new(root) { animation-name: -ua-view-transition-fade-in; animation-duration: 280ms; animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); }
+:root.tg-nav::view-transition-group(root) { animation-duration: 280ms; }
+/* the browser's cross-fade replaces the fallback fade-in of a page */
+html[data-vt] .tg-flow { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root.tg-nav::view-transition-group(*), :root.tg-nav::view-transition-old(*), :root.tg-nav::view-transition-new(*) { animation: none !important; }
+}
+
+/* Landing → home (Landing.tsx handOff, html.tg-l2h): the 3D stage or the closing box grows into the home hero, the cloud
+   flies into the rail's logo, the pressed button slides into `Tạo chuyến đi`; the rest of the page only cross-fades. */
+:root.tg-l2h .tg-hm__cover { view-transition-name: tg-l2h-frame; }
+:root.tg-l2h .tg-hf__logo .tg-logo { view-transition-name: tg-l2h-mascot; }
+:root.tg-l2h .tg-hf__new { view-transition-name: tg-l2h-cta; }
+:root.tg-l2h::view-transition-group(root), :root.tg-l2h::view-transition-old(root), :root.tg-l2h::view-transition-new(root) { animation-duration: 220ms; }
+:root.tg-l2h::view-transition-group(tg-l2h-frame), :root.tg-l2h::view-transition-group(tg-l2h-mascot), :root.tg-l2h::view-transition-group(tg-l2h-cta) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); }
+:root.tg-l2h::view-transition-old(tg-l2h-frame), :root.tg-l2h::view-transition-new(tg-l2h-frame) { height: 100%; object-fit: cover; animation-duration: 560ms; }
+:root.tg-l2h::view-transition-old(tg-l2h-mascot), :root.tg-l2h::view-transition-new(tg-l2h-mascot), :root.tg-l2h::view-transition-old(tg-l2h-cta), :root.tg-l2h::view-transition-new(tg-l2h-cta) { animation-duration: 560ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root.tg-l2h::view-transition-group(*), :root.tg-l2h::view-transition-old(*), :root.tg-l2h::view-transition-new(*) { animation: none !important; }
+}

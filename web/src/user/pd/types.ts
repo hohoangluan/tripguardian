@@ -1,3 +1,5 @@
+import type { SearchInput } from '../tu/types'
+
 // Shapes of the Place Decision API (src/decision/engine.py, pipeline.py, cards.py, feasibility.py).
 
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
@@ -39,11 +41,23 @@ export interface Card {
 export interface Group {
   id: string
   label: string
-  cards: Card[]
+  cards: Card[] // the page on screen
   total: number
+  page?: number // 0 = first (tabs only, not anchors)
+  pages?: number
+  page_size?: number
+  offset?: number // rank of the page's first card, minus one
 }
 
-// How one display group's shown window changed in the last rebuild (src/decision/window.py).
+// Places of every tab matching a typed name, best first, and named places the lists do not hold (src/decision/engine.py search).
+export interface SearchResult {
+  q: string
+  total: number
+  cards: Card[]
+  outside: { id: string; name: string; reasons: string[] }[]
+}
+
+// How one tab's page changed in the last rebuild (src/decision/window.py).
 export interface Change { kept: number; added: number; removed: number; replaced_all: boolean }
 
 export type Action =
@@ -55,6 +69,12 @@ export type Action =
   | { type: 'undo' }
   | { type: 'move_chunk'; place_id: string; chunk: number }
   | { type: 'keep_free_time' }
+  | { type: 'set_lodging'; lodging: LodgingPick }
+  | { type: 'clear_lodging' }
+
+// Where the user sleeps, picked at Lựa chọn: a served stay (the server reads its point) or a point from the search box.
+export type LodgingPick = { kind: 'corpus'; id: string } | { kind: 'live' | 'address'; id?: string; text: string; lat: number; lng: number }
+export interface LodgingChoice { kind: 'corpus' | 'live' | 'address'; id: string | null; text: string; lat: number; lng: number; price_vnd: number | null }
 
 export interface Fix {
   label: string
@@ -110,6 +130,9 @@ export interface View {
   days: { index: number; date: string | null; weekday: string | null }[]
   unknowns: string[]
   unmapped: string[]
+  // One lodging for the whole trip. booked: told at Hiểu chuyến đi; chosen: picked at Lựa chọn (replaces booked);
+  // needed: neither is known yet
+  lodging?: { booked: { id: string | null; text: string; lat: number; lng: number } | null; chosen: LodgingChoice | null; needed: boolean }
 }
 
 export interface Diff {
@@ -152,8 +175,13 @@ export interface WhyNot {
 }
 
 export interface DecisionOutput {
+  trip_context: SearchInput
+  feasibility: Feasibility
+  lodging: LodgingChoice | null
+  decision_log: Record<string, unknown>[]
+  corpus_binding?: Record<string, unknown> | null
   chunk_assignments?: Record<string, number>
-  confirmed: { id: string; name: string; role: 'anchor' | 'locked' | 'selected'; flags: string[]; relaxed: string[] }[]
+  confirmed: { id: string; name: string; role: 'anchor' | 'locked' | 'selected'; visit: { short?: number; typical?: number; long?: number } | null; utility?: number | null; utility_source?: string | null; flags: string[]; relaxed: string[] }[]
   backup_pool: { id: string; name: string; for: string | null; reason: string }[]
   wishlist: { id: string; name: string; reason: string }[]
 }
@@ -191,4 +219,5 @@ export interface TripSummary {
   people: number | null
   places: string[]
   confirmed: boolean
+  title?: string | null // the chat's one-line name: the first thing the user said (harness `chat_title`); absent from older harness builds
 }

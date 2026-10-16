@@ -15,7 +15,7 @@
 .tg-pchip:hover { border-color: var(--tg-pine); }
 .tg-pchip__ph { width: 28px; height: 28px; border-radius: 50%; }
 .tg-msg__acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.tg-asst__chips { display: flex; gap: 6px; padding: 8px 16px; overflow-x: auto; scrollbar-width: none; }
+.tg-asst__chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; }
 .tg-asst__chips .tg-chip { white-space: nowrap; min-height: 32px; font-size: 0.8rem; }
 .tg-asst__in { display: flex; align-items: center; gap: 4px; padding: 6px 12px 12px 20px; }
 .tg-asst__in .tg-line-input { font-size: 0.93rem; }
@@ -23,7 +23,14 @@
 .tg-asst-fab { position: fixed; z-index: 37; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 10px; }
 .tg-fab { position: relative; display: grid; place-items: center; width: 48px; height: 56px; border-radius: 18px 0 0 18px; background: var(--tg-surface); color: var(--tg-pine); border: 1px solid var(--tg-line); border-right: 0; box-shadow: var(--tg-sh-2); transition: width 200ms var(--tg-ease), background 150ms; }
 .tg-fab:hover { width: 56px; background: var(--tg-pine-soft); }
+.tg-fab__label { position: absolute; right: calc(100% + 10px); top: 50%; translate: 8px -50%; padding: 7px 12px; border-radius: 10px; background: var(--tg-pine-d); color: #fff; font: 500 0.8rem var(--tg-sans); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 150ms, translate 150ms var(--tg-ease); }
+.tg-fab:hover .tg-fab__label, .tg-fab:focus-visible .tg-fab__label { opacity: 1; translate: 0 -50%; }
 .tg-fab__dot { position: absolute; top: 10px; right: 10px; width: 11px; height: 11px; border-radius: 50%; background: var(--tg-sun); border: 2px solid var(--tg-surface); }
+/* the explanation beside the tab, until the user has opened the chat once or closed it */
+.tg-fab__tip { position: relative; display: grid; gap: 4px; width: 270px; padding: 14px 34px 14px 16px; border-radius: 18px 6px 6px 18px; background: var(--tg-surface); border: 1px solid var(--tg-pine-line); box-shadow: var(--tg-sh-2); font-size: 0.84rem; line-height: 1.45; color: var(--tg-ink-2); animation: tg-pop 320ms var(--tg-ease); }
+.tg-fab__tip::after { content: ''; position: absolute; right: -6px; top: 50%; width: 11px; height: 11px; translate: 0 -50%; rotate: 45deg; background: var(--tg-surface); border-right: 1px solid var(--tg-pine-line); border-top: 1px solid var(--tg-pine-line); }
+.tg-fab__tip b { color: var(--tg-pine-d); font-size: 0.92rem; }
+.tg-fab__tip .tg-icon-btn { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; }
 .tg-nudge { display: flex; align-items: center; gap: 10px; max-width: 340px; padding: 10px 6px 10px 16px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-2); font-size: 0.88rem; animation: tg-pop 260ms var(--tg-ease); }
 .tg-xlayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
 .tg-xlayout.is-pinned { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }

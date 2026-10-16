@@ -46,8 +46,7 @@ def main():
     last_timings = {}
     for _ in range(args.runs):
         e = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
-                   matrix_fn=fake_matrix, sun_fn=lambda *a: None, lodging_fn=lambda *a: [],
-                   route_fn=lambda *a: None, background=True)
+                   matrix_fn=fake_matrix, sun_fn=lambda *a: None, route_fn=lambda *a: None, background=True)
         started = time.perf_counter()
         sid = e.create(d)["id"]
         e.act(sid, {"type": "pick_variant", "id": "v1"})

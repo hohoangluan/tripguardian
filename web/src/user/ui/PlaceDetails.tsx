@@ -1,15 +1,15 @@
 import { Children, type ReactNode } from 'react'
-import { featureLabel, isNegative, valueLabel } from '../../data/labels'
-import { placeById, signal } from '../../data/store'
+import { featureLabel, isNegative, signalPhrase, valueLabel } from '../../data/labels'
+import { placeById, signal, visible } from '../../data/store'
 import type { DetailItem, DetailQuote, Fit, Place, TimeWindow } from '../../data/types'
 import { fmtVnd } from '../lib'
 import { Unconfirmed } from './common'
 import { Icon } from './icons'
 
 // docs/Role_Web_Functional_Design.md §6: the sections of the sheet's Tổng quan that answer what a visitor asks before
-// going: known for, what it costs, what to order, when to go, the way there, bad weather, who it suits, what to bring,
-// what to watch for, similar places. Every line says how many people said it and shows their words on request; a
-// section with nothing says so ("Chưa có thông tin"), never a guess.
+// going: a short introduction, known for, what it costs, what to order, when to go, the way there, bad weather, who it
+// suits, what to bring, what to watch for, similar places. Every line says how many people said it and shows their words
+// on request. A section with nothing to say is left out (no empty "Chưa có thông tin" blocks), never filled with a guess.
 
 const TOD: Record<string, string> = { early_morning: 'sáng sớm', morning: 'buổi sáng', noon: 'buổi trưa', afternoon: 'buổi chiều', evening: 'buổi tối', night: 'ban đêm' }
 const WEEKDAY: Record<string, string> = { mon: 'thứ Hai', tue: 'thứ Ba', wed: 'thứ Tư', thu: 'thứ Năm', fri: 'thứ Sáu', sat: 'thứ Bảy', sun: 'Chủ nhật' }
@@ -21,7 +21,6 @@ export const WHO_NAME: Record<string, string> = {
 const VERDICT: Record<Fit['value'], { text: string; icon: 'check' | 'warn' | 'info' }> = {
   good: { text: 'Hợp', icon: 'check' }, bad: { text: 'Không hợp', icon: 'warn' }, conditional: { text: 'Hợp có điều kiện', icon: 'info' },
 }
-const NONE = <span className="tg-faint">Chưa có thông tin</span>
 
 const money = (v: number) => fmtVnd(v)
 const months = (m: number[]) => `tháng ${m.join(', ')}`
@@ -52,10 +51,11 @@ const Items = ({ items }: { items: DetailItem[] }) => <ul className="tg-ps__list
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const rows = Children.toArray(children)  // drops the rows a section does not have and keys the rest
+  if (!rows.length) return null
   return (
     <section className="tg-ps__sec">
       <h4>{title}</h4>
-      {rows.length ? <dl className="tg-ps__rows">{rows}</dl> : <p>{NONE}</p>}
+      <dl className="tg-ps__rows">{rows}</dl>
     </section>
   )
 }
@@ -73,6 +73,40 @@ function feature(p: Place, id: string): ReactNode {  // a plain function: a miss
       <small className="tg-faint"> · {s.n} người nhắc</small>
       {s.status !== 'VERIFIED' && <> <Unconfirmed why="Chưa đủ người nhắc để chắc chắn.">chưa xác nhận</Unconfirmed></>}
     </Row>
+  )
+}
+
+const vnRate = (n: number) => n.toFixed(1).replace('.', ',')
+const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1)
+
+// A few plain sentences about the place, made only of what is on record: what it is, its Google score, what people
+// praise and what they warn about (the same signals the page shows below), and whether recent scores moved.
+export function About({ p, area }: { p: Place; area?: string }) {
+  const lines: string[] = []
+  const what = p.category ? lower(p.category) : p.group === 'food' ? 'quán ăn uống' : 'địa điểm'
+  lines.push(`${p.name} là ${what} ở Đà Lạt${area ? `, thuộc khu vực ${area}` : ''}.`)
+  if (p.rating) lines.push(`Trên Google, nơi này được ${vnRate(p.rating)} điểm${p.reviewCount ? ` từ ${p.reviewCount.toLocaleString('vi-VN')} lượt đánh giá` : ''}${p.voices ? `, và có ${p.voices.toLocaleString('vi-VN')} người đã viết về nơi này` : ''}.`)
+  else if (p.voices) lines.push(`Có ${p.voices.toLocaleString('vi-VN')} người đã viết về nơi này.`)
+  const fresh = visible(p).filter((f) => f.status === 'VERIFIED' || (f.status === 'OUTDATED' && f.n >= 5))
+  const good = fresh.filter((f) => !isNegative(f.id, f.value) && f.value !== 'absent' && f.value !== 'no').sort((a, b) => b.n - a.n).slice(0, 4)
+  if (good.length) lines.push(`Người đã đến hay khen: ${good.map((f) => lower(signalPhrase(f.id, f.value))).join(', ')}.`)
+  const bad = visible(p).filter((f) => isNegative(f.id, f.value) && f.n >= 2).sort((a, b) => b.n - a.n).slice(0, 3)
+  if (bad.length) lines.push(`Cần lưu ý: ${bad.map((f) => lower(signalPhrase(f.id, f.value))).join(', ')}.`)
+  const t = p.ratingTrend
+  if (t && t.recent_mean && t.older_mean && t.recent_n >= 10 && t.older_n >= 10 && t.direction !== 'stable' && t.direction !== 'insufficient')
+    lines.push(`Điểm các đánh giá gần đây ${t.direction === 'falling' ? 'thấp hơn' : 'cao hơn'} trước (${vnRate(t.recent_mean)} so với ${vnRate(t.older_mean)}).`)
+  return <p className="tg-ps__about">{lines.join(' ')}</p>
+}
+
+// What Google lists the place has ("Có Wi-Fi miễn phí", "Không có bể bơi"), as written there.
+function Amenities({ p }: { p: Place }) {
+  const items = [...new Set(p.attributes ?? [])].slice(0, 14)
+  if (!items.length) return null
+  return (
+    <section className="tg-ps__sec">
+      <h4>Tiện ích và dịch vụ</h4>
+      <ul className="tg-ps__amen">{items.map((a) => <li key={a} className={/^không/i.test(a) ? 'is-no' : undefined}>{a}</li>)}</ul>
+    </section>
   )
 }
 
@@ -189,9 +223,10 @@ function Similar({ p, onOpen }: { p: Place; onOpen: (id: string) => void }) {
   )
 }
 
-export function DetailsOverview({ p, trip, onOpen }: { p: Place; trip: string[]; onOpen: (id: string) => void }) {
+export function DetailsOverview({ p, trip, area, onOpen }: { p: Place; trip: string[]; area?: string; onOpen: (id: string) => void }) {
   return (
     <div className="tg-ps__details">
+      <About p={p} area={area} />
       <Cost p={p} />
       <Eat p={p} />
       <When p={p} />
@@ -200,6 +235,7 @@ export function DetailsOverview({ p, trip, onOpen }: { p: Place; trip: string[];
       <WhoFits p={p} trip={trip} />
       <Prepare p={p} />
       <Watch p={p} />
+      <Amenities p={p} />
       <Similar p={p} onOpen={onOpen} />
     </div>
   )

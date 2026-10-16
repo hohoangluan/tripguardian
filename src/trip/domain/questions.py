@@ -19,8 +19,7 @@ from ..infrastructure.catalog import Catalog
 from ..infrastructure.settings import Settings
 from .card import Chip, Question
 from .coverage import coverage
-from .logistics import last_day, route
-from .rental import ARRIVES_WITHOUT_A_VEHICLE, rental_params
+from .rental import rental_params
 from .state import (EFFORT_SIGNALS, OTHER_SIGNALS, Anchor, Base, Draft, Hard, SoftKey, TripState, apply_drafts,
                     ontology, pending_signals)
 
@@ -44,7 +43,7 @@ QUIZ_FIELD: dict[str, str | None] = {
 FIELD_LABEL = {"days": "số ngày", "nights": "số đêm", "companions": "người đi cùng", "mobility": "phương tiện di chuyển",
                "start_date": "ngày đi", "purpose": "mục đích chuyến đi", "soft": "sở thích",
                "crowd_tolerance": "độ đông", "pace": "nhịp độ", "budget_vnd": "ngân sách", "novelty": "đi chỗ quen hay thử cái mới",
-               "arrival_mode": "cách tới Đà Lạt", "checkin_at": "giờ nhận phòng và trả phòng"}
+               "arrival_mode": "cách tới Đà Lạt", "checkin_at": "giờ nhận phòng và trả phòng", "unmapped": "ý này"}
 
 
 def pending_fields(qid: str) -> list[str]:
@@ -155,7 +154,7 @@ WEEKDAY = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 def review_card() -> Question:
     """After the quiz queue is empty: an open chat box to adjust or add anything."""
     return Question(qid=REVIEW_QID, group="I", tier=0, custom=True, input="text", exits=False,
-                    text="Xong trắc nghiệm rồi. Bạn muốn chỉnh gì thêm, hay có nơi cụ thể nào phải đến không?",
+                    text="Bạn muốn chỉnh gì thêm, hay có nơi cụ thể nào phải đến không?",
                     reason="Xem lại bản hiểu nhu cầu bên cạnh rồi chốt.",
                     chips=(Chip(id="show", label="Xong, xem gợi ý"),))
 
@@ -434,38 +433,19 @@ def arrival_q(mobility_known: bool) -> Question:
         for k, label in VEHICLE.items()))
     return with_other(Question(
         qid="arrival", group="A", tier=1, text="Bạn tới Đà Lạt bằng gì?",
-        reason="Xe khách và máy bay có giờ cố định, mình xếp ngày đầu và ngày cuối theo đó.",
+        reason="Đi xe khách hay máy bay thì ở Đà Lạt cần thuê xe hoặc gọi xe; tự đi thì dùng luôn xe của bạn.",
         chips=own + (Chip(id="bus", label="Xe khách", drafts=(d("arrival_mode", "bus"),)),
                      Chip(id="plane", label="Máy bay", drafts=(d("arrival_mode", "plane"),)))))
 
 
 def origin_q() -> Question:
     return Question(qid="origin", group="A", tier=1, input="geo", text="Bạn xuất phát từ đâu?",
-                    reason="Để tìm đúng chuyến xe hoặc chuyến bay tới Đà Lạt.")
-
-
-def transit_q(way: str, state: TripState, cfg: Settings) -> Question | None:
-    """The coach / flight card of one way, or None while the route or the day is not known (nothing is invented)."""
-    r = route(state, cfg)
-    day = state.start_date.value if way == "inbound" else last_day(state)
-    mode = state.arrival_mode.value
-    if r is None or day is None or mode not in ARRIVES_WITHOUT_A_VEHICLE:
-        return None
-    src, dst = r if way == "inbound" else r[::-1]
-    params = {"mode": mode, "from": src, "to": dst, "date": day.isoformat()}
-    origin = state.origin.value
-    if mode == "bus" and origin is not None and origin.lat is not None and origin.lng is not None:
-        params |= {"lat": origin.lat, "lng": origin.lng}
-    what = "chuyến xe khách" if mode == "bus" else "chuyến bay"
-    return Question(
-        qid=way, group="A", tier=1, input="transit", params=params,
-        text=f"Bạn đi {what} nào {'tới Đà Lạt' if way == 'inbound' else 'về'}?",
-        reason="Mình chỉ hiện chuyến có thật. Đặt vé ở trang chính chủ rồi quay lại báo cho mình.")
+                    reason="Thường là nhà bạn. Trong chuyến, mỗi ngày bắt đầu và kết thúc ở chỗ ở.")
 
 
 def lodging_q() -> Question:
-    return Question(qid="lodging", group="A", tier=1, input="lodging", text="Bạn đã có chỗ ở chưa? Gõ tên khách sạn hoặc homestay.",
-                    reason="Mình lấy chỗ ở làm điểm bắt đầu mỗi ngày và đo quãng đường từ đó.",
+    return Question(qid="lodging", group="A", tier=1, input="lodging", text="Bạn có nơi lưu trú nào chưa? Nếu có, hãy cho mình biết tên nhé.",
+                    reason="Mỗi ngày bắt đầu và kết thúc ở chỗ ở, cả chuyến một chỗ. Chưa có thì bạn chọn ở bước Lựa chọn, đổi lúc nào cũng được.",
                     chips=(Chip(id="none", label="Chưa đặt chỗ ở", drafts=(d("lodging_booked", "no"),)),))
 
 
@@ -497,16 +477,12 @@ def quiz_queue(state: TripState, catalog: Catalog, cfg: Settings) -> list[Questi
         out.append(care_q())
     if want("arrival", not state.arrival_mode.known):
         out.append(arrival_q(state.mobility.known))
-    by_transit = state.arrival_mode.value in ARRIVES_WITHOUT_A_VEHICLE
-    if want("origin", by_transit and not state.origin.known):
+    if want("origin", not state.origin.known):
         out.append(origin_q())
     if want("mobility", not state.mobility.known):
         out.append(mobility_q(state.arrival_mode.value, state.entry_point.value))
     if want("dates", not (state.start_date.known or state.month.known)):
         out.append(dates_q())
-    for way in ("inbound", "outbound"):
-        if want(way, by_transit and not getattr(state, way).known) and (q := transit_q(way, state, cfg)):
-            out.append(q)
     if want("lodging", not state.lodging.known and state.lodging_booked.value != "no"):
         out.append(lodging_q())
     if want("stay_times", state.days.known and not (state.checkin_at.known or state.checkout_at.known)):

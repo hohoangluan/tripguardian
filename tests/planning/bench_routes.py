@@ -51,8 +51,7 @@ def main():
         samples, signatures = [], set()
         for _ in range(args.runs):
             engine = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
-                            matrix_fn=fake_matrix, sun_fn=lambda *a: None, lodging_fn=lambda *a: [],
-                            route_fn=lambda *a: None, background=False)
+                            matrix_fn=fake_matrix, sun_fn=lambda *a: None, route_fn=lambda *a: None, background=False)
             started = time.perf_counter()
             created = engine.create(decision(selected, days=7, leave_at="21:00"))
             samples.append(time.perf_counter() - started)

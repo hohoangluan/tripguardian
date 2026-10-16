@@ -403,10 +403,10 @@ Details: also copy what the review says about THIS place for each detail kind in
 
 ## Task 10: Web
 
-**Đọc trước:** `web/scripts/export_snapshot.py`, `web/src/user/ui/PlaceSheet.tsx`, `web/src/user/store.ts` (`PlaceInfo`), `docs/Role_Web_Functional_Design.md` §6, memory UI: **thiết kế bằng `/ui-ux-pro-max` trước khi code; màu chỉ từ token; chỉ desktop; không build vào `web/dist`** (prod chạy từ đó).
+**Đọc trước:** `web/scripts/export_snapshot.py`, `web/src/user/ui/PlaceSheet.tsx`, `web/src/user/store.ts` (`PlaceInfo`), `docs/Role_Web_Functional_Design.md` §6, memory UI: **màu chỉ từ token; chỉ desktop; không build vào `web/dist`** (prod chạy từ đó).
 
 - [x] **10.1** `export_snapshot.py` xuất `details` + feature mới (giữ kích thước: ≤ 5 item mỗi khối, bỏ `evidence` trừ id cần mở quote).
-- [x] **10.2** Dùng `/ui-ux-pro-max` thiết kế tab Tổng quan: "Nổi tiếng vì …" dưới tên (kèm "N người nhắc"); Tổng tiền (vé người lớn / trẻ em / người già, gửi xe, từng khoản, "tổng khoảng X–Y", giá theo xe / nhóm); Gọi món gì / Làm gì; Giờ & mùa đẹp; Đường đi; Trời xấu; Đi cùng ai (mọi x có dữ liệu + lý do, x của chuyến lên đầu, "Một mình" là một dòng); Chuẩn bị; Cảnh báo (khâu bị chặt); Nơi tương tự (vắng hơn / đông hơn, mở nơi đó). Thiếu → "Chưa có thông tin". Mỗi dòng xem được quote.
+- [x] **10.2** Thiết kế tab Tổng quan: "Nổi tiếng vì …" dưới tên (kèm "N người nhắc"); Tổng tiền (vé người lớn / trẻ em / người già, gửi xe, từng khoản, "tổng khoảng X–Y", giá theo xe / nhóm); Gọi món gì / Làm gì; Giờ & mùa đẹp; Đường đi; Trời xấu; Đi cùng ai (mọi x có dữ liệu + lý do, x của chuyến lên đầu, "Một mình" là một dòng); Chuẩn bị; Cảnh báo (khâu bị chặt); Nơi tương tự (vắng hơn / đông hơn, mở nơi đó). Thiếu → "Chưa có thông tin". Mỗi dòng xem được quote.
 - [x] **10.3** Tab Gợi ý lịch trình + thẻ lịch trình: checklist chuẩn bị, cảnh báo tháng / giờ, `extras_max_vnd`.
 - [ ] **10.4 Kiểm:** `cd web && npx tsc --noEmit` không thêm lỗi mới (lỗi sẵn ở `src/user/landing/*` của session khác thì bỏ qua); chụp `node web/scripts/shots_sheet.mjs <base> <journey>` trên Vite dev, xem ảnh.
 

@@ -1,0 +1,23 @@
+# Labelled cases for Clef (src/trip/infrastructure/clef.py), run live by tests/trip/test_clef_live.py
+# (python -m pytest --collect-in-virtualenv -m live tests/trip/test_clef_live.py -s).
+reply:
+  - {say: "Hai bạn đi 3 ngày. Chill với bạn là cà phê hay dạo hồ?", user: "đi 3 ngày với người yêu", expect: null}
+  - {say: "Ngân sách 8 triệu cho cả chuyến nhé. Bạn ở đâu?", user: "8 triệu cả chuyến cho 2 người", expect: null}
+  - {say: "Hai bạn tới lúc 10h sáng ngày 20/11 nhé.", user: "tới khoảng 10h sáng 20/11", expect: null}
+  - {say: "Mình hiểu bà ngoại đau gối, nên tránh dốc và bậc thang.", user: "bà ngoại 72 tuổi đau gối", expect: null}
+  - {say: "Chưa đặt chỗ thì bạn tìm khu muốn ở trong ô bên dưới nhé.", user: "chưa đặt chỗ ở", expect: null}
+  - {say: "Bước sau mình mới có giá thật để so, giờ mình hỏi tiếp ngày đi nhé.", user: "giá phòng tầm bao nhiêu", expect: null}
+  - {say: "Mình sẽ gợi ý ngay 5 quán đẹp nhất cho bạn.", user: "thích cà phê", expect: promises results}
+  - {say: "Mình sẽ lên lịch trình chi tiết cho bạn ngay.", user: "đi 3 ngày", expect: promises results}
+  - {say: "Quán mở đến 22h và vé vào cửa 50k.", user: "thích cà phê", expect: states a fact nobody gave}
+  - {say: "Đà Lạt tháng 12 khoảng 12 độ, bạn nhớ mang áo ấm.", user: "đi tháng 12", expect: states a fact nobody gave}
+  - {say: "Đồi chè Cầu Đất cách trung tâm khoảng 20 km.", user: "đi đồi chè", expect: states a fact nobody gave}
+# support.expect: true = the quote does not say the claim (the fact is refused)
+support:
+  - {quote: "không thích chỗ đông", claim: "khách muốn tránh: nơi đông người", expect: false}
+  - {quote: "bà đau gối", claim: "khách cần tránh: bậc thang", expect: false}
+  - {quote: "thích cà phê view đồi", claim: "khách muốn: view đẹp", expect: false}
+  - {quote: "đi với bố mẹ", claim: "khách cần: nơi phù hợp người lớn tuổi", expect: false}
+  - {quote: "thích yên tĩnh", claim: "khách muốn: nhạc sống", expect: true}
+  - {quote: "không ăn cay", claim: "khách muốn: món cay", expect: true}
+  - {quote: "thích đi bộ khám phá", claim: "khách muốn tránh: đi bộ xa", expect: true}

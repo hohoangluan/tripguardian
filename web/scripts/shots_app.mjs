@@ -33,9 +33,10 @@ try {
     await page.check('.tg-auth__check input')
     await page.getByRole('button', { name: /Bắt đầu/ }).click()
   }
-  await page.waitForSelector('#tg-start-input', { timeout: 60000 })
+  await page.waitForSelector('.tg-hm', { timeout: 60000 })
   await shot('discover')
-  await page.fill('#tg-start-input', '3 ngày ở Đà Lạt cho hai người, đi xe máy, thích chill, cà phê, săn mây')
+  await page.locator('.tg-hf__new').click()
+  await page.fill('#tg-hd-prompt', '3 ngày ở Đà Lạt cho hai người, đi xe máy, thích chill, cà phê, săn mây')
   await page.keyboard.press('Enter')
   step('understand: first turn')
   // The opening question is a conversation: wait for "Mình đã hiểu như này", then agree to go on.
@@ -171,7 +172,7 @@ try {
   if (await go.isEnabled()) {
     await go.click()
     await page.waitForURL(/\/app\/plan/, { timeout: 180000 })
-    await page.waitForSelector('.tg-lod, .tg-journey, .tg-plan__cols:not([aria-busy]), .tg-empty', { timeout: 120000 })
+    await page.waitForSelector('.tg-lod, .tg-it-choice, .tg-it-ov, .tg-empty', { timeout: 120000 })
     if (await page.$('.tg-lod')) {
       step('lodging screen: pick the first')
       await page.waitForSelector('.tg-lod__card, .tg-lod__empty', { timeout: 180000 })
@@ -179,15 +180,20 @@ try {
       const here = await page.$('.tg-lod__card .tg-btn--primary')
       if (here) await here.click()
       else await page.getByRole('button', { name: /Cứ xếp giúp/ }).click()
-      await page.waitForSelector('.tg-journey, .tg-plan__cols:not([aria-busy]), .tg-empty', { timeout: 120000 })
+      await page.waitForSelector('.tg-it-choice, .tg-it-ov, .tg-empty', { timeout: 120000 })
     }
+    if (await page.$('.tg-it-why')) { await shot('plan-why'); await page.locator('.tg-it-why__go').click(); await page.waitForSelector('.tg-it-why', { state: 'detached' }) }
     await shot('plan-choose')
-    const j = await page.$('.tg-journey')
-    if (j) { await j.click(); await page.waitForSelector('.tg-daytab', { timeout: 60000 }) }
+    if (await page.$('.tg-it-choice')) {
+      await page.locator('.tg-it-choice:not([aria-disabled])').first().click()
+      await page.getByRole('button', { name: /Xem lịch trình/ }).click()
+    }
+    await page.waitForSelector('.tg-it-ov', { timeout: 60000 })
+    await shot('plan-overview')
+    await page.locator('.tg-it-daycard').first().click()
+    await page.waitForSelector('.tg-it-card', { timeout: 60000 })
     await shot('plan-day')
-    await page.click('.tg-plan__viewbar button:nth-child(2)')
-    await shot('plan-route')
-    await page.click('.tg-confirm .tg-btn--primary')
+    await page.getByRole('button', { name: 'Chốt kế hoạch này' }).click()
     await page.waitForURL(/\/app\/done/, { timeout: 60000 })
     await shot('done')
     await page.click('.tg-scale__b >> nth=3')

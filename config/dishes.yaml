@@ -1,0 +1,9 @@
+# Dish lookup (corpus.serving.dishes): phrases that mean the same dish. Matching already ignores case and accents
+# ("Bánh Bèo" == "banh beo") and finds a phrase inside a longer dish name ("bánh canh" in "Bánh canh giò heo").
+# Add a group only when two names are one dish; a wrong group makes a place appear for a dish it does not serve.
+same:
+  - [sữa đậu nành, sữa nành, nước đậu nành]
+  - [bánh bèo, bánh bèo chén]
+  - [bánh tráng nướng, pizza đà lạt]
+  - [xíu mại, xíu mại sốt, siu mai]
+  - [cà phê sữa, cafe sữa, cà phê sữa đá]

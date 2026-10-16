@@ -2,9 +2,8 @@
 
 from agents import AgentError
 
-from .loop import Assistant, Call, Chat, openai_chat, run_loop
+from .loop import Chat, langchain_chat, run_loop
 from .prompt import build_messages, summarize
-from .tools import ToolExecutor, TurnTools
+from .tools import ToolExecutor, TurnTools, lookups
 
-__all__ = ["AgentError", "Assistant", "Call", "Chat", "ToolExecutor", "TurnTools", "build_messages", "openai_chat",
-           "run_loop", "summarize"]
+__all__ = ["AgentError", "Chat", "ToolExecutor", "TurnTools", "build_messages", "langchain_chat", "lookups", "run_loop", "summarize"]

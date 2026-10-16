@@ -28,8 +28,7 @@ def test_overload_browser_flow(tmp_path, store_kind):
         record['provenance'] = {'voices': 1}
     dt = DecisionTools(DecisionEngine(Data(records), load_settings(), DecisionStore(None)))
     pt = Tools(Engine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-        matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), lodging_fn=lambda *a: [],
-        route_fn=lambda *a: {'points': [], 'source': 'fixture', 'fetched_at': 't'}, background=False))
+        matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), route_fn=lambda *a: {'points': [], 'source': 'fixture', 'fetched_at': 't'}, background=False))
     h = Harness(FakeTools('trip'), dt, pt, Store(tmp_path / 'journeys'))
     v = h.create(owner=USERS['tok-a'])
     v = run(h, v, 'turn', 'compile', {'kind': 'show'})

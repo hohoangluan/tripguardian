@@ -31,3 +31,14 @@ def test_a_chosen_flight_sets_the_day_window_and_the_city_entry_and_exit():
     st = pick_transit(st, "outbound", FLIGHT_OUT, REAL, 2)
     assert day_window(st) == ("08:45", "17:55")  # arrival 08:00 + 45 min, departure 18:40 - 45 min
     assert st.entry_point.value.text == "Sân bay Liên Khương" and st.exit_point.value.text == "Sân bay Liên Khương"
+
+
+def test_the_quiz_asks_how_and_from_where_but_never_for_a_coach_or_a_flight(catalog, cfg):
+    from trip.domain.questions import quiz_queue
+    from trip.domain.state import Field
+    st = TripState()
+    for mode in ("plane", "bus", "self"):
+        s = st.model_copy(update={"arrival_mode": Field(value=mode), "start_date": Field(value=date(2026, 12, 14)),
+                                  "days": Field(value=3)})
+        qids = [q.qid for q in quiz_queue(s, catalog, cfg)]
+        assert "origin" in qids and not {"inbound", "outbound"} & set(qids)

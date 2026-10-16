@@ -56,6 +56,33 @@
         ],
         "createdAt": "2026-10-11T17:40:28.807Z",
         "reason": "keeps the existing production headline 'đúng gu của bạn' (italic Lora accent) of the current home; assistant decision, user has not asked to change it"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "docs/design/desktop/v4-chat-cards/mock.html"
+        ],
+        "createdAt": "2026-10-12T11:51:20.835Z",
+        "reason": "Palette is the approved rose system copied from landing.css tokens (v3-rose-photo README: approved set 2026-10-04; project rule: colours only from tokens); not decided by me"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "docs/design/desktop/v4-chat-cards/mock.html"
+        ],
+        "createdAt": "2026-10-12T11:51:20.851Z",
+        "reason": "Bouncing dots are the loading indicator for web research and image reading, specified in trip-chat-cards spec §7 ('chấm chờ'); tied to a running step, and prefers-reduced-motion disables it"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "docs/design/desktop/v4-chat-cards/mock.html"
+        ],
+        "createdAt": "2026-10-12T12:05:06.279Z",
+        "reason": "Shimmer on the 'Đang suy nghĩ' label is the ChatGPT-style running indicator the user asked for; it exists only while a step runs and the words carry the meaning, not the gradient"
       }
     ]
   }

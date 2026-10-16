@@ -63,7 +63,9 @@ def entry_fee(observations: list[dict], ticket_usd: float | None = None,
             xs = ticket_amounts(o["span"]["quote"])
             if xs:
                 who = o.get("author") or o["id"]
-                found[who] = max(found.get(who, (0, ""))[0], max(xs)), max(found.get(who, (0, ""))[1], o.get("observed_at") or "")
+                observed = o.get("observed_at") or ""
+                observed = observed if len(observed) == 10 else ""
+                found[who] = max(found.get(who, (0, ""))[0], max(xs)), max(found.get(who, (0, ""))[1], observed)
     if found:
         newest = max(d for _, d in found.values())
         if newest:
@@ -79,7 +81,7 @@ def entry_fee(observations: list[dict], ticket_usd: float | None = None,
     return None
 
 
-def visit_minutes(category: str | None, signal: dict | None, time_spent: dict | None = None) -> dict:
+def visit_minutes(category: str | None, signal: dict | None, time_spent: dict | None = None, name: str | None = None) -> dict:
     """[short, typical, long] minutes. Maps' "people typically spend" (many visitors' time on site) wins; then review
     evidence when visit_duration has enough authors and agrees; then the category default."""
     cfg = defaults()
@@ -89,13 +91,13 @@ def visit_minutes(category: str | None, signal: dict | None, time_spent: dict | 
     if signal and signal["n"] >= cfg["visit_duration_min_n"] and signal["status"] == "signal":
         lo, hi = cfg["visit_duration_minutes"][signal["top_value"]]
         return {"short": lo, "typical": (lo + hi) // 2, "long": hi, "source": "reviews", "n": signal["n"]}
-    short, typical, long = group(category)["visit_minutes"]
+    short, typical, long = group(category, name)["visit_minutes"]
     return {"short": short, "typical": typical, "long": long, "source": "category_default", "n": 0}
 
 
 def estimates(category: str | None, features: dict, observations: list[dict], ticket_usd: float | None = None,
-              official_tickets: dict | None = None, time_spent: dict | None = None) -> dict:
-    g = group(category)
+              official_tickets: dict | None = None, time_spent: dict | None = None, name: str | None = None) -> dict:
+    g = group(category, name)
     return {"category_group": g["id"], "usable_as_default": g["usable_as"], "effort_hint": g["effort_hint"],
-            "visit_minutes": visit_minutes(category, features.get("visit_duration"), time_spent),
+            "visit_minutes": visit_minutes(category, features.get("visit_duration"), time_spent, name),
             "entry_fee": entry_fee(observations, ticket_usd, official_tickets)}

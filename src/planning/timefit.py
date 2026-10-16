@@ -13,7 +13,8 @@ REASON_TEXT = {"preferred_period": "Ưu tiên khung giờ bạn đã chọn", "s
                "light_activity": "Ưu tiên hoạt động nhẹ buổi sáng hoặc chiều", "midday_break": "Ưu tiên nghỉ và uống nước giữa trưa",
                "morning_energy": "Ưu tiên điểm quan trọng hoặc hoạt động tốn sức vào buổi sáng",
                "best_time": "Người đã đi khuyên nên tới vào buổi này", "avoid_time": "Người đã đi khuyên tránh buổi này",
-               "night_road": "Đi xe máy về sau hoàng hôn trên đường tối nguy hiểm"}
+               "night_road": "Đi xe máy về sau hoàng hôn trên đường tối nguy hiểm",
+               "light_snack": "Ăn nhẹ buổi chiều"}
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,8 @@ def windows_for(place, ctx) -> tuple[TimeRule, ...]:
     reason, periods = None, []
     if activity == "nightlife" or (group == "bar" and activity != "eating"):
         reason, periods = "night_activity", ["evening"]
+    elif place.meal_kind == "light" and (not place.activity_explicit or place.activity in {"eating", "coffee"}):
+        reason, periods = "light_snack", ["afternoon"]      # an activity the user chose (photography ...) keeps its own rule
     elif place.kind == "meal":
         return ()                         # meal_windows already schedule the selected eating activity
     elif activity == "photography" or (ctx.purpose == "photo" and
@@ -122,11 +125,12 @@ def visit_score(place, start: int, end: int, ctx, *, _rules: tuple[TimeRule, ...
                         "windows": [[fmt(a), fmt(b)] for a, b in rule.windows],
                         "fit": round(1 - deficit, 3) if rule.windows else None,
                         "evidence": list(rule.evidence)})
-    expected = place.visit[ctx.cfg.visit_key[ctx.pace]]
+    from .traits import visit_minutes
+    expected = visit_minutes(place, ctx.cfg, ctx.pace, ctx.prefs)
     shortened = max(0, expected - (end - start))
     if ctx.cfg.time_suitability.get("enabled", False):
         penalty += ctx.cfg.time_suitability.get("duration_loss_min", 0) * shortened
-        delta = timing_delta(place, start, ctx.cfg)
+        delta = timing_delta(place, start, ctx.cfg, end=end)
         if delta:
             penalty += delta
             reasons.append({"reason": "best_time" if delta < 0 else "avoid_time", "source": "reviews",
@@ -151,7 +155,8 @@ def period_load(ids: list[str], ctx) -> float:
             if not rule.windows:
                 continue
             entry = groups.setdefault(rule.windows, [0, 0.0])
-            entry[0] += ctx.places[pid].visit[ctx.cfg.visit_key[ctx.pace]] + ctx.cfg.buffer_min[ctx.pace]
+            from .traits import visit_minutes
+            entry[0] += visit_minutes(ctx.places[pid], ctx.cfg, ctx.pace, ctx.prefs) + ctx.cfg.buffer_min[ctx.pace]
             entry[1] = max(entry[1], rule.weight)
     return sum(max(0, demand - sum(max(0, min(b, ctx.day.end) - max(a, ctx.day.start)) for a, b in windows)) * weight
                for windows, (demand, weight) in groups.items())

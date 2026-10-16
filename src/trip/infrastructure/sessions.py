@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..domain.card import Question
+from ..domain.deck import Deck
 from ..domain.state import TripState
 
 SID = re.compile(r"[0-9a-f]{12}")
@@ -17,7 +18,7 @@ SID = re.compile(r"[0-9a-f]{12}")
 class Session:
     id: str
     state: TripState
-    card: Question | None = None
+    card: Question | Deck | None = None
     transcript: list[dict] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -52,7 +53,7 @@ class SessionStore:
                 raise KeyError(sid)
             d = json.loads(path.read_text(encoding="utf-8"))
             s = Session(sid, TripState.model_validate(d["state"]),
-                        Question.model_validate(d["card"]) if d.get("card") else None, d.get("transcript", []))
+                        (Deck if d["card"].get("kind") == "deck" else Question).model_validate(d["card"]) if d.get("card") else None, d.get("transcript", []))
             self._mem[sid] = s
             return s
 

@@ -14,6 +14,7 @@ from typing import Any, Generic, Literal, TypeVar
 from pydantic import BaseModel, ConfigDict, Field as PydanticField, model_validator
 
 from corpus.ontology import Ontology, load as load_ontology
+from corpus.releases import Binding
 from requirements import Activity, Requirement, RequirementIntent, valid_condition
 
 from .legacy import upgrade
@@ -46,7 +47,8 @@ EFFORT_FEATURES = frozenset({"steep_or_stairs", "long_walk"})
 EFFORT_CLASH = frozenset({"hiking", "adventure_activity"})  # what a stored taste may not push once the trip has an effort limit
 SCALARS = ("start_date", "month", "month_part", "days", "nights", "people", "base", "entry_point", "exit_point", "mobility", "checkin_at",
            "checkout_at", "day_end", "purpose", "pace", "max_leg_min", "crowd_tolerance", "novelty", "budget_vnd",
-           "budget_scope", "origin", "arrival_mode", "inbound", "outbound", "lodging_booked", "lodging")
+           "budget_scope", "origin", "arrival_mode", "inbound", "outbound", "lodging_booked", "lodging",
+           "driver", "care", "budget_unlimited")
 RECOMMENDED_TRIP_DAYS = 14
 MAX_TRIP_DAYS = 30
 RANGES = {"month": (1, 12), "days": (1, MAX_TRIP_DAYS), "nights": (0, MAX_TRIP_DAYS), "people": (1, 20), "max_leg_min": (5, 180),
@@ -207,12 +209,46 @@ class Signal(Frozen):
     quote: str
     turn: int
     handled: bool = False
+    from_companion: str | None = None
+    source: Source = "user"
 
 
 class Unmapped(Frozen):
     phrase: str
     turn: int
-    group: bool = False  # a companions group no value holds: dropped once companions is recorded
+    replaces: str | None = None  # the field this wish stands in for: dropped once that field is recorded
+
+
+class VibeKind(Frozen):
+    """One look-alike kind of place offered for a vibe (corpus.index clusters): real places and their real photos."""
+    id: str
+    label: str              # the style tag's label, or "Kiểu như <first place>" when no tag holds
+    style: str | None = None
+    places: tuple[str, ...]  # corpus place ids, best first
+    photos: tuple[tuple[str, str], ...] = ()  # (place_id, data-relative photo file)
+
+
+class WebSource(Frozen):
+    url: str
+    title: str
+    domain: str
+
+
+class Vibe(Frozen):
+    """A look the user wants ("vibe retro", a photo they sent). Soft taste only: it ranks places, never removes one.
+    Every place here comes from corpus.index, never from the web or the model."""
+    phrase: str                       # the user's word, or "ảnh bạn gửi"
+    turn: int
+    cues: tuple[str, ...] = ()        # visible signs kept (the agent's guess, edited by the user)
+    removed: tuple[str, ...] = ()     # signs the user took out
+    status: Literal["cues", "kinds", "done", "none"] = "cues"  # cues / kinds: the card is open; none: no kind fits
+    offered: tuple[VibeKind, ...] = ()
+    chosen: tuple[str, ...] = ()      # ids of the offered kinds the user picked
+    places: tuple[str, ...] = ()      # the places this vibe ranks first, best first
+    scope: Literal["any", "cafe", "food", "nature", "sights"] = "any"  # the kind of place the look is about (vibes.SCOPES)
+    image: bool = False               # read from a photo the user sent (the photo itself is never kept)
+    picked: str | None = None         # the corpus place the user's photo shows, once confirmed
+    sources: tuple[WebSource, ...] = ()  # web pages read to understand the word (never evidence about a place)
 
 
 class Ambiguous(Frozen):
@@ -222,6 +258,11 @@ class Ambiguous(Frozen):
 
 
 class Meta(Frozen):
+    soft_skips: int = 0
+    rushed: bool = False
+    companion_hints: tuple[tuple[str, str], ...] = ()
+    conflicts: tuple[str, ...] = ()
+    readback_digest: str | None = None
     experience: Literal["first", "returning"] | None = None
     start_with: Literal["nothing", "saved", "must", "itinerary"] | None = None
     turn: int = 0
@@ -230,6 +271,7 @@ class Meta(Frozen):
     skipped: frozenset[str] = frozenset()
     unsure_streak: int = 0
     idle_streak: int = 0  # adaptive questions in a row that added nothing to the state
+    refusal_turns: tuple[tuple[str, int], ...] = ()  # (field, turns in a row its record_fact was refused)
     pending: tuple[Ambiguous, ...] = ()  # subjective words still to clarify
     held: str | None = None  # the card a typed message did not answer; it stays open for one such message
     user_id: str | None = None  # opaque id whose stored patterns seeded this session
@@ -241,6 +283,72 @@ class Meta(Frozen):
     told: bool = False  # the agent has read the user's own telling of the trip; every later question is a chip card
     other_qid: str | None = None  # quiz card a typed answer left unclear: the chat is resolving it
     other_text: str | None = None  # that unclear answer, in the user's words
+    followups: int = 0  # turns in a row that ended on the agent's own question (text or ask_user), not a required one
+
+
+class Draft(Frozen):
+    """An update without its evidence yet: what a chip writes when chosen."""
+    field: str
+    op: Literal["set", "add", "remove"] = "set"
+    value: Any = None
+    inferred: bool = False
+
+
+class Option(Frozen):
+    id: str
+    label: str
+    description: str = ""
+    writes: tuple[Draft, ...] = ()
+    prefilled: bool = False
+    because: str = ""
+    count: int | None = None
+    photo: tuple[str, str] | None = None
+    cues: tuple[str, ...] = ()
+    places: tuple[str, ...] = ()
+
+
+class Tab(Frozen):
+    qid: str
+    kind: Literal["required", "drill", "confirm", "agent", "maybe"]
+    header: str
+    question: str
+    why: str = ""
+    visual: bool = False
+    multi: bool = False
+    inputs: tuple[str, ...] = ()
+    options: tuple[Option, ...] = ()
+
+
+class Drill(Frozen):
+    topic: str
+    quote: str
+    turn: int
+    status: Literal["pending", "done", "skipped", "none"] = "pending"
+    tab: Tab | None = None
+
+
+class DishWish(Frozen):
+    dish: str
+    quote: str
+    place_ids: tuple[str, ...] = ()
+
+
+class KindWish(Frozen):
+    kind: str
+    quote: str
+    place_ids: tuple[str, ...] = ()
+
+
+class LikeWish(Frozen):
+    place_id: str
+    but: tuple[str, ...] = ()
+    quote: str
+
+
+class Wishes(Frozen):
+    dishes: tuple[DishWish, ...] = ()
+    kinds: tuple[KindWish, ...] = ()
+    like: tuple[LikeWish, ...] = ()
 
 
 class TripState(Frozen):
@@ -261,6 +369,10 @@ class TripState(Frozen):
     entry_point: Field[Base] = Field[Base]()  # where the trip enters the city: station, airport, own vehicle
     exit_point: Field[Base] = Field[Base]()   # where it leaves; the last day has to get back here in time
     mobility: Field[Vehicle] = Field[Vehicle]()
+    driver: Field[Literal["self", "hired"]] = Field[Literal["self", "hired"]]()
+    care: Field[Literal["none", "listed"]] = Field[Literal["none", "listed"]]()
+    budget_unlimited: Field[bool] = Field[bool]()
+    frame: TripFrame = PydanticField(default_factory=lambda: TripFrame())
     checkin_at: Field[str] = Field[str]()   # the hour the user wants to start on the first day (lodging check-in)
     checkout_at: Field[str] = Field[str]()  # and to be done on the last day (lodging check-out)
     day_end: Field[str] = Field[str]()
@@ -286,15 +398,10 @@ class TripState(Frozen):
     soft: dict[str, Field[Weight]] = {}
     visited: tuple[str, ...] = ()
     unmapped: tuple[Unmapped, ...] = ()
+    vibes: tuple[Vibe, ...] = ()
+    drills: tuple[Drill, ...] = ()
+    wishes: Wishes = Wishes()
     meta: Meta = Meta()
-
-
-class Draft(Frozen):
-    """An update without its evidence yet: what a chip writes when chosen."""
-    field: str
-    op: Literal["set", "add", "remove"] = "set"
-    value: Any = None
-    inferred: bool = False
 
 
 class Update(Frozen):
@@ -319,6 +426,47 @@ def apply(state: TripState, u: Update) -> TripState:
     """One validated change. Raises ValueError (pydantic ValidationError included) when the value does not fit."""
     status = "confirmed" if u.source == "user" and u.confidence == "high" else "unknown"
     f = u.field
+    if f.startswith("frame.") or f == "drive_day_min":
+        key = f.removeprefix("frame.")
+        if key not in TripFrame.model_fields:
+            raise ValueError(f"unknown frame field {key!r}")
+        cur = getattr(state.frame, key)
+        if isinstance(cur, Field):
+            if cur.locked and u.source != "user":
+                return state
+            raw = {} if u.op == "remove" else dict(value=u.value, source=u.source, confidence=u.confidence,
+                                                   status=status, evidence=(u.evidence,))
+        else:
+            raw = u.value
+            if key == "busy":
+                if u.op == "add":
+                    from .frame import Busy
+                    block = Busy.model_validate({**raw, "source": u.source, "evidence": (u.evidence,)})
+                    raw = (*cur, block) if not any(b.model_dump(exclude={"source", "evidence"}) ==
+                        block.model_dump(exclude={"source", "evidence"}) for b in cur) else cur
+                elif u.op == "remove":
+                    raw = tuple(b for b in cur if b.label != u.value)
+            elif key == "days" and u.op == "add":
+                from .frame import DayPlan
+                patch = dict(raw)
+                prior = next((d for d in cur if d.index == patch["index"]), None)
+                merged = {**(prior.model_dump() if prior else {}), **patch, "source": u.source,
+                          "evidence": (*prior.evidence, u.evidence) if prior else (u.evidence,)}
+                day = DayPlan.model_validate(merged)
+                raw = tuple(sorted((*[d for d in cur if d.index != day.index], day), key=lambda d: d.index))
+            elif key == "periods" and u.op == "add":
+                from .frame import Period
+                vals = raw if isinstance(raw, (list, tuple)) else (raw,)
+                raw = list(cur)
+                for value in vals:
+                    period = Period.model_validate(value)
+                    if period not in raw:
+                        raw.append(period)
+            elif key == "visit" and u.op == "add":
+                raw = {**cur, **raw}
+        data = state.frame.model_dump()
+        data[key] = raw
+        return state.model_copy(update={"frame": TripFrame.model_validate(data)})
     if f in SCALARS:
         cur = getattr(state, f)
         if cur.locked and u.source != "user":
@@ -356,7 +504,11 @@ def apply(state: TripState, u: Update) -> TripState:
         new_val = (frozenset(new_list) if f == "companions" else tuple(dict.fromkeys(new_list))) or None
         new = _kind(f)(value=new_val, source=u.source, confidence=u.confidence, status=status,
                        evidence=cur.evidence + (u.evidence,))
-        return state.model_copy(update={f: new})
+        changes = {f: new}
+        if f == "companions":
+            removed = set(have) - set(new_list)
+            changes["signals"] = tuple(s for s in state.signals if s.from_companion not in removed)
+        return state.model_copy(update=changes)
     if f == "companions_other":
         word = " ".join(str(u.value).split())
         have = [w for w in state.companions_other if w.casefold() != word.casefold()]
@@ -434,9 +586,19 @@ def apply(state: TripState, u: Update) -> TripState:
         kind = u.value["kind"] if isinstance(u.value, dict) else u.value
         if u.op == "remove":
             return state.model_copy(update={"signals": tuple(s for s in state.signals if s.kind != kind)})
-        if any(s.kind == kind for s in state.signals):
+        companion = None
+        if u.source == "inferred" and any(e.turn == u.evidence.turn and e.quote == u.evidence.quote
+                                          for e in state.companions.evidence):
+            inferred_from = {"elderly": "parents", "kids": "kids"}.get(kind)
+            if inferred_from in (state.companions.value or ()):
+                companion = inferred_from
+        s = Signal(kind=kind, quote=u.evidence.quote or u.evidence.tool or "", turn=u.evidence.turn,
+                   from_companion=companion, source=u.source)
+        existing = next((s for s in state.signals if s.kind == kind), None)
+        if existing:
+            if (existing.from_companion is not None and companion is None) or (existing.source != "user" and u.source == "user"):
+                return state.model_copy(update={"signals": tuple(s if old is existing else old for old in state.signals)})
             return state
-        s = Signal(kind=kind, quote=u.evidence.quote or u.evidence.tool or "", turn=u.evidence.turn)
         return state.model_copy(update={"signals": state.signals + (s,)})
     if f == "signal_handled":
         kinds = set(u.value)
@@ -513,6 +675,17 @@ def unknown_fields(state: TripState) -> list[str]:
 
 # ---------- Search Input (output of this step, input of Place Decision) ----------
 
+class BudgetIntent(Frozen):
+    amount: int = PydanticField(gt=0, strict=True)
+    currency: Literal["VND"] = "VND"
+    scope: BudgetScope
+    scope_guessed: bool = False
+    source: Source
+    evidence: tuple[Evidence, ...] = ()
+    scope_source: Source
+    scope_evidence: tuple[Evidence, ...] = ()
+
+
 class Context(Frozen):
     @model_validator(mode="before")
     @classmethod
@@ -528,6 +701,9 @@ class Context(Frozen):
     entry_point: Base | None = None
     exit_point: Base | None = None
     mobility: Vehicle | None
+    driver: Literal["self", "hired"] | None = None
+    budget_unlimited: bool | None = None
+    frame: CompiledFrame | None = None
     companions: tuple[Who, ...]
     companions_other: tuple[str, ...] = ()
     people: int | None
@@ -535,6 +711,7 @@ class Context(Frozen):
     checkout_at: str | None
     day_end: str | None
     budget_vnd: int | None = None  # VND per person per day (domain/budget.py); None when the amount cannot be split
+    budget_intent: BudgetIntent | None = None
     experience: Literal["first", "returning"] | None = None
     origin: Base | None = None
     arrival_mode: ArrivalMode | None = None
@@ -554,6 +731,14 @@ class HardFilter(Requirement):
 class AnchorRef(Frozen):
     place_id: str
     priority: Literal["must", "want"]
+
+
+class VibeRef(Frozen):
+    """A chosen look for Place Decision: its places rank higher; nothing is filtered by it."""
+    phrase: str
+    cues: tuple[str, ...] = ()
+    styles: tuple[str, ...] = ()
+    places: tuple[str, ...] = ()
 
 
 class SoftWeight(RequirementIntent):
@@ -583,7 +768,16 @@ class NoveltySpec(Frozen):
     visited: tuple[str, ...]
 
 
+class Readiness(Frozen):
+    missing: tuple[str, ...] = ()
+    readback_ok: bool = False
+
+
 class SearchInput(Frozen):
+    wishes: Wishes = Wishes()
+    readiness: Readiness | None = None
+    sources: dict[str, Source] = {}
+    corpus_binding: Binding | None = None
     ontology_version: int
     context: Context
     hard_filters: tuple[HardFilter, ...]
@@ -596,3 +790,11 @@ class SearchInput(Frozen):
     liked_groups: tuple[Group, ...] = ()  # kinds of place the user asked for, first said first (Place Decision's tabs)
     activities: dict[str, Activity] = {}
     time_preferences: tuple[TimePreference, ...] = ()
+    vibes: tuple[VibeRef, ...] = ()
+
+
+from .frame import CompiledFrame, TripFrame
+
+TripState.model_rebuild()
+Context.model_rebuild()
+SearchInput.model_rebuild()

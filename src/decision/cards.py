@@ -1,10 +1,11 @@
 """Candidate cards (docs/PLACE_DECISION.md §11) from templates: every line comes from a serving record field or a
 rule result, so a card cannot say what the data does not hold."""
 
-from corpus.serving import feature
+from corpus.serving import dishes, feature
 from requirements import applicable
 
 from .model import FIRM, Cand, cost_total, known_for, value
+from .wishes import SAID
 
 WARNING = {"hours_unknown": "Chưa có giờ mở cửa",
            "hours_outdated": "Giờ mở cửa có thể đã đổi, kiểm tra lại trước chuyến",
@@ -38,12 +39,65 @@ def price_text(rec: dict) -> str | None:
     return f"{lo // 1000}k/người" if hi == lo else f"{lo // 1000}k–{hi // 1000}k/người"
 
 
+PURPOSE_TEXT = {"relax": "thư giãn", "food_culture": "ăn uống, văn hóa", "nature": "thiên nhiên",
+                "explore": "khám phá", "photo": "chụp ảnh"}
+SOURCE_TEXT = {"menu_popular": " · theo menu", "menu": " · theo menu", "review_order": " · theo review"}
+
+
+def wish_text(hit: tuple, rec: dict, cfg, sources: dict | None = None) -> str:
+    """One met wish (decision.wishes.lift hit) in the user's words; a dish names where it was written down.
+    sources: dish -> best source already looked up for this place (Cand.dish_source), filled here."""
+    _, kind, label, _ = hit
+    if kind == "dish":
+        sources = sources if sources is not None else {}
+        if label not in sources:
+            found = dishes.search([rec], label, 1)
+            sources[label] = max((e["source"] for e in found[0]["evidence"]), key=dishes.SOURCE_RANK.get) if found else None
+        return f"Có {label} bạn muốn" + SOURCE_TEXT.get(sources[label], "")
+    if kind == "kind":
+        return f"Đúng loại {label} bạn tìm"
+    if kind == "vibe":
+        return f"Hợp phong cách “{label}” bạn chọn"
+    if kind == "like":
+        return f"Giống {label} bạn thích" if label else "Giống nơi bạn nhắc tới"
+    if kind == "group":
+        return f"Vì bạn thích {cfg.labels['group'][label].lower()}"
+    return f"Hợp chuyến {PURPOSE_TEXT.get(label, label)} ✎"
+
+
+def _fallback(c: Cand, cfg) -> dict:
+    """A card no wish, feature or nearness speaks for still says something true: the larger of its two parts a line
+    can state, location (ctx) or how many wrote about it (pop)."""
+    w = cfg.weights
+    if c.missing:
+        text = "Chưa có dữ liệu về nơi này; bạn tự kiểm trước chuyến"
+    elif c.minutes is not None and w.get("ctx", 0) * c.parts.get("ctx", 0) >= w.get("pop", 0) * c.parts.get("pop", 0):
+        text = f"Cách {c.center} ≈{c.minutes} phút (ước tính)"
+    else:
+        text = f"{c.rec['provenance'].get('voices') or 0} người đã viết về nơi này"
+    return {"text": text, "sid": None}
+
+
 def _why(c: Cand, anchor: bool, cfg) -> list[dict]:
-    out = [{"text": "Nơi bạn muốn đến", "sid": None}] if anchor else []
-    out += [{"text": f"{phrase(f, v, cfg)}, {n} người nhắc", "sid": f} for f, v, contrib, n in c.matches if contrib > 0]
+    """Up to 3 lines: anchor, wishes the user said, matched features, leanings (group / purpose), nearness. Only the
+    lines kept are written out."""
+    lines = [("anchor", None)] if anchor else []
+    lines += [("wish", h) for h in c.wishes if h[1] in SAID]
+    lines += [("feature", m) for m in c.matches if m[2] > 0]
+    lines += [("wish", h) for h in c.wishes if h[1] not in SAID]
     if c.minutes is not None and c.minutes <= cfg.near_min:
-        out.append({"text": f"Gần {c.center}, ≈{c.minutes} phút (ước tính)", "sid": None})
-    return out[:3]
+        lines.append(("near", None))
+
+    def text(kind, x) -> dict:
+        if kind == "anchor":
+            return {"text": "Nơi bạn muốn đến", "sid": None}
+        if kind == "wish":
+            return {"text": wish_text(x, c.rec, cfg, c.dish_source), "sid": None}
+        if kind == "feature":
+            return {"text": f"{phrase(x[0], x[1], cfg)}, {x[3]} người nhắc", "sid": x[0]}
+        return {"text": f"Gần {c.center}, ≈{c.minutes} phút (ước tính)", "sid": None}
+
+    return [text(k, x) for k, x in lines[:3]] or [_fallback(c, cfg)]
 
 
 def _tradeoffs(c: Cand, cfg) -> list[dict]:

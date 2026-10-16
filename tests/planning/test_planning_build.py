@@ -93,31 +93,24 @@ def test_a_place_that_cannot_be_scheduled_is_reported_and_an_unplaced_anchor_fai
     assert not failed["ok"] and [v["kind"] for v in failed["violations"]] == ["anchor"]
 
 
-def test_the_base_the_entry_and_the_exit_become_the_start_and_end_of_the_trip():
+def test_every_day_starts_and_ends_at_the_lodging_even_with_an_entry_and_exit_point():
+    """Where the coach or flight arrives and leaves does not move the day: the lodging is where each day starts and
+    ends, the first and the last day too."""
     d, recs = trip(base={"place_id": "c1", "text": "c1"}, entry={"place_id": None, "text": "Bến xe"},
                    exit={"place_id": None, "text": "Sân bay"})
     hit = lambda text: {"lat": 11.9404, "lng": 108.4583, "label": text, "source": "nominatim", "fetched_at": "t"}
     plan = build(d, recs, geocode=hit)
-    first, last = plan["itinerary"][0]["items"][0], plan["itinerary"][-1]["items"][-1]
-    assert first["kind"] == "travel" and first["from"] == "@entry"
-    assert last["kind"] == "travel" and last["to"] == "@exit"
-    assert plan["provenance"]["points"]["@entry"] == {"text": "Bến xe", "source": "nominatim", "fetched_at": "t"}
-    assert "entry_exit_unknown" not in {w["code"] for w in plan["warnings"]}
-
-
-def test_the_entry_point_only_opens_day_one_it_is_not_where_the_user_sleeps():
-    """A flight or coach gives where the user arrives, not where they stay: the later days do not start there."""
-    d, recs = trip(entry={"place_id": None, "text": "Sân bay"})
-    far = lambda text: {"lat": 11.7504, "lng": 108.3672, "label": text, "source": "nominatim", "fetched_at": "t"}
-    plan = build(d, recs, geocode=far)
-    starts = [next(i for i in day["items"] if i["kind"] == "travel").get("from") for day in plan["itinerary"] if day["items"]]
-    assert plan["ok"] and "@entry" not in starts[1:]
+    for day in plan["itinerary"]:
+        legs = [i for i in day["items"] if i["kind"] == "travel"]
+        if legs:
+            assert legs[0]["from"] == "@home" and legs[-1]["to"] == "@home"
+    assert "@entry" not in plan["provenance"]["points"] and "@exit" not in plan["provenance"]["points"]
 
 
 def test_a_trip_without_dates_or_entry_points_says_what_it_could_not_check():
     d, recs = trip(start_date=None, days=None)
     codes = {w["code"] for w in build(d, recs)["warnings"]}
-    assert {"days_assumed", "dates_unknown", "entry_exit_unknown", "base_unknown"} <= codes
+    assert {"days_assumed", "dates_unknown", "base_unknown"} <= codes
 
 
 def test_places_without_hours_are_flagged_not_assumed_open_silently():
@@ -154,6 +147,7 @@ def test_travel_load_adds_up_the_travel_items_of_each_day():
     plan = build(d, recs)
     for day, load in zip(plan["itinerary"], plan["travel_load"]):
         legs = [int(i["end"][:2]) * 60 + int(i["end"][3:]) - int(i["start"][:2]) * 60 - int(i["start"][3:])
+                - int(i.get("note", "+0")[1:])          # the buffer riding on a leg is not travel
                 for i in day["items"] if i["kind"] == "travel"]
         assert load["travel_min"] == sum(legs) and load["longest_leg_min"] == max(legs, default=0)
 
@@ -187,13 +181,13 @@ def test_six_places_of_one_area_are_spread_over_both_days_and_the_plan_is_valid(
     assert all(len(day) >= 2 for day in visits(plan))
 
 
-def test_a_sunrise_place_opens_a_later_day_early_instead_of_failing_the_plan():
+def test_a_sunrise_place_opens_its_day_early_instead_of_failing_the_plan():
     recs = [spot("c1", CENTRE, 0), spot("c2", CENTRE, 1), spot("c3", CENTRE, 2),
             spot("cloud", CENTRE, 3, hours=None, features={"cloud_hunting": "present"})]
     plan = build(decision([r["id"] for r in recs]), recs)
     assert plan["ok"], plan["violations"]
     day = next(i for i, v in enumerate(visits(plan)) if "cloud" in v)
-    assert day >= 1 and plan["itinerary"][day]["window"][0] <= "07:00"
+    assert plan["itinerary"][day]["window"][0] <= "07:00"      # day one too: only a start the user set stays
     assert any(w["code"] == "early_start" for w in plan["warnings"])
 
 

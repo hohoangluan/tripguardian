@@ -1,0 +1,27 @@
+# corpus.index: the semantic index of the corpus (docs/CORPUS.md §Chỉ mục ngữ nghĩa). Thresholds here, logic in code.
+embedder:
+  image_model: google/siglip2-so400m-patch16-384   # images and short text in one space (photo <-> photo, text -> photo)
+  image_text_len: 64                              # SigLIP2 text is padded to this many tokens
+  text_model: BAAI/bge-m3                         # multilingual text: span <-> text
+  online_device: cuda:0                           # where the harness embeds the user's text / photo; "cpu" works, slower
+  online_text_device: cuda:1                      # bge-m3 on its own GPU when the harness sees two (HARNESS_GPU=1,3); else cuda:0
+  batch: 48                                       # images per forward pass offline (one RTX 2080 Ti, fp16)
+  text_batch: 256
+gpus: [0, 1, 2, 3, 4, 5, 6, 7]                    # offline jobs: one process per GPU, places split between them
+frame_dedup: 0.95                                 # two frames of one video this similar: keep the first
+places_by_photos:                                 # a place matches a query only through several photos of several people
+  min_photos: 2
+  min_authors: 2
+  per_place: 3                                    # the place's score: mean of its best photos
+  owner_weight: 0.6                               # the business's own photos count less
+place_pick:                                       # "is this X?" from a user's photo
+  min_score: 0.80                                 # top photo similarity
+  margin: 0.04                                    # the top place beats the second by this much
+clusters:
+  k_max: 4
+  min_places: 3                                   # a kind with fewer places is not shown
+  photos: 3                                       # photos shown per kind
+search:
+  k_photos: 400
+  k_spans: 200
+  min_text_photo: 0.08                            # SigLIP text -> photo score below this is noise

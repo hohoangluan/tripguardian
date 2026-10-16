@@ -96,11 +96,12 @@ async def run(city: str) -> dict:
     return summary
 
 
-def verdicts() -> dict[str, str]:
+def verdicts(*, root=None) -> dict[str, str]:
     """fid -> place status that may act: closed / changed only when the strong Judge agreed (or a person decided);
     a single Judge's closed / changed counts as unclear."""
     out = {}
-    for fid, rec in decision_records("place_status").items():
+    records = decision_records("place_status", root=root) if root is not None else decision_records("place_status")
+    for fid, rec in records.items():
         note = json.loads(rec.get("note") or "{}")
         d = rec["decision"]
         if d in ("closed", "changed") and "model" in note and (note.get("strong") or {}).get("status") != d:

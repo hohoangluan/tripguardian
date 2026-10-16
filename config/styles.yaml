@@ -1,0 +1,19 @@
+# Style tags (layer B of corpus.index, docs/CORPUS.md §Chỉ mục ngữ nghĩa): soft taste only, never a hard filter,
+# never "absent" (no tag = unknown). Kept outside config/ontology.yaml so adding a tag never re-observes the corpus.
+# hint: what a photo must SHOW (visible signs, not a feeling). label: the kind's name on the Understand screen.
+# Changing ids or hints: bump version -> gmaps style_observe reads the photos again.
+version: 1
+min_authors: 2          # a place carries a tag from this many posters (the owner counts as one)
+styles:
+  - {id: retro, label: "Hoài cổ", hint: "đồ vật, nội thất hoặc âm nhạc gợi thời trước: radio, tivi, máy hát cũ, đồ gỗ cũ, ảnh đen trắng"}
+  - {id: retro_saigon, parent: retro, label: "Sài Gòn xưa", hint: "đèn vàng, bàn ghế gỗ cũ, phin cà phê, đĩa than, gạch bông, tông nâu cam"}
+  - {id: vintage_junk, parent: retro, label: "Đồ cũ, ve chai", hint: "nhiều đồ cũ sưu tầm chất kín: xe đạp cũ, tivi đời cũ, đồ ve chai, bảng hiệu cũ"}
+  - {id: french_colonial, parent: retro, label: "Pháp cổ", hint: "biệt thự hoặc nhà kiểu Pháp: mái ngói dốc, tường vàng, cửa chớp, cửa sổ vòm, lò sưởi"}
+  - {id: indochine, label: "Đông Dương", hint: "gỗ tối màu, mây tre, gạch bông, đèn lồng, họa tiết Á Đông pha Pháp"}
+  - {id: minimal, label: "Tối giản", hint: "tường trắng hoặc be trơn, ít đồ, bàn ghế đơn giản, nhiều khoảng trống"}
+  - {id: industrial, label: "Công nghiệp", hint: "bê tông trần, ống kim loại lộ ra, sắt, gạch thô, đèn dây tóc"}
+  - {id: rustic, label: "Mộc mạc", hint: "gỗ thô, tre, đất, nhà gỗ, bàn ghế mộc, cây cỏ tự nhiên"}
+  - {id: korean, label: "Kiểu Hàn", hint: "tông pastel hoặc trắng kem, decor xinh, gương, hoa khô, góc chụp kiểu Hàn"}
+  - {id: japanese, label: "Kiểu Nhật", hint: "gỗ sáng, chiếu tatami, cửa giấy, vườn đá, rèm noren"}
+  - {id: boho, label: "Boho", hint: "mây đan, macrame, thảm hoa văn, cây treo, đệm ngồi bệt"}
+  - {id: greenhouse, label: "Nhà kính", hint: "nhà kính hoặc mái kính, nhiều cây xanh bên trong"}

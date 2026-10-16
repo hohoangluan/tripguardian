@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "src/user/css/chat.css"
+        ],
+        "createdAt": "2026-10-13T02:13:01.650Z",
+        "reason": "loading shimmer on the live 'Đang tìm hiểu' label, copied from .shimmer in the approved mock docs/design/desktop/v4-chat-cards/mock.html; not decorative heading text"
+      }
+    ]
+  }
+}

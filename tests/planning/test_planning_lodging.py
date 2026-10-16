@@ -1,8 +1,7 @@
 import pytest
-from plan_fixtures import CFG, decision, rec
+from plan_fixtures import CFG, decision, rec, stay
 
-from live import Unavailable
-from planning.lodging import candidates, price_cap, search_area, shortlist, sieve
+from planning.lodging import candidates, from_record, price_cap, search_area, shortlist, sieve
 from planning.places import build_places
 
 CENTRE = (11.9404, 108.4583)
@@ -34,21 +33,22 @@ def test_no_places_has_no_search_area():
 
 
 def test_price_cap_is_the_lodging_share_of_budget_over_the_nights_or_unknown():
-    assert price_cap({"budget_vnd": 3_000_000}, 3, CFG) == round(3_000_000 * CFG.lodging_share / 3)
+    assert price_cap({"budget_vnd": 3_000_000, "days": 4, "people": 2}, 3, CFG) == round(24_000_000 * CFG.lodging_share / 3)
     assert price_cap({"budget_vnd": None}, 3, CFG) is None
     assert price_cap({"budget_vnd": 1_000_000}, 0, CFG) is None
 
 
-def cand(i, reviews=10, price=None, amenities=()):
+def cand(i, reviews=10, price=None):
     return {"id": f"h{i}", "name": f"Homestay {i}", "lat": CENTRE[0] + i * 0.001, "lng": CENTRE[1], "rating": 4.5,
-           "reviews": reviews, "price_vnd": price, "amenities": list(amenities)}
+           "reviews": reviews, "price_vnd": price}
 
 
-def test_sieve_drops_too_few_reviews_but_keeps_what_it_cannot_verify():
-    raw = [cand(0, reviews=1), cand(1, reviews=20), cand(2, reviews=20, amenities=["parking"])]
+def test_sieve_drops_too_few_reviews_and_evidence_against_but_keeps_what_it_cannot_verify():
+    parking = stay("h2", *CENTRE, voices=20, features={"parking": "present"})
+    raw = [from_record(stay("h0", *CENTRE, voices=1)), from_record(stay("h1", *CENTRE, voices=20)), from_record(parking)]
     hard = [{"feature": "parking", "op": "ne", "value": "present"}]
     out = sieve(raw, hard, CFG.min_reviews)
-    assert {c["id"] for c in out} == {"h1"}  # h0: too few reviews; h2: hard filter evidence against it
+    assert [(c["id"], c["unverified"]) for c in out] == [("h1", ["parking"])]  # h0: too few reviews; h2: evidence
 
 
 def test_shortlist_keeps_the_k_candidates_closest_to_any_centre():
@@ -57,43 +57,22 @@ def test_shortlist_keeps_the_k_candidates_closest_to_any_centre():
     assert [c["id"] for c in shortlist(raw, centres, 3)] == ["h0", "h1", "h2"]
 
 
-def test_candidates_drops_a_hit_outside_every_centres_search_radius():
-    # Maps' hotel list ignores the viewport and can pad a short list with hotels far from any searched centre.
+def test_candidates_drops_a_stay_outside_every_centres_search_radius():
     places = by(rec("a", *CENTRE))
-    far = cand(0, reviews=20)
-    far["lat"], far["lng"] = 10.78, 106.70  # Hồ Chí Minh, far outside motorbike's radius_km around CENTRE
-
-    out = candidates(places, decision(["a"]), CFG, lambda *a: [far], None)
-    assert out == []
+    far = stay("far", 11.60, 108.10)
+    assert candidates(places, decision(["a"]), CFG, [far]) == []
 
 
-def test_candidates_merges_two_centres_without_duplicates_and_passes_the_price_cap_through():
+def test_candidates_cover_two_centres_and_hold_the_price_cap():
     places = by(rec("a", *CENTRE), rec("b", 11.60, 108.10))
-    seen = []
-
-    def fake(center, radius_km, check_in, check_out, price_max, live_cfg):
-        seen.append(price_max)
-        return [cand(0), cand(1)]  # same ids from both centres: a duplicate to drop
-
-    out = candidates(places, decision(["a", "b"], budget=3_000_000, days=3), CFG, fake, None)
-    assert len(seen) == 2 and all(p == round(3_000_000 * CFG.lodging_share / 2) for p in seen)
+    cap = round(3_000_000 * 3 * 2 * CFG.lodging_share / 2)
+    stays = [stay("h0", *CENTRE), stay("h1", 11.6005, 108.10, price=cap), stay("h2", *CENTRE, price=cap + 1)]
+    out = candidates(places, decision(["a", "b"], budget=3_000_000, days=3), CFG, stays)
     assert sorted(c["id"] for c in out) == ["h0", "h1"]
 
 
-def test_a_dead_lodging_source_at_one_centre_still_returns_what_the_other_found():
-    places = by(rec("a", *CENTRE), rec("b", 11.60, 108.10))
-
-    def flaky(center, *a):
-        if round(center[0], 2) == round(CENTRE[0], 2):
-            raise Unavailable("blocked")
-        return [cand(0)]
-
-    out = candidates(places, decision(["a", "b"]), CFG, flaky, None)
-    assert [c["id"] for c in out] == ["h0"]
-
-
 def test_no_places_means_no_candidates():
-    assert candidates({}, decision([]), CFG, lambda *a: pytest.fail("no call"), None) == []
+    assert candidates({}, decision([]), CFG, [stay("h0", *CENTRE)]) == []
 
 
 from planning.lodging import progress_event

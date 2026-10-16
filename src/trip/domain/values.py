@@ -15,8 +15,10 @@ from .text import fold
 
 MONEY = re.compile(r"(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)?")
 LITERALS = ("companions", "mobility", "purpose", "pace", "novelty", "crowd_tolerance", "signal", "arrival_mode",
-            "lodging_booked", "budget_scope", "month_part", "liked_groups")
+            "lodging_booked", "driver", "care", "budget_scope", "month_part", "liked_groups")
 ENUM_VALUES = {
+    "driver": ("self", "hired"),
+    "care": ("none", "listed"),
     "companions": ("solo", "partner", "friends", "kids", "parents", "baby", "pet", "coworkers"),
     "mobility": ("motorbike", "car", "walk"),
     "purpose": ("relax", "bond", "photo", "food_culture", "nature", "explore", "adventure"),
@@ -58,13 +60,21 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
     raw = raw.strip()
     if not raw:
         raise ValueError(f"{field}: empty value")
+    if field in ("frame.arrive", "frame.leave"):
+        return json.loads(raw) if raw.startswith("{") else {"at": raw}
     if field == "start_date":
         return date.fromisoformat(raw[:10])
-    if field in ("month", "days", "nights", "people", "max_leg_min"):
+    if field in ("drive_day_min", "frame.drive_day_min", "month", "days", "nights", "people", "max_leg_min"):
         m = re.search(r"\d+", raw)
         if not m:
             raise ValueError(f"{field}: no number in {raw!r}")
         return int(m[0])
+    if field == "budget_unlimited":
+        flags = {"yes": True, "true": True, "có": True, "1": True,
+                 "no": False, "false": False, "không": False, "0": False}
+        if raw.casefold() not in flags:
+            raise ValueError("budget_unlimited must be true or false")
+        return flags[raw.casefold()]
     if field == "budget_vnd":
         return money(raw)
     if field in ("checkin_at", "checkout_at", "day_end"):
@@ -72,6 +82,8 @@ def parse(field: str, raw: str, catalog: Catalog) -> Any:
     if field in ("base", "entry_point", "exit_point"):
         if raw in catalog.by_id:
             return Base(place_id=raw, text=catalog.by_id[raw].name)
+        if field == "base" and fold(raw) in {"dorm", "hostel", "hotel", "homestay", "khach san", "nha nghi", "resort"}:
+            return Base(text=raw)
         a = anchor_for(raw, catalog)
         return Base(place_id=a.place_id if a.state == "matched" else None, text=raw)
     if field in ("origin", "lodging"):  # a row picked from a search: {"text", "lat", "lng", "province"?, "kind"?, "id"?}

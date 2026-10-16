@@ -50,7 +50,7 @@ def test_variants_prints_each_variant_its_robustness_and_the_verdict(tmp_path, m
     monkeypatch.setattr(cli, "load_records", lambda: [rec("a", 11.94, 108.45), rec("b", 11.941, 108.451)])
     assert cli.main(["variants", str(write_decision(tmp_path, ["a", "b"]))]) == 0
     out = capsys.readouterr().out
-    assert "== Phương án 1 · Ít di chuyển" in out and "Độ vững:" in out and out.rstrip().endswith("Hợp lệ.")
+    assert "== Phương án 1 · Lịch của bạn" in out and "Độ vững:" in out and out.rstrip().endswith("Hợp lệ.")
 
 
 def test_variants_reads_a_forecast_file_and_writes_the_plan_output(tmp_path, monkeypatch, capsys, offline):

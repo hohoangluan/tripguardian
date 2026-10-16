@@ -149,7 +149,8 @@ def evaluate(chosen: list[Cand], si, days, known_days: bool, anchors: set[str], 
     buffer = cfg.buffer_min[pace] * len(chosen)
     travel = cfg.intra_leg_min * len(chosen) + sum(2 * m for m in area_min.values())
     needed = visit + buffer + travel
-    available = sum(max(0, d.end - d.start) for d in days)
+    available = sum(max(0, d.end - d.start - sum(max(0, min(d.end, end) - max(d.start, start))
+                                              for start, end in d.busy)) for d in days)
     if known_days and needed > available:
         conflicts.append({"id": "time", "check": "time", "physical": True,
                           "title": f"Cần khoảng {needed} phút, chuyến có {available} phút",

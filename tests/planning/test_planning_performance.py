@@ -13,12 +13,11 @@ def started(days=2, background=False):
                rec("b", 11.941, 108.45),
                rec("cafe", 11.942, 108.45, group="cafe", usable=("meal", "experience", "backup"),
                    price={"typical_vnd": 100000})]
-    d = decision(["a", "b"], days=days)
+    d = decision(["a", "b"], days=days, leave_at="18:00")       # a cafe is a snack: it needs an afternoon gap
     d["backup_pool"] = [{"id": "cafe", "for": "a"}]
     d["trip_context"]["activities"] = {"cafe": "coffee"}
     e = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), matrix_fn=fake_matrix,
-               geocode_fn=no_geocode, sun_fn=lambda *a: None, lodging_fn=lambda *a: [],
-               route_fn=lambda *a: None, background=background)
+               geocode_fn=no_geocode, sun_fn=lambda *a: None, route_fn=lambda *a: None, background=background)
     sid = e.create(d)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     return e, sid

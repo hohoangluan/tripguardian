@@ -19,7 +19,7 @@ GROUPS = {"morning": {"museum", "religious", "attraction", "nature", "garden_far
 def _gaps(a: int, b: int, items) -> list[tuple[int, int]]:
     cursor, out = a, []
     for item in sorted(items, key=lambda i: i.start):
-        if item.kind == "wait" or item.end <= a or item.start >= b:
+        if item.kind in {"wait", "meal_free", "free"} or item.end <= a or item.start >= b:
             continue
         lo, hi = max(a, item.start), min(b, item.end)
         if lo > cursor:
@@ -31,6 +31,8 @@ def _gaps(a: int, b: int, items) -> list[tuple[int, int]]:
 
 
 def _suited(place, period: str, cx) -> bool:
+    if place.meal_kind == "light":
+        return period == "afternoon"      # a snack stop, never a main meal (roles.py)
     if place.kind == "meal":
         return period in {"midday", "evening"}
     rules = windows_for(place, cx)

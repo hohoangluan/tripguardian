@@ -9,7 +9,16 @@ crowd_busy_pct: 70          # Google popular times at or above this = busy
 crowd_penalty: 0.2
 rainy_months: [5, 6, 7, 8, 9, 10]
 min_context_fit: 0.1        # below: stays in the pool, never in the shortlist
-weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.5}
+weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.5, wish: 1.5}  # wish: Trip's wishes (decision.wishes)
+wish:                       # decision.wishes: how much meeting one wish lifts a place (docs/PLACE_DECISION.md §8)
+  a: {dish: 0.8, kind: 0.8, vibe: 0.8, like: 0.8, group: 0.4, purpose: 0.25}
+  like_min: 0.3             # corpus.serving.similarity at or above this = "giống X"
+  purpose:                  # Trip context.purpose -> what it leans to; bond, adventure lean to nothing
+    relax: {group: chill}
+    food_culture: {group: meal}
+    nature: {group: nature}
+    explore: {group: sights}
+    photo: {feature: photo_spot, value: present}
 price_ref_vnd: 300000       # price per person that counts as "expensive" (1.0) for price sensitivity
 near_min: 12                # minutes: "Gần <tâm>" on a card
 per_day: {slow: 3, normal: 4, packed: 6}
@@ -46,15 +55,27 @@ gap_min: 90
 rethink_drops: 6
 history_max: 50
 unverified_show: 12
-page_size: 24               # places per display group shown at once; scrolling loads the next page
-keep_factor: 2              # a shown place survives a new ranking while it ranks within keep_factor x the window
-replace_below: 0.3          # fewer survivors than this share of the window -> replace the window whole
+page_size: 24               # places per page of a tab; the user picks the page
+replace_below: 0.3          # fewer of a page's places kept than this share after a rebuild -> "replaced whole"
 first_token_s: 8
 total_s: 30
-display_groups:
+display_groups:            # kinds of place Trip's liked_groups and purpose lean to (decision.wishes); meal = role meal
   nature: [nature, garden_farm, camping]
   sights: [attraction, museum, religious, amusement, market, tour, golf, other]
   chill: [cafe, spa, bar, dessert]
+tabs:                       # Lựa chọn's tabs, in screen order: tab -> corpus category groups; any other group -> sights
+  meal: [restaurant]
+  snack: [dessert]
+  cafe: [cafe]
+  nature: [nature]
+  garden: [garden_farm]
+  camping: [camping]
+  sights: [attraction, tour, golf, other]
+  culture: [museum, religious]
+  fun: [amusement]
+  night: [bar]
+  spa: [spa]
+  market: [market, shop]
 polarity:                   # good first, bad last
   crowd: [low, medium, high]
   noise: [quiet, moderate, loud]
@@ -75,8 +96,10 @@ polarity:                   # good first, bad last
   steep_or_stairs: [absent, present]
   long_walk: [absent, present]
 labels:                     # same words as web/src/data/labels.ts
-  group: {anchors: "Nơi bạn muốn đến", nature: "Thiên nhiên và view", sights: "Điểm tham quan",
-          chill: "Cà phê và thư giãn", meal: "Ăn uống"}
+  group: {anchors: "Nơi bạn muốn đến", meal: "Ăn uống", snack: "Ăn vặt, tráng miệng", cafe: "Cà phê",
+          nature: "Thiên nhiên, ngắm cảnh", garden: "Vườn, trang trại", camping: "Cắm trại", sights: "Điểm tham quan",
+          culture: "Di tích, chùa, bảo tàng", fun: "Vui chơi", night: "Bar, về đêm", spa: "Spa, thư giãn",
+          market: "Chợ, mua sắm", chill: "Cà phê và thư giãn"}
   reason: {far: "Quá xa", crowded: "Quá đông", pricey: "Quá đắt", dislike: "Không thích", visited: "Đã đi rồi"}
   pace: {slow: "thong thả", normal: "cân bằng", packed: "đi nhiều"}
   time: {early_morning: "sáng sớm", morning: "buổi sáng", noon: "buổi trưa", afternoon: "buổi chiều",

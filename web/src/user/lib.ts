@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { coversOf, placeById, type Cover } from '../data/store'
+import { coversOf, isDetailed, placeById, type Cover } from '../data/store'
 import type { CrowdTable, PriceRange, Quote, Video } from '../data/types'
 
 export const fmtMin = (m: number) => {
@@ -121,7 +121,26 @@ export function info(id: string): PlaceInfo | null {
     mapsUrl: p.mapsUrl,
     asOf: p.asOf ?? null,
   }
-  infoCache.set(id, out)
+  if (isDetailed(id)) infoCache.set(id, out) // evidence still on its way: the basics now, the rest when its chunk lands
+  return out
+}
+
+// Every different line travellers wrote about the place (the words behind its signals), newest first; the review tab
+// shows them a few at a time. Not cut to the three of `info().quotes` that the header and the sheet's top quote use.
+const reviewCache = new Map<string, Quote[]>()
+export function reviewsOf(id: string): Quote[] {
+  const hit = reviewCache.get(id)
+  if (hit) return hit
+  const p = placeById(id)
+  const seen = new Set<string>()
+  const out: Quote[] = []
+  for (const f of p ? p.features.filter((f) => f.status !== 'NEEDS_REVIEW' && f.status !== 'DISABLED') : [])
+    for (const q of f.quotes) {
+      const key = q.text.trim().toLowerCase()
+      if (q.text.trim().length >= 15 && !seen.has(key)) { seen.add(key); out.push(q) }
+    }
+  out.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+  if (isDetailed(id)) reviewCache.set(id, out)
   return out
 }
 

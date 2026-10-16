@@ -2,7 +2,9 @@ import type { CSSProperties } from 'react'
 import { crowdOf, fmtRange, info, priceText, TRUST } from '../lib'
 import { useDecision } from '../pd/decision'
 import type { Card } from '../pd/types'
+import { useWarm } from '../../data/store'
 import { toggleSaved, useUi } from '../store'
+import { cardLines } from './cardLines'
 import { PlacePhoto, Trust } from './common'
 import { HeartFill, Icon } from './icons'
 import { openPlace } from './PlaceSheet'
@@ -11,13 +13,13 @@ import { openPlace } from './PlaceSheet'
 // hover only reveals the secondary row earlier.
 export function PlaceCard({ c, onDrop, cmp, onCmp, warn, phase = 'stay', order = 0 }: { c: Card; onDrop: (c: Card) => void; cmp: boolean; onCmp: (id: string) => void; warn?: string; phase?: 'stay' | 'enter' | 'leave'; order?: number }) {
   const { act, busy, view } = useDecision()
+  useWarm([c.id]) // a card on screen: its evidence comes next, for when the sheet opens
   const p = info(c.id)
   const saved = useUi((u) => u.saved.includes(c.id))
   const flash = useUi((u) => u.flashId === c.id)
   const crowd = crowdOf(p)
   const price = c.price ?? priceText(p?.price)
-  const notes = [...c.failed.map((t) => `Không hợp điều kiện của bạn: ${t}`), ...c.unverified, ...c.warnings, ...(c.depends_on_unknown ? [c.depends_on_unknown] : [])]
-  const trade = c.tradeoffs[0]?.text ?? notes.shift()
+  const { why, trade, alerts } = cardLines(c)
   const credit = p?.photos[0]?.credit
   return (
     <article className={`tg-pc ${c.chosen ? 'is-sel' : ''} ${c.locked ? 'is-lock' : ''} ${warn ? 'is-warn' : ''} ${c.status === 'unverified' ? 'is-dim' : ''} ${flash ? 'tg-flash' : ''} is-${phase}`} style={{ '--i': order } as CSSProperties} data-place={c.id} aria-hidden={phase === 'leave' || undefined}>
@@ -37,13 +39,13 @@ export function PlaceCard({ c, onDrop, cmp, onCmp, warn, phase = 'stay', order =
           <h3>{c.name}</h3>
           <p className="tg-faint">{p?.area ?? c.area}{p?.rating ? <> · <span className="tg-mono">★ {p.rating.toFixed(1)}</span></> : null}{c.suggested ? ' · gợi ý thêm' : ''}</p>
         </div>
-        {c.why.length ? (
+        {why.length ? (
           <ul className="tg-pc__why" aria-label="Vì sao phù hợp">
-            {c.why.slice(0, 3).map((r) => <li key={r.text}><Icon name="check" size={15} />{r.text}</li>)}
+            {why.map((r) => <li key={r.text}><Icon name="check" size={15} />{r.text}</li>)}
           </ul>
         ) : <p className="tg-faint">Chưa có lý do rõ.</p>}
         {trade ? <p className="tg-pc__trade"><Icon name="warn" size={15} /><span><b>Đánh đổi:</b> {trade}</span></p> : <p className="tg-faint">Chưa thấy điều gì đáng ngại.</p>}
-        {[...(c.tradeoffs.slice(1).map((t) => t.text)), ...notes].slice(0, 2).map((n) => <p key={n} className="tg-pc__alert"><Icon name="warn" size={14} />{n}</p>)}
+        {alerts.map((n) => <p key={n} className="tg-pc__alert"><Icon name="warn" size={14} />{n}</p>)}
         {warn && <p className="tg-pc__alert" role="status"><Icon name="warn" size={14} />{warn}</p>}
         <div className="tg-pc__facts">
           {c.visit ? <span className="tg-mono" title="Ước tính">≈ {fmtRange(c.visit.short, c.visit.long)}</span> : <span className="tg-faint">Chưa có thời lượng</span>}

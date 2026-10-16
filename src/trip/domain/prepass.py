@@ -12,6 +12,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
+from .dates import FULL_DATE, RANGE, UNTIL, relative_dates
 from .state import MAX_TRIP_DAYS
 from .text import fold
 
@@ -137,6 +138,16 @@ def _next_date(day: int, month: int, today: date) -> date | None:
     return None
 
 
+def _on(day: int, month: int, year: str | None, today: date) -> date | None:
+    """A written day and month: in the year the user wrote, else the next time it comes."""
+    if not year:
+        return _next_date(day, month, today)
+    try:
+        return date(int(year), month, day)
+    except ValueError:
+        return None
+
+
 def prepass(text: str, today: date) -> Prepass:
     raw = unicodedata.normalize("NFC", text)
     low = fold(raw)
@@ -146,20 +157,30 @@ def prepass(text: str, today: date) -> Prepass:
     def add(field, value, m, op="set", inferred=False, group=0):
         out.append(Proposal(field, op, value, raw[m.start(group):m.end(group)], inferred))
 
-    # a range first, so "12-14/12" is not also read as two single dates
-    for m in re.finditer(r"\b(\d{1,2})\s*(?:-|–|den)\s*(\d{1,2})\s*/\s*(\d{1,2})\b", low):
-        d1, d2, mo = map(int, m.groups())
-        start = _next_date(d1, mo, today)
+    for resolved in relative_dates(low, raw.lower(), today):
+        a, b = resolved.span
+        out.append(Proposal(resolved.field, "set", resolved.value, raw[a:b]))
+
+    # a range first, so "12-14/12" is not also read as two single dates. Its length is written only when the user
+    # gave no length of their own ("3 ngày 2 đêm, từ 17 đến 20/10": the 3 days they said win)
+    span_days: tuple[int, int, int] | None = None  # (days, quote start, quote end)
+    for m in RANGE.finditer(low):
+        d1, d2 = int(m[1]), int(m[2])
+        start = _on(d1, int(m[3]), m[4], today)
         if start and d2 >= d1:
             add("start_date", start, m)
-            add("days", d2 - d1 + 1, m)
+            span_days = (d2 - d1 + 1, m.start(), m.end())
             taken.append(m.span())
-    for m in re.finditer(r"(?<![\d/])(\d{1,2})\s*/\s*(\d{1,2})\b(?!\s*(?:ngay|n)\b)", low):
-        if any(a <= m.start() < b for a, b in taken):
-            continue
-        start = _next_date(int(m[1]), int(m[2]), today)
-        if start:
-            add("start_date", start, m)
+            break
+    singles = [(m, d) for m in FULL_DATE.finditer(low) if not any(a <= m.start() < b for a, b in taken)
+               and (d := _on(int(m[1]), int(m[2]), m[3], today))]
+    if singles and span_days is None:
+        (m, start), *rest = singles
+        add("start_date", start, m)
+        if rest and UNTIL.search(low[m.end():rest[0][0].start()]):  # "từ 17/10 đến 20/10"
+            n = (rest[0][1] - start).days + 1
+            if 1 <= n <= MAX_TRIP_DAYS:
+                span_days = (n, m.start(), rest[0][0].end())
     for m in re.finditer(r"\b(?:(dau|giua|cuoi)\s+)?thang\s*(\d{1,2})\b", low):
         if 1 <= int(m[2]) <= 12:
             add("month", int(m[2]), m)
@@ -198,13 +219,16 @@ def prepass(text: str, today: date) -> Prepass:
                 add("nights", n, m)
                 if not any(p.field == "days" for p in out) and n < MAX_TRIP_DAYS:
                     add("days", n + 1, m, inferred=True)
+    if span_days and not any(p.field == "days" for p in out):
+        n, a, b = span_days
+        out.append(Proposal("days", "set", n, raw[a:b]))
     if not any(p.field == "days" for p in out):
         m = re.search(r"\b(di|ve|choi)\s+(ve\s+)?trong\s+ngay\b|\bday trip\b", low)
         if m:  # a day trip: one day, no night in the city
             add("days", 1, m)
             add("nights", 0, m)
-    for m in re.finditer(r"\b(\d{1,2})\s*(?:nguoi|ng)\b", low):
-        add("people", int(m[1]), m)
+    for m in re.finditer(r"\b(\d{1,2})\s*(?:nguoi|ng)\b|\b(?:tui tui|tui minh|bon minh|chung minh)\s+(\d{1,2})\s+dua\b", low):
+        add("people", int(m[1] or m[2]), m)
         break
     for m in re.finditer(r"\b(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)\b", low):
         n = float(m[1].replace(",", "."))
@@ -237,6 +261,22 @@ def prepass(text: str, today: date) -> Prepass:
                 continue
             # who goes needs conversational context (negations, corrections): a suggestion only
             propose("companions", who, m, op="add")
+    # Short companion words must retain their marks, as in guard.names_group.
+    short = {"partner": ("bồ", "vợ", "chồng", "ny"), "parents": ("mẹ", "bố", "ông", "bà"), "kids": ("bé",)}
+    ambiguous_family = bool(re.search(r"\b\d+\s+mẹ\s+con\b", raw.lower()))
+    for who, words in short.items():
+        if ambiguous_family:
+            continue
+        for word in words:
+            for m in re.finditer(r"\b" + word + r"\b", raw.lower()):
+                if not negated(m):
+                    propose("companions", who, m, op="add")
+    for m in re.finditer(r"\b(?:tui tui|tui minh|bon minh|chung minh)\s+\d+\s+dua\b", low):
+        if not negated(m):
+            propose("companions", "friends", m, op="add")
+    for m in re.finditer(r"\bnhom\s+\d+\s+cap doi\b", low):
+        if not negated(m):
+            propose("companions", "friends", m, op="add")
     for pattern, kind in SIGNALS:
         for m in re.finditer(pattern, low):
             if negated(m):

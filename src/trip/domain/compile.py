@@ -1,10 +1,12 @@
 """Trip State -> Search Input (docs/TRIP_UNDERSTANDING.md §9). Deterministic; refuses while a physical signal is open."""
 
 from ..infrastructure.settings import ARRIVAL_BUFFER_MIN, COACH_MIN_PEOPLE
-from .budget import per_person_day
+from .budget import intent, per_person_day
 from .logistics import clock_after
+from .frame import FrameDefaults, compile_frame
+from .readiness import missing
 from .state import (AnchorRef, Context, HardFilter, NoveltySpec, PaceSpec, SearchInput, SoftKey, SoftWeight, TripState,
-                    WEIGHT_SIGN, ontology, pending_signals, unknown_fields)
+                    Readiness, SCALARS, Field, VibeRef, WEIGHT_SIGN, ontology, pending_signals, unknown_fields)
 
 
 class UnhandledSignal(Exception):
@@ -26,7 +28,8 @@ def day_window(state: TripState, buffer_min: int = ARRIVAL_BUFFER_MIN) -> tuple[
 
 
 def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUFFER_MIN,
-                         coach_min_people: int = COACH_MIN_PEOPLE) -> SearchInput:
+                         coach_min_people: int = COACH_MIN_PEOPLE, *, entry_min: int = 30,
+                         defaults: FrameDefaults | None = None) -> SearchInput:
     pending = pending_signals(state)
     if pending:
         raise UnhandledSignal(", ".join(s.kind for s in pending))
@@ -49,19 +52,34 @@ def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUF
         # a party this big needs a coach or 16-seater: a physical limit, derived here, never typed by the user
         hard.append(HardFilter(feature="coach_access", op="ne", value="no", unknown_policy="exclude"))
     opens, closes = day_window(state, arrival_buffer_min)
-    budget = per_person_day(state)
+    budget = None if state.budget_unlimited.value is True else per_person_day(state)
     unknowns = unknown_fields(state)
     if budget is None and "budget_vnd" not in unknowns:  # an amount nobody can split yet (days or party unknown)
         unknowns.append("budget_vnd")
-    return SearchInput(
+    frame = compile_frame(state, arrival_buffer_min, entry_min, defaults)
+    sources = {key: getattr(state, key).source for key in (*SCALARS, "companions")}
+    sources.update({f"frame.{key}": field.source for key in type(state.frame).model_fields
+                    if isinstance(field := getattr(state.frame, key), Field)})
+    sources.update({f"frame.days.{day.index}.{key}": day.source for day in state.frame.days
+                    for key in ("start", "end", "intensity") if getattr(day, key) is not None})
+    sources.update({f"frame.busy.{busy.label}": busy.source for busy in state.frame.busy})
+    if not state.frame.arrive.known and state.inbound.known:
+        sources["frame.arrive"] = state.inbound.source
+    if not state.frame.leave.known and state.outbound.known:
+        sources["frame.leave"] = state.outbound.source
+    si = SearchInput(
+        wishes=state.wishes,
+        readiness=Readiness(missing=tuple(key for key, _ in missing(state))), sources=sources,
         ontology_version=ontology().version,
         context=Context(start_date=v("start_date"), month=v("month"), month_part=v("month_part"), days=v("days"), nights=v("nights"),
                         base=v("base"),
                         entry_point=v("entry_point"), exit_point=v("exit_point"),
-                        mobility=v("mobility"), companions=tuple(sorted(v("companions") or ())),
+                        mobility=v("mobility"), driver=v("driver"), frame=frame,
+                        budget_unlimited=v("budget_unlimited"), companions=tuple(sorted(v("companions") or ())),
                         companions_other=state.companions_other, people=v("people"),
                         checkin_at=opens, checkout_at=closes, day_end=v("day_end"),
-                        budget_vnd=budget, experience=state.meta.experience, origin=v("origin"),
+                        budget_vnd=budget, budget_intent=None if v("budget_unlimited") is True else intent(state),
+                        experience=state.meta.experience, origin=v("origin"),
                         arrival_mode=v("arrival_mode"), inbound=v("inbound"), outbound=v("outbound"),
                         lodging_booked=v("lodging_booked"), lodging=v("lodging"), purpose=v("purpose")),
         hard_filters=tuple(hard),
@@ -72,4 +90,10 @@ def compile_search_input(state: TripState, arrival_buffer_min: int = ARRIVAL_BUF
         novelty=NoveltySpec(level=v("novelty"), visited=state.visited),
         unknowns=tuple(unknowns),
         unmapped=tuple(u.phrase for u in state.unmapped),
-        liked_groups=v("liked_groups") or (), activities=state.activities, time_preferences=state.time_preferences)
+        liked_groups=v("liked_groups") or (), activities=state.activities, time_preferences=state.time_preferences,
+        vibes=tuple(VibeRef(phrase=x.phrase, cues=x.cues, places=x.places,
+                            styles=tuple(dict.fromkeys(k.style for k in x.offered if k.id in x.chosen and k.style)))
+                    for x in state.vibes if x.places and x.status == "done"))  # an unanswered guess ranks nothing yet
+    from .readback import plan_digest
+    return si.model_copy(update={"readiness": si.readiness.model_copy(update={
+        "readback_ok": not si.readiness.missing and state.meta.readback_digest == plan_digest(si)})})

@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "openai>=1.40",
+    "langchain-openai>=1.7",
     "langchain-core>=0.3",
     "langgraph>=0.2",
     "playwright>=1.45",
@@ -11,6 +12,11 @@ dependencies = [
     "pydantic>=2.6",
     "pyyaml>=6",
     "psycopg[binary,pool]>=3.2",
+    "lancedb>=0.40",
+    "polars>=2.0",
+    "pyarrow>=20",
+    "orjson>=3.10",
+    "numpy>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -33,5 +39,6 @@ testpaths = ["tests"]
 markers = [
     "live: calls the real AGENT model (python -m pytest -m live)",
     "pg: needs a Postgres in TEST_DATABASE_URL (each test gets a throwaway schema); skipped without it",
+    "corpus: needs data/snapshot/current (python -m corpus snapshot); skipped without it",
 ]
 addopts = "-m 'not live'"

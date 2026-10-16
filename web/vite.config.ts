@@ -50,7 +50,26 @@ function clips(): Plugin {
   }
 }
 
+// The app (/app, not the landing) is laid out at 82.5% of the authored sizes: every length >= 3px in src/user/css becomes rem,
+// and `html.tg-scaled` (tokens.css) sets the root size. vh/vw, pointer maths and portals stay exact, which `zoom` would break.
+const PX = /(-?\d*\.?\d+)px/g
+function pxToRem() {
+  return {
+    postcssPlugin: 'tg-px-to-rem',
+    Once(root: { source?: { input: { file?: string } }; walkDecls: (fn: (d: { value: string }) => void) => void }) {
+      const file = (root.source?.input.file ?? '').replaceAll('\\', '/')
+      if (!file.includes('/src/user/css/') || file.endsWith('/landing.css')) return
+      root.walkDecls((d) => {
+        if (d.value.includes('url(')) return
+        d.value = d.value.replace(PX, (m, n) => (Math.abs(Number(n)) < 3 ? m : `${+(Number(n) / 16).toFixed(5)}rem`))
+      })
+    },
+  }
+}
+
 export default defineConfig({
+  build: { sourcemap: false },
+  css: { postcss: { plugins: [pxToRem()] } },
   plugins: [react(), clips()],
   // /api/decision: `python -m decision serve` (src/decision/server.py, Place Decision).
   // /api/planning: `python -m planning serve` (src/planning/server.py, Planning & Validation).

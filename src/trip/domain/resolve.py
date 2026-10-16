@@ -1,50 +1,29 @@
 """Place name or link -> catalog place (docs/PLACE_DECISION.md §4). Port of web/src/user/search.ts."""
 
 import re
+from corpus.retrieval import NameRecord, name_score, search_names as corpus_search_names
 
 from ..infrastructure.catalog import Candidate, Catalog
 from .state import Anchor
 from .text import squash
 
-STOP = {"quan", "tiem", "cafe", "ca", "phe", "coffee", "nha", "hang", "the", "va", "cua"}
-CITY = re.compile(r"\b(da lat|dalat|tp|thanh pho)\b")
 URL = re.compile(r"https?://\S+")
 FID = re.compile(r"0x[0-9a-f]+:0x[0-9a-f]+", re.I)
 VIDEO = re.compile(r"/video/(\d+)")
 
 
-def _name(s: str) -> str:
-    return " ".join(CITY.sub(" ", squash(s)).split())
-
-
-def _tokens(s: str) -> list[str]:
-    return [t for t in _name(s).split() if len(t) > 1]
-
-
 def score(q: str, name: str) -> float:
     """Token overlap on distinctive words; never a match on generic words alone."""
-    qt, nt = _tokens(q), set(_tokens(name))
-    if not qt:
-        return 0.0
-    fq, fn = _name(q), _name(name)
-    if fq == fn:
-        return 1.0
-    hits = [t for t in qt if t in nt]
-    if not [t for t in hits if t not in STOP]:
-        return 0.0
-    s = len(hits) / max(len(qt), len(nt))
-    if fq in fn or fn in fq:
-        s = max(s, 0.8)
-    return s
+    return name_score(q, name)
 
 
 def search(q: str, catalog: Catalog, limit: int = 6) -> list[Candidate]:
     if len(squash(q)) < 2:
         return []
-    fq = _name(q)
-    ranked = sorted(((score(q, p.name) + (0.3 if _name(p.name).startswith(fq) else 0.0), p.id, p)
-                     for p in catalog.places), key=lambda x: (-x[0], x[1]))
-    return [p for s, _, p in ranked if s > 0.2][:limit]
+    records = (NameRecord(p.id, p.name, p.category_group) for p in catalog.places)
+    hits = corpus_search_names(q, records, within=set(catalog.by_id),
+                               release_id=catalog.release_id, limit=limit)
+    return [catalog.by_id[h.place_id] for h in hits if h.place_id in catalog.by_id]
 
 
 def link_place(url: str, catalog: Catalog) -> str | None:

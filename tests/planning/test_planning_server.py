@@ -3,7 +3,7 @@ import json
 import threading
 
 import pytest
-from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, sample_trip
+from plan_fixtures import CFG, FakeLive, LODGING, fake_matrix, no_geocode, sample_trip
 
 from planning.engine import Engine
 from planning.server import handler
@@ -17,8 +17,8 @@ def fake_route(points, mode, live_cfg):
 @pytest.fixture
 def client():
     d, recs = sample_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
     from http.server import ThreadingHTTPServer
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler(e))
     port = server.server_address[1]
@@ -48,6 +48,9 @@ def test_suggestions_read_returns_a_context_token_and_current_session(client):
     conn.request("POST", "/api/planning/sessions", json.dumps({"decision_output": d}), {"Content-Type": "application/json"})
     created = json.loads(conn.getresponse().read())
     sid, variant = created["id"], created["view"]["variants"][0]["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_lodging", "id": "h1"}),
+                 {"Content-Type": "application/json"})
+    assert conn.getresponse().status == 200
     conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_variant", "id": variant}),
                  {"Content-Type": "application/json"})
     picked = json.loads(conn.getresponse().read())
@@ -65,6 +68,9 @@ def test_act_then_confirm_round_trip(client):
     sid = json.loads(conn.getresponse().read())["id"]
     conn.request("GET", f"/api/planning/sessions/{sid}/variants")
     vid = json.loads(conn.getresponse().read())[0]["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_lodging", "id": "h1"}),
+                 {"Content-Type": "application/json"})
+    assert conn.getresponse().status == 200
     conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_variant", "id": vid}),
                 {"Content-Type": "application/json"})
     assert conn.getresponse().status == 200
@@ -77,6 +83,9 @@ def test_a_bad_act_is_400_and_an_unknown_session_is_404(client):
     conn, d = client
     conn.request("POST", "/api/planning/sessions", json.dumps({"decision_output": d}), {"Content-Type": "application/json"})
     sid = json.loads(conn.getresponse().read())["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_lodging", "id": "h1"}),
+                 {"Content-Type": "application/json"})
+    assert conn.getresponse().status == 200
     conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_variant", "id": "nope"}),
                 {"Content-Type": "application/json"})
     assert conn.getresponse().status == 400
@@ -103,6 +112,9 @@ def test_turn_streams_say_view_and_done(client):
     sid = json.loads(conn.getresponse().read())["id"]
     conn.request("GET", f"/api/planning/sessions/{sid}/variants")
     vid = json.loads(conn.getresponse().read())[0]["id"]
+    conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_lodging", "id": "h1"}),
+                 {"Content-Type": "application/json"})
+    assert conn.getresponse().status == 200
     conn.request("POST", f"/api/planning/sessions/{sid}/act", json.dumps({"type": "pick_variant", "id": vid}),
                 {"Content-Type": "application/json"})
     conn.getresponse().read()

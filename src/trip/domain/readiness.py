@@ -1,18 +1,33 @@
-"""What Trip Understanding must know before the user may move on (config/trip.yaml `required`). Decided by code, not by the model."""
+"""The seven user answers needed before planning; choosing places stays open."""
 
 from .state import TripState, pending_signals
 
-LABEL = {"days": "số ngày", "companions": "đi cùng ai", "mobility": "đi lại bằng gì", "when": "ngày hoặc tháng đi",
-         "signal": "điều cần lưu ý về sức khỏe"}
-DEFAULT_REQUIRED = ("days", "companions", "mobility", "when")
+REQUIRED = ("trip", "companions", "mobility", "care", "pace", "budget", "lodging")
+DEFAULT_REQUIRED = REQUIRED
+# Names of the seven groups as the Web designs them: short nouns, never spoken phrases ("Phương tiện", not "cách đi lại").
+TITLE = {"trip": "Ngày đi", "companions": "Đi với", "mobility": "Phương tiện", "care": "Lưu ý", "pace": "Nhịp độ",
+         "budget": "Ngân sách", "lodging": "Nơi lưu trú"}
+# The same groups inside a sentence ("Mình cần thêm: …").
+LABEL = {"trip": "ngày đi, giờ giấc", "companions": "người đi cùng", "mobility": "phương tiện", "care": "lưu ý sức khỏe, ăn uống",
+         "pace": "nhịp độ", "budget": "ngân sách", "lodging": "nơi lưu trú"}
 
 
-def missing(state: TripState, required: tuple[str, ...] = DEFAULT_REQUIRED) -> list[tuple[str, str]]:
-    """-> [(key, Vietnamese label)] still needed. `when` is a start date or a month; an open health / body / diet hint
-    always blocks (fail-closed)."""
-    known = {"days": state.days.known, "companions": state.companions.known, "mobility": state.mobility.known,
-             "when": state.start_date.known or state.month.known}
-    out = [(k, LABEL[k]) for k in required if not known.get(k, True)]
-    if pending_signals(state):
-        out.append(("signal", LABEL["signal"]))
-    return out
+def missing(state: TripState, required: tuple[str, ...] = REQUIRED) -> list[tuple[str, str]]:
+    def answered(field):
+        return field.known and field.source == "user"
+
+    start = answered(state.checkin_at) or answered(state.frame.arrive) or answered(state.inbound)
+    end = answered(state.checkout_at) or answered(state.frame.leave) or answered(state.outbound)
+    known = {
+        "trip": answered(state.start_date) and answered(state.days) and start and end,
+        "companions": answered(state.companions) and answered(state.people),
+        "mobility": answered(state.mobility),
+        "care": not pending_signals(state) and ((answered(state.care) and state.care.value == "none")
+                                               or (answered(state.care) and state.care.value == "listed" and bool(state.unmapped))
+                                               or any(h.evidence for h in state.hard)),
+        "pace": answered(state.pace) and "pace" not in state.meta.conflicts,
+        "budget": (answered(state.budget_unlimited) and state.budget_unlimited.value is True)
+                  or (answered(state.budget_vnd) and answered(state.budget_scope)),
+        "lodging": answered(state.lodging),
+    }
+    return [(key, LABEL[key]) for key in required if not known.get(key, False)]

@@ -5,13 +5,17 @@ import json
 import sys
 import time
 import uuid
+import threading
 from datetime import datetime, timezone
 
-from trip import SearchInput
+from trip import SearchInput, TurnInput
+from planning import TripIncomplete
+from corpus.releases import Binding
 
-from .contracts import Conflict, Emit, Journey, JourneyView, ModuleTools, Request, Stage
+from .contracts import Conflict, Emit, Journey, JourneyView, ModuleTools, Request, Stage, TripNotReady
 from .router import route, route_companion
 from .session import Store
+from .chat_guard import admit
 
 
 def _said(events: list[dict]) -> str:
@@ -23,14 +27,45 @@ def _said(events: list[dict]) -> str:
     return out
 
 
+def _page(query: dict) -> tuple[int, int | None]:
+    """(offset, limit) of a paged read (`?offset=&limit=`, both optional); limit is 1-60."""
+    offset, limit = str(query.get("offset", "0")), query.get("limit")
+    if not offset.isdigit() or len(offset) > 6 or (limit is not None and (not str(limit).isdigit() or not 1 <= int(limit) <= 60)):
+        raise ValueError("offset must be a number, limit 1-60")
+    return int(offset), int(limit) if limit is not None else None
+
+
+LIVE = ("say", "preview", "progress", "state", "card", "deck_issues", "readback")
+
+
 def _fingerprint(request: Request) -> str:
     raw = json.dumps(request.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+
+CHAT_TITLE_MAX = 60
+
+
+def chat_title(transcript: list) -> str | None:
+    """The chat's one-line title for the history list: what the user said first (its first line, cut at
+    CHAT_TITLE_MAX). A list file attached to that message is part of its text, so only the first line is read.
+    None while the user has said nothing yet."""
+    for turn in transcript:
+        if not isinstance(turn, dict) or turn.get("role") != "user":
+            continue
+        lines = [ln.strip() for ln in str(turn.get("text") or "").splitlines() if ln.strip()]
+        if not lines:
+            continue
+        line = " ".join(lines[0].split())
+        return line if len(line) <= CHAT_TITLE_MAX else line[:CHAT_TITLE_MAX - 1].rstrip() + "…"
+    return None
+
+
 class Harness:
     def __init__(self, trip_tools: ModuleTools, decision_tools: ModuleTools, planning_tools: ModuleTools, store: Store,
-                 events=None, companion=None, calendar=None, notify=None):
+                 events=None, companion=None, calendar=None, notify=None, safety=None,
+                 corpus_binding: Binding | None = None, tools_for_binding=None):
         """events: harness.events.EventLog (usage events in Postgres); companion: companion.Companion (Đang đi).
         None turns either off (CLI, most tests)."""
         self.tools = {"trip": trip_tools, "decision": decision_tools, "planning": planning_tools}
@@ -39,7 +74,35 @@ class Harness:
         self.companion = companion
         self.calendar = calendar
         self.notify = notify
+        self.safety = safety
+        self.corpus_binding = corpus_binding
+        self.tools_for_binding = tools_for_binding
+        self._corpus_tools = {self._binding_key(corpus_binding): self.tools}
+        self._corpus_lock = threading.RLock()
         self._loaded: set[str] = set()
+
+    @staticmethod
+    def _binding_key(binding: Binding | None) -> str:
+        return binding.model_dump_json() if binding is not None else "legacy"
+
+    def _module(self, session: Journey, stage: Stage) -> ModuleTools:
+        key = self._binding_key(session.corpus_binding)
+        with self._corpus_lock:
+            if key not in self._corpus_tools:
+                if self.tools_for_binding is None:
+                    raise Conflict("corpus binding unavailable; restore the pinned release before continuing")
+                self._corpus_tools[key] = self.tools_for_binding(session.corpus_binding)
+            return self._corpus_tools[key][stage]
+
+    @staticmethod
+    def _bound_output(session: Journey, output: dict) -> dict:
+        if session.corpus_binding is None:
+            return output
+        existing = output.get("corpus_binding")
+        binding = session.corpus_binding.model_dump(mode="json")
+        if existing is not None and existing != binding:
+            raise Conflict("module output uses a different corpus binding")
+        return {**output, "corpus_binding": binding}
 
     def _event(self, name: str, owner: str | None, jid: str | None, **props) -> None:
         if self.events is not None:
@@ -53,7 +116,7 @@ class Harness:
             raise KeyError(jid)
         if jid not in self._loaded:
             for stage, snapshot in session.snapshots.items():
-                self.tools[stage].restore(snapshot)
+                self._module(session, stage).restore(snapshot)
             self._loaded.add(jid)
         return session
 
@@ -63,18 +126,19 @@ class Harness:
             raise Conflict(f"no {shown} session")
         return JourneyView(id=session.id, stage=session.stage, revision=session.revision,
                 sessions=session.sessions, outputs=session.outputs,
-                result=result if result is not None else self.tools[shown].load(session.sessions[shown])).model_dump(mode="json")
+                result=result if result is not None else self._module(session, shown).load(session.sessions[shown])).model_dump(mode="json")
 
     def create(self, experience=None, start_with=None, user_id=None, remember=False, owner=None, profile=None) -> dict:
         """profile: the account's usual mobility / companions, a prior for Trip (never a fact of this trip)."""
         session = self.store.new()
         session.user_id = owner
+        session.corpus_binding = self.corpus_binding
         payload = {"experience": experience, "start_with": start_with, "user_id": user_id, "remember": remember}
         if profile:
             payload["profile"] = profile
-        result = self.tools["trip"].create(payload)
+        result = self._module(session, "trip").create(payload)
         session.sessions["trip"] = result["id"]
-        session.snapshots["trip"] = self.tools["trip"].snapshot(result["id"])
+        session.snapshots["trip"] = self._module(session, "trip").snapshot(result["id"])
         self.store.save(session)
         self._loaded.add(session.id)
         self._event("journey.create", owner, session.id, start_with=start_with, experience=experience,
@@ -86,17 +150,19 @@ class Harness:
             return self._view(self._get(jid, owner), stage=stage)
 
     def read(self, jid: str, stage: Stage, operation: str, payload: dict | None = None, owner: str | None = None) -> dict:
+        if stage == "decision" and operation == "lodging":
+            return self.lodging(jid, owner, *_page(payload or {}))
         with self.store.lock(jid):
             session = self._get(jid, owner)
             if stage not in session.sessions:
                 raise Conflict(f"no {stage} session")
-            out = self.tools[stage].read(session.sessions[stage], operation, payload or {})
+            out = self._module(session, stage).read(session.sessions[stage], operation, payload or {})
             if operation in {"suggestions", "preview-act"} and stage == "planning":
                 out = {**out, "revision": session.revision}
         if operation == "why-not":
             self._event("why_not", owner, jid, place_id=(payload or {}).get("place"))
         elif operation == "page":
-            self._event("page_more", owner, jid, group=(payload or {}).get("group"))
+            self._event("page_more", owner, jid, group=(payload or {}).get("group"), page=(payload or {}).get("n"))
         return out
 
     def preview(self, jid: str, owner: str | None = None) -> dict:
@@ -106,34 +172,56 @@ class Harness:
             session = self._get(jid, owner)
             if session.stage != "decision":
                 raise Conflict("preview needs the decision stage")
-            draft = self.tools["decision"].read(session.sessions["decision"], "draft", {})["output"]
+            draft = self._module(session, "decision").read(session.sessions["decision"], "draft", {})["output"]
             revision = session.revision
         if draft is None:
             out = {"revision": revision, "status": "blocked", "plan": None}
         elif not draft["confirmed"]:
             out = {"revision": revision, "status": "empty", "plan": None}
         else:
-            plan = self.tools["planning"].preview({"decision_output": draft})
+            plan = self._module(session, "planning").preview({"decision_output": self._bound_output(session, draft)})
             out = {"revision": revision, "status": "ready" if plan["ok"] else "failed", "plan": plan}
         self._event(f"preview.{out['status']}", owner, jid, revision=revision)
         return out
 
-    def trips(self, owner: str) -> list[dict]:
-        """One line per journey of the signed-in account, newest first."""
-        return self.summaries(self.store.list_for(owner))
+    def lodging(self, jid: str, owner: str | None = None, offset: int = 0, limit: int | None = None) -> dict:
+        """Lựa chọn's lodging list, one page: every served stay, those around the places chosen so far first
+        (Planning ranks them), read under the journey lock and built outside it; nothing in the journey changes. A
+        selection that cannot be confirmed yet, or no place chosen at all, still gets its list: where to sleep does not
+        wait for the plan to fit."""
+        with self.store.lock(jid):
+            session = self._get(jid, owner)
+            if session.stage not in ("decision", "planning"):  # read only: Lựa chọn reopened from Lịch trình lists it too
+                raise Conflict("lodging list needs the decision stage")
+            draft = self._module(session, "decision").read(session.sessions["decision"], "draft", {"any": True})["output"]
+        if draft is None:
+            return {"status": "empty", "candidates": [], "total": 0}
+        return self._module(session, "planning").lodging_options({"decision_output": self._bound_output(session, draft)}, offset, limit)
 
-    def summaries(self, ids: list[str]) -> list[dict]:
-        """One line per asked journey; unknown IDs are skipped."""
+    def trips(self, owner: str) -> list[dict]:
+        """One line per journey of the signed-in account, newest first. All of them: the profile counts these."""
+        return self.summaries(self.store.list_for(owner, limit=1000), limit=None)
+
+    def summaries(self, ids: list[str], limit: int | None = 20) -> list[dict]:
+        """One line per asked journey (the first `limit`, all when None); unknown IDs are skipped."""
         out = []
-        for jid in ids[:20]:
+        for jid in ids[:limit]:
             try:
                 with self.store.lock(jid):
-                    session = self._get(jid)
+                    try:
+                        session = self._get(jid)
+                    except KeyError:
+                        raise
+                    except Exception:  # a journey an older build saved cannot be restored: it stays in the list,
+                        session = self.store.get(jid)  # read from its saved copy (opening it reports its own error)
                     context = (session.outputs.get("trip") or {}).get("context") or {}
                     if "decision" in session.outputs:
                         places = [c["id"] for c in session.outputs["decision"].get("confirmed", [])]
                     elif "decision" in session.sessions:
-                        view = self.tools["decision"].load(session.sessions["decision"]).get("view") or {}
+                        try:
+                            view = self._module(session, "decision").load(session.sessions["decision"]).get("view") or {}
+                        except Exception:
+                            view = {}
                         places = list(view.get("selected") or [])
                     else:
                         places = []
@@ -142,8 +230,55 @@ class Harness:
             out.append({"id": session.id, "stage": session.stage, "revision": session.revision,
                         "start_date": context.get("start_date"), "days": context.get("days"),
                         "people": context.get("people"), "places": places,
-                        "confirmed": "planning" in session.outputs})
+                        "confirmed": "planning" in session.outputs,
+                        "title": chat_title((session.snapshots.get("trip") or {}).get("transcript") or [])})
         return out
+
+    def discard(self, jid: str, owner: str) -> None:
+        """The account removes one of its journeys: it leaves the account (and the list) at once and cannot be opened
+        again; like a deleted account's trips, the usage numbers stay without a user. A schedule already on
+        Đang đi goes with it."""
+        with self.store.lock(jid):
+            session = self._get(jid, owner)
+            session.user_id = None
+            self.store.save(session)
+        if self.companion is not None:
+            self.companion.forget(jid)
+        self._event("journey.discard", owner, jid, stage=session.stage)
+
+    def owns(self, jid: str, owner: str) -> bool:
+        try:
+            with self.store.lock(jid):
+                self._get(jid, owner)
+        except KeyError:
+            return False
+        return True
+
+    def copy(self, jid: str, source_owner: str, owner: str) -> dict:
+        """A new journey of `owner` with the trip, choices and schedule of another account's journey (a trip a friend
+        sent). Module sessions get fresh IDs so the two never share state; the chat transcript and the source
+        account's pattern link stay behind."""
+        with self.store.lock(jid):
+            source = self._get(jid, source_owner)
+            raw = json.dumps({"sessions": source.sessions, "outputs": source.outputs, "snapshots": source.snapshots})
+        for old in set(source.sessions.values()):
+            raw = raw.replace(old, uuid.uuid4().hex[:12])
+        data = json.loads(raw)
+        trip = data["snapshots"].get("trip") or {}
+        if "transcript" in trip:
+            trip["transcript"] = []
+        if meta := (trip.get("state") or {}).get("meta"):
+            meta |= {"user_id": None, "remember": False}
+        session = self.store.new()
+        session.user_id, session.stage, session.revision = owner, source.stage, source.revision
+        session.corpus_binding = source.corpus_binding
+        session.sessions, session.outputs, session.snapshots = data["sessions"], data["outputs"], data["snapshots"]
+        for stage, snapshot in session.snapshots.items():
+            self._module(session, stage).restore(snapshot)
+        self.store.save(session)
+        self._loaded.add(session.id)
+        self._event("journey.copy", owner, session.id, source=jid)
+        return {"id": session.id, "stage": session.stage, "revision": session.revision}
 
     def feedback(self, jid: str, payload: dict, owner: str | None = None) -> dict:
         """After-trip answers (1-5 scales, yes/no, a short note), one JSON line per submission next to the sessions."""
@@ -182,9 +317,6 @@ class Harness:
 
     def lodging_suggest(self, q: str) -> list[dict]:
         return self.tools["planning"].lodging_suggest(q)
-
-    def transit(self, params: dict) -> dict:
-        return self.tools["planning"].transit(params)
 
     def forget_profile(self, user_id: str) -> bool:
         return self.tools["trip"].forget(user_id)
@@ -373,14 +505,38 @@ class Harness:
                 if "first_ms" not in trace and event in ("say", "preview", "view"):  # time to the first SSE event
                     trace["first_ms"] = round((time.monotonic() - trace["t0"]) * 1000)
                 events.append({"event": event, "data": data})
-                if emit and event in ("say", "preview"):
+                if emit and event in LIVE:
                     emit(event, data)
                 if stage == "trip" and event == "done" and "search_input" in data:
-                    session.outputs["trip"] = SearchInput.model_validate(data["search_input"]).model_dump(mode="json")
+                    session.outputs["trip"] = SearchInput.model_validate(self._bound_output(session, data["search_input"])).model_dump(mode="json")
 
             try:
-                if request.operation == "advance":
+                refusal = None
+                if self.safety is not None and request.operation in {"turn", "act"}:
+                    current = self._module(session, stage).load(session.sessions[stage])
+                    refusal = admit(self.safety, request.payload, current, stage, review_text=request.operation == "turn")
+                if refusal:
+                    trace["path"] = "chat_refused"
+                    capture("say", {"replace": refusal})
+                    capture("done", {})
+                    result = self._module(session, stage).load(session.sessions[stage])
+                elif request.operation == "advance":
                     result = self._advance(session)
+                elif request.operation == "trip":
+                    inp = TurnInput.model_validate(request.payload)
+                    if inp.kind not in {"deck", "drop", "readback_ok"}:
+                        raise ValueError("decision.trip accepts only deck, drop or readback_ok")
+                    trip = self._module(session, "trip")
+                    trip.apply(session.sessions["trip"], "turn", request.payload, capture)
+                    output = trip.read(session.sessions["trip"], "search_input", {})
+                    session.outputs["trip"] = SearchInput.model_validate(self._bound_output(session, output)).model_dump(mode="json")
+                    rebased = self._module(session, "decision").rebase(session.sessions["decision"],
+                        {"search_input": session.outputs["trip"], "trip_session": session.sessions["trip"]})
+                    result = {"id": rebased["id"], "view": rebased["view"]}
+                    for key in ("decision", "planning"):
+                        session.outputs.pop(key, None)
+                    session.sessions.pop("planning", None)
+                    session.snapshots.pop("planning", None)
                 elif request.operation == "back":
                     session.stage = "decision" if stage == "planning" else "trip"
                     session.outputs.pop("planning", None)
@@ -389,9 +545,9 @@ class Harness:
                     session.snapshots.pop("planning", None)
                     if session.stage == "trip":
                         session.outputs.pop("trip", None)
-                    result = self.tools[session.stage].load(session.sessions[session.stage])
+                    result = self._module(session, session.stage).load(session.sessions[session.stage])
                 else:
-                    result = self.tools[stage].apply(session.sessions[stage], request.operation, request.payload, capture)
+                    result = self._module(session, stage).apply(session.sessions[stage], request.operation, request.payload, capture)
                     if stage == "decision" and request.operation == "turn":
                         texts = [t for e in events if e["event"] == "trip" for t in e["data"]["texts"]]
                         events[:] = [e for e in events if e["event"] != "trip"]  # internal: the web never sees it
@@ -407,22 +563,23 @@ class Harness:
                             session.sessions.pop("planning", None)
                             session.snapshots.pop("planning", None)
                     if request.operation == "confirm":
+                        result = self._bound_output(session, result)
                         session.outputs["planning"] = result
                 trace["compiled"] = stage == "trip" and not had_trip and "trip" in session.outputs
                 session.revision += 1
                 for name, sid in session.sessions.items():
-                    session.snapshots[name] = self.tools[name].snapshot(sid)
+                    session.snapshots[name] = self._module(session, name).snapshot(sid)
                 response = self._view(session, result)
                 session.receipts[request.request_id] = {"fingerprint": fingerprint, "response": response, "events": events,
                                                         "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
                 self.store.save(session)
             except Exception:
                 for name, snapshot in before.snapshots.items():
-                    self.tools[name].restore(snapshot)
+                    self._module(session, name).restore(snapshot)
                 raise
             if emit:
                 for event in events:
-                    if event["event"] not in ("say", "preview"):
+                    if event["event"] not in LIVE:
                         emit(event["event"], event["data"])
             return response
 
@@ -441,11 +598,11 @@ class Harness:
             elif event == "done":
                 compiled.append(data["search_input"])
 
-        self.tools["trip"].apply(session.sessions["trip"], "refine", {"text": text}, on_trip)
+        self._module(session, "trip").apply(session.sessions["trip"], "refine", {"text": text}, on_trip)
         if not compiled:
             return None
-        session.outputs["trip"] = SearchInput.model_validate(compiled[-1]).model_dump(mode="json")
-        out = self.tools["decision"].rebase(session.sessions["decision"],
+        session.outputs["trip"] = SearchInput.model_validate(self._bound_output(session, compiled[-1])).model_dump(mode="json")
+        out = self._module(session, "decision").rebase(session.sessions["decision"],
                                             {"search_input": session.outputs["trip"], "trip_session": session.sessions["trip"]})
         rebuilt = {"view": out["view"], "diff": out["diff"]}
         if note := out["diff"].get("text"):  # the reply ends with what happened to the list: "Giữ 22 nơi, thay 2 …"
@@ -463,12 +620,17 @@ class Harness:
                 raise Conflict("Trip Understanding has not compiled Search Input")
             payload = {"search_input": session.outputs["trip"], "trip_session": session.sessions["trip"]}
             existing = session.sessions.get("decision")
-            result = self.tools["decision"].rebase(existing, payload) if existing else self.tools["decision"].create(payload)
+            result = self._module(session, "decision").rebase(existing, payload) if existing else self._module(session, "decision").create(payload)
             session.stage = "decision"
         else:
-            output = self.tools["decision"].apply(session.sessions["decision"], "confirm", {}, lambda *args: None)
+            output = self._module(session, "decision").apply(session.sessions["decision"], "confirm", {}, lambda *args: None)
+            output = self._bound_output(session, output)
+            try:
+                result = self._module(session, "planning").create({"decision_output": output})
+            except TripIncomplete as exc:
+                readback = self._module(session, "trip").read(session.sessions["trip"], "readback", {})
+                raise TripNotReady(exc.missing, readback) from exc
             session.outputs["decision"] = output
-            result = self.tools["planning"].create({"decision_output": output})
             session.stage = "planning"
         session.sessions[session.stage] = result["id"]
         return result

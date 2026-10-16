@@ -14,6 +14,11 @@
 - Tài liệu chính thức mô tả **đúng code hiện tại**, không nhắc lại hành vi/cấu trúc trước đây, không viết "trước đây làm X, giờ đổi thành Y", không viết theo kiểu plan ("phase sau sẽ thêm Y"). Khi code đổi, sửa thẳng đoạn mô tả cũ, không thêm ghi chú lịch sử.
 - Ngoại lệ: `docs/log/DEV_LOG.md` (giữ **Hiện tại** + **Trước đó** theo đúng khuôn mẫu của chính nó) và `docs/log/AGENT_FAILURES.md` (nhật ký bằng chứng lỗi) là log theo thiết kế, không phải tài liệu mô tả hiện trạng — không áp dụng quy tắc "chỉ giữ hiện tại" ở trên cho hai file này.
 
+## 0.2 Thiết kế giao diện
+- Không dùng skill `baoyu-design` cho thiết kế của dự án này. Khi cần skill thiết kế UI, chỉ dùng `ui-ux-pro-max`.
+- Khi chỉnh UI, bám mẫu người dùng chỉ định; chỉ đổi phần được yêu cầu.
+- Sau mỗi lần chỉnh UI, lưu ảnh chụp giao diện vào `frontend_images/` ở gốc dự án và gửi đường dẫn để người dùng xem lại trước khi lên production. Không chỉ lưu ảnh trong `/tmp`.
+
 ## 1. Nguồn sự thật
 - Code + test mô tả hành vi runtime.
 - Schema/interface public định nghĩa contract giữa các module.

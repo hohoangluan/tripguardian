@@ -65,3 +65,16 @@ def test_maps_time_spent_wins_over_reviews_and_defaults():
     v = visit_minutes("Thác", signal, {"min_minutes": 60, "max_minutes": 150})
     assert v == {"short": 60, "typical": 105, "long": 150, "source": "maps_time_spent", "n": 0}
     assert visit_minutes("Thác", signal)["source"] == "reviews"
+
+
+def test_category_groups_match_whole_words_longest_phrase_first():
+    assert group("Quán bia sân vườn")["id"] == "bar"  # "quán bia", not the garden's "vườn"
+    assert group("Câu lạc bộ chèo thuyền")["id"] != "dessert"  # "chèo" holds no "chè"
+    assert group("Hồ bơi ngoài trời")["id"] == "amusement"  # "hồ bơi", not the lake's "hồ"
+    assert group("Cửa hàng kem")["id"] == "dessert" and group("Quán ăn nhẹ")["id"] == "dessert"
+
+
+def test_a_category_no_phrase_matches_is_read_from_the_name():
+    assert group("Dịch vụ ô tô riêng", "Vườn Hồng Treo Dốc Tình")["id"] == "garden_farm"
+    assert group("Quán cà phê", "Spa Hoa")["id"] == "cafe"  # a matched category wins over the name
+    assert group("Studio nhiếp ảnh", "Đường Ray")["id"] == "other"

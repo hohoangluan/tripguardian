@@ -10,11 +10,24 @@ from .model import DayResult
 from .schedule import DayCtx, _SimulationCache, simulate
 
 
-def order_day(ids: list[str], ctx: DayCtx) -> DayResult:
+
+def order_day(ids: list[str], ctx: DayCtx, seed: list[str] | None = None) -> DayResult:
+    """seed: an order to start the search from (the day layout's insertion order). With one, a day of more than
+    realistic.seeded_exact_n stops is ordered by the local search from the better of the seed and nearest neighbour
+    instead of trying every permutation (7 stops = 5,040 clocks), which the layout's fuller days made too slow. A day
+    that local search leaves a near miss (_orderable: it only runs a little late) still gets every permutation up to
+    exact_n, so only such a day pays for it."""
     ids = sorted(ids)
     if len(ids) <= 1:
         return simulate(ids, ctx)
     cache = _SimulationCache(ids, ctx)
+    rc = ctx.cfg.realistic
+    if seed is not None and sorted(seed) != ids:
+        seed = None                 # not an order of these stops: no seed
+    if seed is not None and rc["seeded_exact_n"] < len(ids):
+        quick = replace(_heuristic(ids, ctx, cache, seed, rc["seeded_passes"]), method="heuristic")
+        if len(ids) > ctx.cfg.exact_n or not quick.violations or not _orderable(quick, ids, ctx):
+            return quick
     if len(ids) <= ctx.cfg.exact_n:
         best = None
         for perm in permutations(ids):
@@ -22,7 +35,24 @@ def order_day(ids: list[str], ctx: DayCtx) -> DayResult:
             if best is None or r.key < best.key:
                 best = r
         return replace(best, method="exact")
-    return replace(_heuristic(ids, ctx, cache), method="heuristic")
+    return replace(_heuristic(ids, ctx, cache, seed), method="heuristic")
+
+
+def _orderable(r: DayResult, ids: list[str], ctx: DayCtx) -> bool:
+    """Whether the day is a near miss that another order of the same stops may fit: it only runs late, and by no more
+    than any order can save (its idle time and the road above the least any order needs: each stop reached by its
+    nearest way in, the end by the nearest stop). A day that also misses a stop's hours or a meal, or runs later than
+    that, is overloaded: the layout and the misfit loop handle it, and 720 or 5,040 more clocks would not (measured on
+    the review's probe: no day the exhaustive search fits is left unfit; on the composer's edit trials no exhaustive
+    run cleared an hours or meal miss)."""
+    if not r.violations or any(v.kind != "day_window" for v in r.violations):
+        return False
+    late = sum(v.minutes for v in r.violations)
+    leg = lambda a, b: ctx.travel.leg(a, b)[0] if a and b and a != b else 0
+    start, end = ctx.day.start_node, ctx.day.end_node
+    least = sum(min(leg(x, p) for x in [start, *ids] if x != p) for p in ids) + min(leg(p, end) for p in ids)
+    idle = sum(i.end - i.start for i in r.items if i.kind in {"wait", "free"})
+    return late <= max(0, r.travel_min - least) + idle
 
 
 def _nearest_neighbour(ids: list[str], ctx: DayCtx) -> list[str]:
@@ -35,11 +65,17 @@ def _nearest_neighbour(ids: list[str], ctx: DayCtx) -> list[str]:
     return order
 
 
-def _heuristic(ids: list[str], ctx: DayCtx, cache: _SimulationCache) -> DayResult:
+def _heuristic(ids: list[str], ctx: DayCtx, cache: _SimulationCache, seed: list[str] | None = None,
+               passes: int | None = None) -> DayResult:
     order = _nearest_neighbour(ids, ctx)
     best = simulate(order, ctx, _cache=cache)
+    if seed is not None and list(seed) != order:
+        tried = simulate(list(seed), ctx, _cache=cache)
+        if tried.key < best.key:
+            order, best = list(seed), tried
     n = len(order)
-    for _ in range(ctx.cfg.improve_passes):
+    # From the layout's own order a day is near its best already: a few sweeps of the local search are enough.
+    for _ in range(ctx.cfg.improve_passes if passes is None else min(ctx.cfg.improve_passes, passes)):
         improved = False
         for i in range(n - 1):                      # 2-opt: reverse a stretch
             for j in range(i + 1, n):

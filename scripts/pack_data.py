@@ -15,30 +15,68 @@ Unpack in a fresh clone:
     python -m zipfile -e tripguardian-data-<YYYYMMDD>.zip .
 """
 import sys
+import json
 import zipfile
 from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXTRA = ("web/public/data/snapshot.json", "web/public/data/covers.json", "tests/fixtures/gmaps", "tests/fixtures/tiktok")
+EXTRA = ("web/public/data/snapshot.json", "web/public/data/snapshot-admin.json", "web/public/data/covers.json", "tests/fixtures/gmaps", "tests/fixtures/tiktok")
 SKIP_NAMES = {"video.mp4"}
 SKIP_SUFFIXES = {".tmp", ".log", ".err", ".pid", ".sh"}
 SKIP_DIRS = {("data", "gmaps", "observations_before_v6")}
 STORED = {".jpg", ".jpeg", ".png", ".webp", ".mp4"}  # already compressed
+CORPUS_DIRS = {"gmaps", "tiktok", "official", "reports", "review", "intel", "serving", "snapshot", "index", "thumbs", "releases"}
 
 
-def keep(rel: Path, photos: bool) -> bool:
+def keep(rel: Path, photos: bool, active_release: str | None = None) -> bool:
     if rel.name in SKIP_NAMES or rel.suffix in SKIP_SUFFIXES:
         return False
     if any(rel.parts[:len(d)] == d for d in SKIP_DIRS):
         return False
+    if rel.parts[0] == "data":
+        if len(rel.parts) < 2 or rel.parts[1] not in CORPUS_DIRS:
+            return False
+        if any("backup" in part or "before_" in part or part.startswith(".staging-") for part in rel.parts[:-1]):
+            return False
+        if rel.parts[1] == "releases" and len(rel.parts) > 2 and rel.parts[2] != "current" and rel.parts[2] != active_release:
+            return False
     if not photos and rel.parts[:3] == ("data", "gmaps", "places") and "photos" in rel.parts[3:-1]:
         return False
     return True
 
 
 def main(photos: bool, out_dir: Path) -> None:
-    files = [p for p in sorted((ROOT / "data").rglob("*")) if p.is_file() and keep(p.relative_to(ROOT), photos)]
+    sys.path.insert(0, str(ROOT / "src"))
+    from corpus.releases import resolve, validate
+    data = ROOT / "data"
+    release = resolve(data)
+    active = release.name if release != data else None
+    manifest = validate(release) if active else None
+    allowed = {i["path"] for i in manifest["artifacts"]} | {"manifest.json"} if manifest else set()
+    files = []
+    import os
+    for current, dirs, names in os.walk(data):
+        base = Path(current)
+        dirs[:] = [d for d in dirs if "backup" not in d and "before_" not in d and not d.startswith(".staging-")]
+        if base == data:
+            dirs[:] = [d for d in dirs if d in CORPUS_DIRS and (not active or d not in ("intel", "serving", "snapshot", "index"))]
+        elif base == data / "releases":
+            dirs[:] = [d for d in dirs if d == active]
+        if not photos and base.parent.parent == data / "gmaps" / "places":
+            dirs[:] = [d for d in dirs if d != "photos"]
+        for name in names:
+            p = base / name
+            rel = p.relative_to(ROOT)
+            if not keep(rel, photos, active):
+                continue
+            if active and rel.parts[1] in ("intel", "serving", "snapshot", "index"):
+                continue
+            if active and rel.parts[1] == "releases" and rel.parts[2] != "current":
+                if p.relative_to(release).as_posix() not in allowed:
+                    continue
+            files.append(p)
+    files.sort()
     for e in map(ROOT.joinpath, EXTRA):
         if not e.exists():
             print(f"warning: {e.relative_to(ROOT)} missing, not packed")
