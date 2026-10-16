@@ -92,15 +92,19 @@ def near_duplicate_groups(records: list[dict], threshold: float | None = None) -
     return sorted(out, key=lambda ids: (-len(ids), ids[0]))
 
 
-def mmr(records: list[dict], scores: dict[str, float], k: int, lam: float | None = None) -> list[str]:
-    """Up to k record ids: high score, but each unlike the ones picked before."""
+def mmr(records: list[dict], scores: dict[str, float], k: int, lam: float | None = None,
+        sigs: dict | None = None) -> list[str]:
+    """Up to k record ids: high score, but each unlike the ones picked before. sigs: id -> signature, precomputed."""
     lam = lam if lam is not None else config()["mmr_lambda"]
     pool, picked = {r["id"]: r for r in records}, []
-    sigs = {r["id"]: signature(r) for r in records}
-    while pool and len(picked) < k:
-        def gain(rid):
-            sim = max((similarity(pool[rid], p, sigs) for p in picked), default=0.0)
-            return lam * scores.get(rid, 0.0) - (1 - lam) * sim
-        best = max(sorted(pool), key=gain)
-        picked.append(pool.pop(best))
+    sigs = sigs if sigs is not None else {r["id"]: signature(r) for r in records}
+    sim = {rid: 0.0 for rid in pool}  # highest similarity to anything picked so far
+    left = sorted(pool)
+    while left and len(picked) < k:
+        best = max(left, key=lambda rid: lam * scores.get(rid, 0.0) - (1 - lam) * sim[rid])
+        left.remove(best)
+        last = pool.pop(best)
+        picked.append(last)
+        for rid in left:
+            sim[rid] = max(sim[rid], similarity(pool[rid], last, sigs))
     return [p["id"] for p in picked]

@@ -1,11 +1,13 @@
 // Production-only step after `vite build` (./run.sh prod): what web/server.mjs sends through the tunnel.
 //  1. dist/data/snapshot.json keeps only what the user web reads; /admin is never public, so its fields go
 //     (review queue, decisions, build/system, per-signal breakdowns). public/data stays complete for dev and admin.
-//  2. Every text file in dist gets .br and .gz siblings; server.mjs serves them to clients that accept them.
+//  2. The slimmed snapshot is split (split_snapshot.mjs) into a lite file and detail chunks; the whole file stays only for tabs of an older build.
+//  3. Every text file in dist gets .br and .gz siblings; server.mjs serves them to clients that accept them.
 //     Results are cached by content hash, so an unchanged snapshot is not recompressed on every deploy.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
+import { splitSnapshot } from './split_snapshot.mjs'
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib'
 
 // PROD_DIST: the staging build ./run.sh prod prepares before copying it over the live dist/
@@ -65,4 +67,9 @@ function compressAll() {
 }
 
 slimSnapshot()
+if (existsSync(join(DIST, 'data/snapshot.json'))) splitSnapshot(join(DIST, 'data')) // the page reads the lite file and the detail chunks; the whole file stays for tabs opened before the split
+for (const suffix of ['', '.br', '.gz']) {
+  const admin = join(DIST, `data/snapshot-admin.json${suffix}`)
+  if (existsSync(admin)) unlinkSync(admin)
+}
 compressAll()

@@ -9,6 +9,34 @@ const storage = new Map()
 globalThis.localStorage = { getItem: k => storage.get(k) ?? null, setItem: (k,v) => storage.set(k,v), removeItem: k => storage.delete(k) }
 const view = (revision = 0, stage = 'decision') => ({ id: 'journey', stage, revision, sessions: {}, outputs: {}, result: {} })
 const response = v => Response.json(v)
+test('JSON trip gate preserves missing answers and the exact readback', async () => {
+  const api = await client()
+  const readback = { lines: [{ kind: 'guess', text: 'Thong thả', tab: 'pace', undo: 'pace' }], digest: 'shown', ok: false, deck: { kind: 'deck', tabs: [], left: 2, total: 7 } }
+  globalThis.fetch = async (_url, options) => options
+    ? Response.json({ error: 'trip_incomplete', missing: ['trip', 'lodging'], readback }, { status: 409 })
+    : response(view())
+  await assert.rejects(api.mutateJourney('json-gate', 'decision', 'advance'), e => {
+    assert.equal(e.detail, 'trip_incomplete')
+    assert.deepEqual(e.missing, ['trip', 'lodging'])
+    assert.deepEqual(e.readback, readback)
+    return true
+  })
+})
+test('SSE trip gate preserves readback and clears the rejected pending request', async () => {
+  const api = await client()
+  const readback = { lines: [], digest: 'stream-shown', ok: false }
+  globalThis.fetch = async (_url, options) => {
+    if (!options) return response(view())
+    const req = JSON.parse(options.body)
+    return new Response(`data: ${JSON.stringify({ request_id: req.request_id, stage: 'decision', revision: 0, event: 'error', data: { status: 409, message: 'trip_incomplete', missing: [], readback } })}\n\n`)
+  }
+  await assert.rejects(api.mutateJourney('stream-gate', 'decision', 'advance', {}, {}), e => {
+    assert.deepEqual(e.missing, [])
+    assert.deepEqual(e.readback, readback)
+    return true
+  })
+  assert.equal(storage.has('tg.journey.pending.stream-gate'), false)
+})
 test('lost response retries identical request and revision, then clears pending receipt', async () => {
   const api = await client(); const requests = []
   globalThis.fetch = async (_url, options) => {

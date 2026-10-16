@@ -16,16 +16,7 @@ Bump ontology làm mọi observation bị trích lại: chạy với `OBSERVE_KE
 
 ## 2. Mask tất định cho Place Decision
 
-Đo 2026-10-12 (1696 record, 30 chuyến `eval_trips`): `pipeline.run` p50 91 ms, p95 237 ms, thời gian nằm ở vòng lặp Python theo ứng viên (`screen` ~40%, `mmr` ~17%).
-
-| Cột (nạp mmap một lần) | Dạng | Dùng cho |
-|---|---|---|
-| Mã feature | `int8` (nơi × feature), `-1` = unknown, cờ `UNCERTAIN` riêng | `Index.hard_mask(filters, activities)` → pass / fail / unknown / not_applicable |
-| Confidence | `float16` | `Index.preference(weights)` = `preference_fit` bằng một phép nhân ma trận |
-| Giờ mở cửa | bitmask 7 ngày × 48 ô | đóng cửa mọi ngày của chuyến |
-| Độ giống giữa các nơi | `float16` tính sẵn | MMR tra bảng |
-
-Test bắt buộc: `hard_mask` cho **đúng** kết quả của `hard_result` với mọi record × mọi hard filter trong `eval_trips` và mọi giá trị ontology; `hard_result` từ chối feature phong cách. Ngân sách: `hard_mask` + `preference` ≤ 5 ms; `pipeline.run` p95 ≤ 50 ms.
+Đã thay bằng `docs/superpowers/specs/2026-10-13-corpus-snapshot-design.md`.
 
 ## 3. Đo chất lượng của tìm kiếm ngữ nghĩa
 

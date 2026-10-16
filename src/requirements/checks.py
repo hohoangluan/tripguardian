@@ -34,10 +34,10 @@ def activity_for(rec: dict, activity: Activity | None = None, role: str | None =
         return activity
     group = category_for(rec)
     usable = rec.get("usable_as") or []
-    if role == "meal" or ("meal" in usable and "experience" not in usable) or group in {"restaurant", "dessert", "food_vendor"}:
-        return "eating"
     if group == "cafe":
         return "coffee"
+    if role == "meal" or ("meal" in usable and "experience" not in usable) or group in {"restaurant", "dessert", "food_vendor"}:
+        return "eating"
     if group == "bar":
         return "drinking"
     if group == "stay":
@@ -53,7 +53,8 @@ def _get(requirement, key, default=None):
     return requirement.get(key, default) if isinstance(requirement, Mapping) else getattr(requirement, key, default)
 
 
-def applicable(rec: dict, requirement, activity: Activity | None = None, role: str | None = None) -> bool:
+def scope_allows(requirement, selected: Activity | None) -> bool:
+    """The scope part of applicable(): does a requirement apply to a place whose activity is `selected`?"""
     fid = _get(requirement, "feature")
     canonical = scope_for(fid)
     scope = _get(requirement, "scope") or canonical
@@ -62,14 +63,18 @@ def applicable(rec: dict, requirement, activity: Activity | None = None, role: s
         scope = canonical
     elif fid in {"venue_category", "activity"} or (f and f.group in {"effort", "suitability"}):
         scope = "all"                  # raw public inputs cannot narrow a protected scope
+    # Unknown activity cannot be used as a reason to bypass a hard requirement.
+    return scope == "all" or selected is None or ACTIVITY_SCOPE[selected] == scope
+
+
+def applicable(rec: dict, requirement, activity: Activity | None = None, role: str | None = None) -> bool:
     selected = activity_for(rec, activity, role)
     if _get(requirement, "feature") == "wine_tasting_available":
         if activity is not None:
             return selected in {"wine_tasting", "tasting", "alcohol_consumption", "drinking"}
         offered = feature(rec, "wine_tasting_available")
         return offered is not None or selected in {"wine_tasting", "tasting", "alcohol_consumption", "drinking"} or selected is None
-    # Unknown activity cannot be used as a reason to bypass a hard requirement.
-    return scope == "all" or selected is None or ACTIVITY_SCOPE[selected] == scope
+    return scope_allows(requirement, selected)
 
 
 def hard_result(rec: dict, requirement, activity: Activity | None = None, role: str | None = None) -> tuple[str, str | None]:

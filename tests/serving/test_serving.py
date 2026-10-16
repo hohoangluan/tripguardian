@@ -111,3 +111,54 @@ def test_hours_that_disagree_are_uncertain_and_official_fee_is_a_fact():
     h = _hours(op, date(2026, 10, 1), date(2026, 10, 5))
     assert h["status"] == "UNCERTAIN" and h["source"] == "official" and h["conflict"] == {"mon": [["07:00", "17:00"]]}
     assert _hours({**op, "hours_conflict": None}, date(2026, 10, 1), date(2026, 10, 5))["status"] == "VERIFIED"
+
+
+def test_lodging_price_a_night_is_a_dated_reference():
+    base = intel(category="Khách sạn", group="stay", usable=())
+    night = {"vnd": 467000, "at": "2026-09-01T10:00:00+00:00"}
+    rec = build({**base, "operation": {**base["operation"], "price_night": night}}, BUILT)
+    assert rec["operation"]["price_per_night"] == {"value": 467000, "status": "VERIFIED", "as_of": "2026-09-01",
+                                                   "source": "gmaps_list", "kind": "estimate"}
+    assert build(base, BUILT)["operation"]["price_per_night"] is None
+
+
+def test_mmr_matches_the_pairwise_definition():
+    import random
+
+    from corpus.serving.groups import config, mmr, signature, similarity
+    from corpus.serving.record import SERVED  # noqa: F401
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parents[1] / "decision"))
+    from gen import records
+
+    recs = records(3, 60)
+    rng = random.Random(1)
+    scores = {r["id"]: round(rng.random(), 3) for r in recs}
+    sigs = {r["id"]: signature(r) for r in recs}
+
+    def reference(k, lam=config()["mmr_lambda"]):
+        pool, picked = {r["id"]: r for r in recs}, []
+        while pool and len(picked) < k:
+            def gain(rid):
+                sim = max((similarity(pool[rid], p, sigs) for p in picked), default=0.0)
+                return lam * scores.get(rid, 0.0) - (1 - lam) * sim
+            best = max(sorted(pool), key=gain)
+            picked.append(pool.pop(best))
+        return [p["id"] for p in picked]
+
+    for k in (1, 5, 20, 100):
+        assert mmr(recs, scores, k) == reference(k)
+
+
+def test_a_lodging_far_from_the_city_centre_is_not_served():
+    from corpus.serving.run import stay_outside
+    cities = {"dalat": {"area": [11.78, 108.30, 12.12, 108.66], "stay_within": {"lat": 11.9404, "lng": 108.4583, "km": 12}}}
+
+    def rec(group, lat, lng):
+        return {"identity": {"category_group": group, "lat": lat, "lng": lng}}
+
+    assert not stay_outside(rec("stay", 11.944, 108.44), cities)  # Phan Bội Châu
+    assert stay_outside(rec("stay", 11.84, 108.38), cities)  # Nam Ban, ~14 km
+    assert not stay_outside(rec("nature", 11.84, 108.38), cities)  # only lodging is cut
+    assert not stay_outside(rec("stay", 10.77, 106.70), cities)  # outside every area: not this rule's

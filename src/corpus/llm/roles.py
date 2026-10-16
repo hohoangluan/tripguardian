@@ -22,6 +22,7 @@ class Role:
     guided: bool = True  # the server honours response_format json_schema; False: the schema goes in the prompt
     parallel_env: str | None = None  # .env key: concurrent calls the endpoint takes (docs/LLM_PROVIDER.md)
     default_parallel: int = 36  # without parallel_env: the UIT key allows 40 (HTTP 429 above)
+    reasoning_env: str | None = None  # .env key: reasoning effort sent to a reasoning model (low, medium, ...)
 
     def _on_uit(self) -> bool:
         """EXTRACTOR_ON_UIT=1 (process environment): this process runs the Extractor on the UIT Gemma, so a second
@@ -48,6 +49,16 @@ class Role:
         """The role's own endpoint from .env, even in an EXTRACTOR_ON_UIT process (a UIT run borrowing the LAN host)."""
         load_dotenv(ROOT / ".env")
         return AsyncOpenAI(api_key=os.environ[self.key_env], base_url=os.environ[self.base_url_env]), os.environ[self.model_env]
+
+    def reasoning(self) -> str | None:
+        """The reasoning effort the role's model is asked for, or None to send none (a model without reasoning)."""
+        load_dotenv(ROOT / ".env")
+        return (os.environ.get(self.reasoning_env or "") or "").strip() or None
+
+    def cache_key(self, task: str) -> dict:
+        """Extra body for a call on a reasoning endpoint (OpenAI style, through 9router): one prompt cache key per
+        task, so every session's calls share the cached static prompt. Nothing for other endpoints (vLLM)."""
+        return {"prompt_cache_key": f"tripguardian-{task}"} if self.reasoning() else {}
 
     def parallel(self) -> int:
         """Concurrent calls a task of this role runs when it sets none itself."""
@@ -93,6 +104,7 @@ AGENT = Role(
     name="agent",
     purpose="live conversation turns: one streamed structured call per user message (src/trip)",
     key_env="AGENT_API_KEY", base_url_env="AGENT_BASE_URL", model_env="AGENT_MODEL",
+    reasoning_env="AGENT_REASONING_EFFORT",
 )
 
 USER_SIM = Role(

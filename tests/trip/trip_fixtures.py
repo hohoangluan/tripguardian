@@ -2,7 +2,7 @@
 
 import json
 
-from trip.agent import Assistant, Call
+from langchain_core.messages import AIMessageChunk
 
 
 def rec(i, name, feats, hours=None, status="signal", needs_review=False):
@@ -20,15 +20,16 @@ MONDAY_CLOSED = {"mon": [], "tue": [["07:00", "22:00"]], "wed": [["07:00", "22:0
 
 def say(text):
     """A model reply with text and no tool call."""
-    return Assistant(content=text)
+    return AIMessageChunk(content=text)
 
 
 def call(name, **args):
-    return Call(id=f"call_{name}", name=name, arguments=json.dumps(args, ensure_ascii=False))
+    """One tool-call piece, as LangChain streams it: raw argument string, merged by index in reply()."""
+    return {"id": f"call_{name}", "name": name, "args": json.dumps(args, ensure_ascii=False)}
 
 
 def reply(*calls, text=""):
-    return Assistant(content=text, calls=list(calls))
+    return AIMessageChunk(content=text, tool_call_chunks=[dict(c, index=i) for i, c in enumerate(calls)])
 
 
 def fact(field, value, quote, op="set", how="said"):
@@ -43,13 +44,13 @@ class ScriptedChat:
 
     async def __call__(self, messages, tools, on_say):
         self.calls += 1
-        self.seen.append((list(messages), [t["function"]["name"] for t in tools]))
+        self.seen.append((list(messages), [t.name for t in tools]))
         if self.error:
             raise self.error
         if not self.replies:
             from trip.agent import AgentError
             raise AgentError("script ended")
         r = self.replies.pop(0)
-        if r.content:
-            on_say(r.content)
+        if r.text:
+            on_say(r.text)
         return r

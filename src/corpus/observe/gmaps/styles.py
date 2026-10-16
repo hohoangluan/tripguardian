@@ -54,7 +54,7 @@ def gate(answer: dict, n: int, ids: set[str]) -> tuple[list[dict], collections.C
 async def observe_place(client, model: str, sem: asyncio.Semaphore, city: str, d: Path, voc: dict) -> dict:
     place = json.loads((d / "place.json").read_text(encoding="utf-8"))
     doc = json.loads((d / PHOTOS_FILE).read_text(encoding="utf-8"))
-    photos = [p for p in doc["photos"] if (d / p["file"]).exists()]
+    photos = [p for p in doc["photos"] if not p.get("stale") and (d / p["file"]).exists()]  # stale = cover only
     ids = {s["id"] for s in voc["styles"]}
     obs, dropped = [], collections.Counter()
     for start in range(0, len(photos), BATCH):

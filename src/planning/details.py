@@ -58,14 +58,24 @@ def _windows(window: dict, cfg: Settings) -> list[tuple[int, int]]:
             if n and k in tod]
 
 
-def timing_delta(place: Place, start: int, cfg: Settings) -> float:
-    """Planning minutes added to a visit's score: negative in a time of day reviewers call the best, positive in the
-    one they call the time to avoid, 0 when both or neither."""
+def timing_delta(place: Place, start: int, cfg: Settings, *, end: int | None = None) -> float:
+    """Planning minutes weighted by the visit's overlap with review-backed best and avoid periods.
+    Conflicting periods cancel where they overlap; without an end, score the start time."""
     t = timing(place.rec)
-    inside = lambda w: any(a <= start < b for a, b in _windows(t.get(w) or {}, cfg))  # noqa: E731
-    best, avoid = inside("best_time"), inside("avoid_time")
+    best = _windows(t.get("best_time") or {}, cfg)
+    avoid = _windows(t.get("avoid_time") or {}, cfg)
+    end = start + 1 if end is None else end
+    if end <= start:
+        return 0.0
+    boundaries = sorted({start, end} | {max(start, min(end, v)) for window in best + avoid for v in window})
     ts = cfg.time_suitability
-    return (ts.get("timing_penalty", 0.0) if avoid and not best else -ts.get("timing_bonus", 0.0) if best and not avoid else 0.0)
+    delta = 0.0
+    for a, b in zip(boundaries, boundaries[1:]):
+        good = any(lo <= a < hi for lo, hi in best)
+        bad = any(lo <= a < hi for lo, hi in avoid)
+        weight = ts.get("timing_penalty", 0.0) if bad and not good else -ts.get("timing_bonus", 0.0) if good and not bad else 0.0
+        delta += (b - a) * weight
+    return delta / (end - start)
 
 
 def firm(place: Place, fid: str) -> str | None:

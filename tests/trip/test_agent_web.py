@@ -33,7 +33,7 @@ def tools(catalog, web=None, cards=True, trace=None):
 
 
 def names(t):
-    return [s["function"]["name"] for s in t.specs()]
+    return t.tool_names()
 
 
 def test_web_tools_are_offered_only_with_a_web_and_ask_only_where_a_card_can_be_answered(catalog):

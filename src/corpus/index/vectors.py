@@ -41,7 +41,7 @@ def photo_inputs(data: Path, pid: str) -> list[dict]:
     doc = _json(d / "photos.json") or {}
     return [{"file": str((d / p["file"]).relative_to(data)), "photo_id": p.get("photo_id"), "source": "gmaps",
              "author_hash": p.get("author_hash"), "owner": bool(p.get("owner")), "month": p.get("month")}
-            for p in doc.get("photos", []) if (d / p["file"]).exists()]
+            for p in doc.get("photos", []) if not p.get("stale") and (d / p["file"]).exists()]  # stale = cover only
 
 
 def frame_inputs(data: Path, pid: str) -> list[dict]:

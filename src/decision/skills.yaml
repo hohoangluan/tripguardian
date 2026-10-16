@@ -6,6 +6,7 @@ workflow:
 tools:
   - {name: decision.candidates, access: read}
   - {name: decision.compare, access: read}
+  - {name: decision.evidence, access: read}
   - {name: decision.turn, access: write}
   - {name: decision.act, access: write}
   - {name: decision.confirm, access: write}

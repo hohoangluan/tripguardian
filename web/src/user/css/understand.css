@@ -85,8 +85,18 @@
 /* between cards: the answered card has fallen, the deck leans in while the next question is written */
 .tg-deck.is-waiting .tg-deck__ghost--1 { transform: translate(-5px, 4px) rotate(-1.2deg); }
 .tg-deck.is-waiting .tg-deck__ghost--2 { transform: translate(9px, 12px) rotate(1.8deg); opacity: 0.85; }
+.tg-deck.is-waiting .tg-ask__card { visibility: hidden; }
 .tg-deck__wait { position: absolute; z-index: 0; inset: 14px 0 28px; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 24px 40px; text-align: center; color: var(--tg-pine); font-weight: 600; font-size: 0.92rem; pointer-events: none; animation: tg-fade-up 260ms var(--tg-ease) 220ms backwards; }
 .tg-deck__wait p { max-width: 40ch; }
+/* layout of the server deck inside the card: tabs on one scrolling line, the question and its answers scroll inside
+   the card so the header, the pill and the footer stay in view; photo answers line up three across */
+.tg-ask__card .tg-basics__chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; padding: 2px; }
+.tg-ask__card .tg-basics__chips::-webkit-scrollbar { display: none; }
+.tg-ask__card .tg-basics__chips .tg-chip { flex: none; }
+.tg-ask__scroll { display: grid; gap: 12px; min-height: 0; max-height: max(240px, calc(100dvh - 520px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin: -2px; padding: 2px; }
+.tg-ask__panel .tg-cx__opts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tg-ask__panel .tg-cx__opt-b b { font-size: 1.05rem; }
+.tg-ask__panel .tg-cx__opt-b small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @keyframes tg-fade-up { from { opacity: 0; transform: translateY(8px); } }
 .tg-dots { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
 .tg-dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.35; animation: tg-dot 1.1s ease-in-out infinite; }
@@ -182,7 +192,7 @@
 .tg-ticket__row.is-asking { background: var(--tg-pine-soft); }
 .tg-ticket__row.is-asking dd { color: var(--tg-pine); font-weight: 600; }
 .tg-ticket__sec h3 { font: 700 0.7rem var(--tg-sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--tg-ink-3); margin-bottom: 8px; }
-.tg-stamp { display: inline-flex; align-items: center; gap: 7px; margin: 0 6px 6px 0; padding: 7px 12px; border: 1.8px solid var(--tg-ink); border-radius: 4px; font: 700 0.8rem var(--tg-sans); letter-spacing: 0.02em; color: var(--tg-ink); background: rgba(27, 42, 47, 0.03); }
+.tg-stamp { display: inline-flex; align-items: center; gap: 7px; margin: 0 6px 6px 0; padding: 7px 12px; border: 1.8px solid var(--tg-ink); border-radius: 4px; font: 700 0.8rem var(--tg-sans); letter-spacing: 0.02em; color: var(--tg-ink); background: rgba(0, 0, 0, 0.03); }
 .tg-ticket__chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tg-ticket__chips .tg-chip { min-height: 32px; font-size: 0.82rem; padding: 0 11px; }
 .tg-ticket__unclear { display: flex; justify-content: space-between; font-size: 0.88rem; padding: 4px 0; }
@@ -244,17 +254,17 @@
 @media (max-width: 1180px) { .tg-und__grid.has-sides { display: block; max-width: 680px; } .tg-qrail, .tg-match { display: none; } }
 
 /* trip ticket: small icon next to the profile, opens on click */
-.tg-tbtn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 14px; border-radius: 999px; color: var(--tg-sun-ink); background: var(--tg-sun-soft); border: 1.5px solid var(--tg-sun); font: 700 0.9rem var(--tg-sans); box-shadow: 0 6px 16px rgba(232, 89, 12, 0.18); transition: background 150ms, color 150ms, transform 150ms var(--tg-ease); animation: tg-tbtn-call 1.6s var(--tg-ease) 600ms 2; }
+.tg-tbtn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 44px; white-space: nowrap; padding: 0 8px 0 14px; border-radius: 999px; color: var(--tg-sun-ink); background: var(--tg-sun-soft); border: 1.5px solid var(--tg-sun); font: 700 0.9rem var(--tg-sans); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18); transition: background 150ms, color 150ms, transform 150ms var(--tg-ease); animation: tg-tbtn-call 1.6s var(--tg-ease) 600ms 2; }
 .tg-tbtn:hover, .tg-tbtn[aria-expanded='true'] { background: var(--tg-sun); color: #fff; transform: translateY(-1px); }
 .tg-tbtn__n { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; background: var(--tg-sun); color: #fff; font-size: 0.74rem; animation: tg-pop 320ms var(--tg-ease); }
 .tg-tbtn:hover .tg-tbtn__n, .tg-tbtn[aria-expanded='true'] .tg-tbtn__n { background: #fff; color: var(--tg-sun-ink); }
-@keyframes tg-tbtn-call { 0%, 100% { box-shadow: 0 6px 16px rgba(232, 89, 12, 0.18), 0 0 0 0 rgba(232, 89, 12, 0.35); } 50% { box-shadow: 0 6px 16px rgba(232, 89, 12, 0.18), 0 0 0 9px rgba(232, 89, 12, 0); } }
+@keyframes tg-tbtn-call { 0%, 100% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18), 0 0 0 0 rgba(0, 0, 0, 0.35); } 50% { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18), 0 0 0 9px rgba(0, 0, 0, 0); } }
 @media (prefers-reduced-motion: reduce) { .tg-tbtn, .tg-tbtn__n { animation: none; } }
 .tg-tpop { z-index: 60; width: min(360px, calc(100vw - 32px)); animation: tg-pop 200ms var(--tg-ease); }
 .tg-tpop .tg-ticket { position: static; max-height: min(78vh, 640px); box-shadow: var(--tg-sh-2); }
 
 /* full view */
-.tg-full { position: fixed; z-index: 55; top: var(--tg-top); right: 0; bottom: 0; width: 55vw; max-width: 760px; display: flex; flex-direction: column; background: var(--tg-surface); border-left: 1px solid var(--tg-line); box-shadow: -24px 0 60px rgba(27, 42, 47, 0.12); animation: tg-in-r 240ms var(--tg-ease); }
+.tg-full { position: fixed; z-index: 55; top: var(--tg-top); right: 0; bottom: 0; width: 55vw; max-width: 760px; display: flex; flex-direction: column; background: var(--tg-surface); border-left: 1px solid var(--tg-line); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.12); animation: tg-in-r 240ms var(--tg-ease); }
 @keyframes tg-in-r { from { transform: translateX(40px); opacity: 0; } }
 .tg-full__head { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--tg-line); background: var(--tg-surface); }
 .tg-full__head h2 { font: 700 0.78rem var(--tg-sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--tg-pine); }

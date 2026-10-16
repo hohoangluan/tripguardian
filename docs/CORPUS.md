@@ -101,7 +101,9 @@ python -m corpus <gmaps|tiktok> <phase|all> [--city dalat] [--headed] [--limit N
 python -m corpus judge <dedup|status|audit|all> [--city dalat] [--limit N]  # Judge thay người duyệt (§6)
 python -m corpus build     [--city dalat] [--every N] [--skip <bước>…]  # một lần build tăng dần (dưới đây)
 python -m corpus aggregate [--city dalat]                   # observation -> data/intel/places/
-python -m corpus serving   [--city dalat]                   # intel -> data/serving/places.json
+python -m corpus serving   [--city dalat]                   # intel -> data/serving/places.json, rồi snapshot
+python -m corpus snapshot  [--city dalat]                   # data/serving/places.json -> data/snapshot/<version>/ (phần online đọc)
+python -m corpus normalize [--city dalat] [--rebuild] [--publish]  # dữ liệu đã lưu → normalization/release offline
 python -m corpus review    [--port 8765]                    # trang review cho người duyệt
 python -m corpus index     [vectors|compile|all] [--kinds photos frames spans]  # chỉ mục ngữ nghĩa (§Chỉ mục ngữ nghĩa)
 ```
@@ -158,7 +160,7 @@ Trạng thái giữ theo từng khía cạnh, nên một địa điểm có th�
 
 ## Data model
 
-Lưu trữ hiện tại là **file**, không phải DB (xem §Sai lệch cho bản demo). Mỗi nguồn một thư mục, không gộp nguồn (`RULE.md` §2).
+Lưu trữ là **file**: JSON cho các bước offline, LanceDB cho snapshot mà phần online đọc (xem §Sai lệch cho bản demo). Mỗi nguồn một thư mục, không gộp nguồn (`RULE.md` §2).
 
 | Đường dẫn | Ghi bởi | Nội dung |
 |---|---|---|
@@ -166,8 +168,13 @@ Lưu trữ hiện tại là **file**, không phải DB (xem §Sai lệch cho b�
 | `data/<source>/observations/` | `corpus.observe` | observation theo format chung, một file mỗi địa điểm |
 | `data/gmaps/photo_observations/` | `corpus.observe` | observation đọc từ ảnh Maps |
 | `data/intel/places/<fid_dir>.json` + `summary.json` | `corpus.aggregate` | Fact / Signal / Estimate theo địa điểm |
-| `data/serving/places.json` | `corpus.serving` | bản ghi Place Decision đọc |
+| `data/serving/places.json` | `corpus.serving` | bản build offline của các bản ghi phục vụ; online không đọc file này |
+| `data/snapshot/<version>/<region>/` | `corpus.snapshot` | bảng LanceDB của một vùng: `places` (một hàng mỗi nơi, cột đã tính sẵn), `features`, `feature_ctx`, `fit_verdicts`, `records` (bản ghi đầy đủ theo id), `intel` (phần Trip cần), `videos`; chỉ nơi `VERIFIED` / `UNCERTAIN` / `OUTDATED`, gồm cả chỗ ở |
+| `data/snapshot/current` | `corpus.snapshot` | tên version đang dùng, ghi nguyên tử; giữ `snapshot_keep_versions` bản mới nhất (`config/serving.yaml`) |
 | `data/review/` | `corpus.review` | quyết định và nhãn của người duyệt |
+| `data/normalization/<id>/<source>/` + `manifest.json` | `corpus.normalize` | bản chuẩn hóa tách nguồn; hash input/reference, inventory/canonical ID, compatibility và lỗi; không sửa raw hoặc nhãn |
+| `data/releases/<id>/` | `corpus.releases` | intel, serving, snapshot, semantic index, projection User Web và báo cáo chất lượng bất biến; manifest ghi input/artifact hash và fingerprint code/config |
+| `data/releases/current` | `corpus.releases.publish` | pointer release ghi nguyên tử sau khi kiểm hash và eligible ID; rollback bằng publish release cũ, không xóa artifact |
 
 Một **observation** (`src/corpus/observe/__init__.py`, dùng chung cho mọi nguồn):
 
@@ -309,7 +316,7 @@ Mọi nguồn thành `Observation`; không gì ghi thẳng vào entity.
   - Text: bỏ review rỗng, < 15 ký tự, trùng (tác giả + text), và review mà phase `qc` gắn cờ `owner_reply` / `spam` / `not_a_review`; còn lại → Extractor (`REVIEW_OBSERVE`), mỗi call một lô ≤ 15 review / ≤ 12.000 ký tự của một địa điểm, trả cho từng review nhiều observation (feature + value + context + quote) và `proposed_feature`. Một review cho nhiều observation; cùng feature khác bối cảnh được ghi riêng.
   - `attributes` của place (chủ quán / Google khai: "Phù hợp cho trẻ em", "Không có lối vào cho xe lăn", "Có chỗ ngồi ngoài trời", …) → observation bằng rule (`src/corpus/observe/gmaps/place_rules.py`), `source_type = gmaps_attribute`, một tác giả `gmaps:attributes` (một nguồn có thẩm quyền, xem §5). Lối vào quyết định `wheelchair`; nhà vệ sinh / chỗ ngồi / chỗ đỗ cho xe lăn riêng lẻ không map.
   - `popular_times` (độ đông tương đối theo giờ, 100 = đỉnh của chính nơi đó, Chủ nhật trước), `price` (khoảng giá / người), `hours` ({ngày: [[mở, đóng], …]}; `[]` = đóng cả ngày, `[["00:00", "24:00"]]` = mở cả ngày; dòng dạng lạ bỏ, ngày đó là unknown) và `closure` (`permanent` | `temporary` từ "Bị đóng vĩnh viễn" / "Tạm thời đóng cửa"; trạng thái tức thời như "Đang mở" bỏ) → `place_facts` của file observation, không phải observation. `place` = category, lat, lng, address. `voices` = số tác giả có `details` hoặc text được đọc: mẫu số của `mention_rate` (§5).
-  - `price_night` của `place_facts` = giá một đêm của chỗ ở lấy từ `list/<city>_stay.json` `{vnd, at}`; giá trên danh sách đổi thì file observation được cập nhật trường này mà không gọi model. Aggregate giữ ở `operation.price_night`; serving ra `operation.price_per_night` `{value, status, as_of, source: gmaps_list, kind: estimate}` (quá cửa sổ `price` → `OUTDATED`). Đây là giá tham khảo theo ngày mặc định của Maps, không phải giá ngày đi.
+  - `price_night` của `place_facts` = giá một đêm của chỗ ở lấy từ `list/<city>_stay.json` `{vnd, at}`; giá trên danh sách đổi thì file observation được cập nhật trường này mà không gọi model. Aggregate giữ ở `operation.price_night`; serving ra `operation.price_per_night` `{value, status, as_of, source: gmaps_list, kind: estimate}` (quá cửa sổ `price` → `OUTDATED`). Đây là giá tham khảo theo ngày mặc định của Maps, không phải giá ngày đi. Chỗ ở mà thẻ danh sách khách sạn không có giá được `gmaps stay_price` bù: mở trang chi tiết (ngữ cảnh mới không cookie, như `stay_search`), đọc ô giá nằm ngay trên tab "Tổng quan" (giá một đêm cho ngày mặc định của Maps, kèm `stay_dates`), ghi `data/gmaps/stay_price/<city>.jsonl` (`{fid, at, price_vnd, stay_dates}`; không có phòng trống trên trang đặt phòng thì `price_vnd: null` và không mở lại); `listing.build_stay` dùng giá này cho chỗ không có thẻ nào có giá, thẻ danh sách khách sạn vẫn được ưu tiên. Không suy đoán hay lấy trung bình. Đo 2026-10-13: 782 trang, 103 có giá (≈ 13%), tổng chỗ ở có giá 741 → 844 / 1.524. Số tab `gmaps.stay_price_tabs` (8).
   - Câu hỏi dạng trả lời tự do trong `details` ("Độ thân thiện với trẻ em", "Tình trạng có lối đi cho xe lăn", "Các món chay") → `kids`, `wheelchair`, `vegetarian_options` theo bảng câu trả lời viết thường, so nguyên câu.
   - Gate: feature + value có trong ontology, context đúng enum, quote là chuỗi con của review sau chuẩn hóa NFC + khoảng trắng + hoa thường. Câu trả lời hỏng (JSON, schema) → chia đôi lô rồi thử lại, lô một review thử 2 lần; lỗi mạng / API → địa điểm thất bại ngay. Địa điểm thất bại không có file (file cũ bị xóa), ghi `data/gmaps/observe_errors.jsonl`, chạy lại lần sau.
   - Kiểm tra span: observation từ text của feature có `check: span` trong ontology (suitability, effort, `tourist_trap`, `entry_fee`, `condition_change`, `booking_needed`, `weather_exposed`) được đọc lại riêng bằng Extractor (`REVIEW_VERIFY`). Call thấy review (tối đa 1.200 ký tự quanh quote) và đúng một khẳng định: câu `claims[value]` của ontology cho giá trị cần kiểm ("người đi xe lăn không vào được nơi này") kèm quote; khẳng định phủ định mà review nói đúng là `supports`. Chỉ giữ `supports`; còn lại bỏ và đếm `span_check_<verdict>`; câu trả lời hỏng → bỏ observation đó (`span_check_error`), lỗi mạng / API → địa điểm thất bại. Bắt được phủ định ("hông chặt chém"), mỉa mai, nhận xét vị trí ("quán nằm ngay dốc"), ngoại lệ ("miễn phí bé dưới 80cm"). Effort có giá trị phủ định (`steep_or_stairs` / `long_walk` = `absent`, `weather_exposed` = `sheltered`) để sàng lọc cứng có bằng chứng `pass`, không chỉ `fail`; câu kể của người viết ("mình đặt bàn trước", "đường đi hơi xa" khi đi xe) không thành fact về địa điểm.
@@ -357,9 +364,9 @@ source_type           official | provider | video | comment
 - `identity` của địa điểm: giá trị khác null đầu tiên của `place` qua các file. Trang official thắng Maps: `hours` của ngày trang nêu thay giờ Maps (`hours_source = official`), ngày hai bên nói khác giữ ở `hours_conflict`; `entry_fee` lấy `tickets_vnd` (typical = trung vị vé người lớn vì trang còn liệt kê combo / tour, min = vé thấp nhất kể cả trẻ em, `source = official`). `operation`: `price_range` (Maps, {min_vnd, max_vnd, per, reports} hoặc {level}), `hours`, `closure`, `popular_times` nguyên dạng, `crowd_by_time` = trung bình % độ đông theo `weekday | weekend` × `time_of_day` (giờ → buổi: 4–5 `early_morning`, 6–10 `morning`, 11–13 `noon`, 14–16 `afternoon`, 17–20 `evening`, còn lại `night`; giờ 0% coi là đóng cửa, bỏ — vì vậy trung bình có thể hơi cao ở giờ mở cửa mà vắng) + `peak` (ngày, giờ, %). Đây là độ đông tương đối của chính nơi đó, không so được tuyệt đối giữa hai nơi.
 - Coverage theo nhóm ontology (gồm `operation`: `visit_duration`): `NONE` khi không feature nào, `COMPLETE` khi ≥ 3 feature có n ≥ 3, còn lại `PARTIAL`.
 - Chất lượng đo được (§Đo chất lượng): `quality` = thống kê nhãn của giá trị đứng đầu (`review.label_stats()`: precision, cận dưới Wilson, `gate`); `servable` = giá trị được phục vụ một mình: có `authority`, hoặc qua ngưỡng nhãn (≥ 30 nhãn, cận dưới ≥ 0,8), hoặc mọi tác giả của nó đã được kiểm đúng (`checked.all`), hoặc người `accept`. Quyết định `feature_review` (id `<fid>#<feature>`, bản mới nhất, `undo` = không có): `disable` → `status = disabled`, `servable = false`; `accept` → `needs_review = false`; `report` / `refresh` → `needs_review = true`.
-- `estimates` (`aggregate/estimates.py`, bảng `config/category_defaults.yaml`; luôn là Estimate, không bao giờ là fact hay bộ lọc cứng): `category_group` (từ khóa đầu tiên khớp category Maps), `visit_minutes` {short, typical, long, source} (`time_spent` của Maps trước, `source = maps_time_spent`; rồi `visit_duration` của review khi ≥ 3 tác giả và `signal`; còn lại mặc định của nhóm), `entry_fee` {min_vnd, typical_vnd, max_vnd, n, source} (số tiền trong quote `entry_fee = paid` nằm cùng mệnh đề với chữ vé / vào cổng / tham quan / ticket, không phải mệnh đề về chụp ảnh, gửi xe, thuê đồ, massage, giá theo kg: "50k", "160.000 đồng"…; mỗi tác giả số lớn nhất vì vé người lớn cao nhất; chỉ lấy quote trong 730 ngày gần nhất khi có ≥ 2 tác giả; không có thì vé Maps US$ × `usd_vnd`), `usable_as_default`, `effort_hint` (`low` chỉ cộng điểm xếp hạng: đo 2026-10-02, dốc có ở 16% nhà hàng và 37% quán cà phê có bằng chứng effort).
+- `estimates` (`aggregate/estimates.py`, bảng `config/category_defaults.yaml`; luôn là Estimate, không bao giờ là fact hay bộ lọc cứng): `category_group` (cụm `match` khớp category Maps theo nguyên từ, cụm dài nhất thắng, hòa thì nhóm đứng trước; category không khớp cụm nào thì đọc tên nơi theo cùng luật; vẫn không thì `other` — `corpus/categories.py`), `visit_minutes` {short, typical, long, source} (`time_spent` của Maps trước, `source = maps_time_spent`; rồi `visit_duration` của review khi ≥ 3 tác giả và `signal`; còn lại mặc định của nhóm), `entry_fee` {min_vnd, typical_vnd, max_vnd, n, source} (số tiền trong quote `entry_fee = paid` nằm cùng mệnh đề với chữ vé / vào cổng / tham quan / ticket, không phải mệnh đề về chụp ảnh, gửi xe, thuê đồ, massage, giá theo kg: "50k", "160.000 đồng"…; mỗi tác giả số lớn nhất vì vé người lớn cao nhất; chỉ lấy quote trong 730 ngày gần nhất khi có ≥ 2 tác giả; không có thì vé Maps US$ × `usd_vnd`), `usable_as_default`, `effort_hint` (`low` chỉ cộng điểm xếp hạng: đo 2026-10-02, dốc có ở 16% nhà hàng và 37% quán cà phê có bằng chứng effort).
 
-**Serving record** (code `src/corpus/serving/`, lệnh `python -m corpus serving` → `data/serving/places.json`; ngưỡng `config/serving.yaml`): bản ghi Place Decision đọc (`PLACE_DECISION.md` §2.2). Nơi có `closure` (tạm hoặc hẳn) hoặc Judge phán `closed` / `changed` (`place_status`, §6) là `DISABLED`, không vào file; Judge phán `unclear` → bản ghi `UNCERTAIN` (`closure_reported`). Feature theo khía cạnh (`experience`, `environment`, `service`, `effort`, `suitability`): `disabled` / `needs_review` (`unchecked`) → bỏ; `uncertain` → `UNCERTAIN` (`conflict` | `low_agreement`); chưa `servable` → `UNCERTAIN` (`unmeasured_precision`); còn lại `VERIFIED`, quá `freshness_days` (độ đông 365, khác 730) → `OUTDATED`. Mỗi feature giữ value, phân phối, n, `mention_rate`, confidence, bối cảnh, cận dưới precision, ≤ 5 id bằng chứng. `operation`: giờ (fact, kèm `source`; quá 90 ngày → `OUTDATED`; `hours_conflict` → `UNCERTAIN` kèm `conflict`), giá / người (180 ngày), giá vé (`kind = fact` khi lấy từ trang official, còn lại `estimate`) + thời gian tham quan (`kind = estimate`), đặt chỗ, độ đông theo giờ. `usable_as` = mặc định nhóm category, bỏ `experience` khi coverage experience `NONE`. `check(record, feature, forbidden)` = kiểm tra fail-closed của §6.2 Place Decision: `fail` khi giá trị cấm chắc chắn (`VERIFIED` / `OUTDATED`); `pass` khi giá trị khác chắc chắn và không tác giả nào nói giá trị cấm; còn lại (không bằng chứng, `UNCERTAIN`, có người nói ngược) `unknown`. `area` = khu vực (leader clustering: nơi có nhiều láng giềng nhất trong `area_km` làm tâm). `near_duplicate_group`: cùng nhóm category + cùng `usable_as` + Jaccard ≥ 0,6 trên cặp (feature, value) "loại nơi" (experience + environment trừ chất lượng / đông / sạch / đỗ xe / thời tiết / vệ sinh / muỗi) được ≥ 2 tác giả và ≥ 3% người viết nhắc, so với leader của nhóm (nơi nhiều feature nhất), không nối chuỗi. `mmr()` chọn shortlist: λ·điểm − (1−λ)·độ giống lớn nhất với nơi đã chọn.
+**Serving record** (code `src/corpus/serving/`, lệnh `python -m corpus serving` → `data/serving/places.json`; ngưỡng `config/serving.yaml`): bản ghi Place Decision đọc (`PLACE_DECISION.md` §2.2). Nơi có `closure` (tạm hoặc hẳn) hoặc Judge phán `closed` / `changed` (`place_status`, §6) là `DISABLED`, không vào file; chỗ ở (`stay`) trong `area` của một thành phố mà xa tâm hơn `stay_within.km` (`config/cities.yaml`, Đà Lạt 12 km: bỏ Nam Ban, D'Ran) cũng không vào file (`stay_outside_city`); Judge phán `unclear` → bản ghi `UNCERTAIN` (`closure_reported`). Feature theo khía cạnh (`experience`, `environment`, `service`, `effort`, `suitability`): `disabled` / `needs_review` (`unchecked`) → bỏ; `uncertain` → `UNCERTAIN` (`conflict` | `low_agreement`); chưa `servable` → `UNCERTAIN` (`unmeasured_precision`); còn lại `VERIFIED`, quá `freshness_days` (độ đông 365, khác 730) → `OUTDATED`. Mỗi feature giữ value, phân phối, n, `mention_rate`, confidence, bối cảnh, cận dưới precision, ≤ 5 id bằng chứng. `operation`: giờ (fact, kèm `source`; quá 90 ngày → `OUTDATED`; `hours_conflict` → `UNCERTAIN` kèm `conflict`), giá / người (180 ngày), giá vé (`kind = fact` khi lấy từ trang official, còn lại `estimate`) + thời gian tham quan (`kind = estimate`), đặt chỗ, độ đông theo giờ. `usable_as` = mặc định nhóm category, bỏ `experience` khi coverage experience `NONE`. `check(record, feature, forbidden)` = kiểm tra fail-closed của §6.2 Place Decision: `fail` khi giá trị cấm chắc chắn (`VERIFIED` / `OUTDATED`); `pass` khi giá trị khác chắc chắn và không tác giả nào nói giá trị cấm; còn lại (không bằng chứng, `UNCERTAIN`, có người nói ngược) `unknown`. `area` = khu vực (leader clustering: nơi có nhiều láng giềng nhất trong `area_km` làm tâm). `near_duplicate_group`: cùng nhóm category + cùng `usable_as` + Jaccard ≥ 0,6 trên cặp (feature, value) "loại nơi" (experience + environment trừ chất lượng / đông / sạch / đỗ xe / thời tiết / vệ sinh / muỗi) được ≥ 2 tác giả và ≥ 3% người viết nhắc, so với leader của nhóm (nơi nhiều feature nhất), không nối chuỗi. `mmr()` chọn shortlist: λ·điểm − (1−λ)·độ giống lớn nhất với nơi đã chọn.
 
 Serving record có đủ cho Place Decision hay không được đo bằng `python -m decision evaluate` (`docs/PLACE_DECISION.md` §17), chạy đúng pipeline thật trên 30 Trip State ẩn của `config/eval_trips.yaml`.
 
@@ -467,7 +474,19 @@ Sở thích người dùng → truy xuất địa điểm (serving index) → đ
 | Xếp hạng §8: `preference_fit` | `features.<id>.distribution / n / confidence` | Review + attributes | Review thiên tích cực: tín hiệu phân biệt nằm ở phiếu tiêu cực |
 | Thẻ ứng viên §11: vì sao phù hợp, đánh đổi, độ tin cậy | `features.*.observation_ids` → quote, `trend`, `rating_trend`, `coverage` | | |
 
-Planner chỉ đọc serving record; không bao giờ duyệt đồ thị bằng chứng. Thời tiết, giao thông, thời gian di chuyển thực tế được lấy theo từng request và không bao giờ thành dữ liệu corpus.
+Planner chỉ đọc serving record; không bao giờ duyệt đồ thị bằng chứng. Online đọc chúng qua `corpus.snapshot.Region`: bảng nóng (`Region.places`, `feature(fid)`, `ctx_top`, `verdict`) cho lọc và xếp hạng mọi nơi một lượt; `Region.record(id)` / `records()` cho bản ghi đầy đủ (thẻ, Planning, Notify); `Region.intel()` / `videos` cho Trip `Catalog`. `corpus.serving.load()` trả các bản ghi của snapshot nên Planning, Companion, Notify và harness không đổi.
+
+```mermaid
+flowchart LR
+  S[corpus serving] --> C[corpus snapshot]
+  C --> D[data/snapshot]
+  D --> R[Region, chỉ đọc]
+  R --> PD[Place Decision: bảng]
+  R --> PL[Planning, Companion, Notify]
+  R --> TR[Trip Catalog]
+```
+
+Snapshot được biên dịch ở cuối `corpus serving` (hoặc riêng bằng `corpus snapshot`) và là file bất biến theo version; server đọc lúc khởi động, build mới thì khởi động lại. Thiếu snapshot thì `Snapshot.open()` báo phải chạy `python -m corpus snapshot`. Vùng là key trong `config/cities.yaml`; vùng mặc định của online là `default_region` trong `config/serving.yaml`. Thời tiết, giao thông, thời gian di chuyển thực tế được lấy theo từng request và không bao giờ thành dữ liệu corpus.
 
 Khi người dùng nhập một địa điểm chưa có trong registry, cùng bộ matcher chạy theo yêu cầu. Match chắc chắn thì trả về và xếp hàng làm giàu dữ liệu; nếu không, người dùng chọn từ các phương án. Không đoán gì cả.
 
@@ -487,9 +506,45 @@ Public API (`corpus.index`): `Index.load()`, `embed_text`, `embed_image` (không
 
 **Độ giống vector không phải bằng chứng**: lớp B và C chỉ xếp hạng và gom cụm; lọc cứng chỉ đi qua feature có observation + span. Trip dùng chỉ mục cho thẻ phong cách và ảnh (`docs/TRIP_UNDERSTANDING.md` §18); Place Decision chỉ nhận danh sách nơi đã chọn (`docs/PLACE_DECISION.md` §8).
 
+Public `corpus.retrieval` mở `RetrievalEngine.open(release_id, region, data_root=..., binding=...)`
+hoặc tái dùng snapshot đã pin qua `from_snapshot(snapshot, region, binding=...)`. Factory kiểm
+release root, manifest/artifact và version; index nạp khi cần. `search_names`, `semantic`,
+`similar` bắt buộc `within`, giao với eligible region. Scope rỗng không gọi Embedder.
+Tìm tên có public typed `NameRecord`/`NameHit` và hàm thuần `search_names`/`name_score`, không
+cần semantic index. Chữ được so theo token có nghĩa, bỏ dấu/case và tên thành phố.
+
+Span release giữ `served=True` cho claim backing value đang phục vụ; `served=False` cho
+claim normalized hợp lệ còn lại. Claim sai nguồn/quote, nhãn `wrong`/`unsure_again` hoặc vector
+không tương thích bị loại khỏi cả hai. `Index.span_rows()` trả metadata có kiểu; `search_spans`
+mặc định `served_only=True`. Retrieval semantic ghép photo/span, ontology chỉ boost hit đã có;
+score và media/span pointer không phải Fact. `evidence(place_id, feature, context=..., limit=...)`
+chỉ trả claim đúng value, observation ID và context đã có verdict serving; metadata thiếu
+giữ `None`. Histogram context chưa có status riêng không chứng minh feature theo context.
+`coverage` trả số nơi có photo/span/style và danh sách thiếu trong eligible scope; thiếu index
+là unavailable, không sinh vector để lấp thiếu.
+
+## Chuẩn hóa và release offline
+
+`corpus.normalize.normalize(city, root=None, canonical=None, output_root=None)` đọc list trải nghiệm/chỗ ở, observation và nguồn đã lưu; output theo nguồn, ID tất định theo hash. Raw ngoài inventory là `historical`; backup chỉ được ghi tên, không khôi phục. Không có list dùng `legacy_unlisted`. Claim giữ ID, version gốc, author/sample/span; context thiếu thành `unknown`; ngày không parse được thành `null` kèm issue, độ chính xác tháng được giữ. Claim sai schema, trùng ID khác nội dung, nguồn/span thiếu hoặc không khớp bị loại với lý do. TikTok quote còn nguyên trong segment lệch tối đa 2 giây được reanchor, giữ mốc cũ trong provenance; không sửa quote cho khớp nguồn. Claim bị loại chặn suy `absent` từ im lặng. Khi claim bị bỏ có value khác top value còn lại, feature giữ `UNCERTAIN` (`invalidated_evidence`) để không nâng VERIFIED do mất xung đột. `aggregate.run()` tự chuẩn hóa khi input đổi; có `root`/`output_root` để build riêng.
+
+`corpus.releases.rebuild(city, root=None, publish=False)` chỉ dùng dữ liệu đã lưu; không gọi crawl, Extractor/Judge/ASR/Embedder. Build tại `releases/.staging-*`, kiểm hash input trước/sau và đọc lại snapshot/index; release hoàn chỉnh mới có thể publish. `serving.run(root=..., source_root=..., publish=False)` và `compile_snapshot(root=..., source_root=..., publish=False)` không đổi pointer hoặc prune snapshot hiện hành. Release không bị pruning; bản staging lỗi giữ để kiểm tra.
+
+Index release tái dùng `.npy`/metadata khi model, dimension, số hàng và place ID tương thích; file media thiếu hoặc span không qua gate bị loại với issue. Span không backing feature nhưng còn hợp lệ được giữ như §Chỉ mục ngữ nghĩa. Summary ghi hash input, model/dimension, số span served, coverage `stay`/`non_stay` và `ready`/`partial`/`unavailable` theo ảnh/span/style. Thiếu vector không loại place khỏi serving.
+
+`Snapshot.open()` và `Index.load()` mặc định resolve cùng `releases/current`; root explicit
+ giữ API độc lập. Có release active thì build standalone không đổi runtime cho đến khi publish.
+`Binding`, `bind` (có `release_id` để mở release được chỉ định) và `resolve_binding` là public contract online: release/region/manifest hash
+và version snapshot/index; kiểm artifact hash, không fallback raw khi release lỗi. `publish`
+chỉ switch pointer sau validate; rollback bằng publish release cũ. Journey pin release và
+reader version theo `docs/AGENT_HARNESS.md` §3; release cũ đang được tham chiếu phải giữ lại.
+Process đã chạy cần restart để nhận code/factory mặc định mới; journey đã pin vẫn dùng release cũ.
+
+`web/scripts/export_snapshot.py --view both` xuất `snapshot.json` từ `projection/serving.json` của release (đúng eligible ID, feature qua gate) và `snapshot-admin.json` riêng để Admin vẫn xem inventory/review. Admin đọc file riêng; build production bỏ file Admin. `scripts/pack_data.py` chỉ đóng gói release active và artifact trong manifest, nguồn/media đã lưu; loại normalization, staging, backup, session/account/live data. Không xóa release cũ hoặc dữ liệu gốc khi đóng gói.
+
 ## Kiểm soát chi phí và hiệu năng
 
 - **Rule trước model.** Spam, trùng lặp, chuẩn hóa, chấm điểm, tổng hợp đều là code.
+- **Truy vấn corpus nhanh.** Online chỉ đọc snapshot; Place Decision tính sàng lọc, độ hợp và điểm cho mọi nơi bằng bảng, chỉ dựng thẻ cho vài chục nơi hiển thị. Ngân sách độ trễ (`create` ≤ 30 ms, `act` ≤ 15 ms ở 1 vùng Đà Lạt) và số đo từng lần nằm ở `python -m bench latency` (ghi `data/bench/latency/`).
 - **Chỉ hai vai trò model trong build.** Extractor miễn phí hoặc rẻ cho mọi khối lượng; Judge chỉ cho entity rủi ro cao và match mơ hồ. (Agent không thuộc build, nó chạy trong phiên người dùng.)
 - **Không trả tiền hai lần.** Mọi call model được khóa theo input hash + processor + prompt hash; call lặp lại trả kết quả đã lưu.
 - **Gom lô mục nhỏ** (comment, kiểm tra span) theo số lượng; một video mỗi call Extractor; trang dài chia theo heading; input quá cỡ được chia nhỏ, không bao giờ bị cắt ngầm.
@@ -531,7 +586,7 @@ Adapter retry có backoff; adapter TikTok giới hạn tốc độ và xoay sess
 |---|---|---|
 | Nguồn Google | Cào Google Maps có đăng nhập; review Maps dùng làm bằng chứng | Places API theo điều khoản (review chỉ dùng trong phạm vi điều khoản cho phép) |
 | Thu thập TikTok | Scraper Playwright có đăng nhập | Truy cập có license |
-| Lưu trữ | Lưu file, chưa có DB (§Data model) | PostgreSQL + PostGIS |
+| Lưu trữ | Lưu file: JSON cho offline, LanceDB cho snapshot online (§Data model) | PostgreSQL + PostGIS |
 | Hình học ZONE | Buffer / hành lang quanh POI liên quan | Dữ liệu bản đồ |
 
 ## Đầu vào cần có

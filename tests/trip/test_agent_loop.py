@@ -5,6 +5,7 @@ import pytest
 from trip_fixtures import ScriptedChat, call, fact, reply, say
 
 from trip.agent import AgentError, TurnTools, run_loop
+from trip.infrastructure.settings import Settings
 from trip.domain.state import TripState
 
 
@@ -26,11 +27,29 @@ def test_tool_results_go_back_to_the_model_and_the_loop_goes_on(catalog):
     assert said == ["Bạn đi bằng gì?"]
 
 
-def test_a_refusal_can_be_explicitly_dropped(catalog):
-    chat = ScriptedChat(reply(fact("companions", "family", "gia đình", op="add")),
-                        reply(call("drop_refusal", field="companions")), reply(text="Nhóm đi thì mình chưa rõ."))
-    tools, _, _ = run(chat, catalog, text="đi với gia đình")
-    assert chat.calls == 3 and not tools.refused and "drop_refusal companions" in tools.log
+def test_a_refusal_that_stays_unresolved_for_three_turns_lands_in_unmapped(catalog):
+    from trip.domain.state import TripState
+    from trip.agent import TurnTools
+    text = "đi với cả đoàn 12 người"
+    counts: dict = {}
+    state = TripState()
+    for _ in range(3):
+        t = TurnTools(state, text, 1, catalog, date(2026, 10, 8), [])
+        t.refused.add("companions")  # the field was refused this turn and nothing fixed it
+        counts = t.settle_refusals(counts)
+        state = t.state
+    assert counts == {} and t.unmapped == [text] and "auto_unmapped companions" in t.log
+    assert any(u.phrase == text for u in state.unmapped)
+
+
+def test_a_refusal_resolved_in_time_keeps_no_count(catalog):
+    from trip.domain.state import TripState
+    from trip.agent import TurnTools
+    t = TurnTools(TripState(), "đi với gia đình", 1, catalog, date(2026, 10, 8), [])
+    t.refused.add("companions")
+    assert t.settle_refusals({}) == {"companions": 1}
+    t2 = TurnTools(TripState(), "đi với gia đình", 2, catalog, date(2026, 10, 8), [])  # fixed next turn: not refused
+    assert t2.settle_refusals({"companions": 1}) == {}
 
 
 def test_a_plain_text_reply_ends_the_loop(catalog):
@@ -45,8 +64,8 @@ def test_the_loop_is_bounded(catalog):
 
 
 def test_malformed_arguments_are_an_error_result_not_a_crash(catalog):
-    from trip.agent import Assistant, Call
-    bad = Assistant(calls=[Call("c1", "record_fact", "{not json")])
+    from langchain_core.messages import AIMessageChunk
+    bad = AIMessageChunk(content="", tool_call_chunks=[{"id": "c1", "name": "record_fact", "args": "{not json", "index": 0}])
     _, messages, _ = run(ScriptedChat(bad, say("Đi mấy ngày?")), catalog)
     assert "error" in messages[2]["content"]
 
@@ -120,7 +139,7 @@ def test_a_reply_that_says_it_understood_a_group_with_no_record_is_retried(catal
     assert chat.calls == 3 and retries == [1] and tools.state.companions.known
 
 
-def test_a_reply_clef_sends_back_is_written_again_with_the_reason(catalog):
+def test_the_written_reply_is_not_sent_to_clef_so_no_wait_after_the_call(catalog):
     class Judge:
         def __init__(self):
             self.calls = 0
@@ -128,20 +147,16 @@ def test_a_reply_clef_sends_back_is_written_again_with_the_reason(catalog):
         def unsupported(self, quote, claim):
             return False
 
-        def bad_reply(self, say):
+        def bad_reply(self, say, user=""):
             self.calls += 1
-            return "promises results" if "gợi ý" in say and self.calls == 1 else None
+            return "promises results"
 
-        def repeats(self, question, known):
-            return False
-
-    chat = ScriptedChat(reply(text="Mình sẽ gợi ý ngay."), say("Bạn đi mấy ngày?"))
-    tools = TurnTools(TripState(), "đi 3 ngày", 1, catalog, date(2026, 10, 8), judge=Judge())
-    retries, messages = [], [{"role": "user", "content": "x"}]
-    asyncio.run(run_loop(chat, messages, tools, lambda _: None, 6, lambda: retries.append(1)))
+    judge = Judge()
+    chat = ScriptedChat(reply(text="Bạn đi mấy ngày?"))
+    tools = TurnTools(TripState(), "đi đà lạt", 1, catalog, date(2026, 10, 8), judge=judge)
+    asyncio.run(run_loop(chat, [{"role": "user", "content": "x"}], tools, lambda _: None, 6, lambda: None))
     tools.close()
-    assert chat.calls == 2 and retries == [1] and "clef_retry promises results" in tools.log
-    assert "chặn vì: promises results" in messages[-1]["content"] and tools.reply_problem() is None
+    assert chat.calls == 1 and judge.calls == 0 and tools.reply_problem() is None
 
 
 def test_a_repeated_record_is_answered_not_written_again_and_the_loop_ends_in_text(catalog):
@@ -154,3 +169,94 @@ def test_a_repeated_record_is_answered_not_written_again_and_the_loop_ends_in_te
     assert chat.calls == 3 and tools.state.companions.known
     assert tools.log.count("record_fact companions=friends") == 2
     assert said == ["Mình hiểu là bạn đi với bạn bè."]
+
+
+def test_one_nudge_per_turn_a_claim_then_a_clef_back_ends(catalog):
+    class Judge:
+        def unsupported(self, quote, claim):
+            return False
+
+        def bad_reply(self, say, user=""):
+            return "promises results" if "gợi ý" in say else None
+
+    chat = ScriptedChat(reply(text="Mình đã ghi nhận bạn đi cùng bạn bè."),
+                        reply(text="Mình sẽ gợi ý ngay."))
+    tools = TurnTools(TripState(), "đi với bạn bè", 1, catalog, date(2026, 10, 8), judge=Judge())
+    retries = []
+    asyncio.run(run_loop(chat, [{"role": "user", "content": "x"}], tools, lambda _: None, 6,
+                         lambda: retries.append(1)))
+    tools.close()
+    assert chat.calls == 2 and retries == [1]
+    assert "claim_without_record" in tools.log and "clef_retry" not in tools.log
+
+
+def test_a_tool_that_crashes_is_an_error_result_and_the_turn_goes_on(catalog, monkeypatch):
+    tools = TurnTools(TripState(), "đi 3 ngày", 1, catalog, date(2026, 10, 8))
+
+    def boom(name, args):
+        raise RuntimeError("db gone")
+    monkeypatch.setattr(tools, "run", boom)
+    chat = ScriptedChat(reply(fact("days", "3", "3 ngày")), say("Bạn đi mấy ngày?"))
+    messages, said = [{"role": "user", "content": "x"}], []
+    asyncio.run(run_loop(chat, messages, tools, said.append, 6))
+    assert chat.calls == 2 and "tool_crash record_fact RuntimeError" in tools.log
+    assert '"error"' in messages[2]["content"] and said == ["Bạn đi mấy ngày?"]
+
+
+def test_repeated_tool_failures_stop_the_turn_with_the_fallback(catalog):
+    chat = ScriptedChat(*[reply(fact("days", "9", "9 ngày")) for _ in range(10)])
+    tools = TurnTools(TripState(), "đi 3 ngày", 1, catalog, date(2026, 10, 8))
+    said = []
+    asyncio.run(run_loop(chat, [{"role": "user", "content": "x"}], tools, said.append, 10))
+    assert chat.calls == 4 and any("tool_fail_cap" in x for x in tools.log) and said == []  # the engine says the fallback
+
+
+def test_hitting_the_step_cap_ends_silently_for_the_engine_to_fall_back(catalog):
+    chat = ScriptedChat(*[reply(fact("days", "3", "3 ngày")) for _ in range(10)])
+    tools = TurnTools(TripState(), "x", 1, catalog, date(2026, 10, 8))
+    said = []
+    asyncio.run(run_loop(chat, [{"role": "user", "content": "x"}], tools, said.append, 3))
+    assert said == [] and "step_cap" in tools.log
+
+
+def test_the_persisted_history_drops_a_sent_back_reply_and_its_note(catalog):
+    chat = ScriptedChat(reply(text="Mình đã ghi nhận bạn đi cùng bạn bè."),
+                        reply(fact("companions", "friends", "bạn bè", op="add")), say("Bạn đi mấy ngày?"))
+    tools = TurnTools(TripState(), "đi với bạn bè", 1, catalog, date(2026, 10, 8))
+    messages = [{"role": "system", "content": "prompt"}, {"role": "user", "content": "đi với bạn bè"}]
+    asyncio.run(run_loop(chat, messages, tools, lambda _: None, 6, lambda: None))
+    assert [m["role"] for m in messages] == ["system", "user", "assistant", "tool"]  # the final text is said, not stored
+    assert all("Mình đã ghi nhận" not in (m.get("content") or "") for m in messages)
+
+
+def test_langchain_chat_returns_the_merged_message_with_raw_arguments(monkeypatch):
+    from langchain_core.messages import AIMessageChunk
+    from trip.agent import loop as loop_mod
+
+    pieces = [AIMessageChunk(content="Đi mấy ", tool_call_chunks=[]),
+              AIMessageChunk(content="ngày?", tool_call_chunks=[{"name": "record_fact", "args": '{"field": "da', "id": "c1", "index": 0}]),
+              AIMessageChunk(content="", tool_call_chunks=[{"name": None, "args": 'ys"}', "id": None, "index": 0}]),
+              AIMessageChunk(content="", tool_call_chunks=[{"name": "record_fact", "args": "{not json", "id": "c2", "index": 1}])]
+
+    class FakeLLM:
+        def bind_tools(self, tools, **kw):
+            return self
+
+        async def astream(self, msgs):
+            for p in pieces:
+                yield p
+
+    class FakeClient:
+        base_url, api_key = "http://x", "k"
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(loop_mod, "ChatOpenAI", lambda **kw: FakeLLM())
+    monkeypatch.setattr(loop_mod, "AGENT", type("Role", (), {"client": staticmethod(lambda: (FakeClient(), "m")),
+                                                             "reasoning": staticmethod(lambda: None)}))
+    said = []
+    out = asyncio.run(loop_mod.langchain_chat(Settings())([{"role": "user", "content": "x"}], [], said.append))
+    assert "".join(said) == "Đi mấy ngày?" and out.text == "Đi mấy ngày?"
+    assert [(t["id"], t["name"], t["args"]) for t in out.tool_call_chunks] == [
+        ("c1", "record_fact", '{"field": "days"}'), ("c2", "record_fact", "{not json")]

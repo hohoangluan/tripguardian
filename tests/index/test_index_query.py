@@ -80,3 +80,59 @@ def test_a_style_tag_needs_several_posters_and_a_child_counts_for_its_parent(tmp
     tags = place_styles(tmp_path, "0x1:0x2", STYLES)
     assert set(tags) == {"retro_saigon", "retro"}  # minimal: one poster only
     assert tags["retro"]["authors"] == 3 and tags["retro_saigon"]["evidence"][0]["file"].endswith("p1.jpg")
+
+
+# ---------- served column in span search ----------
+
+def _span_index(span_rows, places=None):
+    """Build a minimal Index with spans loaded from hand-made rows (no LanceDB)."""
+    import threading
+    photo_rows = [{**r, "v": unit(1, 0, 0)} for r in [{"place_id": sr["place_id"], "file": f"gmaps/places/{sr['place_id']}/photos/p.jpg",
+                                                         "author": "u1", "owner": False, "source": "gmaps"} for sr in span_rows]]
+    photo_vecs = np.stack([r.pop("v") for r in photo_rows])
+    # Build span vectors and rows
+    d = 4
+    vecs = np.stack([unit(1, 0.1 * i, 0, 0) for i in range(len(span_rows))])
+    served_mask = np.array([r.get("served", True) for r in span_rows], dtype=bool)
+    places = places or {r["place_id"]: {"name": r["place_id"], "styles": {}, "near_duplicate_group": None}
+                        for r in span_rows}
+    ix = Index(version="t", root=None, places=places, styles=STYLES, photo_vecs=photo_vecs, photo_rows=photo_rows,
+               cfg=CFG, _spans=(vecs, span_rows, served_mask))
+    return ix
+
+
+def test_search_spans_served_only_filters_unserved():
+    """served_only=True (default for evidence) excludes spans with served=False."""
+    from corpus.index.query import TextVec
+    rows = [
+        {"place_id": "a", "observation_id": "o1", "quote": "đèn lồng đỏ", "features": '["ambiance=cozy"]', "served": True},
+        {"place_id": "a", "observation_id": "o2", "quote": "trang trí Hội An", "features": '["detail.known_for=lantern"]', "served": False},
+        {"place_id": "b", "observation_id": "o3", "quote": "view hồ tuyệt đẹp", "features": '["outdoor_seating=true"]', "served": True},
+    ]
+    ix = _span_index(rows)
+    vec = TextVec(photo=unit(1, 0, 0), span=unit(1, 0, 0, 0))
+
+    # Default (served_only=True): evidence lookup
+    hits = ix.search_spans(vec, served_only=True)
+    assert all(h.served for h in hits), "evidence lookup must not return unserved spans"
+    assert {h.observation_id for h in hits} == {"o1", "o3"}
+
+    # Vibe search (served_only=False): returns all spans
+    all_hits = ix.search_spans(vec, served_only=False)
+    assert len(all_hits) == 3
+    unserved = [h for h in all_hits if not h.served]
+    assert len(unserved) == 1
+    assert unserved[0].observation_id == "o2"
+
+
+def test_search_spans_within_scope():
+    """Span search must not return IDs outside the 'within' scope."""
+    from corpus.index.query import TextVec
+    rows = [
+        {"place_id": "a", "observation_id": "o1", "quote": "chill", "features": '[]', "served": True},
+        {"place_id": "b", "observation_id": "o2", "quote": "relax", "features": '[]', "served": True},
+    ]
+    ix = _span_index(rows)
+    vec = TextVec(photo=unit(1, 0, 0), span=unit(1, 0, 0, 0))
+    hits = ix.search_spans(vec, within={"a"})
+    assert all(h.place_id == "a" for h in hits)

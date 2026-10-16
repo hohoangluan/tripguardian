@@ -1,5 +1,6 @@
 """Public Decision tools and opaque typed snapshots for the journey harness."""
 
+import json
 import os
 from pathlib import Path
 
@@ -8,10 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agents import ToolError, load_skill, permit_tool
 from trip import SearchInput
+from corpus.releases import Binding, bind, resolve_binding
+from corpus.retrieval import RetrievalEngine
+from corpus.snapshot import shared
 
 from .agent import run_agent
 from .engine import Engine, NoSession, NotConfirmable, diff
-from .contracts import DecisionOutput
+from .contracts import DecisionOutput, EvidenceInput
 from .pipeline import Data
 from .session import Session, Store
 from .settings import ROOT, default
@@ -30,8 +34,13 @@ class Tools:
         self.engine = engine
         self.skill = load_skill(Path(__file__).with_name("skills.yaml"))
 
+    def _check_binding(self, binding: Binding | None) -> None:
+        if binding != getattr(self.engine, "corpus_binding", None):
+            raise ValueError("Decision corpus binding mismatch; use the pinned release")
+
     def create(self, payload: dict) -> dict:
         inp = StartInput.model_validate(payload)
+        self._check_binding(inp.search_input.corpus_binding)
         return self.engine.create(inp.search_input.model_dump(mode="json"), inp.trip_session)
 
     def load(self, sid: str) -> dict:
@@ -67,15 +76,27 @@ class Tools:
         raise ValueError(f"decision does not accept {operation}")
 
     def read(self, sid: str, operation: str, payload: dict) -> dict:
+        if operation == "evidence":
+            permit_tool(self.skill, "decision.evidence")
+            if isinstance(payload.get("context"), str):
+                payload = {**payload, "context": json.loads(payload["context"])}
+            return self.engine.evidence(sid, EvidenceInput.model_validate(payload)).model_dump(mode="json")
         if operation == "compare":
             permit_tool(self.skill, "decision.compare")
             return self.engine.compare(sid, payload.get("a", ""), payload.get("b", ""), record=False)
         if operation == "why-not":
             return self.engine.why_not(sid, payload.get("place", ""))
         if operation == "page":
-            return self.engine.page(sid, str(payload.get("group", "")))
+            n = payload.get("n")
+            try:
+                n = None if n in (None, "") else int(n)
+            except (TypeError, ValueError):
+                raise ValueError("n must be a page number") from None
+            return self.engine.page(sid, str(payload.get("group", "")), n)
+        if operation == "search":
+            return self.engine.search(sid, str(payload.get("q", "")))
         if operation == "draft":
-            out = self.engine.draft(sid)
+            out = self.engine.draft(sid, any_state=payload.get("any") is True)
             return {"output": None if out is None else
                     DecisionOutput.model_validate(out).model_dump(mode="json", by_alias=True)}
         raise ValueError(f"unknown Decision read {operation}")
@@ -92,11 +113,13 @@ class Tools:
 
     def restore(self, snapshot: dict) -> None:
         data = Session.model_validate(snapshot)
+        self._check_binding(data.search_input.corpus_binding)
         self.engine.store.restore(data)
         self.engine._results.pop(data.id, None)
 
     def rebase(self, sid: str, payload: dict) -> dict:
         inp = StartInput.model_validate(payload)
+        self._check_binding(inp.search_input.corpus_binding)
         before = self.load(sid)["view"]
         with self.engine.store.lock(sid):
             s = self.engine.store.get(sid)
@@ -116,10 +139,20 @@ class Tools:
         return {**out, "diff": diff(before, out["view"], None, rebuilt=True)}
 
 
-def create_engine(data_root: Path) -> Engine:
+def create_engine(data_root: Path, *, binding: Binding | None = None,
+                  retrieval: RetrievalEngine | None = None) -> Engine:
     load_dotenv(ROOT / ".env")
     cfg = default()
     agent = None
     if all(os.environ.get(k) for k in ("AGENT_API_KEY", "AGENT_BASE_URL", "AGENT_MODEL")):
         agent = lambda fields, on_say: run_agent(fields, on_say, cfg)
-    return Engine(Data.load(), cfg, Store(None), agent)
+    binding = binding or bind(data_root)
+    if retrieval is not None and retrieval.binding != binding:
+        raise ValueError("retrieval corpus binding mismatch")
+    root = resolve_binding(data_root, binding)
+    engine = Engine(Data.load(binding.region, data_root=root, snapshot_version=binding.snapshot_version or ""),
+                    cfg, Store(None), agent,
+                    retrieval=retrieval if retrieval is not None else RetrievalEngine.from_snapshot(shared(root / "snapshot", version=binding.snapshot_version or ""),
+                                                            binding.region, binding=binding))
+    engine.corpus_binding = binding
+    return engine

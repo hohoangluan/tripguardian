@@ -3,6 +3,7 @@ import { geoSearch, lodgingSuggest } from '../../tu/api'
 import type { Card, Chip, GeoHit, LodgingHit, VibeKind, VibeParams } from '../../tu/types'
 import { Icon } from '../../ui/icons'
 import { PlaceInput, type InputRow } from '../../ui/PlaceInput'
+import { CardImg } from '../../ui/common'
 import { openPlace } from '../../ui/PlaceSheet'
 import { PlaceSearch } from '../../ui/Ticket'
 
@@ -124,7 +125,7 @@ export function GuessConfirm({ card, busy, onAnswer, onPhoto }: { card: Card; bu
           <div className="tg-cx__peek">
             {p.kinds.map((k) => (
               <button type="button" key={k.id} className="tg-cx__peek-i" onClick={() => k.photos[0] && openPlace(k.photos[0].place_id)} aria-label={`Xem ${k.photos[0]?.name ?? k.label}`}>
-                {k.photos[0] ? <img src={k.photos[0].url} alt="" loading="lazy" /> : <span className="tg-cx__peek-ph" />}
+                {k.photos[0] ? <CardImg src={k.photos[0].url} alt="" /> : <span className="tg-cx__peek-ph" />}
                 <span><b>{k.label}</b><small>{k.count.toLocaleString('vi-VN')} nơi</small></span>
               </button>
             ))}
@@ -159,8 +160,8 @@ function KindTile({ k, on, i, onToggle }: { k: VibeKind; on: boolean; i: number;
   return (
     <div className={`tg-cx__opt ${on ? 'is-on' : ''}`} style={{ '--i': i } as CSSProperties}>
       <div className="tg-cx__pics">
-        {big && <button type="button" className="tg-cx__pic is-big" onClick={() => openPlace(big.place_id)} aria-label={`Xem ${big.name}`}><img src={big.url} alt={big.name} loading="lazy" /></button>}
-        {small.slice(0, 2).map((ph) => <button type="button" key={ph.url} className="tg-cx__pic" onClick={() => openPlace(ph.place_id)} aria-label={`Xem ${ph.name}`}><img src={ph.url} alt={ph.name} loading="lazy" /></button>)}
+        {big && <button type="button" className="tg-cx__pic is-big" onClick={() => openPlace(big.place_id)} aria-label={`Xem ${big.name}`}><CardImg src={big.url} alt={big.name} /></button>}
+        {small.slice(0, 2).map((ph) => <button type="button" key={ph.url} className="tg-cx__pic" onClick={() => openPlace(ph.place_id)} aria-label={`Xem ${ph.name}`}><CardImg src={ph.url} alt={ph.name} /></button>)}
         <span className="tg-cx__ring" aria-hidden="true"><Icon name="check" size={16} /></span>
       </div>
       <button type="button" className="tg-cx__opt-b" aria-pressed={on} onClick={onToggle}>

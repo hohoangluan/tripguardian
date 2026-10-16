@@ -1,4 +1,4 @@
-"""python -m corpus {login <source> | <source> <phase> | judge <phase> | review | aggregate | serving | index} --city <key>
+"""python -m corpus {login <source> | <source> <phase> | judge <phase> | review | aggregate | serving | snapshot | index} --city <key>
 
 Phases per source, each reading only earlier phases' files: tiktok search -> list -> filter -> crawl, then per Maps
 place place_search -> place_filter -> place_crawl -> asr -> asr_check -> asr_alt -> (asr_check again) -> place_verify
@@ -15,7 +15,7 @@ from .aggregate import run as aggregate_run
 from .serving import run as serving_run
 from . import build, judge
 from .review import server as review_server
-from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, keywords as gmaps_keywords, visit as gmaps_visit, search as gmaps_search
+from .crawl.gmaps import counts as gmaps_counts, crawl as gmaps_crawl, filter as gmaps_filter, listing as gmaps_list, qc as gmaps_qc, relevant as gmaps_relevant, extremes as gmaps_extremes, keywords as gmaps_keywords, visit as gmaps_visit, search as gmaps_search, stay_price as gmaps_stay_price
 from .observe import gmaps as gmaps_observe
 from .observe.gmaps import photos as gmaps_photo_observe
 from .observe.gmaps import styles as gmaps_style_observe
@@ -43,7 +43,7 @@ PHASES = {  # source -> phase -> (run, needs a browser)
                "comments_crawl": (tiktok_comments_crawl.run, True),
                "observe": (tiktok_observe.run, False)},
     "gmaps": {"search": (gmaps_search.run, True), "stay_search": (gmaps_search.run_stay, True), "filter": (gmaps_filter.run, False), "counts": (gmaps_counts.run, True),
-              "list": (gmaps_list.run, False),
+              "list": (gmaps_list.run, False), "stay_price": (gmaps_stay_price.run, True),
               "crawl": (gmaps_crawl.run, True), "relevant": (gmaps_relevant.run, True), "extremes": (gmaps_extremes.run, True),
               "keywords": (gmaps_keywords.run, True), "visit": (gmaps_visit.run, True),
               "photos": (gmaps_photos.run, True), "menu": (gmaps_menu.run, True), "qc": (gmaps_qc.run, False),
@@ -67,7 +67,7 @@ def run(source: str, phase: str, city: str, headed: bool, limit: int | None = No
         elif source == "gmaps" and p in ("crawl", "relevant", "extremes", "keywords", "photos", "menu"):
             out = fn(city, headed, **({"limit": limit} if p in ("extremes", "keywords", "photos", "menu") else {}),
                      shard=shard, profile_name=profile)
-        elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages"):
+        elif browser_phase and p in ("photos", "extremes", "keywords", "visit", "pages", "stay_price"):
             out = fn(city, headed, limit=limit)
         elif browser_phase:
             out = fn(city, headed)
@@ -96,6 +96,11 @@ def main() -> None:
     rp.add_argument("--port", type=int, default=8765)
     sub.add_parser("aggregate", help="every source's observations -> data/intel/places/").add_argument("--city", default="dalat")
     sub.add_parser("serving", help="intel -> data/serving/places.json for Place Decision").add_argument("--city", default="dalat")
+    sub.add_parser("snapshot", help="data/serving/places.json -> data/snapshot/<version>/ (what online reads)").add_argument("--city", default="dalat")
+    np = sub.add_parser("normalize", help="normalize saved inputs; optionally build and publish an offline release")
+    np.add_argument("--city", default="dalat")
+    np.add_argument("--rebuild", action="store_true")
+    np.add_argument("--publish", action="store_true")
     ip = sub.add_parser("index", help="semantic index: per-place vectors (GPU) -> data/index/<version>/ (docs/CORPUS.md)")
     ip.add_argument("phase", nargs="?", default="all", choices=["vectors", "compile", "all"])
     ip.add_argument("--city", default="dalat")
@@ -126,6 +131,8 @@ def main() -> None:
             sp.add_argument("--profile", help="crawl / relevant / extremes / keywords / photos: browser profile, one copy per process")
             sp.add_argument("--shard", help="i/n: this process's 1/n share of the todo list (crawl / relevant / extremes / keywords / photos / style_observe)")
     args = ap.parse_args()
+    if args.cmd == "normalize" and args.publish and not args.rebuild:
+        ap.error("--publish requires --rebuild")
     try:
         if args.cmd == "login":
             asyncio.run(browser.login(args.source, args.profile))
@@ -133,8 +140,21 @@ def main() -> None:
             review_server.run(args.city, args.port)
         elif args.cmd == "aggregate":
             aggregate_run(args.city)
+        elif args.cmd == "normalize":
+            import json
+            if args.rebuild:
+                from .releases import rebuild
+                result = rebuild(args.city, publish=args.publish)
+                print(json.dumps({"release_id": result["release_id"], "quality": result["quality"]}, ensure_ascii=False))
+            else:
+                from .normalize import normalize
+                result = normalize(args.city)
+                print(json.dumps({"normalization_id": result.id, "summary": result.manifest["summary"]}, ensure_ascii=False))
         elif args.cmd == "serving":
             serving_run(args.city)
+        elif args.cmd == "snapshot":
+            from .snapshot import compile_snapshot
+            compile_snapshot(args.city)
         elif args.cmd == "index":
             from . import index
             if args.phase in ("vectors", "all"):

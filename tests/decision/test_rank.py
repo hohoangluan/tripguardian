@@ -50,3 +50,77 @@ def test_food_preferences_do_not_dilute_sightseeing_scores():
     plain = wants(si(soft_weights=[love("scenic_view")]), prof())
     dietary = wants(si(soft_weights=[love("scenic_view"), love("vegetarian_options", "yes")]), prof())
     assert preference(park, dietary) == preference(park, plain)
+
+
+from decision.wishes import build  # noqa: E402
+
+
+def _meal(pid):
+    return Cand(srec(pid, group="restaurant", category="Nhà hàng", usable=("meal",)), "meal")
+
+
+def _dish(name, *ids):
+    return {"dishes": [{"dish": name, "quote": name, "place_ids": list(ids)}], "kinds": [], "like": []}
+
+
+def _run(cands, s):
+    for c in cands:
+        c.fit = 1.0
+    score(cands, s, prof(), CFG, wishes=build(s, [c.rec for c in cands], CFG))
+
+
+def test_meeting_a_wish_lifts_and_missing_one_never_lowers():  # B1, C4
+    a, b = _meal("A"), _meal("B")
+    _run([a, b], si(wishes=_dish("bánh căn", "A")))
+    assert a.score > b.score and a.parts["wish"] > 0 and b.parts["wish"] == 0.0
+    assert a.wishes[0][:3] == ("dish:bánh căn", "dish", "bánh căn")
+
+
+def test_meeting_two_wishes_beats_meeting_one():  # B2
+    a, b = _meal("A"), _meal("B")
+    w = _dish("bánh căn", "A", "B")
+    w["kinds"] = [{"kind": "lẩu", "quote": "lẩu", "place_ids": ["B"]}]
+    _run([a, b], si(wishes=w))
+    assert b.parts["wish"] > a.parts["wish"]
+
+
+def test_wish_stays_within_one():  # B3
+    a = _meal("A")
+    w = _dish("bánh căn", "A")
+    w["kinds"] = [{"kind": "lẩu", "quote": "lẩu", "place_ids": ["A"]}]
+    _run([a], si(wishes=w, vibes=[{"phrase": "ấm", "places": ["A"]}], liked_groups=["meal"],
+                 context={"purpose": "food_culture"}))
+    assert 0 < a.parts["wish"] <= 1
+
+
+def test_a_dish_lifts_any_place_that_lists_it_whatever_its_role():  # B4 (user ruling 2026-10-15: option b)
+    c = Cand(srec("C", group="cafe", usable=("experience",)), "experience")
+    z = Cand(srec("Z", group="cafe", usable=("experience",)), "experience")
+    _run([c, z], si(wishes=_dish("cà phê muối", "C")))
+    assert c.parts["wish"] > 0 and z.parts["wish"] == 0.0
+
+
+def test_a_said_wish_lifts_more_than_a_purpose():  # B5
+    a = _meal("A")
+    c = Cand(srec("C", group="cafe", usable=("experience",)), "experience")
+    _run([a, c], si(wishes=_dish("bánh căn", "A"), context={"purpose": "relax"}))
+    assert a.parts["wish"] > c.parts["wish"] > 0
+
+
+def test_vibe_keeps_its_order_and_lifts_over_equal_places():  # B6
+    cs = [Cand(srec(p, group="cafe", usable=("experience",)), "experience") for p in ("V1", "V2", "V3", "Z")]
+    _run(cs, si(vibes=[{"phrase": "mây", "places": ["V3", "V1", "V2"]}]))
+    assert [c.id for c in sorted(cs, key=lambda c: (-c.score, c.id))] == ["V3", "V1", "V2", "Z"]
+
+
+def test_parts_have_wish_not_vibe_and_score_is_their_weighted_sum():  # B7
+    a = _meal("A")
+    _run([a], si(wishes=_dish("bánh căn", "A")))
+    assert "wish" in a.parts and "vibe" not in a.parts
+    assert a.score == round(sum(CFG.weights.get(k, 0.0) * v for k, v in a.parts.items()), 4)
+
+
+def test_no_wishes_means_zero_wish_everywhere():  # A14, E10, Review Focus 3
+    cs = [_meal("A"), Cand(srec("C"), "experience")]
+    _run(cs, si())
+    assert all(c.parts["wish"] == 0.0 and c.wishes == [] for c in cs)

@@ -208,7 +208,7 @@ def test_the_plan_output_reports_each_days_conditions_only_when_there_are_any():
 
 def make_engine(recs, conditions_fn=None):
     return Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-                  sun_fn=fixed_sun, lodging_fn=lambda *a: [], background=False, conditions_fn=conditions_fn,
+                  sun_fn=fixed_sun, background=False, conditions_fn=conditions_fn,
                   route_fn=lambda points, mode, cfg: {"points": [list(p) for p in points], "source": "osrm", "fetched_at": "t"})
 
 
@@ -258,10 +258,10 @@ def test_the_confirmed_plan_keeps_each_days_conditions():
     d, recs = sample_trip()
     e = make_engine(recs, lambda decision, by_id: ({SAT: HEAVY, SUN: CLEAR}, sig(**{SAT: {}, SUN: {}})))
     sid = e.create(d, None)["id"]
-    e.act(sid, {"type": "pick_variant", "id": "v1"})
+    e.act(sid, {"type": "pick_variant", "id": next(v["id"] for v in e.variants(sid) if v.get("status", "available") == "available")})
     out = e.confirm(sid)
     assert [c["weather"] for c in out["day_conditions"]] == ["heavy", "none"]
     plain = make_engine(recs)
     sid = plain.create(d, None)["id"]
-    plain.act(sid, {"type": "pick_variant", "id": "v1"})
+    plain.act(sid, {"type": "pick_variant", "id": next(v["id"] for v in plain.variants(sid) if v.get("status", "available") == "available")})
     assert "day_conditions" not in plain.confirm(sid)

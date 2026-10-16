@@ -15,6 +15,12 @@ def display_group(c: Cand, cfg) -> str:
     return next((k for k, gs in cfg.display_groups.items() if g in gs), "sights")
 
 
+def tab(c: Cand, cfg) -> str:
+    """frame.tabs for one place."""
+    g = c.rec["identity"].get("category_group")
+    return next((k for k, gs in cfg.tabs.items() if g in gs), "sights")
+
+
 def sizes(si, days_n: int, n_anchor_exp: int, cfg) -> dict[str, int]:
     days_n = min(days_n, cfg.shortlist_days)
     pace = si.pace.level or "normal"
@@ -23,12 +29,15 @@ def sizes(si, days_n: int, n_anchor_exp: int, cfg) -> dict[str, int]:
             "meal": math.ceil(days_n * cfg.meals_per_day * cfg.spare_factor)}
 
 
-def pick(pool: list[Cand], k: int, cfg) -> tuple[list[Cand], dict[str, list[Cand]]]:
+def pick(pool: list[Cand], k: int, cfg, sigs: dict | None = None) -> tuple[list[Cand], dict[str, list[Cand]]]:
+    """pool: Cand, or anything with id, score and a rec that has category_group, usable_as, near_duplicate_group.
+    sigs: id -> signature (corpus snapshot), so MMR does not recompute them."""
     if k <= 0 or not pool:
         return [], {}
     ranked = sorted(pool, key=lambda c: (-c.score, c.id))
     head = ranked[: k * cfg.pool_factor]
-    order = mmr([c.rec for c in head], {c.id: c.score for c in head}, min(len(head), 2 * k))
+    order = mmr([c.rec for c in head], {c.id: c.score for c in head}, min(len(head), 2 * k),
+                sigs={c.id: sigs[c.id] for c in head} if sigs else None)
     by = {c.id: c for c in pool}
     reps, alts, leader = [], {}, {}
     for i in order:

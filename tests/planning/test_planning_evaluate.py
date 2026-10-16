@@ -25,7 +25,7 @@ def test_decision_outputs_keeps_a_confirmed_trip_with_no_places_so_it_counts_in_
     assert [tid for tid, _ in out] == ["nothing_matches"] and out[0][1]["confirmed"] == []
 
 
-from plan_fixtures import CFG, FakeLive, decision, fake_lodging, fake_matrix, no_geocode, sample_trip  # noqa: E402
+from plan_fixtures import CFG, FakeLive, decision, LODGING, fake_matrix, no_geocode, sample_trip  # noqa: E402
 
 
 def fake_route(points, mode, live_cfg):
@@ -34,9 +34,8 @@ def fake_route(points, mode, live_cfg):
 
 def test_plan_results_measures_a_confirmable_decision_output():
     d, recs = sample_trip(budget=5_000_000)
-    row = ev.plan_results(d, recs, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-                          matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging,
-                          route_fn=fake_route)
+    row = ev.plan_results(d, recs + LODGING, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
+                          matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route)
     # Not asserted: travel_min <= baseline_travel_min. The chosen order minimises the full day objective (waits, time
     # windows), not travel alone, so on some trips it is longer than pure nearest-neighbour; evaluate reports that as is.
     assert row["ok"] and row["baseline_travel_min"] >= 0 and row["travel_min"] >= 0
@@ -47,22 +46,22 @@ def test_plan_results_measures_a_confirmable_decision_output():
 
 def test_plan_results_reports_not_ok_for_a_decision_output_with_no_places():
     row = ev.plan_results(decision([]), [], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-                          matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging)
+                          matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30))
     assert row["ok"] is False and row["reason"] == "no_confirmed_places"
 
 
 def test_plan_results_reports_not_ok_when_nothing_is_scheduled():
     d = decision(["ghost"])  # confirmed id absent from the records: Planning reports ok but schedules no visit
-    row = ev.plan_results(d, [], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-                          sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    row = ev.plan_results(d, LODGING, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                          sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route)
     assert row["ok"] is False and row["reason"] == "no_visits"
 
 
 def test_evaluate_summarizes_every_confirmable_trip(monkeypatch):
     d, recs = sample_trip(budget=5_000_000)
     monkeypatch.setattr(ev, "decision_outputs", lambda records, cfg=None: [("t1", d), ("t2", d)])
-    res = ev.evaluate(recs, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    res = ev.evaluate(recs + LODGING, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route)
     assert res["summary"]["trips"] == 2 and res["summary"]["ok"] == 2
     assert res["summary"]["avg_saved_vs_baseline_pct"] <= 100
     assert set(res["summary"]["robustness"]) == {"solid", "feasible", "fragile"}
@@ -71,8 +70,8 @@ def test_evaluate_summarizes_every_confirmable_trip(monkeypatch):
 
 def test_evaluate_lists_not_ok_trips_with_their_reason(monkeypatch):
     monkeypatch.setattr(ev, "decision_outputs", lambda records, cfg=None: [("empty", decision([]))])
-    res = ev.evaluate([], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    res = ev.evaluate(LODGING, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route)
     assert res["summary"]["feasible_itinerary_rate"] == 0.0
     assert res["summary"]["not_ok_trips"] == [{"trip": "empty", "reason": "no_confirmed_places"}]
 
@@ -98,7 +97,7 @@ def test_decision_outputs_marks_a_trip_decision_cannot_confirm_as_none(monkeypat
 
 def test_evaluate_counts_a_decision_refusal_as_not_ok(monkeypatch):
     monkeypatch.setattr(ev, "decision_outputs", lambda records, cfg=None: [("refused", None)])
-    res = ev.evaluate([], planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route)
+    res = ev.evaluate(LODGING, planning_cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                      sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route)
     assert res["summary"]["trips"] == 1 and res["summary"]["feasible_itinerary_rate"] == 0.0
     assert res["summary"]["not_ok_trips"] == [{"trip": "refused", "reason": "decision_not_confirmed"}]

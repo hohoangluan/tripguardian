@@ -26,6 +26,18 @@ export function Link({ to, children, className, onClick, ...rest }: { to: string
 export const THUMB_W = 480
 export const thumbOf = (src: string) => (src.startsWith('/media/') ? src.replace('/media/', '/media/thumb/').replace(/\.jpe?g$/i, '.webp') : null)
 
+// A card photo (Trip questions: a handful per screen, always on view): the 480px thumbnail, the original when the
+// thumbnail is missing. Not lazy: a stage or deck that opens must not paint its pictures one by one.
+export function CardImg({ src, alt, className, draggable }: { src: string; alt: string; className?: string; draggable?: boolean }) {
+  const [fail, setFail] = useState(false)
+  const thumb = thumbOf(src)
+  return <img src={thumb && !fail ? thumb : src} alt={alt} className={className} draggable={draggable} decoding="async" onError={() => thumb && !fail && setFail(true)} />
+}
+// Fetch the pictures of a question while the user reads it, so they are in the cache when the card opens.
+export function preloadPhotos(urls: (string | null | undefined)[]) {
+  for (const u of new Set(urls)) if (u) new Image().src = thumbOf(u) ?? u
+}
+
 // The browser picks the thumbnail for small slots and the original for large or dense screens (`sizes`).
 // A missing thumbnail falls back to the original, a missing original to the placeholder.
 export function Photo({ photo, alt, className, credit = false, eager = false, sizes = '(max-width: 600px) 92vw, 320px' }: { photo: Cover | undefined; alt: string; className?: string; credit?: boolean; eager?: boolean; sizes?: string }) {
@@ -91,6 +103,17 @@ export function Busy({ text }: { text: string }) {
   return <p className="tg-busy" role="status"><i /> {text}</p>
 }
 
+// A page that waits for data: the shape of the page to come, not a bare line of text.
+export function Loading() {
+  return (
+    <div className="tg-load" role="status" aria-label="Đang tải dữ liệu Đà Lạt">
+      <i className="tg-load__bar" />
+      <div className="tg-load__row">{[0, 1, 2, 3].map((n) => <i key={n} className="tg-load__card" />)}</div>
+      <div className="tg-load__row">{[0, 1, 2, 3].map((n) => <i key={n} className="tg-load__card" />)}</div>
+    </div>
+  )
+}
+
 export function Toast() {
   const note = useUi((u) => u.toast)
   if (!note) return null
@@ -99,18 +122,18 @@ export function Toast() {
 
 // Hand-drawn line art for empty / error states (thin strokes, pine tint)
 export const ArtHills = () => (
-  <svg viewBox="0 0 200 120" width="200" height="120" fill="none" stroke="#0f5f5a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 200 120" width="200" height="120" fill="none" stroke="#111111" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 100c28-22 44-44 70-44s34 16 52 16 38-26 66-26" opacity=".55" /><path d="M6 112c34-18 58-30 84-30s46 14 70 14 28-8 34-12" />
-    <circle cx="150" cy="30" r="12" stroke="#e8590c" /><path d="M60 62l10-22 10 22M64 54h12M52 78l8-16 8 16" />
+    <circle cx="150" cy="30" r="12" stroke="#525252" /><path d="M60 62l10-22 10 22M64 54h12M52 78l8-16 8 16" />
   </svg>
 )
 export const ArtRoute = () => (
-  <svg viewBox="0 0 200 120" width="200" height="120" fill="none" stroke="#0f5f5a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 96c30-8 18-44 50-46s30 28 62 18 30-36 48-30" strokeDasharray="5 6" /><circle cx="20" cy="96" r="6" /><circle cx="180" cy="38" r="6" stroke="#e8590c" /><path d="M96 40c0-8 6-12 12-12s12 4 12 12c0 9-12 20-12 20s-12-11-12-20Z" />
+  <svg viewBox="0 0 200 120" width="200" height="120" fill="none" stroke="#111111" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 96c30-8 18-44 50-46s30 28 62 18 30-36 48-30" strokeDasharray="5 6" /><circle cx="20" cy="96" r="6" /><circle cx="180" cy="38" r="6" stroke="#525252" /><path d="M96 40c0-8 6-12 12-12s12 4 12 12c0 9-12 20-12 20s-12-11-12-20Z" />
   </svg>
 )
 export const ArtCup = () => (
-  <svg viewBox="0 0 200 120" width="200" height="120" fill="none" stroke="#0f5f5a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 200 120" width="200" height="120" fill="none" stroke="#111111" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
     <path d="M62 52h62v28c0 14-12 24-26 24h-10c-14 0-26-10-26-24V52ZM124 58h10a12 12 0 0 1 0 24h-10M80 30c-6 8 6 10 0 18M100 30c-6 8 6 10 0 18" /><path d="M48 108h92" opacity=".55" />
   </svg>
 )

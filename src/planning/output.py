@@ -30,11 +30,12 @@ def route_of_day(day, result, coords: dict, live_cfg, mobility, route_fn=None) -
 def cost(metrics: dict, lodging_price_vnd: int | None, nights: int) -> dict:
     """known_vnd: tickets / drinks already summed in metrics, plus the lodging's total price when it is known.
     unknown_items: places with no known price, plus the lodging itself when it is chosen but priceless."""
+    included = 'lodging_cost_vnd' in metrics
     lodging_total = lodging_price_vnd * nights if lodging_price_vnd is not None else None
     lodging_known = lodging_price_vnd is not None or nights <= 0
-    return {"known_vnd": metrics["cost_vnd"] + (lodging_total or 0),
-           "unknown_items": metrics["cost_unknown"] + (0 if lodging_known else 1),
-           "lodging_known": lodging_known}
+    return {"known_vnd": metrics["cost_vnd"] + (0 if included else lodging_total or 0),
+           "unknown_items": metrics["cost_unknown"] + (0 if included or lodging_known else 1),
+           "lodging_known": lodging_known, "unknown_meals": metrics.get('meal_cost_unknown', 0)}
 
 
 def time_budget(days: list, slept: int) -> dict:
@@ -59,13 +60,14 @@ def build(trip, variants: list[dict], chosen: dict, chosen_results: list, decisi
     notes = ({"warnings": [], "checklist": chosen["checklist"]} if "checklist" in chosen else
              plan_notes(list(trip.ctxs)[: len(chosen_results)], chosen_results, decision, trip.weather, trip.by_place))
     return {
+        "corpus_binding": decision.get("corpus_binding"),
         "variants": [{"id": v["id"], "objective": v["objective"], "label": v["label"], "score": v["score"]}
                      for v in variants],
         "chosen": chosen["id"],
         "itinerary": chosen["itinerary"],
         **(chunk_view(chosen["itinerary"], trip.cfg.chunk_days) if len(days) > trip.cfg.chunk_days else {}),
         "route": [route_of_day(d, r, coords, live_cfg, mobility, route_fn) for d, r in zip(days, chosen_results)],
-        "time_budget": time_budget(trip.days, slept),
+        "time_budget": time_budget(days, slept),
         "lodging": {"chosen": lodging, "candidates": []},
         "cost": cost(chosen["metrics"], lodging.get("price_vnd"), slept),
         "travel_load": chosen["travel_load"],

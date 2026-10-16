@@ -34,6 +34,23 @@ def test_search_prefers_prefix(catalog):
     assert search("x", catalog) == []
 
 
+def test_search_delegates_to_public_corpus_names_with_catalog_scope(catalog, monkeypatch):
+    from corpus.retrieval import NameHit
+    from trip.domain import resolve
+
+    called = []
+    catalog.release_id = "r-pinned"
+
+    def lookup(query, records, *, within, release_id, limit):
+        called.append((query, {r.place_id for r in records}, within, release_id, limit))
+        return [NameHit("0x11:0x1", "Vườn Phẳng Lặng Xanh", None, "prefix", release_id),
+                NameHit("outside", "Outside", None, "prefix", release_id)]
+
+    monkeypatch.setattr(resolve, "corpus_search_names", lookup, raising=False)
+    assert [p.id for p in search("Vườn Phẳng", catalog)] == ["0x11:0x1"]
+    assert called == [("Vườn Phẳng", set(catalog.by_id), set(catalog.by_id), "r-pinned", 6)]
+
+
 def test_value_parsing(catalog):
     assert values.clock("9h") == "09:00" and values.clock("14:30") == "14:30"
     assert values.money("300k") == 300_000 and values.money("1,5tr") == 1_500_000

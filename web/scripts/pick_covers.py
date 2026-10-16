@@ -56,9 +56,12 @@ def candidates(place: dict) -> list[dict]:
     pdir = GMAPS / place["id"].replace(":", "_")
     meta = pdir / "photos.json"
     if meta.exists():
-        for ph in json.loads(meta.read_text(encoding="utf-8")).get("photos", []):
+        shots = [ph for ph in json.loads(meta.read_text(encoding="utf-8")).get("photos", []) if (pdir / ph["file"]).exists()]
+        # a still frame of a Maps video is a real picture of the place: used only when the place has no photo
+        kinds = {"photo"} if any(ph.get("kind") == "photo" for ph in shots) else {"photo", "video"}
+        for ph in shots:
             f = pdir / ph["file"]
-            if f.exists() and ph.get("kind") == "photo":
+            if ph.get("kind") in kinds:
                 out.append({"path": f, "src": f"/media/gmaps/{pdir.name}/{ph['file']}", "credit": "Google Maps",
                             "kind": "gmaps", "owner": bool(ph.get("owner"))})
     for v in place.get("videos", [])[:MAX_VIDEOS]:

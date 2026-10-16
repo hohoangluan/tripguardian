@@ -67,3 +67,48 @@ def test_irrelevant_food_preference_does_not_reduce_a_parks_confidence():
     result = card(cand(park), si(), CFG, wanted=["scenic_view", "vegetarian_options"])
     assert result["confidence"]["level"] == "high"
     assert "món chay" not in result["confidence"]["reason"].lower()
+
+
+def _menu(rec, *names):
+    rec["menu"] = {"dishes": [{"name": n, "name_en": None, "section": None, "popular": False, "price": None}
+                              for n in names], "photos": []}
+    return rec
+
+
+def test_why_says_the_wish_first_with_its_source():  # D1, D2
+    c = cand(_menu(srec("M", group="restaurant", usable=("meal",)), "Bánh căn"),
+             wishes=[("dish:bánh căn", "dish", "bánh căn", 0.8), ("purpose:food_culture", "purpose", "food_culture", 0.25)],
+             matches=[("scenic_view", "present", 1.0, 7), ("crowd", "low", 0.5, 4)])
+    got = [w["text"] for w in card(c, si(), CFG)["why"]]
+    assert got[0] == "Có bánh căn bạn muốn · theo menu"
+    assert got[1:] == ["View đẹp, 7 người nhắc", "Độ đông: vắng, 4 người nhắc"]
+
+
+def test_purpose_reason_is_marked_as_a_guess():  # D3
+    c = cand(srec("C"), wishes=[("purpose:relax", "purpose", "relax", 0.25)])
+    assert card(c, si(), CFG)["why"] == [{"text": "Hợp chuyến thư giãn ✎", "sid": None}]
+
+
+def test_card_with_no_reason_still_says_something_true_but_not_a_fit():  # D4
+    far = card(cand(srec("B", voices=240), minutes=30, center="chỗ ở"), si(), CFG)["why"]
+    assert far == [{"text": "Cách chỗ ở ≈30 phút (ước tính)", "sid": None}]
+    unknown = card(cand(srec("B", voices=240)), si(), CFG)["why"]
+    assert unknown == [{"text": "240 người đã viết về nơi này", "sid": None}]
+
+
+def test_other_wish_texts():
+    c = cand(srec("K"), wishes=[("kind:karaoke", "kind", "karaoke", 0.8), ("vibe:0", "vibe", "mây", 0.8),
+                                ("like:X", "like", "Mọt Cafe", 0.8)])
+    assert [w["text"] for w in card(c, si(), CFG)["why"]] == [
+        "Đúng loại karaoke bạn tìm", "Hợp phong cách “mây” bạn chọn", "Giống Mọt Cafe bạn thích"]
+    g = cand(srec("C"), wishes=[("group:chill", "group", "chill", 0.4)])
+    assert card(g, si(), CFG)["why"] == [{"text": "Vì bạn thích cà phê và thư giãn", "sid": None}]
+    nameless = cand(srec("Y"), wishes=[("like:X", "like", "", 0.8)])
+    assert card(nameless, si(), CFG)["why"][0]["text"] == "Giống nơi bạn nhắc tới"
+
+
+def test_fallback_says_the_largest_score_part():  # D4
+    known = cand(srec("B", voices=240), minutes=30, center="chỗ ở", parts={"ctx": 0.1, "pop": 0.9})
+    assert card(known, si(), CFG)["why"] == [{"text": "240 người đã viết về nơi này", "sid": None}]
+    close = cand(srec("B", voices=240), minutes=30, center="chỗ ở", parts={"ctx": 0.9, "pop": 0.1})
+    assert card(close, si(), CFG)["why"] == [{"text": "Cách chỗ ở ≈30 phút (ước tính)", "sid": None}]

@@ -1,17 +1,13 @@
 """Lodging candidates for the trip (docs/PLANNING.md ⓐ): search area, sieve, rank by taste first, location after.
 
-Where they come from depends on the data at hand: the served `stay` records (observed reviews, so taste can be
-compared) once at least stay_min of them sit in the search area; otherwise Maps' hotel list crawled live (no
-observed reviews: taste is unknown, the rank falls to location, price, rating). Live candidates never become Place
-Intelligence: they live only in this call's result, each carrying source and fetched_at. A hard filter with no
-evidence keeps the candidate (unknown, not rejected); it never drops one it cannot check.
+Candidates are served `stay` records only. User-provided lodging can enter as a booked or manual point.
+Hard requirements retain their unknown policy; physical and suitability checks fail closed.
 """
 
-from datetime import date, timedelta
-
-from corpus.serving import check, feature
-from live import Unavailable
-from trip import nights
+from corpus.serving import feature
+from corpus.ontology import load as load_ontology
+from requirements import allowed, hard_result
+from trip import group_budget, nights
 
 from .places import Place
 from .settings import Settings
@@ -21,24 +17,38 @@ from .travel import km
 COMPANION_FEATURE = {"kids": "kids", "parents": "elderly", "partner": "couples"}
 
 
-def booked(decision: dict) -> dict | None:
-    """The lodging the user already booked, as a lodging point ({"id", "lat", "lng", "text", "source", "fetched_at"}),
-    when Trip Understanding has it with a point; then Planning anchors every day there and suggests no lodging. Its
-    id is the trip's own home node: Planning treats a booked lodging as the trip's base."""
+def _own(decision: dict) -> dict | None:
+    """Where the user sleeps with a point: picked at Lựa chọn (Decision Output `lodging`), else booked in Trip
+    Understanding (lodging_booked = yes)."""
+    if lod := decision.get("lodging"):
+        return lod
     tc = decision["trip_context"]["context"]
     lod = tc.get("lodging") or {}
     if tc.get("lodging_booked") != "yes" or lod.get("lat") is None or lod.get("lng") is None:
         return None
+    return lod
+
+
+def booked(decision: dict) -> dict | None:
+    """The user's own lodging as a lodging point ({"id", "lat", "lng", "text", "source", "fetched_at", "price_vnd",
+    "place_id"}); then Planning anchors every day there and suggests no lodging. Its id is the trip's own home node:
+    Planning treats it as the trip's base. place_id: the served `stay` record it is, when it is one."""
+    lod = _own(decision)
+    if lod is None:
+        return None
     return {"id": "@home", "lat": float(lod["lat"]), "lng": float(lod["lng"]), "text": lod.get("text") or "",
-            "source": "user", "fetched_at": None}
+            "source": "user", "fetched_at": None, "price_vnd": lod.get("price_vnd"),
+            "place_id": (lod.get("id") or lod.get("place_id")) if lod.get("kind") == "corpus" else None}
 
 
 def with_booked_base(decision: dict) -> dict:
-    """The Decision Output with its base set to the booked lodging (a no-op without one)."""
-    if not booked(decision):
+    """The Decision Output with its base set to the user's lodging (a no-op without one)."""
+    lod = _own(decision)
+    if lod is None:
         return decision
     tc = decision["trip_context"]
-    return {**decision, "trip_context": {**tc, "context": {**tc["context"], "base": tc["context"]["lodging"]}}}
+    base = {"place_id": None, "text": lod.get("text") or "", "lat": float(lod["lat"]), "lng": float(lod["lng"])}
+    return {**decision, "trip_context": {**tc, "context": {**tc["context"], "base": base}}}
 
 
 def search_area(by_place: dict[str, Place], mobility: str | None, cfg: Settings) -> list[dict]:
@@ -67,29 +77,41 @@ def search_area(by_place: dict[str, Place], mobility: str | None, cfg: Settings)
 
 def price_cap(ctx: dict, nights: int, cfg: Settings) -> int | None:
     """lodging_share of the whole trip's budget, spread over the nights; unknown when the budget is unknown."""
-    budget = ctx.get("budget_vnd")
+    budget = group_budget(ctx)
     if budget is None or nights <= 0:
         return None
     return round(budget * cfg.lodging_share / nights)
 
 
-def _evidence(cand: dict, fid: str, value: str) -> str:
-    """fail | pass | unknown for "fid != value": a served record answers from its observed reviews, a live card
-    only from the amenities Maps lists (an amenity it does not list is unknown, not absent)."""
-    if cand.get("rec"):
-        return check(cand["rec"], fid, value)
-    return "fail" if value == "present" and fid in (cand.get("amenities") or []) else "unknown"
+def hard_requirements(hard_filters: list[dict], default: str = "exclude") -> list[dict]:
+    """The trip's hard filters with their unknown policy settled: fit / effort / suitability filters always exclude a
+    place whose value is unknown; any other keeps the filter's own policy, and a missing policy means `default`
+    (exclude: a hard filter is never read as optional unless it says "flag"). The one place that rule lives, for
+    lodging and for suggestions."""
+    requirements = []
+    ontology = load_ontology() if hard_filters else None
+    for f in hard_filters:
+        fid = f["feature"]
+        feature_def = ontology.features.get(fid)
+        protected = fid.startswith("fit.") or (feature_def and feature_def.group in {"effort", "suitability"})
+        requirements.append({**f, "unknown_policy": "exclude" if protected else f.get("unknown_policy", default)})
+    return requirements
 
 
 def sieve(raw: list[dict], hard_filters: list[dict], min_reviews: int) -> list[dict]:
-    """A hard filter only rejects a candidate that has the evidence against it, never one with no evidence either
-    way (that one is kept, its feature listed in `unverified`)."""
+    """Apply accommodation requirements; flag unknown legacy nonphysical filters and exclude safety unknowns."""
+    requirements = hard_requirements(hard_filters, default="flag")      # legacy lodging filters carry no policy
     out = []
     for c in raw:
         if (c.get("reviews") or 0) < min_reviews:
             continue
-        results = {f["feature"]: _evidence(c, f["feature"], f["value"]) for f in hard_filters if f["op"] == "ne"}
-        if "fail" in results.values():
+        results, rejected = {}, False
+        for requirement in requirements:
+            fid = requirement["feature"]
+            results[fid], _ = hard_result(c["rec"], requirement, activity="accommodation")
+            if not allowed(c["rec"], requirement, activity="accommodation"):
+                rejected = True
+        if rejected:
             continue
         out.append({**c, "unverified": [f for f, r in results.items() if r == "unknown"]})
     return out
@@ -105,49 +127,25 @@ def shortlist(cands: list[dict], centres: list[dict], k: int) -> list[dict]:
 
 def _in_area(c: dict, centres: list[dict]) -> bool:
     # a generous multiple of radius_km, not radius_km itself: search_area may not split into two centres even when a
-    # far cluster's places sit a bit past one centre's radius (split_min is about travel time, not raw distance) --
-    # this only needs to catch Maps padding a short list with another city entirely.
+    # far cluster's places sit a bit past one centre's radius (split_min is about travel time, not raw distance)
     return any(km((c["lat"], c["lng"]), (ct["lat"], ct["lng"])) <= 2 * ct["radius_km"] for ct in centres)
 
 
 def from_record(r: dict) -> dict:
-    """A served `stay` record as a candidate: its price is the reference the reviews give, not a date's price."""
-    p = r["operation"].get("price_per_person")
+    """A served stay with its reference night price; person prices cannot establish room/night cost."""
+    night = r["operation"].get("price_per_night")
     prov = r.get("provenance") or {}
     trend = prov.get("rating_trend") or {}
+    price = night["value"] if night else None
     return {"id": r["id"], "name": r["identity"]["name"], "lat": r["identity"]["lat"], "lng": r["identity"]["lng"],
             "address": r["identity"].get("address"), "rating": trend.get("recent_mean"),
-            "reviews": prov.get("voices") or 0, "price_vnd": (p["value"] or {}).get("min_vnd") if p else None,
-            "amenities": [], "source": "corpus", "fetched_at": prov.get("as_of"), "rec": r}
+            "reviews": prov.get("voices") or 0, "price_vnd": price, "price_at": night["as_of"] if night else None,
+            "source": "corpus", "fetched_at": prov.get("as_of"), "rec": r}
 
 
 def stays_in(records: list[dict], centres: list[dict]) -> list[dict]:
     return [r for r in records if r["identity"].get("category_group") == "stay" and r["identity"].get("lat") is not None
             and r["identity"].get("lng") is not None and _in_area({"lat": r["identity"]["lat"], "lng": r["identity"]["lng"]}, centres)]
-
-
-def _dates(tc: dict) -> tuple[str | None, str | None]:
-    start = tc.get("start_date")
-    check_out = ((date.fromisoformat(start) + timedelta(days=(tc.get("days") or 1) - 1)).isoformat()
-                if start and tc.get("days") else None)
-    return start, check_out
-
-
-def live_cards(centres: list[dict], tc: dict, cap: int | None, lodging_fn, live_cfg) -> list[dict]:
-    """Maps' hotel list around every centre, one card per id, inside the area; a centre whose source is down adds
-    nothing."""
-    start, check_out = _dates(tc)
-    raw, seen = [], set()
-    for ct in centres:
-        try:
-            found = lodging_fn((ct["lat"], ct["lng"]), ct["radius_km"], start, check_out, cap, live_cfg)
-        except Unavailable:
-            continue
-        for c in found:
-            if c["id"] not in seen and _in_area(c, centres):
-                seen.add(c["id"])
-                raw.append({**c, "source": "live", "price_source": c.get("source"), "price_at": c.get("fetched_at")})
-    return raw
 
 
 def pref_fit(c: dict, trip_context: dict, labels: dict | None = None) -> tuple[float, list[dict]]:
@@ -176,35 +174,44 @@ def phrase(fid: str, value: str, labels: dict) -> str:
     return name if value in ("present", "suitable") else f"{name}: {(labels.get('value') or {}).get(value, value)}"
 
 
-def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, lodging_fn, live_cfg,
-               records: list[dict] = ()) -> list[dict]:
-    """The pool to rank: served stays when the area has at least stay_min of them (the lodging_pool that fit the
-    trip's taste best, nearest first on a tie, so the travel matrix stays small), else the live hotel list's
-    lodging_k nearest. [] on no places to anchor a search on, or when every centre's source was unavailable — never a
-    reason to fail the whole plan: the "no lodging" option always stays alongside whatever this returns (ⓐ.5)."""
+def candidates(by_place: dict[str, Place], decision: dict, cfg: Settings, records: list[dict] = ()) -> list[dict]:
+    """The pool to rank: the served stays in the search area that pass the hard filters and the trip's price cap,
+    the lodging_pool that fit the trip's taste best (nearest first on a tie, so the travel matrix stays small).
+    [] when there are no places to anchor a search on or no stay in the area."""
     tc = decision["trip_context"]["context"]
     centres = search_area(by_place, tc.get("mobility"), cfg)
     if not centres:
         return []
-    slept = nights(tc)
-    cap = price_cap(tc, slept, cfg)
+    cap = price_cap(tc, nights(tc), cfg)
     hard_filters = decision["trip_context"].get("hard_filters") or []
-    stays = stays_in(list(records), centres)
-    if len(stays) >= cfg.stay_min:
-        pool = [c for c in sieve([from_record(r) for r in stays], hard_filters, cfg.min_reviews)
-                if cap is None or c["price_vnd"] is None or c["price_vnd"] <= cap]
-        near = shortlist(pool, centres, len(pool))
-        return sorted(near, key=lambda c: -pref_fit(c, decision["trip_context"])[0])[:cfg.lodging_pool]
-    raw = live_cards(centres, tc, cap, lodging_fn, live_cfg)
-    return shortlist(sieve(raw, hard_filters, cfg.min_reviews), centres, cfg.lodging_k)
+    pool = [c for c in sieve([from_record(r) for r in stays_in(list(records), centres)], hard_filters, cfg.min_reviews)
+            if cap is None or c["price_vnd"] is None or c["price_vnd"] <= cap]
+    near = shortlist(pool, centres, len(pool))
+    return sorted(near, key=lambda c: -pref_fit(c, decision["trip_context"])[0])[:cfg.lodging_pool]
 
 
-def rank(cands: list[dict], decision: dict, avg_min: dict, cfg: Settings, labels: dict | None = None) -> list[dict]:
+def anywhere(decision: dict, cfg: Settings, records: list[dict] = (), limit: int | None = -1) -> list[dict]:
+    """The same pool as `candidates` before any place is chosen: no area to search, so every served stay that passes the
+    hard filters and the price cap, best taste fit first (rating after, so the list is not arbitrary).
+    limit: how many to keep (default lodging_pool; None keeps every one, for the full list of Lựa chọn)."""
+    tc = decision["trip_context"]["context"]
+    cap = price_cap(tc, nights(tc), cfg)
+    hard_filters = decision["trip_context"].get("hard_filters") or []
+    stays = [r for r in records if r["identity"].get("category_group") == "stay" and r["identity"].get("lat") is not None
+             and r["identity"].get("lng") is not None]
+    pool = [c for c in sieve([from_record(r) for r in stays], hard_filters, cfg.min_reviews)
+            if cap is None or c["price_vnd"] is None or c["price_vnd"] <= cap]
+    pool = sorted(pool, key=lambda c: (-pref_fit(c, decision["trip_context"])[0], -(c.get("rating") or 0)))
+    return pool if limit is None else pool[:cfg.lodging_pool if limit == -1 else limit]
+
+
+def rank(cands: list[dict], decision: dict, avg_min: dict, cfg: Settings, labels: dict | None = None,
+         keep: int | None = None) -> list[dict]:
     """lodging_score = w_pref·pref_fit + w_loc·loc_fit + w_price·price_fit + w_rating·rating_fit, best first, the
     lodging_k best kept. avg_min: candidate id -> mean minutes to the chosen places (None when not routable). Each
-    candidate gains `fit` (why it suits), `avg_min` and `score`; a missing value adds 0, it never subtracts."""
+    candidate gains `fit` (why it suits), `avg_min` and `score`; keep: how many to return (default lodging_k); a missing value adds 0, it never subtracts."""
     tc = decision["trip_context"]["context"]
-    cap = price_cap(tc, max((tc.get("days") or 1) - 1, 0), cfg)
+    cap = price_cap(tc, nights(tc), cfg)
     w = cfg.lodging_weights
     out = []
     for c in cands:
@@ -217,21 +224,7 @@ def rank(cands: list[dict], decision: dict, avg_min: dict, cfg: Settings, labels
         score = w["pref"] * pref + w["loc"] * loc + w["price"] * price_fit + w["rating"] * rating_fit
         out.append({**c, "fit": why, "avg_min": round(m) if m is not None else None, "score": round(score, 4)})
     out.sort(key=lambda c: (-c["score"], c["avg_min"] if c["avg_min"] is not None else 1e9))
-    return out[:cfg.lodging_k]
-
-
-def refresh_prices(shown: list[dict], cards: list[dict], cap: int | None, top: int = 5) -> list[dict]:
-    """A date's live price for the first `top` served stays on screen (matched by the Maps id both share). The order
-    stays as shown; a price over the trip's cap marks the candidate `over_cap` so it is no longer offered."""
-    live = {c["id"]: c for c in cards if c.get("price_vnd") is not None}
-    out = []
-    for i, c in enumerate(shown):
-        hit = live.get(c["id"]) if i < top and c.get("source") == "corpus" else None
-        if hit:
-            c = {**c, "price_vnd": hit["price_vnd"], "price_source": hit.get("price_source"),
-                 "price_at": hit.get("price_at"), "over_cap": cap is not None and hit["price_vnd"] > cap}
-        out.append(c)
-    return out
+    return out[:keep or cfg.lodging_k]
 
 
 def progress_event(cands: list[dict], baseline_travel_min: int | None) -> dict:

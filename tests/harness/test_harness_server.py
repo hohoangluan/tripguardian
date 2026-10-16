@@ -5,6 +5,8 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
+from accounts import AuthError
+
 from test_dispatch import make
 
 
@@ -28,6 +30,21 @@ class FakeAccounts:
     def guest(self, user_agent=""):
         self.guests_made += 1
         return "tok-g"
+
+    def register(self, email, password, name="", user_agent=""):
+        if email == "taken@x.vn":
+            raise ValueError("email is taken")
+        if len(password) < 8:
+            raise ValueError("password must have 8-128 characters")
+        return "tok-a"
+
+    def login_password(self, email, password, user_agent=""):
+        if (email, password) != ("a@x.vn", "mat-khau-dai"):
+            raise AuthError("wrong email or password")
+        return "tok-a"
+
+    def leave(self, token):
+        self.left = [*getattr(self, "left", []), token]
 
     def drop_guest(self, uid):
         self.dropped.append(uid)
@@ -95,6 +112,33 @@ def test_http_validates_input_and_routes_a_journey(client):
     req = {"request_id": "wrong-stage", "stage": "planning", "operation": "act", "expected_revision": 0}
     assert call(client, "POST", f"/api/harness/sessions/{view['id']}/request", req)[0] == 409
     assert call(client, "POST", f"/api/harness/sessions/{view['id']}/request", {})[0] == 400
+
+
+def test_evidence_http_is_typed_owner_scoped_and_read_only(client, server_parts):
+    from decision import Data, Engine, Store, Tools, load_settings
+    from fixtures import srec
+    from test_dispatch import run
+
+    harness, _, _ = server_parts
+    engine = Engine(Data([srec("cafe", features={"scenic_view": "present"})]), load_settings(), Store(None))
+    tools = Tools(engine)
+    harness.tools["decision"] = tools
+    _, view = call(client, "POST", "/api/harness/sessions", {})
+    view = run(harness, view, "turn", "compile", {"kind": "show"})
+    view = run(harness, view, "advance", "decision")
+    before = tools.snapshot(view["sessions"]["decision"])
+    path = f"/api/harness/sessions/{view['id']}/read/decision/evidence?place=cafe&feature=scenic_view"
+
+    code, result = call(client, "GET", path)
+
+    assert code == 200
+    assert result["place_id"] == "cafe" and result["status"] == "VERIFIED"
+    assert result["reason"] == "legacy_lineage_unavailable" and result["items"] == []
+    assert tools.snapshot(view["sessions"]["decision"]) == before
+    assert harness.load(view["id"])["revision"] == view["revision"]
+    assert call(client, "GET", path, token="tok-b")[0] == 404
+    assert call(client, "GET", path, token=None)[0] == 401
+    assert call(client, "GET", path + "&bad=1")[0] == 400
 
 
 def test_real_preview_http_enforces_owner_input_and_read_only_revision(client, server_parts):
@@ -197,6 +241,16 @@ def test_decision_page_is_a_read(client):
     call(client, "POST", f"{base}/request", {"request_id": "a", "stage": "trip", "operation": "advance", "expected_revision": 1})
     code, body = call(client, "GET", f"{base}/read/decision/page?group=chill")
     assert code == 200 and body == {"operation": "page", "payload": {"group": "chill"}}
+
+
+def test_trip_readback_is_a_read(client):
+    """The "Trước khi lập lịch" sheet reads the remaining gate after a partial required answer (ui/ReadbackSheet.tsx)."""
+    _, view = call(client, "POST", "/api/harness/sessions", {})
+    base = f"/api/harness/sessions/{view['id']}"
+    code, body = call(client, "GET", f"{base}/read/trip/readback")
+    assert code == 200 and body["operation"] == "readback"
+    assert call(client, "GET", f"{base}/read/trip/readback", token="tok-b")[0] == 404
+    assert call(client, "GET", f"{base}/read/trip/compare")[0] == 404  # only the read-back is open on the trip stage
 
 
 def test_logistics_lookups_need_no_journey(client):
@@ -334,20 +388,22 @@ def start_guest(client, origin=ORIGIN, token=None):
     return response.status, json.loads(response.read()), response.getheader("Set-Cookie")
 
 
-def test_guest_starts_with_a_short_cookie_and_only_from_the_own_origin(client, server_parts):
+def test_guest_starts_with_a_session_cookie_and_only_from_the_own_origin(client, server_parts):
     _, _, accounts = server_parts
     code, body, cookie = start_guest(client)
     assert code == 200 and body == {"started": True} and accounts.guests_made == 1
-    assert cookie.startswith("tg_session=tok-g;") and "Max-Age=86400" in cookie and "HttpOnly" in cookie
+    assert cookie.startswith("tg_session=tok-g;") and "Max-Age" not in cookie and "HttpOnly" in cookie  # a session cookie: gone when the browser closes
     assert start_guest(client, origin=None)[0] == 403 and accounts.guests_made == 1
-    code, body, cookie = start_guest(client, token="tok-a")  # already has a session: no second identity
-    assert (code, body, cookie) == (200, {"started": False}, None) and accounts.guests_made == 1
+    # a session already open in this browser ends and a new, empty guest starts: never an inherited identity
+    code, body, cookie = start_guest(client, token="tok-a")
+    assert (code, body) == (200, {"started": True}) and cookie.startswith("tg_session=tok-g;")
+    assert accounts.guests_made == 2 and accounts.logged_out == ["tok-a"]
 
 
-def test_guest_starts_are_limited_per_address(client, server_parts, monkeypatch):
-    from harness import server
-    monkeypatch.setattr(server, "GUEST_PER_IP_HOUR", 2)
-    assert [start_guest(client)[0] for _ in range(3)] == [200, 200, 429]
+def test_guest_starts_are_not_limited_per_address(client, server_parts):
+    # The per-address guest cap is gone (user, 2026-10-15): visitors behind one school or event network share an
+    # address and were refused after 20. The same-origin check and the request rate limits still apply.
+    assert [start_guest(client)[0] for _ in range(25)] == [200] * 25
 
 
 def test_guest_plans_but_not_with_members_only_features(client):
@@ -398,3 +454,94 @@ def test_sign_in_moves_the_guest_journeys_to_the_account(client, server_parts):
     assert call(client, "GET", "/api/harness/trips", token="tok-g")[1] == []
     assert call(client, "GET", f"/api/harness/sessions/{view['id']}", token="tok-g")[0] == 404
     assert call(client, "GET", f"/api/harness/sessions/{view['id']}", token="tok-a")[0] == 200
+
+
+class FakeSocial:
+    def __init__(self):
+        self.sent, self.marked = [], []
+
+    def friends(self, uid):
+        return {"friends": [], "incoming": [], "outgoing": [], "uid": uid}
+
+    def send(self, uid, other, text, journey):
+        self.sent.append((uid, other, text, journey))
+        return {"id": 1}
+
+    def shared(self, uid, mid):
+        if mid != 7:
+            raise KeyError(mid)
+        return self.owner, self.jid, None
+
+    def imported(self, mid, jid):
+        self.marked.append((mid, jid))
+
+
+def test_friends_and_messages_are_for_members_and_a_shared_trip_is_copied(server_parts):
+    from harness.server import handler
+    harness, _, accounts = server_parts
+    social = FakeSocial()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler(harness, accounts, ORIGIN, social=social))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    c = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+    try:
+        assert call(c, "GET", "/api/harness/friends", token="tok-g")[0] == 403
+        assert call(c, "GET", "/api/harness/friends")[1]["uid"] == USERS["tok-a"]
+        _, mine = call(c, "POST", "/api/harness/sessions", {})
+        _, theirs = call(c, "POST", "/api/harness/sessions", {}, token="tok-b")
+        friend = USERS["tok-b"]
+        assert call(c, "POST", f"/api/harness/messages/{friend}", {"text": "x", "journey": theirs["id"]})[0] == 400
+        assert call(c, "POST", f"/api/harness/messages/{friend}", {"text": "đây", "journey": mine["id"]})[0] == 200
+        assert social.sent == [(USERS["tok-a"], friend, "đây", mine["id"])]
+        social.owner, social.jid = USERS["tok-a"], mine["id"]
+        status, out = call(c, "POST", "/api/harness/messages/7/import", {}, token="tok-b")
+        assert status == 200 and social.marked == [(7, out["id"])]
+        assert call(c, "GET", f"/api/harness/sessions/{out['id']}", token="tok-b")[0] == 200
+        assert call(c, "POST", "/api/harness/messages/8/import", {}, token="tok-b")[0] == 404
+    finally:
+        c.close()
+        server.shutdown()
+        server.server_close()
+
+
+def post_auth(client, path, data, token=None, origin=ORIGIN):
+    client.request("POST", path, json.dumps(data), headers(token, origin))
+    response = client.getresponse()
+    return response.status, json.loads(response.read()), response.getheader("Set-Cookie")
+
+
+def test_email_register_and_login_set_a_session_cookie(client):
+    code, body, cookie = post_auth(client, "/api/auth/register", {"email": "n@x.vn", "password": "mat-khau-dai", "name": "N"})
+    assert (code, body) == (200, {"signed_in": True}) and cookie.startswith("tg_session=tok-a;") and "Max-Age=2592000" in cookie
+    code, body, cookie = post_auth(client, "/api/auth/login", {"email": "a@x.vn", "password": "mat-khau-dai"})
+    assert code == 200 and cookie.startswith("tg_session=tok-a;")
+
+
+def test_email_auth_answers_clearly_and_only_from_the_own_origin(client):
+    assert post_auth(client, "/api/auth/register", {"email": "taken@x.vn", "password": "mat-khau-dai"})[0] == 409
+    assert post_auth(client, "/api/auth/register", {"email": "n@x.vn", "password": "short"})[0] == 400
+    assert post_auth(client, "/api/auth/register", {"email": 1, "password": "mat-khau-dai"})[0] == 400
+    code, body, cookie = post_auth(client, "/api/auth/login", {"email": "a@x.vn", "password": "sai"})
+    assert (code, body["error"], cookie) == (401, "wrong email or password", None)
+    assert post_auth(client, "/api/auth/login", {"email": "a@x.vn", "password": "mat-khau-dai"}, origin=None)[0] == 403
+
+
+def test_wrong_passwords_for_one_email_wait(client, monkeypatch):
+    from harness import server
+    monkeypatch.setattr(server, "AUTH_FAILS_15MIN", 3)
+    codes = [post_auth(client, "/api/auth/login", {"email": "a@x.vn", "password": "sai"})[0] for _ in range(5)]
+    assert codes == [401, 401, 401, 429, 429]
+    assert post_auth(client, "/api/auth/login", {"email": "a@x.vn", "password": "mat-khau-dai"})[0] == 429
+    assert post_auth(client, "/api/auth/login", {"email": "other@x.vn", "password": "sai"})[0] == 401
+
+
+def test_signing_in_by_email_hands_a_guests_trips_to_the_account(client, server_parts):
+    harness, _, accounts = server_parts
+    code, _, _ = post_auth(client, "/api/auth/login", {"email": "a@x.vn", "password": "mat-khau-dai"}, token="tok-g")
+    assert code == 200 and accounts.dropped == [GUESTS["tok-g"]]
+
+
+def test_a_guest_page_reports_it_is_closing_or_alive_from_its_own_origin_only(client, server_parts):
+    _, _, accounts = server_parts
+    assert post_auth(client, "/api/auth/guest/leave", {}, token="tok-g")[0] == 200 and accounts.left == ["tok-g"]
+    assert post_auth(client, "/api/auth/guest/alive", {}, token="tok-g")[0] == 200 and accounts.left == ["tok-g"]
+    assert post_auth(client, "/api/auth/guest/leave", {}, token="tok-g", origin=None)[0] == 403 and accounts.left == ["tok-g"]

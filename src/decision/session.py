@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from trip import SearchInput
+from requirements import Activity
 
 Reason = Literal["far", "crowded", "pricey", "dislike", "visited"]
 SID = re.compile(r"[0-9a-f]{12}")
@@ -49,6 +50,17 @@ class Pending(BaseModel):
     data: dict = Field(default_factory=dict)
 
 
+class Lodging(BaseModel):
+    """Where the user sleeps, picked at Lựa chọn when the trip has no booked lodging: a served `stay` record, or a
+    point from the lodging search box. Planning starts and ends every day here."""
+    kind: Literal["corpus", "live", "address"]
+    id: str | None = Field(default=None, max_length=80)
+    text: str = Field(min_length=1, max_length=200)
+    lat: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    lng: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    price_vnd: int | None = Field(default=None, ge=0)
+
+
 class State(BaseModel):
     selected: list[str] = Field(default_factory=list)  # includes locked and anchors still in the trip
     locked: list[str] = Field(default_factory=list)
@@ -60,9 +72,12 @@ class State(BaseModel):
     unmapped: list[str] = Field(default_factory=list)
     suggest_group: str | None = None  # "Gợi ý nơi tương tự" was answered for this display group
     last: str | None = None  # type of the last action
-    shown: dict[str, list[str]] = Field(default_factory=dict)  # display group -> ids on screen, in screen order
+    shown: dict[str, list[str]] = Field(default_factory=dict)  # tab -> ids on screen, in screen order
+    page: dict[str, int] = Field(default_factory=dict)  # tab -> page on screen (0 = first)
     chunk_assignments: dict[str, int] = Field(default_factory=dict)
     free_time: bool = False
+    activities: dict[str, Activity] = Field(default_factory=dict)
+    lodging: Lodging | None = None
 
 
 class Session(BaseModel):

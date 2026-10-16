@@ -7,7 +7,7 @@ python -m planning serve [--port 8768]
 """
 
 from .build import build_plan, render_text
-from .engine import Engine
+from .engine import Engine, TripIncomplete
 from .server import run as run_server
 from .settings import Settings
 from .settings import load as load_settings
@@ -15,5 +15,5 @@ from .variants import build_lodging_variants, build_variants, render_lodging_var
 from .tools import Tools, create_engine
 from .proposal import PlanningProposal, run_proposal
 
-__all__ = ["Engine", "Settings", "build_lodging_variants", "build_plan", "build_variants", "load_settings",
+__all__ = ["Engine", "TripIncomplete", "Settings", "build_lodging_variants", "build_plan", "build_variants", "load_settings",
           "PlanningProposal", "Tools", "create_engine", "render_lodging_variants", "render_text", "render_variants", "run_proposal", "run_server"]

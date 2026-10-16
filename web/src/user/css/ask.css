@@ -1,0 +1,133 @@
+/* The chat's one question (screens/understand/Ask.tsx): a short numbered card under the question line, and the photo
+   stage over the blurred screen. Colours only from tokens. Arriving eases out, leaving eases in and is quicker. */
+
+/* ---------- the question line ---------- */
+.tg-cx__say p + .tg-cx__say-ask { margin-top: 6px; }
+.tg-cx__done-row { animation: tg-qa-in 0.26s var(--tg-ease) both; }
+
+/* ---------- numbered card ---------- */
+.tg-qa { justify-self: stretch; width: 100%; max-width: 640px; padding: 6px; border: 1px solid var(--tg-line); border-radius: var(--tg-r-l); background: var(--tg-surface); box-shadow: var(--tg-sh-1); animation: tg-qa-in 0.32s var(--tg-ease) both; transition: opacity 0.2s ease; }
+.tg-qa.is-waiting { opacity: 0.7; }
+.tg-qa__head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px; font-size: 0.88rem; color: var(--tg-ink-3); }
+.tg-qa__head b { font-size: 0.935rem; font-weight: 600; color: var(--tg-ink); }
+.tg-qa__head span { margin-left: auto; }
+.tg-qa__list { display: grid; gap: 2px; }
+.tg-qa__list > li { animation: tg-qa-row 0.3s var(--tg-ease) both; animation-delay: calc(60ms + var(--i, 0) * 45ms); }
+.tg-qa__opt { display: grid; grid-template-columns: 28px minmax(0, 1fr) 22px; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 12px; border-radius: 14px; text-align: left; color: var(--tg-ink); transition: background-color 0.16s ease, transform 0.16s var(--tg-ease), opacity 0.2s ease; }
+.tg-qa__opt:hover:not(:disabled) { background: var(--tg-pine-soft); }
+.tg-qa__opt:active:not(:disabled) { transform: scale(0.99); }
+.tg-qa__opt:focus-visible, .tg-qa__chip:focus-visible, .tg-qa__skip:focus-visible, .tg-qa__send:focus-visible { outline: 2px solid var(--tg-ink); outline-offset: 2px; }
+.tg-qa kbd, .tg-qa__other kbd { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--tg-line-2); font: 500 0.8rem var(--tg-mono); color: var(--tg-ink-3); transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease; }
+.tg-qa__opt.is-on kbd { background: var(--tg-ink); border-color: var(--tg-ink); color: var(--tg-surface); }
+.tg-qa__txt { min-width: 0; }
+.tg-qa__txt b { font-size: 1.034rem; font-weight: 550; }
+.tg-qa__txt small { display: block; margin-top: 2px; font-size: 0.88rem; line-height: 1.4; color: var(--tg-ink-3); }
+.tg-qa__guess { margin-right: 6px; color: var(--tg-ink-3); }
+.tg-qa__tick { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-ink); color: var(--tg-surface); opacity: 0; transform: scale(0.6); transition: opacity 0.18s ease, transform 0.22s var(--tg-ease); }
+.tg-qa__opt.is-on .tg-qa__tick { opacity: 1; transform: none; }
+.tg-qa.is-sent .tg-qa__opt:not(.is-on) { opacity: 0.4; }
+.tg-qa__other { display: grid; grid-template-columns: 28px minmax(0, 1fr) 36px; align-items: center; gap: 12px; margin-top: 4px; padding: 6px 6px 6px 12px; border: 1px dashed var(--tg-line-2); border-radius: 14px; transition: border-color 0.16s ease, background-color 0.16s ease; }
+.tg-qa__other:focus-within { border-style: solid; border-color: var(--tg-ink); }
+.tg-qa__other input { min-width: 0; min-height: 36px; border: 0; outline: 0; background: none; font: inherit; font-size: 1rem; color: var(--tg-ink); }
+.tg-qa__other input::placeholder { color: var(--tg-ink-3); }
+.tg-qa__send { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--tg-ink); color: var(--tg-surface); transition: background-color 0.16s ease, transform 0.16s var(--tg-ease); }
+.tg-qa__send:disabled { background: var(--tg-line); color: var(--tg-ink-3); }
+.tg-qa__send:hover:not(:disabled) { transform: translateX(2px); }
+.tg-qa__fill { display: grid; gap: 12px; padding: 4px 12px 10px; }
+.tg-qa__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tg-qa__chip { min-height: 36px; padding: 0 14px; border: 1px solid var(--tg-line-2); border-radius: 999px; font-size: 0.946rem; color: var(--tg-ink-2); transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease; }
+.tg-qa__chip:hover:not(:disabled) { border-color: var(--tg-ink); color: var(--tg-ink); }
+.tg-qa__chip.is-on { background: var(--tg-ink); border-color: var(--tg-ink); color: var(--tg-surface); }
+.tg-qa > .tg-ask__find, .tg-qa > .tg-ask__date { margin: 8px 12px 4px; }
+/* the free inputs sit on one line each: a label, then a short field (a date, an hour, a count, an amount) */
+.tg-qa .tg-ask__date { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.946rem; color: var(--tg-ink-2); }
+.tg-qa .tg-ask__date > span { display: inline-flex; align-items: center; gap: 6px; }
+.tg-qa .tg-ask__date button { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--tg-line-2); border-radius: 50%; color: var(--tg-ink); transition: border-color 0.16s ease; }
+.tg-qa .tg-ask__date button:hover:not(:disabled) { border-color: var(--tg-ink); }
+.tg-qa .tg-ask__date .tg-line-input { width: 64px; padding: 6px 0; text-align: center; -moz-appearance: textfield; }
+.tg-qa .tg-ask__date .tg-line-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.tg-qa .tg-ask__find { gap: 8px; }
+.tg-qa .tg-ask__find > label, .tg-qa .tg-full__edit > label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.946rem; color: var(--tg-ink-2); }
+.tg-qa .tg-ask__find > label .tg-line-input, .tg-qa .tg-full__edit .tg-line-input { width: 168px; padding: 6px 0; font-size: 1rem; color: var(--tg-ink); }
+.tg-qa .tg-full__edit { display: grid; gap: 8px; }
+.tg-qa .tg-ask__find output { font-size: 0.82rem; color: var(--tg-ink-3); }
+.tg-qa .tg-ask__find .tg-pin { width: 100%; }
+.tg-qa__why { padding: 6px 12px 0; font-size: 0.88rem; color: var(--tg-ink-3); }
+.tg-qa > .tg-warn-t { margin: 6px 12px 0; }
+.tg-qa__foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 6px; padding: 8px 6px 4px; border-top: 1px solid var(--tg-line); }
+.tg-qa__skip { min-height: 40px; padding: 0 14px; border-radius: 999px; font-size: 0.946rem; color: var(--tg-ink-3); transition: background-color 0.16s ease, color 0.16s ease; }
+.tg-qa__skip:hover:not(:disabled) { background: var(--tg-pine-soft); color: var(--tg-ink); }
+.tg-qa__go { min-height: 40px; }
+@keyframes tg-qa-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+@keyframes tg-qa-row { from { opacity: 0; transform: translateY(6px); } }
+
+/* ---------- photo stage ---------- */
+.tg-stage__reopen { display: flex; align-items: center; gap: 12px; max-width: 520px; padding: 8px 14px 8px 8px; border: 1px solid var(--tg-line); border-radius: 18px; background: var(--tg-surface); box-shadow: var(--tg-sh-1); text-align: left; color: var(--tg-ink); animation: tg-qa-in 0.32s var(--tg-ease) both; transition: border-color 0.16s ease, transform 0.16s var(--tg-ease); }
+.tg-stage__reopen:hover:not(:disabled) { border-color: var(--tg-ink); transform: translateY(-1px); }
+.tg-stage__reopen:focus-visible { outline: 2px solid var(--tg-ink); outline-offset: 2px; }
+.tg-stage__reopen b { display: block; font-weight: 600; }
+.tg-stage__reopen small { display: block; font-size: 0.88rem; color: var(--tg-ink-3); }
+.tg-stage__thumbs { display: flex; padding-left: 10px; }
+.tg-stage__thumbs img, .tg-stage__thumbs i { width: 44px; height: 44px; margin-left: -10px; border: 2px solid var(--tg-surface); border-radius: 12px; object-fit: cover; background: var(--tg-pine-soft); }
+
+.tg-stage-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; }
+.tg-stage__veil { position: absolute; inset: 0; background: color-mix(in srgb, var(--tg-night) 46%, transparent); animation: tg-veil-in 0.36s ease-out both; }
+html.tg-stage-open #root { filter: blur(14px) saturate(0.85); transition: filter 0.3s ease-out; }
+.tg-stage__panel { position: relative; display: grid; justify-items: center; gap: 18px; width: min(1040px, 100%); outline: none; animation: tg-stage-in 0.42s var(--tg-ease) both; }
+.tg-stage__head { position: relative; display: grid; justify-items: center; gap: 8px; width: 100%; max-width: 680px; padding: 0 56px; text-align: center; color: var(--tg-surface); }
+.tg-stage__kicker { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--tg-surface) 28%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--tg-surface) 14%, transparent); font-size: 0.82rem; font-weight: 600; }
+.tg-stage__head h3 { font: 600 clamp(1.5rem, 2.2vw, 2rem)/1.25 var(--tg-display); color: var(--tg-surface); }
+.tg-stage__head p { font-size: 0.99rem; color: color-mix(in srgb, var(--tg-surface) 82%, transparent); }
+.tg-stage__x { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: color-mix(in srgb, var(--tg-surface) 16%, transparent); color: var(--tg-surface); transition: background-color 0.16s ease, transform 0.2s var(--tg-ease); }
+.tg-stage__x:hover { background: color-mix(in srgb, var(--tg-surface) 28%, transparent); transform: rotate(90deg); }
+.tg-stage__ring { position: relative; width: 100%; height: min(420px, 54vh); perspective: 1400px; }
+.tg-stage__card { --w: min(300px, 64vw); position: absolute; top: 0; left: 50%; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; width: var(--w); height: 100%; margin-left: calc(var(--w) / -2); padding: 10px 10px 16px; border-radius: 26px; background: var(--tg-surface); box-shadow: var(--tg-sh-2); cursor: pointer;
+  transform: translateX(calc(var(--d) * 64%)) scale(calc(1 - var(--a) * 0.14)) rotateY(calc(var(--d) * -9deg));
+  z-index: calc(10 - var(--a)); opacity: calc(1 - var(--a) * 0.3);
+  transition: transform 0.56s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease, box-shadow 0.3s ease;
+  animation: tg-card-in 0.52s var(--tg-ease) backwards; animation-delay: calc(120ms + var(--n) * 70ms); }
+.tg-stage__card.is-front { cursor: default; box-shadow: 0 30px 80px color-mix(in srgb, var(--tg-night) 40%, transparent); }
+.tg-stage__card.is-on { box-shadow: 0 0 0 3px var(--tg-surface), 0 0 0 6px var(--tg-ink), 0 30px 80px color-mix(in srgb, var(--tg-night) 40%, transparent); }
+.tg-stage__card:not(.is-front):hover { opacity: calc(1 - var(--a) * 0.18); }
+.tg-stage__photo { display: grid; place-items: center; overflow: hidden; border-radius: 18px; background: var(--tg-pine-soft); color: var(--tg-ink-3); }
+.tg-stage__photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--tg-ease); }
+.tg-stage__card.is-front:hover .tg-stage__photo img { transform: scale(1.04); }
+.tg-stage__body { display: grid; gap: 4px; min-width: 0; padding: 0 64px 0 8px; }
+.tg-stage__body b { font-size: 1.21rem; font-weight: 650; color: var(--tg-ink); }
+.tg-stage__body small { display: flex; align-items: center; gap: 4px; overflow: hidden; font-size: 0.88rem; white-space: nowrap; text-overflow: ellipsis; color: var(--tg-ink-3); }
+.tg-stage__body small svg { flex: none; }
+.tg-stage__pick { position: absolute; right: 16px; bottom: 16px; display: grid; place-items: center; width: 46px; height: 46px; border: 1px solid var(--tg-line-2); border-radius: 50%; background: var(--tg-surface); color: var(--tg-ink); transition: transform 0.2s var(--tg-ease), background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease; }
+.tg-stage__pick:hover:not(:disabled) { transform: scale(1.06); border-color: var(--tg-ink); }
+.tg-stage__card.is-on .tg-stage__pick { background: var(--tg-ink); border-color: var(--tg-ink); color: var(--tg-surface); }
+.tg-stage__pick:focus-visible, .tg-stage__nav:focus-visible, .tg-stage__x:focus-visible { outline: 2px solid var(--tg-surface); outline-offset: 3px; }
+.tg-stage__nav { position: absolute; top: 50%; z-index: 20; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: color-mix(in srgb, var(--tg-surface) 92%, transparent); color: var(--tg-ink); box-shadow: var(--tg-sh-1); translate: 0 -50%; transition: transform 0.2s var(--tg-ease); }
+.tg-stage__nav:hover { transform: scale(1.06); }
+.tg-stage__nav.is-prev { left: calc(50% - var(--nav, 330px)); }
+.tg-stage__nav.is-next { right: calc(50% - var(--nav, 330px)); }
+.tg-stage__dots { display: flex; gap: 6px; }
+.tg-stage__dots i { width: 6px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--tg-surface) 40%, transparent); transition: width 0.3s var(--tg-ease), background-color 0.3s ease; }
+.tg-stage__dots i.is-on { background: color-mix(in srgb, var(--tg-surface) 80%, transparent); }
+.tg-stage__dots i.is-at { width: 18px; background: var(--tg-surface); }
+.tg-stage__hint { display: inline-flex; align-items: center; gap: 8px; margin-top: -8px; font-size: 0.88rem; color: color-mix(in srgb, var(--tg-surface) 86%, transparent); }
+.tg-stage__mouse { display: grid; place-items: center; animation: tg-mouse 1.6s ease-in-out infinite; }
+@keyframes tg-mouse { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+.tg-stage__card { visibility: var(--far, visible); }
+.tg-stage__foot { display: flex; align-items: center; gap: 8px; width: min(680px, 100%); padding: 8px; border-radius: 999px; background: var(--tg-surface); box-shadow: var(--tg-sh-2); }
+.tg-stage__other { flex: 1; min-width: 0; }
+.tg-stage__other input { width: 100%; min-height: 44px; padding: 0 16px; border: 0; outline: 0; background: none; font: inherit; color: var(--tg-ink); }
+.tg-stage__other input::placeholder { color: var(--tg-ink-3); }
+.tg-stage__other:focus-within { border-radius: 999px; box-shadow: inset 0 0 0 2px var(--tg-ink); }
+.tg-stage-overlay.is-leaving .tg-stage__veil { animation: tg-veil-out 0.22s ease-in forwards; }
+.tg-stage-overlay.is-leaving .tg-stage__panel { animation: tg-stage-out 0.22s ease-in forwards; }
+@keyframes tg-veil-in { from { opacity: 0; } }
+@keyframes tg-veil-out { to { opacity: 0; } }
+@keyframes tg-stage-in { from { opacity: 0; transform: translateY(24px) scale(0.97); } }
+@keyframes tg-stage-out { to { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes tg-card-in { from { opacity: 0; translate: 0 48px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tg-qa, .tg-qa__list > li, .tg-cx__done-row, .tg-stage__reopen, .tg-stage__veil, .tg-stage__panel, .tg-stage__card { animation: none; }
+  .tg-qa__opt, .tg-qa__tick, .tg-stage__card, .tg-stage__photo img, .tg-stage__pick, .tg-stage__x, .tg-stage__nav, .tg-stage__dots i { transition: none; }
+  .tg-stage__mouse { animation: none; }
+}
+.tg-qa > .tg-qa__counts { margin: 8px 12px 4px; }

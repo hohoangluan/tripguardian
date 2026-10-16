@@ -43,6 +43,7 @@ class State(BaseModel):
     budget_override: int | None = None
     assignment: dict[str, int] = Field(default_factory=dict)             # place id -> day index, user-placed
     activity_override: dict[str, Activity] = Field(default_factory=dict)
+    visit_duration_override: dict[str, int] = Field(default_factory=dict)
     order_override: dict[int, list[str]] = Field(default_factory=dict)
     dropped: list[Drop] = Field(default_factory=list)
     locked: list[str] = Field(default_factory=list)
@@ -50,6 +51,8 @@ class State(BaseModel):
     objective_override: str | None = None
     day_window_override: dict[int, tuple[int, int]] = Field(default_factory=dict)
     relaxed: list[Relax] = Field(default_factory=list)
+    dismissed: list[str] = Field(default_factory=list)   # faded suggestions the user hid (spec §6: this session only)
+    keep_order_days: list[int] = Field(default_factory=list)   # days whose better_order hint the user turned off (§8)
     last: str | None = None
 
 
@@ -62,7 +65,7 @@ class ActCtx:
     by_place: dict                  # id -> Place, places the trip currently schedules
     n_days: int
     variant_ids: set
-    backup_ids: dict                # backup_pool id -> its entry ({"for", "reason", ...})
+    backup_ids: dict                # backup_pool id (and faded suggestion id) -> its entry ({"for", "reason", ...})
     day_members: list               # place ids of each day, in the schedule this act applies onto
     objective_names: set
     valid_paces: set
@@ -70,6 +73,10 @@ class ActCtx:
     variant_kept: dict[str, set[str]] = field(default_factory=dict)
     selection_ids: set[str] = field(default_factory=set)
     protected_ids: set[str] = field(default_factory=set)
+    duration_range: tuple[int, int] | None = None
+    day_windows: list = field(default_factory=list)       # (start, end) of each day now, for extend_days
+    fixed_edges: frozenset = frozenset()                   # (day, "start" | "end") that extend_days never moves
+    extend_max: int = 60                                   # realistic.extend_max_min
 
 
 def _is_physical(feature: str) -> bool:
@@ -151,6 +158,14 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
         if sorted(order or []) != sorted(ctx.day_members[day]):
             raise ActionError("order must be a permutation of the day's current places")
         s.order_override[day] = list(order)
+        # a new order of the day is not the one the user said to keep: its hint may show again
+        s.keep_order_days = [d for d in s.keep_order_days if d != day]
+    elif t == "keep_my_order":
+        day = action.get("day")
+        if type(day) is not int or not 0 <= day < ctx.n_days:
+            raise ActionError(f"day {day!r} out of range")
+        if day not in s.keep_order_days:
+            s.keep_order_days.append(day)
     elif t == "drop_place":
         pid = action.get("place")
         if not _known(ctx, pid):
@@ -210,6 +225,12 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
             if pid in ctx.protected_ids or pid in newly_protected or pid in s.locked or pid in s.restored:
                 raise ActionError(f"{pid!r} is protected and cannot make room")
             _drop(s, pid)
+    elif t == "dismiss_suggestion":
+        pid = action.get("place")
+        if not isinstance(pid, str) or not pid:
+            raise ActionError("dismiss_suggestion needs a place id")
+        if pid not in s.dismissed:
+            s.dismissed.append(pid)
     elif t == "lock_slot":
         pid = action.get("place")
         day = _day_of(ctx, pid)
@@ -225,6 +246,19 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
         if level not in ctx.valid_paces:
             raise ActionError(f"unknown pace {level!r}")
         s.pace_override = level
+    elif t == 'set_visit_duration':
+        pid, minutes = action.get('place'), action.get('minutes')
+        if not _known(ctx, pid):
+            raise ActionError(f'unknown place {pid!r}')
+        if pid in s.locked:
+            raise ActionError(f'{pid!r} is locked')
+        if minutes is None:
+            s.visit_duration_override.pop(pid, None)
+        elif (type(minutes) is not int or ctx.duration_range is None
+              or not ctx.duration_range[0] <= minutes <= ctx.duration_range[1]):
+            raise ActionError('visit duration is outside the supported range')
+        else:
+            s.visit_duration_override[pid] = minutes
     elif t == "set_objective":
         name = action.get("name")
         if name not in ctx.objective_names:
@@ -241,6 +275,21 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
         if a >= b:
             raise ActionError("start must be before end")
         s.day_window_override[day] = (a, b)
+    elif t == "extend_days":
+        # Spec section 7: every day starts earlier (or ends later) by the same minutes, and every pick is kept again --
+        # the overload card's "Hoặc giữ đủ N nơi". A fixed edge (arrival, check-in, departure, a free day) never moves.
+        side, minutes = action.get("side"), action.get("per_day_min")
+        if side not in {"start", "end"} or type(minutes) is not int or not 0 < minutes <= ctx.extend_max:
+            raise ActionError(f"extend_days needs side start|end and 1..{ctx.extend_max} minutes")
+        moved = False
+        for day, (lo, hi) in enumerate(ctx.day_windows):
+            if (day, side) in ctx.fixed_edges:
+                continue
+            s.day_window_override[day] = (max(0, lo - minutes), hi) if side == "start" else (lo, min(24 * 60, hi + minutes))
+            moved = True
+        if not moved:
+            raise ActionError(f"no day of this trip can {'start earlier' if side == 'start' else 'end later'}")
+        s.chosen_variant, s.plan_dropped, s.order_override = "main", [], {}
     elif t == "relax":
         feature = action.get("feature")
         if feature not in load_ontology().features:
@@ -259,6 +308,7 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
 
 
 class Session(BaseModel):
+    require_lodging: bool = False
     id: str
     decision_session_id: str | None = None
     decision: dict

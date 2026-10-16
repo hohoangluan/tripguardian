@@ -55,12 +55,12 @@
  },
  "bot-avatar": {
   "model": "cx/gpt-6.1-sol",
-  "prompt": "Mascot avatar for 'TripGuardian', a friendly Da Lat highlands trip guardian spirit. A chubby, round, soft little pine-tree sprite (kodama-like) with three plump rounded tiers in deep plum #6b3550 with a lighter dusty-rose #c97890 rim light, a smooth cream #fff9f8 round face on the middle tier with two big glossy dark eyes with tiny white highlights, rosy pink #efb8c4 blush cheeks and a small happy smile. A little lake-blue #4a6488 scarf around its neck fluttering, and it holds a tiny glowing brass-free compass made of cream and pink light, with two small four-point sparkles floating nearby. Behind it a misty dusk valley sky as a soft gradient from pink #efb8c4 to cream, with two layered papercut hill silhouettes in dusty rose #c97890 and violet #6b5394. Handcrafted layered paper-cut and soft clay illustration style, gentle depth and soft shadows, charming, original, premium app mascot. The artwork is a full-bleed square, subject centered with generous safe margin so a circular crop keeps the whole character; no circle outline, no frame, no border. Face and silhouette readable at 32 pixels. No text, no letters, no watermark. Strict palette only: deep plum #6b3550, dusty rose #c97890, soft pink #efb8c4, warm cream #fff9f8, lake blue #4a6488, violet #6b5394.",
+  "prompt": "edit of the source logo (reference image, background transparent); only colours changed: strokes terracotta #b4532a, fill white, cheeks and mouth #f4c9ae; cropped and resized to 160 px",
   "size": [
    160,
    160
   ],
-  "at": "2026-10-08T17:02:41+00:00"
+  "at": "2026-10-15T16:50:18+00:00"
  },
  "app-logo": {
   "model": "cx/gpt-6.1-sol",
@@ -70,5 +70,23 @@
    1254
   ],
   "at": "2026-10-08T17:03:26+00:00"
+ },
+ "brand/logo-full": {
+  "model": "cx/gpt-6.1-sol",
+  "prompt": "edit of the source logo (reference image, background transparent); only colours changed: strokes terracotta #b4532a; file web/public/img/brand/logo-full.webp, tight crop, 720 px wide",
+  "size": [
+   720,
+   388
+  ],
+  "at": "2026-10-15T16:50:18+00:00"
+ },
+ "brand/mark": {
+  "model": "cx/gpt-6.1-sol",
+  "prompt": "the mascot cut from brand/logo-full (no wordmark), square, 256 px; file web/public/img/brand/mark.webp",
+  "size": [
+   256,
+   256
+  ],
+  "at": "2026-10-15T16:50:18+00:00"
  }
 }

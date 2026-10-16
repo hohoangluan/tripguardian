@@ -3,9 +3,10 @@
 python -m corpus serving
 """
 
+from . import dishes
 from .details import finish
 from .groups import areas, mmr, near_duplicate_groups, similarity
 from .record import SERVED, build, check, feature
 from .run import load, run
 
-__all__ = ["SERVED", "areas", "build", "check", "feature", "finish", "load", "mmr", "near_duplicate_groups", "run", "similarity"]
+__all__ = ["SERVED", "areas", "build", "check", "dishes", "feature", "finish", "load", "mmr", "near_duplicate_groups", "run", "similarity"]

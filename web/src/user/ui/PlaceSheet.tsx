@@ -1,13 +1,14 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { track } from '../events'
 import { flushSync } from 'react-dom'
 import { isNegative, signalPhrase } from '../../data/labels'
-import { DAYS, mapsEmbed, openWindows, placeById, signal, useGallery, visible } from '../../data/store'
-import type { Place, Video } from '../../data/types'
+import { DAYS, mapsEmbed, openWindows, placeById, signal, useAllReviews, useDetail, useGallery, visible } from '../../data/store'
+import type { Place, Quote, Video } from '../../data/types'
 import { navigate } from '../../router'
-import { DAY_NAMES, fmtClock, fmtRange, info, priceText, reducedMotion, TRUST } from '../lib'
+import { canTransition, startTransition } from '../../viewTransition'
+import { DAY_NAMES, fmtClock, fmtRange, info, priceText, reducedMotion, reviewsOf, TRUST } from '../lib'
 import { useDecision } from '../pd/decision'
 import type { Card, Claim } from '../pd/types'
 import { DropSheet, useEditTicket } from '../screens/Explore'
@@ -29,8 +30,6 @@ const EASE = 'cubic-bezier(.2,.8,.2,1)'
 // The element the sheet flew out of (disc photo or card photo), to fly back to it and to give focus back.
 let from: { photo: HTMLElement | null; focus: HTMLElement | null; rect: DOMRect | null } = { photo: null, focus: null, rect: null }
 
-type VT = { startViewTransition?: (cb: () => void | Promise<void>) => { finished: Promise<void> } }
-const canVT = () => typeof (document as unknown as VT).startViewTransition === 'function' && !reducedMotion()
 
 const withPlace = (id: string | null) => {
   const q = new URLSearchParams(location.search)
@@ -47,12 +46,13 @@ export function openPlace(id: string, photo?: HTMLElement | null) {
     navigate(withPlace(id))
     history.replaceState({ tgSheet: 1 }, '', location.href)
   }
-  if (photo && canVT()) {
+  if (photo && canTransition()) {
     photo.style.viewTransitionName = HERO
-    ;(document as unknown as VT).startViewTransition!(() => {
+    const t = startTransition(() => {
       photo.style.viewTransitionName = ''
       flushSync(show)
     })
+    if (!t) { photo.style.viewTransitionName = ''; show() }
   } else show()
 }
 
@@ -72,11 +72,11 @@ function leave() {
 function closePlace(big: HTMLElement | null) {
   const back = from.photo && from.photo.isConnected ? from.photo : null
   const refocus = () => from.focus?.isConnected && from.focus.focus({ preventScroll: true })
-  if (back && canVT()) {
-    const t = (document as unknown as VT).startViewTransition!(async () => {
-      await leave()
-      back.style.viewTransitionName = HERO
-    })
+  const t = back && startTransition(async () => {
+    await leave()
+    back.style.viewTransitionName = HERO
+  })
+  if (back && t) {
     t.finished.finally(() => { back.style.viewTransitionName = ''; refocus() })
     return
   }
@@ -129,7 +129,7 @@ export function PlaceSheet({ id, modal = false }: { id: string; modal?: boolean 
   useLayoutEffect(() => {
     const el = big.current
     const a = from.rect
-    if (!modal || !el || !a || canVT() || reducedMotion()) return
+    if (!modal || !el || !a || canTransition() || reducedMotion()) return
     el.animate([{ transform: flip(a, el.getBoundingClientRect()) }, { transform: 'none' }], { duration: 380, easing: EASE })
   }, [modal])
   const body = <SheetBody id={id} big={big} onClose={modal ? close : undefined} />
@@ -160,6 +160,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
   const [viewing, setViewing] = useState<number | null>(null) // the clip open in the TikTok-style viewer
   const tabsRef = useRef<HTMLDivElement>(null)
   const gallery = useGallery(id)
+  const detailed = useDetail(id) // its evidence loads first; the basics are on screen already
   useEffect(() => { setG(0); setTab('overview'); setViewing(null) }, [id])
   const Title = onClose ? Dialog.Title : 'h1'
   if (!p || !snap)
@@ -206,11 +207,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
   }
   const wd = p.crowd?.weekday
   const wk = p.crowd?.weekend
-  const facts: [string, ReactNode][] = [
-    ['Đánh giá', rating ?? <span className="tg-faint">Chưa có</span>],
-    ['Giờ mở cửa hôm nay', today ?? <span className="tg-faint">Chưa rõ</span>],
-    ['Thời gian tham quan', visit ?? <span className="tg-faint">Chưa có</span>],
-  ]
+  const facts = ([['Đánh giá', rating], ['Giờ mở cửa hôm nay', today], ['Thời gian tham quan', visit]] as [string, ReactNode][]).filter(([, v]) => v) // only what is known
 
   return (
     <>
@@ -222,7 +219,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
           <KnownFor p={snap} />
           {quote && <p className="tg-ps__quote">“{quote}”<small>Trích từ đánh giá của người đã đến</small></p>}
           {highlights(snap).length > 0 && <p className="tg-ps__hl">{highlights(snap).join(' · ')}</p>}
-          <dl className="tg-ps__facts">{facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+          {facts.length > 0 && <dl className="tg-ps__facts">{facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>}
           <div className="tg-ps__act">
             {card ? (
               card.chosen ? (
@@ -278,12 +275,12 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
             <h3>Tổng quan</h3>
             <div className="tg-ps__ov">
               <dl className="tg-ps__rows">
-                <div><dt>Đánh giá</dt><dd>{rating ?? <span className="tg-faint">Chưa có</span>}</dd></div>
-                <div><dt>Giờ mở cửa hôm nay</dt><dd>{today ?? <span className="tg-faint">Chưa rõ</span>}{today && <> <Unconfirmed why="Mới có nguồn Google Maps, chưa có nguồn chính thức. Kiểm tra trước khi đi.">chưa xác nhận</Unconfirmed></>}</dd></div>
-                <div><dt>Thời gian tham quan</dt><dd>{visit ? `≈ ${visit}` : <span className="tg-faint">Chưa có</span>}</dd></div>
-                <div><dt>Giá</dt><dd>{price ? <>{price}{p.price && <span className="tg-faint"> · {p.price.reports} báo cáo</span>}</> : <span className="tg-faint">Chưa có thông tin</span>}</dd></div>
-                <div><dt>Địa chỉ</dt><dd>{snap.address ?? <span className="tg-faint">Chưa có thông tin</span>}</dd></div>
-                {card && <div><dt>Khoảng cách</dt><dd>{card.location.minutes !== null ? <>≈ {card.location.minutes} phút <span className="tg-faint">· ước tính từ {card.location.center}</span></> : <span className="tg-faint">Chưa có thông tin</span>}</dd></div>}
+                {rating && <div><dt>Đánh giá</dt><dd>{rating}</dd></div>}
+                {today && <div><dt>Giờ mở cửa hôm nay</dt><dd>{today} <Unconfirmed why="Mới có nguồn Google Maps, chưa có nguồn chính thức. Kiểm tra trước khi đi.">chưa xác nhận</Unconfirmed></dd></div>}
+                {visit && <div><dt>Thời gian tham quan</dt><dd>≈ {visit}</dd></div>}
+                {price && <div><dt>Giá</dt><dd>{price}{p.price && <span className="tg-faint"> · {p.price.reports} báo cáo</span>}</dd></div>}
+                {snap.address && <div><dt>Địa chỉ</dt><dd>{snap.address}</dd></div>}
+                {card && card.location.minutes !== null && <div><dt>Khoảng cách</dt><dd>≈ {card.location.minutes} phút <span className="tg-faint">· ước tính từ {card.location.center}</span></dd></div>}
                 <div><dt>Nguồn</dt><dd>{p.voices ? `${p.voices.toLocaleString('vi-VN')} người đã viết về nơi này` : 'Google Maps'}{asOf ? `, dữ liệu cập nhật ${asOf}` : ''}{card && <> <Trust level={TRUST[card.confidence.level]} why={card.confidence.reason} /></>}</dd></div>
               </dl>
               <div className="tg-ps__side">
@@ -294,7 +291,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
                 </div>
               </div>
             </div>
-            <DetailsOverview p={snap} trip={trip.searchInput?.context.companions ?? []} onOpen={(i) => openPlace(i)} />
+            <DetailsOverview p={snap} trip={trip.searchInput?.context.companions ?? []} area={p.area} onOpen={(i) => openPlace(i)} />
             {card && (card.why.length > 0 || card.tradeoffs.length > 0) && (
               <div className="tg-ps__why">
                 <h4>Vì sao hợp với chuyến của bạn</h4>
@@ -340,14 +337,15 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
           <>
             <h3>Đánh giá</h3>
             {p.rating ? <p className="tg-ps__score"><b>{p.rating.toFixed(1).replace('.', ',')}</b>{p.reviews ? `${p.reviews.toLocaleString('vi-VN')} lượt đánh giá trên Google` : 'trên Google'}</p> : <p className="tg-faint">Chưa có điểm trên Google.</p>}
-            {p.quotes.length > 0 && <ul className="tg-ps__rev">{p.quotes.map((q) => <li key={q.text}><q>{q.text}</q><small>{[sourceText(q.source), q.date?.split('-').reverse().join('/')].filter(Boolean).join(' · ')}</small></li>)}</ul>}
+            <Reviews id={id} />
             {p.videos.length > 0 && (
               <>
                 <h4>Clip của người đã đến</h4>
                 <ul className="tg-ps__clips">{p.videos.slice(0, 6).map((v, k) => <Clip key={v.id} v={v} onOpen={() => setViewing(k)} />)}</ul>
               </>
             )}
-            {!p.quotes.length && !p.videos.length && <p className="tg-faint">Chưa có bằng chứng trải nghiệm cho nơi này; chỉ có thông tin cơ bản từ Google.</p>}
+            {!detailed && <p className="tg-faint" role="status">Đang tải bằng chứng của nơi này…</p>}
+            {detailed && !reviewsOf(id).length && !p.videos.length && <p className="tg-faint">Chưa có bằng chứng trải nghiệm cho nơi này; chỉ có thông tin cơ bản từ Google.</p>}
             <p className="tg-ps__foot"><button type="button" className="tg-link tg-link--quiet" onClick={() => setReport('form')}><Icon name="flag" size={14} /> Báo thông tin sai</button></p>
           </>
         )}
@@ -467,6 +465,50 @@ function Bar({ onClose }: { onClose: () => void }) {
       <button type="button" className="tg-ps__back" onClick={onClose}><Icon name="arrowLeft" size={16} /> Quay lại gợi ý địa điểm</button>
       <button type="button" className="tg-ps__x" onClick={onClose} aria-label="Đóng"><Icon name="x" size={18} /></button>
     </div>
+  )
+}
+
+const REVIEW_STEP = 8
+
+// The snapshot's quotes are fragments of reviews (an extractor's span). They stay first, untouched, so what the visitor
+// already reads does not move; the reviews they were taken from are not repeated, and the others follow in Google's order.
+const flat = (t: string) => t.replace(/\s+/g, ' ').trim().toLowerCase()
+function mergeReviews(first: Quote[], full: Quote[]): Quote[] {
+  const stems = first.map((q) => flat(q.text).replace(/\s*(…|\.\.\.)$/, '')).filter((t) => t.length >= 12)
+  const seen = new Set(first.map((q) => flat(q.text)))
+  return [...first, ...full.filter((q) => {
+    const k = flat(q.text)
+    return !seen.has(k) && !stems.some((t) => k.includes(t)) && seen.add(k)
+  })]
+}
+
+// Every review the place has, a few at a time. The ones in the snapshot show at once; the full list is fetched right after
+// they are on screen (the tab was just opened) and joins behind them. More appear as the end of the list comes into view.
+function Reviews({ id }: { id: string }) {
+  const first = reviewsOf(id)
+  const full = useAllReviews(id)
+  const all = useMemo(() => (full ? mergeReviews(first, full) : first), [first, full])
+  const [shown, setShown] = useState(REVIEW_STEP)
+  const end = useRef<HTMLLIElement>(null)
+  useEffect(() => { setShown(REVIEW_STEP) }, [id])
+  useEffect(() => {
+    const el = end.current
+    if (!el || shown >= all.length) return
+    const more = () => setShown((n) => Math.min(n + REVIEW_STEP, all.length))
+    if (!('IntersectionObserver' in window)) return more()
+    const io = new IntersectionObserver((e) => { if (e.some((x) => x.isIntersecting)) more() }, { rootMargin: '400px 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [shown, all.length])
+  if (!all.length) return null
+  return (
+    <>
+      <ul className="tg-ps__rev">
+        {all.slice(0, shown).map((q) => <li key={q.text}><q>{q.text}</q><small>{[sourceText(q.source), q.date?.split('-').reverse().join('/') ?? q.when].filter(Boolean).join(' · ')}</small></li>)}
+        {shown < all.length && <li ref={end} className="tg-ps__more" aria-hidden="true" />}
+      </ul>
+      <p className="tg-faint tg-ps__count" aria-live="polite">Đang xem {Math.min(shown, all.length)} trên {all.length} đánh giá</p>
+    </>
   )
 }
 

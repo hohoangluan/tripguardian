@@ -70,7 +70,7 @@ def _client():
 async def observe_place(client, model: str, sem: asyncio.Semaphore, city: str, d: Path, ont: Ontology) -> dict:
     place = json.loads((d / "place.json").read_text(encoding="utf-8"))
     doc = json.loads((d / PHOTOS_FILE).read_text(encoding="utf-8"))
-    photos = [p for p in doc["photos"] if (d / p["file"]).exists()]
+    photos = [p for p in doc["photos"] if not p.get("stale") and (d / p["file"]).exists()]  # stale = cover only
     obs, dropped, seq = [], collections.Counter(), collections.Counter()
     for start in range(0, len(photos), BATCH):
         batch = photos[start:start + BATCH]

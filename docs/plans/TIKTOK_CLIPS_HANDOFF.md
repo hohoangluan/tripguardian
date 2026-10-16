@@ -69,7 +69,7 @@ Phạm vi ghi: `web/`, `web/public/data/snapshot.json`.
 1. `python web/scripts/export_snapshot.py` (tạo lại cả snapshot từ `data/` hiện tại — mọi dữ liệu khác cũng mới theo) → kiểm `places[].videos[].local`.
 2. Xem bằng dev (`./run.sh`, `http://127.0.0.1:5173/app`): mở một nơi có clip local, tab Đánh giá → "Clip của người đã đến": hover phát im lặng, bấm mở trình xem dọc, tua được, có @tác giả + "Mở trên TikTok". Chụp bằng `web/scripts/shots_sheet.mjs`. Chỉ thiết kế máy tính (điện thoại thấy GetApp).
 3. Build kiểm thử ra thư mục tạm, **không ghi `web/dist`** (đang là site live). Đưa lên live (`./run.sh prod` dựng lại `web/dist`) **chỉ khi người dùng đồng ý**; site công khai sẽ phát lại video của người đăng từ server mình (đã luôn ghi tác giả + link gốc).
-4. Kiểm qua tunnel Cloudflare: mp4 lớn qua Range có trả 206 không (`curl -I -H 'Range: bytes=0-99' https://tripguardian.visioncare-host.uk/media/tiktok/<id>/video.mp4`).
+4. Kiểm qua tunnel Cloudflare: mp4 lớn qua Range có trả 206 không (`curl -I -H 'Range: bytes=0-99' https://tripguardianfinal.visioncare-host.uk/media/tiktok/<id>/video.mp4`).
 
 ### Việc sau, không gấp (một session bất kỳ)
 - 274 nơi chưa có POI (không có video bằng chứng nào gắn POI, hoặc model không chắc): cần cách khác để tìm POI (search POI của TikTok dính captcha; chưa thử).

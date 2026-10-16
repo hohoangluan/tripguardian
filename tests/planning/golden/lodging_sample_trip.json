@@ -5,39 +5,37 @@
   {
    "cost_unknown": 8,
    "cost_vnd": 0,
-   "label": "Ít di chuyển",
-   "objective": "least_travel",
+   "label": "Lịch của bạn",
+   "objective": "main",
    "rain_exposed": 0.0,
    "repeats": 5,
    "robustness": "solid",
-   "travel_min": 15,
+   "travel_min": 16,
    "travel_vs_best": 0,
-   "variant": "v1"
+   "variant": "main"
   }
  ],
+ "keep_all": null,
  "lodging": {
   "candidates": [
    {
-    "amenities": [],
     "id": null,
     "name": "Không chỗ ở",
     "price_vnd": null,
-    "total_travel_min": 15
+    "total_travel_min": 16
    },
    {
-    "amenities": [
-     "wifi"
-    ],
     "id": "h0",
-    "minutes_vs_no_lodging": 40,
+    "minutes_vs_no_lodging": 39,
     "name": "Homestay Nam",
-    "price_vnd": 350000,
+    "price_vnd": 280000,
     "total_travel_min": 55
    }
   ],
   "chosen": null
  },
  "ok": true,
+ "overload": null,
  "provenance": {
   "points": {},
   "travel": {
@@ -91,84 +89,104 @@
  "unplaced": [],
  "variants": [
   {
+   "available": true,
    "backups": {
     "on_delay": [
      {
       "day": 1,
-      "name": "c1",
-      "place_id": "c1"
-     },
-     {
-      "day": 2,
       "name": "s1",
       "place_id": "s1"
      },
      {
-      "day": 3,
-      "name": "c3",
-      "place_id": "c3"
+      "day": 2,
+      "name": "c1",
+      "place_id": "c1"
      }
     ],
     "places": []
    },
    "checklist": [],
-   "id": "v1",
+   "compare": {
+    "cost_known_vnd": 0,
+    "cost_unknown_n": 8,
+    "fit": 1.0,
+    "travel_min": 16
+   },
+   "confirmable": true,
+   "dropped": [],
+   "dropped_by_plan": [],
+   "gain": null,
+   "id": "main",
    "itinerary": [
     {
      "date": "2026-12-12",
      "day": 1,
      "items": [
       {
-       "end": "09:00",
-       "kind": "visit",
-       "name": "c1",
-       "place_id": "c1",
+       "end": "08:30",
+       "kind": "meal_free",
+       "name": "breakfast",
+       "note": "free",
        "start": "08:00"
       },
       {
-       "end": "09:20",
-       "kind": "buffer",
-       "start": "09:00"
+       "end": "09:30",
+       "kind": "visit",
+       "name": "s1",
+       "place_id": "s1",
+       "start": "08:30"
       },
       {
-       "end": "09:23",
-       "from": "c1",
+       "end": "09:52",
+       "from": "s1",
        "kind": "travel",
        "mode": "motorbike",
-       "start": "09:20",
-       "to": "c4"
+       "note": "+20",
+       "start": "09:30",
+       "to": "s3"
       },
       {
-       "end": "10:23",
+       "end": "10:52",
        "kind": "visit",
-       "name": "c4",
-       "place_id": "c4",
-       "start": "09:23"
-      },
-      {
-       "end": "10:43",
-       "kind": "buffer",
-       "start": "10:23"
-      },
-      {
-       "end": "10:58",
-       "kind": "rest",
-       "start": "10:43"
+       "name": "s3",
+       "place_id": "s3",
+       "start": "09:52"
       },
       {
        "end": "11:00",
-       "from": "c4",
-       "kind": "travel",
-       "mode": "motorbike",
-       "start": "10:58",
-       "to": "c2"
+       "kind": "wait",
+       "note": "meal",
+       "start": "10:52"
       },
       {
-       "end": "12:00",
-       "kind": "visit",
-       "name": "c2",
-       "place_id": "c2",
+       "end": "12:30",
+       "kind": "meal_free",
+       "name": "lunch",
+       "note": "free",
        "start": "11:00"
+      },
+      {
+       "end": "12:48",
+       "from": "s3",
+       "kind": "travel",
+       "mode": "walk",
+       "note": "+12",
+       "start": "12:30",
+       "to": "s2"
+      },
+      {
+       "end": "13:48",
+       "kind": "visit",
+       "name": "s2",
+       "place_id": "s2",
+       "start": "12:48"
+      },
+      {
+       "end": "19:00",
+       "kind": "meal_free",
+       "name": "dinner",
+       "note": "optional",
+       "start": "17:30"
       }
      ],
      "method": "exact",
@@ -183,56 +201,78 @@
      "day": 2,
      "items": [
       {
-       "end": "09:00",
-       "kind": "visit",
-       "name": "s1",
-       "place_id": "s1",
+       "end": "08:30",
+       "kind": "meal_free",
+       "name": "breakfast",
+       "note": "free",
        "start": "08:00"
       },
       {
-       "end": "09:20",
-       "kind": "buffer",
-       "start": "09:00"
+       "end": "09:30",
+       "kind": "visit",
+       "name": "c1",
+       "place_id": "c1",
+       "start": "08:30"
       },
       {
-       "end": "09:22",
-       "from": "s1",
+       "end": "09:53",
+       "from": "c1",
        "kind": "travel",
        "mode": "motorbike",
-       "start": "09:20",
-       "to": "s3"
+       "note": "+20",
+       "start": "09:30",
+       "to": "c4"
       },
       {
-       "end": "10:22",
+       "end": "10:53",
        "kind": "visit",
-       "name": "s3",
-       "place_id": "s3",
-       "start": "09:22"
+       "name": "c4",
+       "place_id": "c4",
+       "start": "09:53"
       },
       {
-       "end": "10:42",
-       "kind": "buffer",
-       "start": "10:22"
-      },
-      {
-       "end": "10:57",
+       "end": "11:08",
        "kind": "rest",
-       "start": "10:42"
+       "start": "10:53"
       },
       {
-       "end": "11:03",
-       "from": "s3",
+       "end": "11:30",
+       "from": "c4",
        "kind": "travel",
-       "mode": "walk",
-       "start": "10:57",
-       "to": "s2"
+       "mode": "motorbike",
+       "note": "+20",
+       "start": "11:08",
+       "to": "c2"
       },
       {
-       "end": "12:03",
+       "end": "12:30",
        "kind": "visit",
-       "name": "s2",
-       "place_id": "s2",
-       "start": "11:03"
+       "name": "c2",
+       "place_id": "c2",
+       "start": "11:30"
+      },
+      {
+       "end": "12:53",
+       "from": "c2",
+       "kind": "travel",
+       "mode": "motorbike",
+       "note": "+20",
+       "start": "12:30",
+       "to": "r1"
+      },
+      {
+       "end": "14:23",
+       "kind": "visit",
+       "name": "r1",
+       "place_id": "r1",
+       "start": "12:53"
+      },
+      {
+       "end": "19:00",
+       "kind": "meal_free",
+       "name": "dinner",
+       "note": "optional",
+       "start": "17:30"
       }
      ],
      "method": "exact",
@@ -247,41 +287,28 @@
      "day": 3,
      "items": [
       {
-       "end": "09:00",
-       "kind": "visit",
-       "name": "c3",
-       "place_id": "c3",
+       "end": "08:30",
+       "kind": "meal_free",
+       "name": "breakfast",
+       "note": "free",
        "start": "08:00"
       },
       {
-       "end": "09:20",
-       "kind": "buffer",
-       "start": "09:00"
-      },
-      {
-       "end": "09:22",
-       "from": "c3",
-       "kind": "travel",
-       "mode": "motorbike",
-       "start": "09:20",
-       "to": "r1"
-      },
-      {
-       "end": "11:30",
-       "kind": "wait",
-       "note": "meal",
-       "place_id": "r1",
-       "start": "09:22"
+       "end": "09:30",
+       "kind": "visit",
+       "name": "c3",
+       "place_id": "c3",
+       "start": "08:30"
       },
       {
        "end": "12:30",
-       "kind": "visit",
-       "name": "r1",
-       "place_id": "r1",
-       "start": "11:30"
+       "kind": "meal_free",
+       "name": "lunch",
+       "note": "optional",
+       "start": "11:00"
       }
      ],
-     "method": "exact",
+     "method": "single",
      "weekday": "mon",
      "window": [
       "08:00",
@@ -289,39 +316,63 @@
      ]
     }
    ],
-   "label": "Ít di chuyển",
+   "kept": [
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "r1",
+    "s1",
+    "s2",
+    "s3"
+   ],
+   "label": "Lịch của bạn",
+   "left_over": [],
    "lodging": {
     "id": null,
     "name": null,
     "price_vnd": null
    },
    "metrics": {
+    "categories_covered": 1,
+    "cost_basis": "partial",
+    "cost_unestimated": 8,
     "cost_unknown": 8,
     "cost_vnd": 0,
+    "diversity": 3.8284271247461903,
+    "duration_loss_min": 0,
+    "estimated_cost_vnd": 0,
     "exposure_unknown": 8,
     "extras_max_vnd": 0,
+    "meal_cost_unknown": 7,
+    "meal_min": 450,
+    "meals_included": false,
+    "novelty_share": null,
+    "places": 8,
     "pref_risk": 0.0,
     "rain_exposed": 0.0,
     "repeats": 5,
+    "scheduled_min": 1091,
     "time_penalty": 0.0,
-    "travel_min": 15
+    "transport_cost_vnd": null,
+    "travel_min": 16,
+    "utility": 8.0,
+    "utility_source": "selection_and_preferences",
+    "value_share": 1.0,
+    "visit_density": 0.9695817490494296,
+    "visit_min": 510,
+    "wish_coverage": null,
+    "wishes": {
+     "coverage": null,
+     "met": [],
+     "total": 0,
+     "unknown": [],
+     "unmet": []
+    }
    },
-   "objective": "least_travel",
+   "objective": "main",
+   "preset": null,
    "recommendations": [
-    {
-     "alternatives": [],
-     "day": 1,
-     "kind": "gap",
-     "optional": true,
-     "period": "midday",
-     "text": "Còn khoảng trống giữa trưa; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
-     "windows": [
-      [
-       "12:00",
-       "14:30"
-      ]
-     ]
-    },
     {
      "alternatives": [],
      "day": 1,
@@ -347,20 +398,6 @@
       [
        "18:00",
        "21:00"
-      ]
-     ]
-    },
-    {
-     "alternatives": [],
-     "day": 2,
-     "kind": "gap",
-     "optional": true,
-     "period": "midday",
-     "text": "Còn khoảng trống giữa trưa; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
-     "windows": [
-      [
-       "12:03",
-       "14:30"
       ]
      ]
     },
@@ -401,7 +438,7 @@
      "text": "Còn khoảng trống buổi sáng; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
      "windows": [
       [
-       "09:22",
+       "09:30",
        "11:00"
       ]
      ]
@@ -415,7 +452,7 @@
      "text": "Còn khoảng trống giữa trưa; bạn có thể nghỉ hoặc chọn thêm hoạt động.",
      "windows": [
       [
-       "12:30",
+       "11:30",
        "14:30"
       ]
      ]
@@ -460,9 +497,10 @@
     ]
    },
    "score": [
-    15,
-    15.0
+    16
    ],
+   "stars": [],
+   "status": "available",
    "time_suitability": [
     {
      "day": 1,
@@ -473,37 +511,37 @@
       {
        "activity": "sightseeing",
        "penalty": 0.0,
-       "place_id": "c1",
+       "place_id": "s1",
        "reasons": [],
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "08:00",
-        "09:00"
+        "08:30",
+        "09:30"
        ]
       },
       {
        "activity": "sightseeing",
        "penalty": 0.0,
-       "place_id": "c4",
+       "place_id": "s3",
        "reasons": [],
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "09:23",
-        "10:23"
+        "09:52",
+        "10:52"
        ]
       },
       {
        "activity": "sightseeing",
        "penalty": 0.0,
-       "place_id": "c2",
+       "place_id": "s2",
        "reasons": [],
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "11:00",
-        "12:00"
+        "12:48",
+        "13:48"
        ]
       }
      ]
@@ -517,37 +555,49 @@
       {
        "activity": "sightseeing",
        "penalty": 0.0,
-       "place_id": "s1",
+       "place_id": "c1",
        "reasons": [],
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "08:00",
-        "09:00"
+        "08:30",
+        "09:30"
        ]
       },
       {
        "activity": "sightseeing",
        "penalty": 0.0,
-       "place_id": "s3",
+       "place_id": "c4",
        "reasons": [],
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "09:22",
-        "10:22"
+        "09:53",
+        "10:53"
        ]
       },
       {
        "activity": "sightseeing",
        "penalty": 0.0,
-       "place_id": "s2",
+       "place_id": "c2",
        "reasons": [],
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "11:03",
-        "12:03"
+        "11:30",
+        "12:30"
+       ]
+      },
+      {
+       "activity": "eating",
+       "penalty": 0.0,
+       "place_id": "r1",
+       "reasons": [],
+       "shortened_min": 0,
+       "source": null,
+       "visit": [
+        "12:53",
+        "14:23"
        ]
       }
      ]
@@ -566,20 +616,8 @@
        "shortened_min": 0,
        "source": null,
        "visit": [
-        "08:00",
-        "09:00"
-       ]
-      },
-      {
-       "activity": "eating",
-       "penalty": 0.0,
-       "place_id": "r1",
-       "reasons": [],
-       "shortened_min": 0,
-       "source": null,
-       "visit": [
-        "11:30",
-        "12:30"
+        "08:30",
+        "09:30"
        ]
       }
      ]
@@ -588,23 +626,25 @@
    "travel_load": [
     {
      "day": 1,
-     "longest_leg_min": 3,
-     "travel_min": 5,
-     "wait_min": 0
+     "longest_leg_min": 6,
+     "travel_min": 8,
+     "wait_min": 8
     },
     {
      "day": 2,
-     "longest_leg_min": 6,
+     "longest_leg_min": 3,
      "travel_min": 8,
      "wait_min": 0
     },
     {
      "day": 3,
-     "longest_leg_min": 2,
-     "travel_min": 2,
-     "wait_min": 128
+     "longest_leg_min": 0,
+     "travel_min": 0,
+     "wait_min": 0
     }
    ],
+   "unavailable_reason": null,
+   "violations": [],
    "warnings": []
   }
  ],
@@ -615,16 +655,8 @@
    "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
   },
   {
-   "code": "entry_exit_unknown",
-   "text": "Chưa biết điểm vào / ra thành phố: ngày đầu và ngày cuối chỉ cắt theo giờ đến / giờ rời, kém chắc hơn."
-  },
-  {
    "code": "weather_unknown",
    "text": "Chưa biết thời tiết: chưa xét mưa khi xếp lịch và khi đo độ vững."
-  },
-  {
-   "code": "variants_same",
-   "text": "Các mục tiêu cho cùng một lịch: chỉ có 1 phương án."
   }
  ]
 }

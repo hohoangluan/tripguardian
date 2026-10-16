@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 import trafilatura
 from pydantic import ValidationError
+from agents import validate_public_url
 
 from ..domain.state import Frozen
 
@@ -61,7 +62,7 @@ class Web:
         self.ttl_s = ttl_days * 86400
         self.max_bytes = max_bytes
         self.client = client or httpx.Client(timeout=timeout_s, headers={"User-Agent": _USER_AGENT},
-                                             follow_redirects=False)
+                                             follow_redirects=False, trust_env=False)
 
     def _cache_path(self, kind: str, key: str) -> Path:
         digest = hashlib.sha256((kind + key).encode("utf-8")).hexdigest()[:24]
@@ -96,26 +97,41 @@ class Web:
         """-> (final url, content type, encoding, body read up to `limit` bytes). Redirects are followed by hand (at
         most 3), each target checked again when check_host."""
         current = url
+        deadline = time.monotonic() + self.timeout_s
         for redirects in range(4):
+            headers = {"User-Agent": _USER_AGENT}
+            extensions = {}
+            target = current
             if check_host:
-                self._check_url(current)
+                address = self._check_url(current)
+                parsed = urlsplit(current)
+                original = httpx.URL(current)
+                target = original.copy_with(host=address)
+                headers.update({"Host": original.netloc.decode("ascii"), "Connection": "close"})
+                extensions["sni_hostname"] = parsed.hostname
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise WebError("web request timed out")
             try:
-                with self.client.stream("GET", current, params=params if redirects == 0 else None,
-                                        timeout=self.timeout_s, headers={"User-Agent": _USER_AGENT}) as response:
+                with self.client.stream("GET", target, params=params if redirects == 0 else None,
+                                        timeout=remaining, headers=headers, extensions=extensions,
+                                        follow_redirects=False) as response:
                     if response.status_code in (301, 302, 303, 307, 308):
                         location = response.headers.get("location")
                         if not location:
                             raise WebError("redirect without a location")
-                        current = urljoin(str(response.url), location)
+                        current = urljoin(current, location)
                         continue
                     response.raise_for_status()
                     body = bytearray()
                     for chunk in response.iter_bytes():
+                        if time.monotonic() >= deadline:
+                            raise WebError("web request timed out")
                         room = (limit or self.max_bytes) - len(body)
                         body.extend(chunk[:room])
                         if len(body) >= (limit or self.max_bytes):
                             break
-                    return (str(response.url), response.headers.get("content-type", ""),
+                    return (current if check_host else str(response.url), response.headers.get("content-type", ""),
                             response.encoding or "utf-8", bytes(body))
             except httpx.TimeoutException as exc:
                 raise WebError("web request timed out") from exc
@@ -163,30 +179,34 @@ class Web:
         self._store("search", key, [hit.model_dump() for hit in hits])
         return hits
 
-    def _check_url(self, url: str) -> None:
-        parsed = urlsplit(url)
-        if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
-            raise WebError("blocked URL")
+    def _check_url(self, url: str) -> str:
+        try:
+            parsed = validate_public_url(url)
+        except ValueError as exc:
+            raise WebError("blocked URL") from exc
         host = parsed.hostname.rstrip(".").lower()
-        if host == "localhost" or host.endswith(".localhost"):
-            raise WebError("blocked URL")
         try:
             literal = ipaddress.ip_address(host)
         except ValueError:
             literal = None
-        if literal is not None and (literal.is_private or literal.is_loopback or literal.is_link_local or literal.is_reserved):
-            raise WebError("blocked URL")
+        if literal is not None:
+            return str(literal)
         try:
             records = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
         except (OSError, ValueError) as exc:
             raise WebError("could not resolve URL host") from exc
+        addresses = []
         for record in records:
             try:
                 address = ipaddress.ip_address(record[4][0].split("%", 1)[0])
             except ValueError:
                 raise WebError("invalid resolved address")
-            if address.is_private or address.is_loopback or address.is_link_local or address.is_reserved:
+            if not address.is_global or address.is_multicast:
                 raise WebError("blocked URL")
+            addresses.append(str(address))
+        if not addresses:
+            raise WebError("could not resolve URL host")
+        return addresses[0]
 
     def read(self, url: str, max_chars: int = 6000) -> WebPage:
         self._check_url(url)

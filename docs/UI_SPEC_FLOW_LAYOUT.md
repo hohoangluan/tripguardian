@@ -18,7 +18,7 @@ Không chép lại ở đây:
  /app  ── chưa có tài khoản ──► Vào ứng dụng ── Dùng thử / đăng nhập ──► Khám phá
                                                                          │ gõ một câu · chủ đề
  ══════ TRONG LUỒNG (stepper 3 bước) ════════════════════════════════════╪═══════════
- Bước 1  Hiểu chuyến đi ── agent đủ hiểu / Bắt đầu tìm ───────────────────┤ trip → decision
+ Bước 1  Hiểu chuyến đi ── agent đủ hiểu / Tiếp tục đến chọn nơi ───────────────────┤ trip → decision
  Bước 2  Chọn nơi ⇄ Chi tiết ⇄ So sánh  + trợ lý  + thanh "Đã chọn"       │ (khả thi + lịch ngầm)
           └──────── Xem lịch trình ───────────────────────────────────────┤ decision → planning
  Bước 3  Lịch trình (+ ngăn Tối ưu) ── Chốt kế hoạch này ──────────────────┤
@@ -38,10 +38,10 @@ Route và mục bắt buộc từng màn: `docs/UI_SPEC_USER_WEB.md` §3–4. Ro
 | Vào ứng dụng | Dùng thử / đăng nhập xong | Khám phá | | T1 |
 | Khám phá | Enter trong ô nhập, một trong 4 thẻ, một chủ đề | Hiểu chuyến đi | chuyến mới; chuyến cũ vẫn ở Chuyến của tôi | T1 |
 | Khám phá | `Đi tiếp` trên Chuyến đang lập | bước đang dở | | T1 |
-| Hiểu chuyến đi | agent tự chốt / `Bắt đầu tìm` | Chọn nơi | `trip → decision` | T2 |
-| Hiểu chuyến đi | `Xem đầy đủ` / `Thu gọn`, `Esc` | panel vé trên chính màn | | T4 |
+| Hiểu chuyến đi | agent tự chốt / `Tiếp tục đến chọn nơi` | Chọn nơi | `trip → decision` | T2 |
+| Hiểu chuyến đi | `Xem đầy đủ` / `Sửa`, `Esc` | vé trên chính màn | | T4 |
 | Chọn nơi | ảnh / `Chi tiết` | Chi tiết | | T3 |
-| Chọn nơi | `So sánh` trên cặp giống nhau, nút nổi "So sánh N nơi" | So sánh | | T3 |
+| Chọn nơi | nút nổi "So sánh N nơi" | So sánh | | T3 |
 | Chọn nơi | `Bỏ` | sheet lý do | lý do không bắt buộc | T4 |
 | Chọn nơi | Thêm / Khóa / trả lời câu hỏi làm hẹp / nhắn trợ lý | ở lại | thẻ đổi trạng thái, thanh "Đã chọn" hiện dòng chênh lệch, lịch dựng lại ngầm | T5 |
 | Chọn nơi | `Sửa vé chuyến`, `Nới giới hạn`, cách sửa "nới" | Hiểu chuyến đi | `decision → trip` | T1 ngược |
@@ -78,11 +78,11 @@ Lỗi giữa đường chuyển (backend từ chối, mất mạng): ở lại m
 
 ## 4. Khung chung
 
-Nội dung trong cột tối đa 1280, lề 48 (`--tg-max`, `--tg-gutter` trong `web/src/user/css/tokens.css`). Ba chế độ khung:
+Khung co giãn theo bề rộng màn, mốc tối ưu là 1920×1080: cột nội dung `clamp(1120px, 84vw, 1760px)` (≈1610 ở 1920), lề `clamp(32px, 3vw, 64px)` (`--tg-max`, `--tg-gutter` trong `web/src/user/css/tokens.css`); landing dùng cùng cách (`--pad` trong `landing.css`). Từ 1600px lưới thêm một cột thay vì phóng to thẻ. Dưới 1180px thanh bước chỉ giữ biểu tượng logo và rút ngắn vạch nối. Ba chế độ khung:
 
 ```text
 BARE (Vào ứng dụng)   ảnh trái + thẻ phải, không thanh trên
-FLOW (bước 1–3, Phản hồi)
+FLOW (Chọn nơi, Lịch trình, Phản hồi; Hiểu chuyến đi dùng CHAT)
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ ▲ TripGuardian      ① Hiểu chuyến đi ─ ② Chọn nơi ─ ③ Lịch trình      [vé] (●) │ 68px
 ├──────────────────────────────────────────────────────────────────────────────┤
@@ -94,15 +94,15 @@ NAV (Khám phá, Chuyến của tôi, Đã lưu, Hồ sơ): rail trái 76px — 
 ```
 
 - Stepper: đã xong = dấu tích, bấm được để lùi; đang ở = nền trắng nổi; chưa tới = nhạt. Phản hồi hiện cả ba đã xong.
-- `[vé]` chỉ ở Hiểu chuyến đi: icon nhỏ có số mục, mở popover vé; `(●)` là avatar / icon hồ sơ.
+- Hiểu chuyến đi dùng khung CHAT riêng, mở vé từ `Sửa` hoặc `Xem đầy đủ`; `(●)` trên FLOW là avatar / icon hồ sơ.
 - Không bao giờ hiện cùng lúc stepper và rail.
 - Trợ lý ở Chọn nơi là tab nhỏ mép phải, mở thành ngăn 380px bên phải; ghim thì lưới còn 2 cột.
 
 ## 5. Bố cục từng màn
 
 - **Khám phá**: hero ảnh tràn (78vh) với tiêu đề, ô nhập lớn, chip · (người quay lại) thẻ Chuyến đang lập: ảnh trái, thông tin + tiến độ giữa, cột "Chuyến khác" phải · lưới 4 thẻ bắt đầu · 3 thẻ chủ đề ảnh lớn.
-- **Hiểu chuyến đi**: ba cột — trái "Mình đang hiểu" (ý định đã xong, bấm để sửa; ý định đang hỏi) · giữa bộ thẻ câu hỏi xếp chồng (thẻ đã trả lời rơi xuống, thẻ mới chia ra) · phải "Đang hợp với bạn" (số nơi qua giới hạn chạy tới giá trị mới, nhãn "−N nơi" / "+N nơi" của lựa chọn vừa rồi, bốn lựa chọn gần nhất kèm +/−, nơi bắt buộc). Mỗi chip trả lời ghi trước nó làm số này đổi bao nhiêu. Dưới 1180px còn cột giữa và lịch sử dạng dòng.
-- **Chọn nơi**: đầu trang + nút Lưới / Đĩa xoay + `Sửa vé chuyến` · dải giới hạn đã loại · nơi bắt buộc · tab nhóm · lưới 3 cột (2 khi ghim trợ lý) · thanh "Đã chọn" dính đáy, dải chú ý nổi ngay trên nó.
+- **Hiểu chuyến đi**: rail dùng chung homepage; lịch sử chuyến thật có tìm kiếm/tạo mới bên trái; chat và ô nhắn cố định ở giữa; tiến độ tám nhóm thông tin, tổng quan và nút sang chọn nơi bên phải. Chi tiết duy nhất ở `docs/UI_SPEC_USER_WEB.md` Trang 3. Không dùng thanh bước ngang trên màn này.
+- **Chọn nơi**: đầu trang + nút Lưới / Đĩa xoay + `Sửa vé chuyến` · dải giới hạn đã loại · nơi bắt buộc · tab nhóm + tab "Chỗ ở" khi chưa có chỗ ở đã đặt · lưới 3 cột (4 từ 1600px, 2 dưới 1180px; khi ghim trợ lý 2, 3 từ 1800px; thẻ sau lấp chỗ trống trước câu hỏi làm hẹp) · thanh "Đã chọn" dính đáy, dải chú ý nổi ngay trên nó.
 - **Chi tiết**: đầu trang + thao tác phải · dải ảnh (1 lớn + 3 nhỏ) · hai cột: *Thông tin thực tế* (giờ, giá, địa chỉ, khoảng cách, độ đông theo buổi, bản đồ Google) ⟂ *Người đi trước nói gì* (lý do + đánh đổi kèm cỡ mẫu, độ đông, bình luận gốc, clip).
 - **So sánh**: lưới cột nhãn + 2–3 cột nơi, chỉ hàng khác nhau, ô tốt hơn có dấu tích; hàng thao tác Giữ / Bỏ cuối.
 - **Lịch trình**: đầu trang + tab hành trình · dải số liệu (di chuyển, số nơi, chi phí, độ vững, `Tối ưu lịch`) · ba cột: tab ngày + điều kiện ngày + timeline · bản đồ Google lộ trình ngày · cột bên chỗ nghỉ, dự phòng của ngày, lưu ý. Chế độ *Hành trình* thay ba cột bằng sơ đồ thẻ ảnh nằm ngang.

@@ -4,6 +4,7 @@ embedder:
   image_text_len: 64                              # SigLIP2 text is padded to this many tokens
   text_model: BAAI/bge-m3                         # multilingual text: span <-> text
   online_device: cuda:0                           # where the harness embeds the user's text / photo; "cpu" works, slower
+  online_text_device: cuda:1                      # bge-m3 on its own GPU when the harness sees two (HARNESS_GPU=1,3); else cuda:0
   batch: 48                                       # images per forward pass offline (one RTX 2080 Ti, fp16)
   text_batch: 256
 gpus: [0, 1, 2, 3, 4, 5, 6, 7]                    # offline jobs: one process per GPU, places split between them

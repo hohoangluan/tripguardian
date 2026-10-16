@@ -3,6 +3,8 @@ import type { SVGProps } from 'react'
 
 // Thin outline set (24px grid, 1.6 stroke). Decorative by default: pass `title` for a meaningful icon.
 const P: Record<string, string> = {
+  gauge: 'M4 18a9 9 0 1 1 16 0M12 12l4-5M7 8l1 1M5 13h2M17 13h2M10 18h4',
+  wallet: 'M4 6h15v14H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h13v2M19 11h-6v5h6M15.5 13.5h.01',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6',
   heart: 'M12 20s-7-4.4-9-9.2C1.8 7.6 3.6 4.5 6.8 4.5c2 0 3.5 1 5.2 3 1.7-2 3.2-3 5.2-3 3.2 0 5 3.1 3.8 6.3-2 4.8-9 9.2-9 9.2Z',
   pin: 'M12 21s-6.5-6-6.5-11a6.5 6.5 0 1 1 13 0c0 5-6.5 11-6.5 11ZM12 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
@@ -15,8 +17,10 @@ const P: Record<string, string> = {
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z',
   arrow: 'M5 12h14M13 6l6 6-6 6',
   arrowLeft: 'M19 12H5M11 6l-6 6 6 6',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   x: 'M6 6l12 12M18 6L6 18',
+  panelRight: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM15 4v16',
   lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
   unlock: 'M7 11V8a5 5 0 0 1 9.5-2.2M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7.5V12l3 2',
@@ -37,6 +41,7 @@ const P: Record<string, string> = {
   chevronRight: 'M9 6l6 6-6 6',
   turn: 'M3 12c0 2.8 4 5 9 5s9-2.2 9-5-4-5-9-5M3 12l2.4-2.6M3 12l3.2.6M12 7l-2.2-2M12 7l-2.2 2',
   chevronUp: 'M6 15l6-6 6 6',
+  grip: 'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
   swap: 'M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 11v5M12 7.8v.2',
   warn: 'M12 4L2.5 20h19L12 4ZM12 10v4.5M12 17.2v.2',
@@ -49,6 +54,7 @@ const P: Record<string, string> = {
   sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 4v6M9 14v6',
   play: 'M8 5v14l11-7L8 5Z',
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
+  smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8.5 14a4.5 4.5 0 0 0 7 0M9 9.5v.5M15 9.5v.5',
   trash: 'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6',
   edit: 'M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4',
   refresh: 'M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5',
@@ -67,6 +73,8 @@ const P: Record<string, string> = {
   clip: 'M20 11.5l-7.8 7.8a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   image: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM9 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM20 15.5l-5-5L5.5 20',
+  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z',
+  mouse: 'M12 3a5 5 0 0 1 5 5v8a5 5 0 0 1-10 0V8a5 5 0 0 1 5-5ZM12 7v3',
   star: 'M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.7l5.9-.9L12 3.5Z',
 }
 
@@ -89,27 +97,20 @@ export function BotAvatar({ size = 32, live = false }: { size?: number; live?: b
   return (
     <span className={`tg-bot ${live ? 'is-live' : ''}`} style={{ width: size, height: size }} aria-hidden="true">
       {img ? <img src="/img/gen/bot-avatar.webp" alt="" width={size} height={size} onError={() => { botImage = false; setImg(false) }} /> : <svg viewBox="0 0 32 32" width={size} height={size}>
-        <circle cx="16" cy="16" r="16" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
+        <circle cx="16" cy="16" r="16" style={{ fill: 'var(--tg-pine, #111111)' }} />
         <path d="M16 6.5l6.2 8.3h-3.4l4.7 6.7H8.5l4.7-6.7H9.8L16 6.5Z" style={{ fill: '#fff' }} />
         <rect x="14.6" y="21.5" width="2.8" height="3.6" rx="1" style={{ fill: '#fff' }} />
-        <circle cx="13.9" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
-        <circle cx="18.1" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #0f5f5a)' }} />
-        <circle cx="24.3" cy="8.2" r="2.3" style={{ fill: 'var(--tg-sun, #e8590c)' }} />
+        <circle cx="13.9" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #111111)' }} />
+        <circle cx="18.1" cy="17.6" r="1.15" style={{ fill: 'var(--tg-pine, #111111)' }} />
+        <circle cx="24.3" cy="8.2" r="2.3" style={{ fill: 'var(--tg-sun, #525252)' }} />
       </svg>}
     </span>
   )
 }
 
-// The generated shield mark (web/scripts/make_brand_assets.py cuts it out of gen/app-logo.webp); the drawing stays as the fallback.
-let logoImage = true
-export function Logo({ size = 28, dark = false }: { size?: number; dark?: boolean }) {
-  const [img, setImg] = useState(logoImage)
-  if (img) return <img className="tg-logo" src="/img/logo.webp" alt="" width={size} height={size} onError={() => { logoImage = false; setImg(false) }} />
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="9" style={{ fill: dark ? '#fff' : 'var(--tg-pine, #0f5f5a)' }} />
-      <path d="M16 6l8 11h-5l5 7H8l5-7H8l8-11Z" style={{ fill: dark ? 'var(--tg-pine, #0f5f5a)' : '#fff' }} />
-      <circle cx="24" cy="8" r="2.4" style={{ fill: 'var(--tg-sun, #e8590c)' }} />
-    </svg>
-  )
+// The terracotta brand artwork (web/public/img/brand, recoloured with cx/gpt-6.1-sol, see img/gen/manifest.json): `full` is the mascot with the
+// wordmark, `mark` the mascot alone for narrow places. Both sit centred in the same size×3 by size×2 box, so swapping
+// one for the other never moves the layout.
+export function Logo({ size = 28, dark = false, variant = 'full' }: { size?: number; dark?: boolean; variant?: 'full' | 'mark' }) {
+  return <img className={`tg-logo${dark ? ' is-dark' : ''}`} src={`/img/brand/${variant === 'mark' ? 'mark' : 'logo-full'}.webp`} width={size * 3} height={size * 2} alt="TripGuardian" />
 }

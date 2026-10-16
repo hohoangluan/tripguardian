@@ -41,3 +41,18 @@ def preference(place: Place, soft_weights: list) -> float:
 def kind_group(place: Place) -> str | None:
     """The category group: what "the same kind of experience" means for diversity and for a backup."""
     return place.rec["identity"].get("category_group")
+
+
+def visit_minutes(place: Place, cfg, pace: str, prefs: dict | None = None) -> int:
+    """Use the trip's explicit activity, pace and matching preferences within its estimate range."""
+    key = cfg.visit_key[pace]
+    threshold = cfg.time_suitability.get('duration_preference_weight', 1.0)
+    preferred = (prefs or {}).get(place.id, 0) >= threshold
+    if key != 'short' and preferred:
+        key = 'long'
+    if place.activity_explicit and place.activity in cfg.duration_profiles.get('deep_activities', []) and pace != 'packed':
+        key = 'long'
+    if key == 'long' and place.activity in {'eating', 'coffee', 'drinking'}:
+        if not preferred:
+            key = 'typical'
+    return place.visit[key]

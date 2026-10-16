@@ -1,30 +1,22 @@
-"""Two or three checked variants, each best on a different objective (docs/PLANNING.md ⓖ).
-
-One prepare() and one travel matrix for all of them. Each chosen objective lays the trip out with its own day-split
-weights; a variant validate rejects is dropped, two variants with the same days in the same order are one. No variant
-valid -> back to Place Decision with the places that broke it. Lodging joins the loop in P5.
+"""The plan cards of a trip (spec section 7): one main plan, or -- when the days cannot hold every pick -- up to three
+direction plans that each drop places by one criterion (overload.py), plus the overload card. One prepare() and one
+travel matrix for all of them. A fitting plan that breaks a check is no plan: back to Place Decision with the places
+that broke it. The command line (build_variants / build_lodging_variants) and the session engine read the same cards.
 """
-
-from dataclasses import asdict
 
 import live
 from trip import nights
 
-from .backup import backups
 from .details import plan_notes
-from .timefit import describe as time_description
 from .recommendations import recommend
-from .build import ENTRY, EXIT, flag_warnings, itinerary, prepare, render_text, schedule_trip, shared_output, \
-    travel_load, with_home
+from .build import flag_warnings, prepare, render_text, schedule_trip, shared_output, with_home
 from .lodging import candidates as lodging_candidates
-from .objectives import LABEL, add_lodging_cost, choose, metrics, score
-from .robustness import robustness
+from .objectives import add_lodging_cost
+from .overload import plan_or_directions
 from .settings import load as load_settings
 
 WARNING_TEXT = {
     "weather_unknown": "Chưa biết thời tiết: chưa xét mưa khi xếp lịch và khi đo độ vững.",
-    "variants_same": "Các mục tiêu cho cùng một lịch: chỉ có {n} phương án.",
-    "variant_invalid": "{label}: không xếp được lịch hợp lệ, bỏ phương án này.",
     "lodging_unavailable": "Chưa tra được chỗ ở: mỗi phương án dùng điểm vào / nơi ở đã biết làm neo.",
 }
 
@@ -34,7 +26,9 @@ def _warn(code: str, **kw) -> dict:
 
 
 def _comparison(variants: list[dict]) -> list[dict]:
-    """The trade-off table: each variant's measures, and how far it is from the best variant on travel."""
+    """The trade-off table: each card's measures, and how far it is from the best card on travel."""
+    if not variants:
+        return []
     best_travel = min(v["metrics"]["travel_min"] for v in variants)
     return [{"variant": v["id"], "objective": v["objective"], "label": v["label"],
              "travel_min": v["metrics"]["travel_min"], "travel_vs_best": v["metrics"]["travel_min"] - best_travel,
@@ -43,59 +37,80 @@ def _comparison(variants: list[dict]) -> list[dict]:
              "robustness": v["robustness"]["level"]} for v in variants]
 
 
+def _hours(minutes: int) -> str:
+    h = minutes / 60
+    return f"{h:.0f}" if h >= 2 or h == int(h) else f"{h:.1f}".replace(".", ",")
+
+
+def drop_metadata(trip, vid: str, dropped) -> list[dict]:
+    """Legacy drop fields for both offered and selected cards, including a merged card's representative criterion."""
+    return [{"place_id": d["place_id"], "name": d["name"], "reason": vid, "text": d["reason"],
+             "saved_min": trip.by_place[d["place_id"]].visit[trip.cfg.visit_key[trip.pace]],
+             "saved_vnd": trip.by_place[d["place_id"]].cost_vnd, "regret": None, "source": "plan"}
+            for d in dropped]
+
+
+def plan_cards(trip, *, protected=()) -> dict:
+    """overload.plan_or_directions plus what its readers need around it:
+    - back_to_decision names the places (place_id + name) no day had room for;
+    - a fitting main plan that breaks a check (a must place with no data, a hazard, the budget) is no plan: no card,
+      back to Place Decision with the places that broke it (the legacy fail-closed result);
+    - fields the web still reads until the plan screen is rebuilt: each card's `dropped_by_plan`, the overload card's
+      `text`, `selection_places`, `keep_all_valid` (always False: keeping every pick does not fit)."""
+    out = plan_or_directions(trip, protected=protected)
+    name = lambda pid: trip.by_place[pid].name if pid in trip.by_place else pid
+    for v in out["variants"]:
+        v["dropped_by_plan"] = drop_metadata(trip, v["id"], v["dropped"])
+    ov = out["overload"]
+    if ov is not None:
+        available = sum(max(0, cx.day.end - cx.day.start) for cx in trip.ctxs)
+        ov.update(level="overloaded", estimated=True, needed=available + ov["missing_min"], available=available,
+                  binding=[], selection_places=ov["places"], keep_all_valid=False,
+                  text=f"Không đủ thời gian cho cả {ov['places']} nơi: thiếu ~{_hours(ov['missing_min'])} giờ")
+    back = out["back_to_decision"]
+    violations: list = []
+    if back is not None:
+        back = {**back, "leftover": [{"place_id": pid, "name": name(pid)} for pid in back.get("leftover") or ()]}
+    elif ov is None and not out["ok"]:
+        main = out["variants"][0]
+        violations = main["violations"]
+        places = sorted({v["place_id"] for v in violations if v.get("place_id")})
+        if not places:          # a violation with no place (a day past its end): name that day's places
+            days = {v["day"] for v in violations if v.get("day") is not None}
+            places = sorted({pid for k, r in enumerate(main["_results"]) if k in days for pid in r.order})
+        back = {"reason": "no_valid_variant", "places": places, "leftover": []}
+        out = {**out, "variants": []}
+    return {**out, "back_to_decision": back, "violations": violations}
+
+
+def _public(v: dict) -> dict:
+    return {k: x for k, x in v.items() if not k.startswith("_")}
+
+
+def _output(trip, cards: dict, decision: dict, weather: dict | None, lodging=None) -> dict:
+    """The command line's Plan Output for a set of cards: each card with its notes and suggestions."""
+    variants = []
+    for v in cards["variants"]:
+        notes = plan_notes(v["_ctxs"], v["_results"], decision, trip.weather, trip.by_place)
+        variants.append({**_public(v), "warnings": [*v["warnings"], *notes["warnings"]], "checklist": notes["checklist"],
+                         "recommendations": recommend(v["_ctxs"], v["_results"], decision, trip.by_id),
+                         **({"lodging": lodging} if lodging is not None else {})})
+    warnings = list(trip.warnings) + cards["warnings"]
+    if any(cx.rain is None for cx in trip.ctxs):
+        warnings.append(_warn("weather_unknown"))
+    weather_src = sorted({(w.get("source"), w.get("fetched_at")) for w in (weather or {}).values()
+                          if w and w.get("source")}, key=lambda t: (t[0], t[1] or ""))
+    out = {**shared_output(trip), "ok": bool(variants) and cards["ok"], "variants": variants, "chosen": None,
+           "comparison": _comparison(variants), "keep_all": None, "violations": cards["violations"], "overload": cards["overload"],
+           "warnings": warnings + flag_warnings(decision), "back_to_decision": cards["back_to_decision"]}
+    out["provenance"]["weather"] = [{"source": s, "fetched_at": f} for s, f in weather_src]
+    return out
+
+
 def build_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None, matrix_fn=None,
                    sun_fn=None, weather: dict | None = None, signals: dict | None = None) -> dict:
     trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals)
-    from .composer import compose
-    composed = compose(trip)
-    if composed is not None:
-        composed["variants"] = [{k: v for k, v in variant.items() if not k.startswith("_")}
-                                 for variant in composed["variants"]]
-        return {**shared_output(trip), **composed}
-    cfg = trip.cfg
-    objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
-    tried = [(obj, schedule_trip(trip, cfg.objective_weights[obj])) for obj in objectives]
-    warnings = list(trip.warnings)
-    if any(cx.rain is None for cx in trip.ctxs):
-        warnings.append(_warn("weather_unknown"))
-    valid = [(obj, s) for obj, s in tried if not s.violations]
-    if not valid:
-        first = tried[0][1]
-        places = sorted({v.place_id for _, s in tried for v in s.violations if v.place_id})
-        if not places:
-            places = sorted({i for _, s in tried for v in s.violations if v.day is not None
-                             for i in s.per_day[v.day]})
-        return {"ok": False, "variants": [], "chosen": None, "comparison": [],
-                "violations": [asdict(v) for v in first.violations],
-                "warnings": warnings + first.warnings + flag_warnings(decision),
-                "back_to_decision": {"reason": "no_valid_variant", "places": places}, **shared_output(trip)}
-    warnings += [_warn("variant_invalid", label=LABEL[obj]) for obj, s in tried if s.violations]
-    seen, variants = set(), []
-    for obj, s in valid:
-        orders = tuple(r.order for r in s.results)
-        if orders in seen:
-            continue
-        seen.add(orders)
-        m = metrics(s.ctxs, s.results)
-        days = [cx.day for cx in s.ctxs]        # schedule_trip may pull a later day's start earlier (early_start)
-        notes = plan_notes(s.ctxs, s.results, decision, trip.weather, trip.by_place)  # season, last entry, dark road; what to prepare
-        variants.append({
-            "id": f"v{len(variants) + 1}", "objective": obj, "label": LABEL[obj], "score": list(score(obj, m)),
-            "metrics": m, "itinerary": itinerary(days, s.results),
-            "travel_load": travel_load(days, s.results),
-            "time_suitability": time_description(s.ctxs, s.results),
-            "recommendations": recommend(s.ctxs, s.results, decision, trip.by_id),
-            "robustness": robustness(s.ctxs, s.results, trip.travel.source),
-            "backups": backups(s.ctxs, s.results, decision, trip.by_id), "warnings": [*s.warnings, *notes["warnings"]],
-            "checklist": notes["checklist"]})
-    if len(variants) < len(valid):
-        warnings.append(_warn("variants_same", n=len(variants)))
-    weather_src = sorted({(w.get("source"), w.get("fetched_at")) for w in (weather or {}).values()
-                          if w and w.get("source")}, key=lambda t: (t[0], t[1] or ""))
-    out = {"ok": True, "variants": variants, "chosen": None, "comparison": _comparison(variants), "violations": [],
-           "warnings": warnings + flag_warnings(decision), "back_to_decision": None, **shared_output(trip)}
-    out["provenance"]["weather"] = [{"source": s, "fetched_at": f} for s, f in weather_src]
-    return out
+    return _output(trip, plan_cards(trip), decision, weather)
 
 
 def render_variants(out: dict) -> str:
@@ -131,167 +146,47 @@ def render_variants(out: dict) -> str:
     return "\n".join(lines)
 
 
-def _nights(ctx: dict) -> int:
-    return nights(ctx)
-
-
 def build_lodging_variants(decision: dict, records: list[dict], cfg=None, live_cfg=None, geocode_fn=None,
-                           matrix_fn=None, sun_fn=None, weather: dict | None = None, lodging_fn=None,
+                           matrix_fn=None, sun_fn=None, weather: dict | None = None,
                            signals: dict | None = None) -> dict:
-    """build_variants, with lodging candidates competing as each day's anchor (docs/PLANNING.md ⓐ ⓖ).
-
-    Every candidate (plus the original base, as "no lodging") is tried under every chosen objective, sharing one
-    travel matrix and one day-order cache keyed on where each day starts and ends. An objective keeps whichever
-    candidate scores best for it; two objectives may end up with different lodging. The top-level lodging block
-    compares every candidate on least_travel's schedule, since that objective is always tried.
-    """
+    """build_variants with one lodging (spec section 3: the plan is built with exactly one place to sleep). Every
+    served candidate (plus the original base, as "no lodging") lays the main plan out on one shared travel matrix;
+    the one whose days hold the most picks with the least travel (then the cheaper known price) anchors the cards.
+    The `lodging` block compares every candidate on that main plan's travel."""
     cfg = cfg or load_settings()
     live_cfg = live_cfg or live.load_settings()
-    lodging_fn = lodging_fn or live.lodging_near
     base_trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals)
     warnings = []
-    try:
-        cands = lodging_candidates(base_trip.by_place, decision, cfg, lodging_fn, live_cfg)
-    except live.Unavailable:
-        cands = []
+    cands = lodging_candidates(base_trip.by_place, decision, cfg, records)
     if not cands:
         warnings.append(_warn("lodging_unavailable"))
     trip = prepare(decision, records, cfg, live_cfg, geocode_fn, matrix_fn, sun_fn, weather, signals=signals,
                    extra_nodes={c["id"]: (c["lat"], c["lng"]) for c in cands})
-    home0 = trip.days[0].start_node if trip.days else None
-    from .composer import compose, profile_metrics, profile_violations, render_profile
-    composed = compose(trip)
-    if composed is not None:
-        slept = _nights(decision["trip_context"]["context"])
-        options = [{"id": None, "home": home0, "price": None, "name": None}] + [
-            {"id": c["id"], "home": c["id"], "price": c["price_vnd"], "name": c["name"], "candidate": c}
-            for c in cands]
-        chosen_rows, lodging_rows = [], []
-        for variant in composed["variants"]:
-            preset = variant["preset"]
-            scored = []
-            for opt in options:
-                t2 = trip if opt["home"] in (None, home0) else with_home(trip, opt["id"])
-                sched = schedule_trip(t2, cfg.objective_weights[preset], kept=variant["kept"],
-                                      allow_shrink=preset != "diverse")
-                rendered = render_profile(t2, sched, preset, baseline=composed["keep_all"]["metrics"])
-                valid_plan = rendered["confirmable"]
-                m = rendered["metrics"]
-                if opt["price"] is not None:
-                    m["lodging_cost_vnd"] = opt["price"] * slept if isinstance(opt["price"], (int, float)) else None
-                    if m["lodging_cost_vnd"] is not None:
-                        m["estimated_cost_vnd"] += m["lodging_cost_vnd"]
-                    else:
-                        m["cost_basis"] = "partial"
-                if preset == "low_cost":
-                    rank_key = (not valid_plan, m["estimated_cost_vnd"], m["travel_min"], -m["utility"],
-                                opt["price"] is None and opt["id"] is not None, opt["id"] or "")
-                elif preset == "diverse":
-                    rank_key = (not valid_plan, -(m["wish_coverage"] or 0), -m["diversity"],
-                                m["duration_loss_min"], m["travel_min"], opt["id"] or "")
-                else:
-                    rank_key = (not valid_plan, -m["places"], -m["visit_density"], -m["utility"],
-                                m["travel_min"], opt["id"] or "")
-                scored.append((rank_key, opt, sched, rendered))
-                if preset == "least_travel":
-                    card = opt.get("candidate")
-                    if opt["id"] is None or card:
-                        row = {"id": opt["id"], "name": opt["name"] or "Không chỗ ở", "price_vnd": opt["price"],
-                               "amenities": card["amenities"] if card else [], "total_travel_min": m["travel_min"]}
-                        if card:
-                            row["minutes_vs_no_lodging"] = m["travel_min"] - next(
-                                (r["total_travel_min"] for r in lodging_rows if r["id"] is None), m["travel_min"])
-                        lodging_rows.append(row)
-            _, opt, sched, rendered = min(scored, key=lambda x: x[0])
-            profile = {**variant, **rendered, "id": variant["id"], "preset": preset,
-                       "lodging": {"id": opt["id"], "name": opt["name"], "price_vnd": opt["price"]},
-                       "travel_load": travel_load([cx.day for cx in sched.ctxs], sched.results),
-                       "robustness": robustness(sched.ctxs, sched.results, trip.travel.source),
-                       "time_suitability": time_description(sched.ctxs, sched.results),
-                       "backups": backups(sched.ctxs, sched.results, decision, trip.by_id),
-                       "_results": sched.results, "_ctxs": sched.ctxs, "_home": opt["home"]}
-            chosen_rows.append(profile)
-        composed["variants"] = [{k: v for k, v in variant.items() if not k.startswith("_")}
-                                 for variant in chosen_rows]
-        composed["comparison"] = [{"variant": v["id"], "objective": v["preset"], "label": v["label"],
-                                    **v["metrics"], "delta_vs_selection": v["delta_vs_selection"],
-                                    "robustness": v["robustness"]["level"]} for v in chosen_rows]
-        return {**shared_output(trip), **composed,
-                "lodging": {"candidates": lodging_rows, "chosen": None}}
+    home0 = trip.ctxs[0].home if trip.ctxs else None
+    slept = nights(decision["trip_context"]["context"])
     options = [{"id": None, "home": home0, "price": None, "name": None}] + \
         [{"id": c["id"], "home": c["id"], "price": c["price_vnd"], "name": c["name"]} for c in cands]
-    slept = _nights(decision["trip_context"]["context"])
-    objectives = choose(decision["trip_context"], [cx.wet for cx in trip.ctxs], trip.ctxs[0].prefs, cfg)
-
-    rows = {obj: [] for obj in objectives}
+    tried = []
     for opt in options:
         t2 = trip if opt["home"] == home0 else with_home(trip, opt["home"])
-        for obj in objectives:
-            s = schedule_trip(t2, cfg.objective_weights[obj])
-            m = metrics(s.ctxs, s.results) if not s.violations else None
-            if m is not None and opt["id"] is not None:    # "no lodging" adds no cost, known or unknown
-                m = add_lodging_cost(m, opt["price"], slept)
-            rows[obj].append({**opt, "sched": s, "metrics": m})
-
-    warnings += list(trip.warnings)
-    if any(cx.rain is None for cx in trip.ctxs):
-        warnings.append(_warn("weather_unknown"))
-
-    best = {obj: min((r for r in rs if r["metrics"] is not None), key=lambda r: score(obj, r["metrics"]),
-                     default=None) for obj, rs in rows.items()}
-    best = {obj: r for obj, r in best.items() if r is not None}
-    if not best:
-        first = rows[objectives[0]][0]["sched"]
-        places = sorted({v.place_id for rs in rows.values() for r in rs for v in r["sched"].violations if v.place_id})
-        if not places:          # a violation with no place_id (e.g. a day-window overflow): name the day's places
-            places = sorted({i for rs in rows.values() for r in rs for v in r["sched"].violations
-                             if v.day is not None for i in r["sched"].per_day[v.day]})
-        return {"ok": False, "variants": [], "chosen": None, "comparison": [], "lodging": None,
-                "violations": [asdict(v) for v in first.violations],
-                "warnings": warnings + first.warnings + flag_warnings(decision),
-                "back_to_decision": {"reason": "no_valid_variant", "places": places}, **shared_output(trip)}
-    warnings += [_warn("variant_invalid", label=LABEL[obj]) for obj in objectives if obj not in best]
-
-    seen, variants = set(), []
-    for obj, r in best.items():
-        key = (r["home"], tuple(x.order for x in r["sched"].results))
-        if key in seen:
-            continue
-        seen.add(key)
-        s, m = r["sched"], r["metrics"]
-        days = [cx.day for cx in s.ctxs]        # schedule_trip may pull a later day's start earlier (early_start)
-        notes = plan_notes(s.ctxs, s.results, decision, trip.weather, trip.by_place)
-        variants.append({
-            "id": f"v{len(variants) + 1}", "objective": obj, "label": LABEL[obj], "score": list(score(obj, m)),
-            "metrics": m, "itinerary": itinerary(days, s.results), "travel_load": travel_load(days, s.results),
-            "time_suitability": time_description(s.ctxs, s.results),
-            "recommendations": recommend(s.ctxs, s.results, decision, trip.by_id),
-            "robustness": robustness(s.ctxs, s.results, trip.travel.source),
-            "backups": backups(s.ctxs, s.results, decision, trip.by_id), "warnings": [*s.warnings, *notes["warnings"]],
-            "checklist": notes["checklist"],
-            "lodging": {"id": r["id"], "name": r["name"], "price_vnd": r["price"]}})
-    if len(variants) < len(best):
-        warnings.append(_warn("variants_same", n=len(variants)))
-
-    least = rows.get("least_travel") or next(iter(rows.values()))
-    baseline = next((r["metrics"]["travel_min"] for r in least if r["id"] is None and r["metrics"]), None)
-    lodging_rows = []
-    for r in least:
-        if r["metrics"] is None:
-            continue
-        cand = next((c for c in cands if c["id"] == r["id"]), None)
-        row = {"id": r["id"], "name": r["name"] or "Không chỗ ở", "price_vnd": r["price"],
-              "amenities": cand["amenities"] if cand else [], "total_travel_min": r["metrics"]["travel_min"]}
-        if baseline is not None and r["id"] is not None:
-            row["minutes_vs_no_lodging"] = r["metrics"]["travel_min"] - baseline
-        lodging_rows.append(row)
-
-    weather_src = sorted({(w.get("source"), w.get("fetched_at")) for w in (weather or {}).values()
-                          if w and w.get("source")}, key=lambda t: (t[0], t[1] or ""))
-    out = {"ok": True, "variants": variants, "chosen": None, "comparison": _comparison(variants),
-          "lodging": {"candidates": lodging_rows, "chosen": None}, "violations": [],
-          "warnings": warnings + flag_warnings(decision), "back_to_decision": None, **shared_output(trip)}
-    out["provenance"]["weather"] = [{"source": s_, "fetched_at": f} for s_, f in weather_src]
+        s = schedule_trip(t2)
+        travel = sum(r.travel_min for r in s.results)
+        rank = (len(s.leftover), len(s.violations), travel, opt["id"] is not None and opt["price"] is None,
+                opt["price"] or 0, opt["id"] or "")
+        tried.append((rank, opt, t2, travel))
+    _, best, t_best, _ = min(tried, key=lambda x: x[0])
+    cards = plan_cards(t_best)
+    lodging = {"id": best["id"], "name": best["name"], "price_vnd": best["price"]}
+    for v in cards["variants"]:
+        if best["id"] is not None:
+            v["metrics"] = add_lodging_cost(v["metrics"], best["price"], slept)
+    out = _output(t_best, cards, decision, weather, lodging)
+    baseline = next(travel for _, opt, _, travel in tried if opt["id"] is None)
+    rows = [{"id": opt["id"], "name": opt["name"] or "Không chỗ ở", "price_vnd": opt["price"],
+             "total_travel_min": travel, **({"minutes_vs_no_lodging": travel - baseline} if opt["id"] else {})}
+            for _, opt, _, travel in tried]
+    out["warnings"] = warnings + out["warnings"]
+    out["lodging"] = {"candidates": rows, "chosen": None} if cards["variants"] else None
     return out
 
 

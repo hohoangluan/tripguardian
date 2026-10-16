@@ -444,8 +444,8 @@ def origin_q() -> Question:
 
 
 def lodging_q() -> Question:
-    return Question(qid="lodging", group="A", tier=1, input="lodging", text="Bạn đã có chỗ ở chưa? Gõ tên khách sạn hoặc homestay.",
-                    reason="Mỗi ngày bắt đầu và kết thúc ở chỗ ở. Chưa đặt thì ở bước Lựa chọn bạn chọn cùng các nơi muốn đi.",
+    return Question(qid="lodging", group="A", tier=1, input="lodging", text="Bạn có nơi lưu trú nào chưa? Nếu có, hãy cho mình biết tên nhé.",
+                    reason="Mỗi ngày bắt đầu và kết thúc ở chỗ ở, cả chuyến một chỗ. Chưa có thì bạn chọn ở bước Lựa chọn, đổi lúc nào cũng được.",
                     chips=(Chip(id="none", label="Chưa đặt chỗ ở", drafts=(d("lodging_booked", "no"),)),))
 
 

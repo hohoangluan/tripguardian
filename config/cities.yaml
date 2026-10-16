@@ -3,3 +3,5 @@
 dalat:
   name: "Đà Lạt"
   area: [11.78, 108.30, 12.12, 108.66]  # Đà Lạt with Langbiang, Tuyền Lâm, Prenn, Cầu Đất
+  # lodging is served only this close to the city centre (Tuyền Lâm, Prenn, Langbiang foot in; Nam Ban, D'Ran out)
+  stay_within: {lat: 11.9404, lng: 108.4583, km: 12}

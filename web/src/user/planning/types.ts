@@ -9,9 +9,9 @@ export interface Warning {
 export type DropReason = 'far' | 'crowded' | 'pricey' | 'dislike' | 'visited'
 export type Pace = 'slow' | 'normal' | 'packed'
 
-// Backend Item kinds (src/planning/model.py): visit | travel | wait | buffer | rest | meal_free.
+// Backend Item kinds (src/planning/model.py): visit | travel | wait | free | rest | meal_free (travel carries its buffer as note "+N"; rest note "home" = rest at the lodging).
 export interface ItineraryItem {
-  kind: 'visit' | 'travel' | 'wait' | 'buffer' | 'rest' | 'meal_free'
+  kind: 'visit' | 'travel' | 'wait' | 'free' | 'buffer' | 'rest' | 'meal_free'
   start: string
   end: string
   place_id?: string
@@ -105,7 +105,7 @@ export interface Variant {
   dropped_by_plan?: { place_id: string; name: string; reason: string; text: string; saved_min: number | null;
     saved_vnd: number | null; regret: number | null; source: 'data' | 'plan' }[]
   score: number[]
-  metrics: { travel_min: number; cost_vnd: number; cost_unknown: number; rain_exposed: number;
+  metrics: { meal_cost_unknown?: number; scheduled_min?: number; meal_min?: number; travel_min: number; cost_vnd: number; cost_unknown: number; rain_exposed: number;
     exposure_unknown: number; repeats: number; pref_risk: number; places?: number; visit_min?: number;
     visit_density?: number; wish_coverage?: number | null; value_share?: number; estimated_cost_vnd?: number;
     cost_basis?: string; extras_max_vnd?: number; utility?: number; duration_loss_min?: number; transport_cost_vnd?: number | null }
@@ -125,13 +125,21 @@ export interface LodgingCandidate {
   name: string
   price_vnd: number | null
   // Taste ranking (docs/PLANNING.md ⓐ): absent on an older view, then the screen shows only what is here.
-  source?: 'corpus' | 'live'
+  source?: 'corpus'
+  address?: string | null
   rating?: number | null
   reviews?: number | null
   fit?: { text: string; mentions: number | null; quote: string | null }[] // "hợp vì": a liked feature with evidence
   unverified?: string[] // hard limits with no evidence either way ("chưa xác minh: …")
   avg_min?: number | null // mean minutes to the chosen places
-  price_at?: string | null // set when the price is the trip date's live price, read at this time
+  category?: string | null // the kind of stay ("Khách sạn 3 sao")
+  area?: string | null
+  // The same lines a Place Decision card carries (pd/types.ts Card), so one PlaceCard look serves every group.
+  why?: { text: string; sid: string | null }[]
+  tradeoffs?: { text: string; sid: string | null }[]
+  location?: { center: string | null; km: number | null; minutes: number | null }
+  confidence?: { level: 'high' | 'medium' | 'low'; reason: string }
+  price_at?: string | null // the day Maps' hotel list showed that price a night (a reference, not the trip's dates)
 }
 
 export interface Lodging {
@@ -147,6 +155,7 @@ export interface SessionState {
   lodging_id: string | null
   lodging_point: Record<string, unknown> | null
   budget_override: number | null
+  visit_duration_override?: Record<string, number>
   assignment: Record<string, number>
   order_override: Record<string, string[]>
   dropped: { place_id: string; reason: DropReason | null }[]
@@ -180,6 +189,8 @@ export interface CrowdTip {
 }
 
 export interface View {
+  duration_range?: [number, number]
+  needs_hotel?: boolean
   chunk_assignments?: Record<string, number>
   chunks?: { id: number; start_day: number; end_day: number; places: string[] }[]
   ok: boolean
@@ -217,7 +228,7 @@ export type Action = (
   | { type: 'pick_variant'; id: string }
   | { type: 'pick_lodging'; id: string }
   | { type: 'clear_lodging' }
-  | { type: 'set_lodging'; text: string }
+  | { type: 'set_lodging'; text: string; lat?: number; lng?: number }
   | { type: 'set_lodging_budget'; max_per_night: number | null }
   | { type: 'move_place'; place: string; day: number }
   | { type: 'reorder'; day: number; order: string[] }
@@ -227,6 +238,7 @@ export type Action = (
   | { type: 'lock_slot'; place: string }
   | { type: 'unlock'; place: string }
   | { type: 'set_pace'; level: Pace }
+  | { type: 'set_visit_duration'; place: string; minutes: number | null }
   | { type: 'set_objective'; name: string }
   | { type: 'set_day_window'; day: number; start: string; end: string }
   | { type: 'relax'; feature: string; place_id?: string; place_ids?: string[]; scope?: 'whole_trip' }
@@ -267,6 +279,16 @@ export interface ProgressEvent {
   stage: string
   candidates: LodgingCandidate[]
   baseline_travel_min: number | null
+}
+
+// src/planning/engine.py routes(): the OSRM path of each day through its stops (coords are [lat, lng]); route is null when
+// the day has fewer than two known points or the routing source is down, and the map then draws no line.
+export interface DayRouteEnd { id: string | null; name: string | null; home: boolean }
+export interface DayRoute {
+  day: number // 1-based
+  start: DayRouteEnd // where the day opens: the lodging (home), or the entry point on day one
+  end: DayRouteEnd
+  route: { coords: [number, number][]; minutes: number; source: string; fetched_at: string } | null
 }
 
 export interface PlanOutput {

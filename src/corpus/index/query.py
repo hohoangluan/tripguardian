@@ -31,6 +31,19 @@ class SpanHit:
     observation_id: str
     quote: str
     features: tuple[str, ...]
+    served: bool = True
+
+
+@dataclass(frozen=True)
+class SpanRow:
+    place_id: str
+    observation_id: str | None
+    quote: str
+    features: tuple[str, ...]
+    observations: tuple[str, ...]
+    source: str | None
+    served: bool
+    claims: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -66,19 +79,26 @@ class Index:
     photo_rows: list[dict]
     cfg: dict = field(default_factory=config)
     _emb: Embedder | None = None
-    _spans: tuple | None = None
+    _spans: tuple | None = None  # (vecs, rows, served_mask)
+    _span_rows: tuple[SpanRow, ...] | None = None
     _place_vecs: dict | None = None
+    _photo_idx: dict | None = None  # place_id -> (rows of others' photos, rows of all photos), built on first use
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     @staticmethod
     def current_version(data: Path | None = None) -> str | None:
-        p = (data or data_dir()) / "index" / "current"
+        if data is None:
+            from ..releases import resolve
+            data = resolve(data_dir())
+        p = data / "index" / "current"
         return p.read_text(encoding="utf-8").strip() if p.exists() else None
 
     @classmethod
     def load(cls, version: str | None = None, data: Path | None = None) -> "Index":
         import lancedb
-        data = data or data_dir()
+        if data is None:
+            from ..releases import resolve
+            data = resolve(data_dir())
         version = version or cls.current_version(data)
         if not version:
             raise FileNotFoundError("no corpus index: run `python -m corpus index`")
@@ -95,18 +115,18 @@ class Index:
     def embedder(self) -> Embedder:
         with self._lock:
             if self._emb is None:
-                self._emb = Embedder(cfg=self.cfg)
+                self._emb = Embedder.shared(self.cfg)
             return self._emb
 
     def embed_text(self, text: str, spans: bool = False) -> TextVec:
         with self._lock:
-            emb = self._emb or Embedder(cfg=self.cfg)
+            emb = self._emb or Embedder.shared(self.cfg)
             self._emb = emb
             return TextVec(photo=emb.image_text([text])[0], span=emb.text([text])[0] if spans else None)
 
     def embed_image(self, data: bytes) -> np.ndarray:
         with self._lock:
-            emb = self._emb or Embedder(cfg=self.cfg)
+            emb = self._emb or Embedder.shared(self.cfg)
             self._emb = emb
             return emb.image([data])[0]
 
@@ -125,23 +145,55 @@ class Index:
         return [PhotoHit(r["place_id"], float(scores[i]), r["file"], r["author"], bool(r["owner"]), r["source"])
                 for i in top if np.isfinite(scores[i]) for r in (self.photo_rows[i],)]
 
-    def search_spans(self, vec: TextVec, k: int | None = None, within: set[str] | None = None) -> list[SpanHit]:
-        if vec.span is None:
-            raise ValueError("embed_text(..., spans=True) first")
-        k = k or self.cfg["search"]["k_spans"]
+    def _load_spans(self) -> tuple[np.ndarray, list[dict], np.ndarray]:
+        """Lazy-load spans table -> (vecs, rows, served_mask). Thread-safe."""
         with self._lock:
             if self._spans is None:
                 import lancedb
-                self._spans = _read(lancedb.connect(str(self.root)), "spans")
-        vecs, rows = self._spans
+                vecs, rows = _read(lancedb.connect(str(self.root)), "spans")
+                served = np.array([_bool(r.get("served", True)) for r in rows], dtype=bool)
+                self._spans = (vecs, rows, served)
+        return self._spans
+
+    def span_rows(self) -> tuple[SpanRow, ...]:
+        """Read saved, typed span metadata without raw source I/O."""
+        def values(value):
+            return json.loads(value) if isinstance(value, str) else value or []
+        if self._span_rows is not None:
+            return self._span_rows
+        _, rows, served = self._load_spans()
+        result = tuple(SpanRow(row["place_id"], row.get("observation_id"), row.get("quote", ""),
+                             tuple(values(row.get("features"))),
+                             tuple(values(row.get("observations"))) or (row.get("observation_id"),),
+                             row.get("source"), bool(served[i]), tuple(values(row.get("claims"))))
+                     for i, row in enumerate(rows))
+        with self._lock:
+            if self._span_rows is None:
+                self._span_rows = result
+        return self._span_rows
+
+    def search_spans(self, vec: TextVec, k: int | None = None, within: set[str] | None = None,
+                     served_only: bool = True) -> list[SpanHit]:
+        """Search spans by bge-m3 text similarity.
+
+        served_only=True (default): evidence lookup — only spans backing served features.
+        served_only=False: vibe/semantic search — reads all structurally valid spans,
+        including descriptive ones that don't prove a specific feature."""
+        if vec.span is None:
+            raise ValueError("embed_text(..., spans=True) first")
+        k = k or self.cfg["search"]["k_spans"]
+        vecs, rows, served = self._load_spans()
         if not len(rows):
             return []
         scores = vecs @ vec.span.astype(np.float32)
+        if served_only:
+            scores = np.where(served, scores, -np.inf)
         if within is not None:
             scores = np.where(np.fromiter((r["place_id"] in within for r in rows), bool, len(rows)), scores, -np.inf)
         top = np.argsort(-scores)[:k]
         return [SpanHit(r["place_id"], float(scores[i]), r["observation_id"], r["quote"],
-                        tuple(json.loads(r["features"]) if isinstance(r["features"], str) else r["features"]))
+                        tuple(json.loads(r["features"]) if isinstance(r["features"], str) else r["features"]),
+                        served=bool(served[i]))
                 for i in top if np.isfinite(scores[i]) for r in (rows[i],)]
 
     def places_by_photos(self, hits: list[PhotoHit], min_photos: int | None = None,
@@ -195,8 +247,17 @@ class Index:
         return sorted(out, key=lambda p: -p.score)[:k]
 
     def best_photo(self, pid: str, vec: np.ndarray | None = None) -> str | None:
-        idx = [i for i, r in enumerate(self.photo_rows) if r["place_id"] == pid and not r["owner"]] or \
-              [i for i, r in enumerate(self.photo_rows) if r["place_id"] == pid]
+        with self._lock:
+            if self._photo_idx is None:  # one pass here instead of two over every photo on each call
+                built: dict[str, tuple[list[int], list[int]]] = {}
+                for i, r in enumerate(self.photo_rows):
+                    others, every = built.setdefault(r["place_id"], ([], []))
+                    every.append(i)
+                    if not r["owner"]:
+                        others.append(i)
+                self._photo_idx = built
+        others, every = self._photo_idx.get(pid, ([], []))
+        idx = others or every
         if not idx:
             return None
         ref = vec if vec is not None else self.place_vec(pid)
@@ -251,6 +312,15 @@ class Index:
 
     def with_style(self, sid: str) -> list[str]:
         return [p for p, d in self.places.items() if sid in d.get("styles", {})]
+
+
+def _bool(v) -> bool:
+    """Coerce a LanceDB/PyArrow value to bool: handles str 'true'/'false', None, and native bool."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.lower() == "true"
+    return bool(v) if v is not None else True  # missing column → legacy index, treat as served
 
 
 def _read(db, name: str) -> tuple[np.ndarray, list[dict]]:

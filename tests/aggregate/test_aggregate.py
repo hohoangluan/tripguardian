@@ -202,8 +202,14 @@ def test_crowd_by_time_and_price_from_place_facts():
     assert op["popular_times"] == pt
 
 
+def test_lodging_price_a_night_from_the_hotel_list_is_kept():
+    night = {"vnd": 467000, "at": "2026-10-08T16:16:59+00:00"}
+    assert aggregate_place([{**f([]), "place_facts": {"price_night": night}}], ONT)["operation"]["price_night"] == night
+
+
 def test_no_place_facts_gives_empty_operation():
-    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "hours": None, "hours_source": None,
+    assert aggregate_place([f([])], ONT)["operation"] == {"price_range": None, "price_night": None, "hours": None,
+                                                          "hours_source": None,
                                                           "hours_conflict": None, "closure": None,
                                                           "crowd_by_time": None, "popular_times": None,
                                                           "tickets_vnd": None, "last_entry": None}

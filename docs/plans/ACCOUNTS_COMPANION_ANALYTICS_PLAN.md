@@ -6,7 +6,7 @@ File làm việc tạm (RULE §0.1). Chốt với người dùng 2026-10-08; m�
 
 - `RULE.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_HARNESS.md`, `docs/Role_Web_Functional_Design.md`.
 - **Working tree dùng chung, nhiều session đang sửa.** Không commit trừ khi người dùng bảo; nếu được bảo, chỉ commit file của mình bằng index tạm (`GIT_INDEX_FILE`), không `git add -A`, không `git commit -a`.
-- `web/dist` là site đang chạy thật (`./run.sh prod`, tripguardian.visioncare-host.uk). Build kiểm thử ra `outDir` tạm, không ghi đè `dist`.
+- `web/dist` là site đang chạy thật (`./run.sh prod`, tripguardianfinal.visioncare-host.uk). Build kiểm thử ra `outDir` tạm, không ghi đè `dist`.
 - Cổng **5432** trên máy là một Postgres **không phải của dự án** (nghe ở `0.0.0.0`, không thấy container). Không dùng, không đụng.
 - Playwright dùng chromium-1169, bản ghim 1.52.0 (headless_shell bị treo trên máy này).
 - Mỗi bước ở §5 phải xong kiểm chứng của nó trước khi sang bước sau.
@@ -79,7 +79,7 @@ Không module nào trong số trên ghi Place Intelligence. Check-in và thông 
 `DATABASE_URL`, `DATABASE_URL_READONLY`, `APP_BASE_URL`, `TOKEN_ENC_KEY` (Fernet), `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Đã có sẵn trong `.env` (người dùng đăng ký): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`. `.env.example` chưa có ba khóa này; thêm vào với giá trị rỗng.
 
 **Google OAuth đã đăng ký:**
-- **Callback duy nhất:** `GOOGLE_REDIRECT_URI = https://tripguardian.visioncare-host.uk/api/auth/google/callback`. Đăng nhập và kết nối Calendar dùng **chung** callback này; `state` (lưu phía server, gắn cookie ngắn hạn) mang `purpose: login | calendar` và `next`. Đọc URI từ env, không ghép từ `APP_BASE_URL`.
+- **Callback duy nhất:** `GOOGLE_REDIRECT_URI = https://tripguardianfinal.visioncare-host.uk/api/auth/google/callback`. Đăng nhập và kết nối Calendar dùng **chung** callback này; `state` (lưu phía server, gắn cookie ngắn hạn) mang `purpose: login | calendar` và `next`. Đọc URI từ env, không ghép từ `APP_BASE_URL`.
 - **Đường dẫn là `/api/auth/*`, không nằm dưới `/api/harness/*`.** Vì vậy:
   - `web/server.mjs` phải proxy thêm `/api/auth/*` sang harness :8769 (hiện chỉ public `/api/harness/*`).
   - Vite dev thêm proxy `/api/auth` → 8769, đặt trước `/api`.
@@ -209,7 +209,7 @@ Bảng (chỉ nêu cột chính; mọi bảng có `created_at timestamptz defaul
   - Không có trạng thái "lỡ"; điểm không check-in là `unknown`.
   - Đánh giá chỉ là nút 👍 / 👎 trên thẻ, không popup.
 - **Cấu hình mới:** `config/companion.yaml` (`nearby_max_min`, `nearby_count`, `suggest_count`, `tight_threshold_min`).
-- **Web:** route `/app/today` (màn Hôm nay); thẻ điểm dừng; sheet "Ở đây"; lối "Tôi đang ở nơi khác". Hệ thị giác theo `docs/UX_Design_Brief.md` §7, chỉ dùng token màu sẵn có; skill `ui-ux-pro-max` + `ui-styling`.
+- **Web:** route `/app/today` (màn Hôm nay); thẻ điểm dừng; sheet "Ở đây"; lối "Tôi đang ở nơi khác". Hệ thị giác theo `docs/UX_Design_Brief.md` §7, chỉ dùng token màu sẵn có; skill `ui-styling` (tùy chọn).
 - **Xong khi:** test companion: gợi ý chỉ chứa place_id có trong serving, hard constraint áp, `unknown` giữ nguyên, `add` không qua được validate thì bị từ chối; walk Playwright màn Hôm nay ở 390 px và 1440 px.
 
 ### ~~A7 — Thông báo kiểu Duolingo~~ (đã ship 2026-10-09, gộp vào tài liệu chính thức)

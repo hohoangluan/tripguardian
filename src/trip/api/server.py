@@ -15,6 +15,7 @@ from .engine import Engine, TurnInput
 PROFILE = re.compile(r"/api/trip/profile/([A-Za-z0-9_-]{8,64})")
 SESSION = re.compile(r"/api/trip/sessions/([0-9a-f]{12})")
 TURN = re.compile(r"/api/trip/sessions/([0-9a-f]{12})/turn")
+QUEUE = 128
 
 
 def handler(engine: Engine):
@@ -93,5 +94,12 @@ def handler(engine: Engine):
     return Handler
 
 
+def make_server(engine: Engine, port: int) -> ThreadingHTTPServer:
+    class Server(ThreadingHTTPServer):
+        request_queue_size = QUEUE
+
+    return Server(("127.0.0.1", port), handler(engine))
+
+
 def run(engine: Engine, port: int = 8766) -> None:
-    ThreadingHTTPServer(("127.0.0.1", port), handler(engine)).serve_forever()
+    make_server(engine, port).serve_forever()

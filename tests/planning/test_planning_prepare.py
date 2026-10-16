@@ -34,7 +34,7 @@ def test_a_place_known_for_two_times_of_day_keeps_only_the_one_the_user_wants():
     for fid in ("sunset_view", "cloud_hunting"):
         recs[0].setdefault(load_ontology().features[fid].group, {})[fid] = {
             "value": "present", "distribution": {"present": 3}, "status": "VERIFIED", "n": 3}
-    assert prepared(d, recs).by_place["c1"].pins == ("sunset_view", "cloud_hunting")
+    assert prepared(d, recs).by_place["c1"].pins == ("cloud_hunting", "sunset_view")   # dawn first unless the user asked for sunset
     d["trip_context"]["soft_weights"] = [{"feature": "cloud_hunting", "value": "present", "context": None, "weight": 1}]
     assert prepared(d, recs).by_place["c1"].pins == ("cloud_hunting",)
 
@@ -43,7 +43,7 @@ def test_a_day_seen_before_is_not_ordered_again(monkeypatch):
     d, recs = sample_trip()
     trip = prepared(d, recs)
     calls, real = [], build_module.order_day
-    monkeypatch.setattr(build_module, "order_day", lambda ids, cx: calls.append(1) or real(ids, cx))
+    monkeypatch.setattr(build_module, "order_day", lambda ids, cx, **kw: calls.append(1) or real(ids, cx, **kw))
     first = schedule_trip(trip)
     again = schedule_trip(trip, {"travel": 2.0})
     assert len(calls) == 2 and first.per_day == again.per_day and first.results == again.results

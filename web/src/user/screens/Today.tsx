@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { featureLabel, valueLabel } from '../../data/labels'
-import { placeById } from '../../data/store'
+import { placeById, useDetail } from '../../data/store'
 import { navigate } from '../../router'
 import { useAccount } from '../account'
 import { track } from '../events'
@@ -133,6 +133,7 @@ function HerePanel({ journey, place, day, onClose, onChanged }: { journey: strin
   const [err, setErr] = useState(false)
   const [adding, setAdding] = useState<Nearby | null>(null)
   useEffect(() => { setS(null); loadSuggestions(journey, place, similar).then(setS, () => setErr(true)) }, [journey, place, similar])
+  useDetail(place) // the quotes in the suggestions come from its evidence
   const p = info(place)
   const openPlace = (pid: string, kind: string) => {
     track('suggestion_open', { place_id: pid, kind })

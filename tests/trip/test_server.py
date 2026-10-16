@@ -43,7 +43,7 @@ def test_create_turn_and_reload(base):
     assert v["card"]["qid"] == "frame"
     r = post(f"{base}/sessions/{v['id']}/turn", {"kind": "text", "text": "đi 3 ngày"})
     assert r.headers["Content-Type"].startswith("text/event-stream")
-    assert [e for e, _ in sse(r)] == ["preview", "state", "say", "state", "card"]
+    assert [e for e, _ in sse(r) if e != "progress"] == ["preview", "state", "state", "state", "say", "card"]
     again = json.load(urllib.request.urlopen(f"{base}/sessions/{v['id']}", timeout=5))
     assert again["card"]["qid"] == "conversation"  # chat asks in words, never cards
     assert again["transcript"][-1]["text"] == "Mình ghi rồi. Bạn đi cùng ai?"

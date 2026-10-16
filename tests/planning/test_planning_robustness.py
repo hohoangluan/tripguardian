@@ -5,7 +5,7 @@ from planning.route import order_day
 
 
 def one_day(end, end_node=None, **kw):
-    """One place, 10 minutes from the start: travel 08:00-08:10, visit 08:10-09:10 (typical 60), then a buffer."""
+    """One place, 10 minutes from the start: breakfast 08:00-08:30, travel 08:30-08:40, visit 08:40-09:40 (typical 60), then a buffer."""
     cx = day_ctx([rec("a", 1, 1, **kw)], start_node="h", end_node=end_node, end=end, extra_nodes=["h"])
     return cx, order_day(["a"], cx)
 
@@ -21,18 +21,18 @@ def test_a_day_with_room_to_spare_is_solid():
 
 
 def test_a_day_that_survives_the_small_delays_but_not_half_an_hour_late_is_feasible():
-    rob = level(570)                                 # 09:30: +15, +20% visit, +25% travel fit; +30 does not
+    rob = level(600)                                 # 10:00: +15, +20% visit, +25% travel fit; +30 does not
     assert rob["level"] == "feasible" and rob["breaking"] == ["late_30"]
     assert any("xuất phát trễ 30 phút: mất 1 nơi" in t for t in rob["reasons"])
 
 
 def test_a_day_with_no_slack_is_fragile():
-    rob = level(550)                                 # the visit ends exactly at the end of the day
+    rob = level(580)                                 # the visit ends exactly at the end of the day
     assert rob["level"] == "fragile" and "late_15" in rob["breaking"]
 
 
 def test_the_buffer_absorbs_a_delay_before_the_way_back():
-    cx, r = one_day(580, end_node="h")               # visit 08:10-09:10, buffer, back home 09:40 = the day's end
+    cx, r = one_day(610, end_node="h")               # visit 08:40-09:40, buffer, back home 10:10 = the day's end
     assert lost_places(r.order, cx) == []
     assert robustness([cx], [r], "osrm")["breaking"] == ["late_30"]       # 15 minutes late still gets home in time
 

@@ -137,7 +137,11 @@ def test_a_group_wish_close_to_one_value_is_asked_about_by_that_value():
     assert nearest_group("họ hàng xa") is None
 
 
-def test_a_group_the_message_names_is_taken_even_when_the_quote_is_only_the_person(catalog):
-    st, note = record_fact(TripState(), "companions", "add", "friends", "anh họ", "said",
-                           "tôi muốn đi với anh họ theo kiểu bạn bè đó", 1, catalog)
-    assert note == "" and st.companions.known
+def test_a_group_the_message_names_is_taken_when_the_quote_names_it(catalog):
+    # the quote itself must name the group (architecture spec §3): "anh họ" alone is refused with a way out,
+    # the words "kiểu bạn bè" from the same message record friends
+    text = "tôi muốn đi với anh họ theo kiểu bạn bè đó"
+    st, note = record_fact(TripState(), "companions", "add", "friends", "anh họ", "said", text, 1, catalog)
+    assert not st.companions.known and note.startswith("refused") and "unmapped" in note
+    st, note = record_fact(TripState(), "companions", "add", "friends", "kiểu bạn bè", "said", text, 1, catalog)
+    assert note == "" and st.companions.value == frozenset({"friends"})

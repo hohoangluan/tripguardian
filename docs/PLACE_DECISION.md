@@ -4,6 +4,11 @@ Bước online thứ hai: từ **Search Input** của Trip Understanding và ser
 
 Code: `src/decision/`. CLI và API ở §18.
 
+Factory nhận retrieval cùng binding. Context Agent bổ sung serving evidence tối đa ba nơi,
+hai feature mỗi nơi và một quote mỗi feature (tối đa 500 ký tự), giữ status/release và
+observation/source/time. Thiếu evidence giữ unknown; semantic không trở thành fact.
+
+
 ## 1. Place Decision là gì
 
 ```text
@@ -35,7 +40,9 @@ Mỗi field của Search Input (`TRIP_UNDERSTANDING.md` §9) được dùng ở 
 | `soft_weights` | Xếp hạng | Trọng số theo feature id |
 | `pace` + travel / crowd tolerance | Hợp bối cảnh, Đa dạng, Khả thi | Bán kính chấp nhận, cỡ shortlist, số nơi mỗi ngày |
 | `novelty` + danh sách đã đi | Xếp hạng | Giảm hoặc loại nơi đã đi |
-| `vibes` (phong cách user chọn, `TRIP_UNDERSTANDING.md` §18) | Xếp hạng | Nơi của phong cách được cộng `vibe`; không loại nơi nào |
+| `wishes` (món, kiểu nơi, giống X), `vibes` (phong cách user chọn, `TRIP_UNDERSTANDING.md` §18) | Xếp hạng | Thành phần `wish` (§8); không loại nơi nào |
+| `liked_groups` | Xếp hạng | `wish` mức thấp cho nơi thuộc nhóm đó; không ẩn nhóm khác |
+| `context.purpose` | Xếp hạng | `wish` mức thấp nhất theo map trong config; là suy luận (✎ trên thẻ) |
 | `unknowns` | Mọi bước | Không lọc, trọng số 0, gắn cờ khi giải thích |
 
 Search Input có thể đổi giữa chừng (user sửa bản hiểu nhu cầu, trả lời thêm, Session Profile thay đổi). Khi đổi, luồng chạy lại từ bước sớm nhất bị ảnh hưởng (§14); lựa chọn đã khóa được giữ.
@@ -55,6 +62,8 @@ Provenance    trạng thái theo khía cạnh, coverage theo khía cạnh, confi
 ```
 
 Chỉ record có trạng thái `VERIFIED`, `UNCERTAIN`, `OUTDATED` được dùng (`docs/CORPUS.md` §Trạng thái). `NEEDS_REVIEW` và `DISABLED` không bao giờ xuất hiện.
+
+Place Decision đọc serving record qua snapshot (`corpus.snapshot`, `docs/CORPUS.md` §Place Decision dùng corpus thế nào). Bước ③–⑤ tính cho mọi nơi một lượt bằng bảng (`decision.frame`: `screen_table`, `fit_table`, `score_table`); thẻ, so sánh và `why_not` dựng bằng các hàm theo từng nơi (`screen.py`, `fit.py`, `rank.py`), vẫn là định nghĩa của các con số. Hai bên được giữ khớp bằng oracle test `tests/decision/test_equivalence.py` (`tests/decision/reference.py` là bản `run` theo từng nơi). Chỗ ở (`stay`) có trong snapshot cho Planning, nhưng không bao giờ là ứng viên của Decision, kể cả khi user chọn hay đặt làm neo.
 
 ## 3. Luồng xử lý
 
@@ -197,7 +206,7 @@ score = w_ctx   · context_fit
       + w_nov   · novelty             theo novelty + Experience History + Exploration Gap
       + w_exp   · experience_fit      visited rỗng: nơi đặc trưng được cộng; có visited: nơi khác visited được cộng
       + w_pop   · popularity          chỉ là một tín hiệu, trọng số nhỏ
-      + w_vibe  · vibe_fit            1 → 0,5 theo thứ hạng trong vibes[].places; nơi ngoài mọi vibe được 0
+      + w_wish  · wish                1 − Π(1 − a·strength) trên các mong muốn áp cho nơi đó (decision.wishes)
       − w_unc   · uncertainty         thiếu coverage / UNCERTAIN / OUTDATED ở khía cạnh quan trọng với user
 ```
 
@@ -208,7 +217,7 @@ Quy tắc:
 - Feature `off` cho chuyến này (ví dụ `hiking = off`) → không cộng; không loại trừ khi đó không phải hard filter.
 - `novelty = high` → nơi trong Experience History bị giảm mạnh hoặc loại khỏi khám phá (không loại nếu user đưa vào anchor). Đã đến ≠ đã thích (`Project_Context.md` §11).
 - Thứ tự ưu tiên khi hai nguồn trọng số mâu thuẫn giữ đúng `TRIP_UNDERSTANDING.md` §2.
-- `vibe_fit` chỉ nâng nơi user đã chọn qua ảnh thật (độ giống ảnh không phải bằng chứng nên không bao giờ hạ hay loại nơi nào).
+- `wish` chỉ nâng, gom mọi mong muốn của Trip (`decision/wishes.py`): món (`place_ids` theo thứ tự, 1 → 0,5, mọi nơi có ghi món đó: quán cà phê có cà phê muối cũng được cộng), kiểu nơi (1), phong cách ảnh (1 → 0,5 theo hạng; độ giống ảnh không phải bằng chứng), giống X (`corpus.serving.similarity` ≥ `like_min`, trừ chính X; phần "nhưng" đã là `soft_weights`), `liked_groups` (cả nhóm, mức thấp), `purpose` (theo map, mức thấp nhất). Khớp nhiều mong muốn thì cao hơn; không khớp = 0, không âm, không loại; sàng lọc chạy trước; nơi chưa có bản ghi không được cộng. Mỗi ảnh user gửi và mỗi nơi tham chiếu là một mong muốn riêng. Mức `a`, `like_min`, map `purpose` ở `config/decision.yaml` `wish`. Danh sách mỗi nhóm vẫn đủ mọi nơi qua sàng lọc; không lọc theo ngưỡng điểm.
 - Trọng số `w_*` nằm trong config, có version; mỗi điểm lưu kèm từng thành phần để giải thích và debug.
 
 ## 9. Đa dạng và cỡ shortlist
@@ -238,23 +247,23 @@ cỡ shortlist ≈ số chỗ cần × hệ số dư
 | cân bằng | trung bình |
 | đi nhiều | nhiều, vẫn không vi phạm physical |
 
-Cỡ shortlist là số nơi MMR chọn ở mỗi vai trò; các nơi này mang `top: true` (web hiện nhãn "Hợp nhất"). Danh sách không dừng ở đó: thứ hạng đầy đủ của mỗi nhóm hiển thị = nơi đã chọn → các nơi `top` → mọi nơi còn lại trong pool theo `score`. Nơi gần trùng vẫn có `alternatives` nhưng cũng nằm trong danh sách. View chỉ mang **cửa sổ đang hiện** của mỗi nhóm (§9.4) kèm `total` của nhóm. Ngưỡng "bỏ nhiều quá, nghĩ lại" (`first_shortlist`) = số card `top` + anchor của lần dựng đầu, không phải tổng số nơi.
+Cỡ shortlist là số nơi MMR chọn ở mỗi vai trò; nó quyết định mỗi tab có bao nhiêu nơi mang `top: true` (web hiện nhãn "Hợp nhất", §9.3). Danh sách không dừng ở đó: mỗi tab có mọi nơi qua sàng lọc, xếp theo `score`. Nơi gần trùng vẫn có `alternatives` nhưng cũng nằm trong danh sách. View chỉ mang **trang đang hiện** của mỗi tab (§9.4) kèm `total` của tab. Ngưỡng "bỏ nhiều quá, nghĩ lại" (`first_shortlist`) = số card `top` + anchor của lần dựng đầu, không phải tổng số nơi.
 
-### 9.3 Nhóm hiển thị
+### 9.3 Tab
 
-Shortlist được trình bày theo nhóm hữu ích, chọn theo chuyến: theo loại trải nghiệm, theo khu vực, hoặc theo buổi phù hợp. Anchor luôn đứng đầu, tách riêng.
+Danh sách nằm trong các tab theo loại nơi (`config/decision.yaml` `tabs`: tab → nhóm category của corpus; nhóm không có trong tab nào → `sights`): Ăn uống, Ăn vặt và tráng miệng, Cà phê, Thiên nhiên và ngắm cảnh, Vườn và trang trại, Cắm trại, Điểm tham quan, Di tích / chùa / bảo tàng, Vui chơi, Bar và về đêm, Spa, Chợ và mua sắm (`frame.tabs`, `diversify.tab`). Tab không có nơi nào thì không hiện. Anchor luôn đứng đầu, tách riêng. `display_groups` (4 nhóm thô) chỉ dùng cho mong muốn `liked_groups` / `purpose` (§8 `wish`), không phải tab.
 
-### 9.4 Cửa sổ hiện và lọc lại
+Mỗi tab liệt kê **mọi** nơi qua sàng lọc của nó (kể cả nơi có `context_fit` dưới `min_context_fit`; ngưỡng đó chỉ áp cho pool của shortlist), kể cả nơi user đã chọn, xếp **chỉ theo `score`**. "Hợp nhất" (`top`) đánh dấu các nơi chưa chọn đứng đầu tab, đúng bằng số nơi MMR (§9.2) lấy từ tab đó.
 
-Mỗi nhóm hiển thị có một cửa sổ (`State.shown[group]`, id theo thứ tự trên màn), lưu trong phiên; cửa sổ là trạng thái màn, không vào lịch sử hoàn tác. Lần đầu cửa sổ = `page_size` nơi đầu thứ hạng. Web cuộn gần cuối lưới thì đọc `page` (`Engine.page`): cửa sổ nối thêm `page_size` nơi tiếp theo chưa có.
+### 9.4 Trang, tìm kiếm và lọc lại
 
-Mỗi lần dựng lại (act, lượt chat, rebase), cửa sổ cũ `old` gộp với thứ hạng mới (`window.merge`):
+Mỗi tab là thứ hạng của nó chia thành trang `page_size` nơi; user chọn trang (`State.page[tab]`, 0 = đầu; lưu trong phiên, không vào lịch sử hoàn tác). Ids trên màn nằm ở `State.shown[tab]`. View của tab mang `cards` (trang đang hiện), `total`, `page`, `pages`, `page_size`, `offset`. `Engine.page(sid, tab, n)` hiện trang `n` (1 = đầu; `None` = trang sau; quá cuối thì trang cuối).
 
-1. `keep` = nơi trong `old` vẫn còn trong thứ hạng mới **và** đứng trong `keep_factor × len(old)` hạng đầu; nơi đã chọn của nhóm luôn ở lại.
-2. `len(keep) < replace_below × len(old)` → thay hết: chỉ nơi đã chọn giữ ô, các ô còn lại lấy thứ hạng mới từ trên xuống.
-3. Ngược lại: nơi trong `keep` đứng nguyên ô; ô của nơi bị gỡ được lấp bằng nơi mới theo thứ hạng mới (ô trên cùng nhận nơi hợp nhất); cửa sổ không dài hơn cũ.
+Dựng lại (act, lượt chat, rebase) giữ số trang; trang được lấy lại từ thứ hạng mới (`window.window`). `change[tab] = {kept, added, removed, replaced_all}` so trang cũ với trang mới (`replaced_all` khi giữ dưới `replace_below` × trang cũ; tab chưa từng hiện thì không có thay đổi) để web chạy chuyển cảnh. Sau `rebase` (Search Input mới), `diff(..., rebuilt=True)` nói gọn điều đó: "Giữ 45 nơi, thay 3 nơi hợp hơn", "Danh sách đổi theo ý bạn: 24 nơi mới" hoặc "Các nơi đang gợi ý vẫn hợp, không cần đổi"; thay đổi không làm xê dịch gì thì `text` rỗng. `rebase` giữ lịch sử hoàn tác.
 
-View mang `change[group] = {kept, added, removed, replaced_all}` để web chạy chuyển cảnh. Sau `rebase` (Search Input mới), `diff(..., rebuilt=True)` nói gọn điều đó: "Giữ 45 nơi, thay 3 nơi hợp hơn", "Danh sách đổi theo ý bạn: 24 nơi mới" hoặc "Các nơi đang gợi ý vẫn hợp, không cần đổi"; thay đổi không làm xê dịch gì thì `text` rỗng. `rebase` giữ lịch sử hoàn tác. `why-not` của một nơi có trong danh sách nhưng nằm dưới phần đã tải trả `listed: true` và vị trí ("xếp thứ 41/60; cuộn xuống để thấy"). Prompt của agent có mọi nơi trên màn, nhưng lý do chỉ cho trang đầu mỗi nhóm và nơi đã chọn. `page_size` = 24, `keep_factor` = 2, `replace_below` = 0.3 trong `config/decision.yaml`.
+`Engine.search(sid, q)`: mỗi chữ gõ (bỏ dấu, hoa thường) phải là đầu một chữ trong tên, category Maps hoặc tên tab của nơi; tìm trên mọi tab và mục chưa xác minh, xếp theo `score`, tối đa 60 thẻ kèm `total`. `outside` = tối đa 8 nơi trong vùng có tên khớp mà không nằm trong danh sách (không tính chỗ ở), mỗi nơi kèm lý do của `why-not`.
+
+`why-not` của một nơi có trong danh sách trả `listed: true` và vị trí ("xếp thứ 41/60; ở trang 2"), kèm mong muốn user đã nói mà nơi đó chưa khớp, khi tab của nó có nơi khớp ("Chưa thấy ghi món bánh căn ở nơi này", "Chưa khớp mong muốn “karaoke”"); thiếu dữ liệu không bao giờ thành "không bán". Nơi bị loại chỉ nêu điều kiện đã loại nó. Prompt của agent có mọi nơi trên màn, nhưng lý do chỉ cho trang đầu mỗi tab và nơi đã chọn. `page_size` = 24, `replace_below` = 0.3 trong `config/decision.yaml`.
 
 ## 10. So sánh
 
@@ -287,7 +296,7 @@ Mỗi ứng viên chỉ hiển thị thông tin phục vụ quyết định (`do
 
 | Mục | Nội dung | Nguồn |
 |---|---|---|
-| Vì sao phù hợp | 1–3 feature khớp `soft_weights` nhiều nhất + bằng chứng (xu hướng review kèm cỡ mẫu; sau này segment TikTok) | Experience, Environment |
+| Vì sao phù hợp | Tối đa 3 dòng: mong muốn user nói ("Có bánh căn bạn muốn · theo menu", kiểu nơi, phong cách, giống X) → feature khớp `soft_weights` + bằng chứng (xu hướng review kèm cỡ mẫu) → `liked_groups` / `purpose` (✎) → vị trí. Không có dòng nào thì một dòng thật theo thành phần điểm lớn hơn (khoảng cách hoặc số người viết). Lưới và đĩa xoay cùng lấy dòng từ `web/src/user/ui/cardLines.ts`, chỉ khác cách vẽ | `wish`, Experience, Environment |
 | Đánh đổi | Cờ từ §7, điểm thua trong so sánh | Hợp bối cảnh, So sánh |
 | Thời gian ước tính | Khoảng min / typical / long | Estimate |
 | Ảnh hưởng vị trí | "cùng cụm với X", "xa base", ước lượng thô | Hợp bối cảnh |
@@ -381,6 +390,16 @@ Nơi đã chọn / khóa không bị loại âm thầm khi chạy lại; nếu c
 
 Output cuối cùng, đầu vào của Planning & Validation (`docs/PLANNING.md` §Đầu vào).
 
+Confirm và draft khả thi kiểm lại chỗ ở corpus đã chọn hoặc đã đặt theo hard requirements
+hiện tại, kể cả sau rebase. Không tự bỏ selection hoặc đổi chỗ ở khi kiểm fail/unknown;
+confirm trả conflict, draft thường trả `None`. `draft(any=True)` giữ dữ liệu để tìm chỗ ở thay thế.
+
+Read `Tools.read(sid, "evidence", {place, feature, context?})` trả public `PlaceEvidence`:
+binding, value/status serving, quote/source/observation pointer và reason khi thiếu. Input validate
+bằng `EvidenceInput`; không đọc corpus ngoài membership hoặc binding của phiên. UNCERTAIN/missing
+không lấy semantic quote làm bằng chứng. Context thiếu verdict riêng giữ unknown; journey lịch sử
+binding null trả `legacy_lineage_unavailable`. Lookup chỉ chạy khi được đọc, không ghi state/log.
+
 ```text
 Decision Output
 ├── confirmed      nơi user xác nhận: entity id, vai trò (anchor | locked | selected),
@@ -456,6 +475,19 @@ python -m decision evaluate            # 30 Trip State ẩn ở config/eval_trip
 python -m decision serve [--port 8767] # HTTP + SSE độc lập
 ```
 
+`Data.load(region=None, data_root=..., snapshot_version=...)` nạp một vùng của snapshot
+(`default_region` khi không truyền) và làm nóng các cột bảng. Factory capture hoặc nhận public
+corpus binding, đọc root/version đó; không chọn pointer độc lập. Thiếu snapshot trả lỗi.
+`Data(records)` dựng một vùng trong RAM cho test. Mỗi phiên giữ memo ba tầng (screen, fit,
+score) theo input của từng tầng (`frame.table`), nên `select` / `lock` / `undo` không tính lại
+phần không đổi.
+
+Search Input, snapshot và Decision Output giữ binding của journey; adapter từ chối binding
+lệch Engine, kể cả restore/rebase. Decision Output validate binding khớp `trip_context`, giữ
+activity explicit/inferred và budget intent/provenance. Chọn chỗ ở corpus vẫn kiểm requirement
+theo activity accommodation; evidence không đủ cho physical/suitability bị loại. Pin/legacy:
+`docs/AGENT_HARNESS.md` §3.
+
 User Web gọi Decision qua harness bằng journey chung (`docs/AGENT_HARNESS.md`); `advance` lấy Decision Output trên server để tạo Planning. Public API xuất `Tools`, `create_engine`, `DecisionOutput`; `tools.py` sở hữu snapshot/rebase, `contracts.py` validate output ở biên, `skills.yaml` giới hạn quyền. Agent dùng runtime public `agents`; heuristic cho lệnh tên chính xác ở `docs/AGENT_HARNESS.md` §5.
 
 `serve` độc lập bind `127.0.0.1`. Cần `AGENT_*` trong `.env` (`docs/LLM_PROVIDER.md`); thiếu thì lượt chữ cần suy luận chạy bằng `policy.py`.
@@ -485,11 +517,13 @@ src/decision/
   screen.py                  ③ sàng lọc fail-closed, nới theo từng nơi (§6)
   fit.py                     ④ độ hợp bối cảnh thô (§7)
   rank.py                    ⑤ điểm kèm từng thành phần (§8)
+  wishes.py                  mong muốn của Trip → điểm wish (§8)
   diversify.py               ⑥ gom nơi gần trùng + MMR (§9)
-  window.py                  cửa sổ hiện mỗi nhóm: gộp ít xáo trộn, nối trang (§9.4)
+  window.py                  trang của mỗi tab và thay đổi của nó sau khi dựng lại (§9.4)
   compare.py cards.py        ⑦ so sánh chỉ trên bằng chứng; thẻ ứng viên (§10, §11)
   curation.py                ⑧ act thuần sinh State mới + Session Profile nó dạy (§12)
   feasibility.py             ⑨ khả thi của tổ hợp (§13)
+  frame.py                   ③–⑤ cho mọi nơi của một vùng bằng bảng; memo theo tầng (§2.2)
   pipeline.py                ① → ⑥ một đường, tất định
   output.py                  ⑩ Decision Output (§15)
   scope.py                   chạy lại từ bước nào (§14)

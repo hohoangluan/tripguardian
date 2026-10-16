@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 from plan_fixtures import CFG, SOUTH, FakeLive, fake_matrix, fixed_sun, no_geocode, sample_trip, spot
 
@@ -7,8 +8,8 @@ from planning.variants import build_variants
 WET = {"weather_exposed": "present"}
 
 
-def run(d, recs, weather=None):
-    return build_variants(d, recs, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+def run(d, recs, weather=None, cfg=CFG):
+    return build_variants(d, recs, cfg=cfg, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
                           sun_fn=fixed_sun, weather=weather)
 
 
@@ -24,23 +25,23 @@ def wet_south():
     return d, recs
 
 
-def test_a_plain_trip_whose_objectives_agree_gives_one_variant_and_says_so():
+def test_a_plain_trip_has_one_main_plan():
     d, recs = sample_trip()                                   # normal pace: least_travel and diverse
     out = run(d, recs)
-    assert out["ok"] and [v["objective"] for v in out["variants"]] == ["least_travel"]
-    assert "variants_same" in {w["code"] for w in out["warnings"]}
+    assert out["ok"] and [v["id"] for v in out["variants"]] == ["main"]
+    assert out["overload"] is None
 
 
-def test_rain_where_the_least_travel_plan_puts_the_open_air_places_gives_a_second_variant_that_moves_them():
+def test_rain_changes_measurements_without_adding_another_plan():
     d, recs = wet_south()
-    rainy_day = day_of(run(d, recs)["variants"][0], "s1")
-    date = ["2026-12-12", "2026-12-13"][rainy_day - 1]
-    out = run(d, recs, weather={date: {"rain_prob": 0.9, "source": "open-meteo", "fetched_at": "t"}})
-    by_obj = {v["objective"]: v for v in out["variants"]}
-    assert set(by_obj) == {"least_travel", "weather_robust"}
-    assert day_of(by_obj["least_travel"], "s1") == rainy_day and day_of(by_obj["weather_robust"], "s1") != rainy_day
-    assert by_obj["weather_robust"]["metrics"]["rain_exposed"] < by_obj["least_travel"]["metrics"]["rain_exposed"]
-    assert out["provenance"]["weather"] == [{"source": "open-meteo", "fetched_at": "t"}]
+    rainy_day = day_of(run(d, recs)['variants'][0], 's1')
+    date = ['2026-12-12', '2026-12-13'][rainy_day - 1]
+    out = run(d, recs, weather={date: {'rain_prob': 0.9, 'source': 'open-meteo', 'fetched_at': 't'}})
+    main, = out['variants']
+    assert main['id'] == 'main' and out['overload'] is None
+    assert main['metrics']['rain_exposed'] > 0
+    assert {i['place_id'] for day in main['itinerary'] for i in day['items'] if i['kind'] == 'visit'} == {r['id'] for r in recs}
+    assert out['provenance']['weather'] == [{'source': 'open-meteo', 'fetched_at': 't'}]
 
 
 def test_every_variant_carries_its_itinerary_measures_robustness_and_backups_and_the_table_compares_them():
@@ -48,7 +49,8 @@ def test_every_variant_carries_its_itinerary_measures_robustness_and_backups_and
     out = run(d, recs, weather={"2026-12-12": {"rain_prob": 0.9}, "2026-12-13": {"rain_prob": 0.9}})
     assert out["chosen"] is None and out["back_to_decision"] is None
     for i, v in enumerate(out["variants"]):
-        assert v["id"] == f"v{i + 1}" and len(v["itinerary"]) == 2
+        assert v["id"] in {"main", "fit", "travel", "cost"}
+        assert len(v["itinerary"]) == 2
         assert v["robustness"]["level"] in ("solid", "feasible", "fragile")
         assert {"places", "on_delay"} <= set(v["backups"])
     rows = out["comparison"]
@@ -90,18 +92,18 @@ def test_no_valid_variant_goes_back_to_place_decision_with_the_places_that_broke
     d["confirmed"].append({"id": "gone", "name": "Gone", "role": "anchor", "flags": [], "relaxed": []})
     out = run(d, recs)
     assert not out["ok"] and out["variants"] == [] and out["comparison"] == []
-    assert out["back_to_decision"] == {"reason": "no_valid_variant", "places": ["gone"]}
+    assert out["back_to_decision"] == {"reason": "no_valid_variant", "places": ["gone"], "leftover": []}
     assert [v["kind"] for v in out["violations"]] == ["anchor"]
 
 
-def test_a_day_window_violation_keeps_the_failed_baseline_and_offers_trimmed_plans():
+def test_short_day_offers_directions_with_explicit_drops():
     d, recs = sample_trip(days=1, leave_at="12:00")        # one short day, too little room for eight places
     out = run(d, recs)
     assert out["ok"]
-    assert [v["kind"] for v in out["keep_all"]["violations"]] == ["day_window"]
-    assert not out["keep_all"]["confirmable"]
-    assert out["keep_all"]["kept"]
-    assert any(v["status"] == "available" for v in out["variants"])
+    assert out['keep_all'] is None
+    assert out['overload']['missing_min'] > 0
+    assert any(v['available'] for v in out['variants'])
+    assert all(v['dropped'] for v in out['variants'] if v['available'])
 
 
 def test_a_trip_with_no_places_is_one_empty_solid_variant():
@@ -112,15 +114,22 @@ def test_a_trip_with_no_places_is_one_empty_solid_variant():
     assert v["backups"] == {"places": [], "on_delay": []}
 
 
-def test_a_variant_that_does_not_fit_the_days_is_dropped_and_named():
-    d, recs = sample_trip(leave_at="20:00", arrive_at="11:00", max_leg=10)
+def test_an_objective_never_leaves_out_a_place_another_split_fits():
+    d, recs = sample_trip(leave_at="20:00", arrive_at="10:00", max_leg=10)
     recs[4:7] = [spot(f"s{i + 1}", SOUTH, i, features=WET) for i in range(3)]
+    # Five ordinary centre visits keep one cluster; meal venues are assigned independently.
+    recs[-1]["usable_as"] = ["experience", "backup"]
     d["trip_context"]["context"]["leave_at"] = None          # the last day ends at 15:00 again: too short for the
                                                                # 5-place centre cluster, and a max_leg_min of 10
                                                                # forbids combining it with the south cluster either
-    out = run(d, recs, weather={"2026-12-13": {"rain_prob": 0.9}})    # rain where the open-air places go
+    # A robust baseline isolates objective rejection from overload-profile composition.
+    cfg = replace(CFG, fill_ratio=1.0, meal_durations={'lunch': 60, 'dinner': 60}, meals_per_day=2, meal_windows={k: v for k, v in CFG.meal_windows.items() if k != 'breakfast'})
+    out = run(d, recs, weather={"2026-12-13": {"rain_prob": 0.9}}, cfg=cfg)
     codes = [w["code"] for w in out["warnings"]]
-    assert [v["objective"] for v in out["variants"]] == ["least_travel"]
-    want = {"code": "variant_invalid", "text": "Vững trước thời tiết: không xếp được lịch hợp lệ, bỏ phương án này."}
-    assert want in out["warnings"]
-    assert codes.count("variants_same") == 1                 # diverse did agree with least_travel: that one is
+    assert [v["id"] for v in out["variants"]] == ["main"]
+    # Keeping the open-air places off the rainy day would leave a centre place out: the layout keeps every place
+    # (spec section 7: never drop while there is room), so weather_robust is the same plan, not an invalid one.
+    assert "variant_invalid" not in codes
+    assert {i["place_id"] for d in out["variants"][0]["itinerary"] for i in d["items"] if i["kind"] == "visit"} == \
+        {r["id"] for r in recs}
+    assert out["overload"] is None and [v["id"] for v in out["variants"]] == ["main"]                 # diverse did agree with least_travel: that one is

@@ -31,9 +31,15 @@ def choose(trip_context: dict, rains: list, prefs: dict, cfg: Settings) -> list[
 def metrics(ctxs: list, results: list) -> dict:
     """What every objective is scored on, measured on the finished days."""
     m = {"travel_min": 0, "cost_vnd": 0, "cost_unknown": 0, "rain_exposed": 0.0, "exposure_unknown": 0,
-         "repeats": 0, "pref_risk": 0.0, "time_penalty": 0.0, "extras_max_vnd": 0}
+         "repeats": 0, "pref_risk": 0.0, "time_penalty": 0.0, "extras_max_vnd": 0,
+         "places": 0, "visit_min": 0, "scheduled_min": 0, "meal_min": 0, "meal_cost_unknown": 0}
     for cx, r in zip(ctxs, results):
         ids = list(r.order)
+        m['places'] += len(ids)
+        m['visit_min'] += sum(it.end - it.start for it in r.items if it.kind == 'visit')
+        m['scheduled_min'] += sum(it.end - it.start for it in r.items)
+        m['meal_min'] += sum(it.end - it.start for it in r.items if it.kind == 'meal_free')
+        m['meal_cost_unknown'] += sum(it.kind == 'meal_free' for it in r.items)
         m["travel_min"] += r.travel_min
         for i in ids:
             p = cx.places[i]
@@ -63,8 +69,9 @@ def score(objective: str, m: dict) -> tuple:
 def add_lodging_cost(m: dict, price_vnd: int | None, nights: int) -> dict:
     """metrics() with a lodging candidate's cost merged into cost_vnd / cost_unknown over the whole stay."""
     out = dict(m)
-    if price_vnd is None:
+    out['lodging_cost_vnd'] = price_vnd * nights if price_vnd is not None else (0 if nights <= 0 else None)
+    if price_vnd is None and nights > 0:
         out["cost_unknown"] += 1
-    else:
+    elif price_vnd is not None:
         out["cost_vnd"] += price_vnd * nights
     return out

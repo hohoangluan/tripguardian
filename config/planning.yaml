@@ -28,6 +28,7 @@ time_suitability:
   heuristic_weight: 1.0
   penalty_min: 720.0
   duration_loss_min: 4.0  # cost per shortened minute, within the record's short/pace range
+  duration_preference_weight: 1.0  # a matching session preference justifies a long meal/coffee visit
   overload_weight: 3.0
   recommendation_gap_min: 90
   recommendations_per_gap: 2
@@ -66,9 +67,19 @@ rest_min: {slow: 20, normal: 15, packed: 10}
 max_consecutive_min: {slow: 90, normal: 120, packed: 180}   # active minutes (visit + travel) before a rest is forced
 
 # Meals. A confirmed meal place takes a window; a window nobody takes gets a free block, never an invented place.
-meals_per_day: 2
+meals_per_day: 3
 meal_min: 60
-meal_windows: {lunch: ["11:30", "13:30"], dinner: ["18:00", "20:30"]}   # earliest and latest start
+meal_windows: {breakfast: ["06:30", "09:00"], lunch: ["11:00", "13:30"], dinner: ["17:30", "20:00"]}
+meal_durations: {breakfast: 30, lunch: 90, dinner: 90}
+
+# Trip estimates used only when the serving range comes from a category default.
+duration_profiles:
+  activity_ranges: {coffee: [30, 60, 90], eating: [90, 90, 90]}
+  activity_groups: [nature, attraction, other, religious, museum, garden_farm, market]
+  activity_range: [30, 60, 150]
+  deep_activities: [photography]
+  manual_min: 15
+  manual_max: 480
 
 # Timed features: where in the day a place that is known for it has to start.
 # anchor sunrise / sunset: minutes from it; anchor clock: absolute times.
@@ -136,13 +147,13 @@ far_leg_min: 40             # a place this far from where its day starts
 backup_radius_min: 25       # rough minutes from the sensitive place to a replacement
 backups_per_place: 2
 
-# Lodging (ⓐ, P5): a candidate competes as the anchor of each day; it never becomes Place Intelligence.
+# Lodging (ⓐ, P5): served `stay` records only; a candidate competes as the anchor of each day.
 radius_km: {motorbike: 3.0, car: 5.0, walk: 4.0}
 lodging_k: 6
+lodging_list_k: 18  # page size of the Lựa chọn lodging list (every served stay, paged); also how many are ranked by location
 lodging_share: 0.3  # share of budget_vnd spent on lodging, over the whole stay
 min_reviews: 5
 split_min: 20       # minutes of real travel diameter beyond which the search area splits into two centres
-stay_min: 50        # served `stay` records in the search area needed to rank from the corpus; fewer -> Maps live
 lodging_pool: 18    # served stays (best taste fit first) the travel matrix is built for, before the final rank
 lodging_weights: {pref: 2.0, loc: 0.8, price: 0.5, rating: 0.3}  # taste outweighs location (docs/PLANNING.md ⓐ)
 loc_ref_min: 30     # mean minutes to the chosen places at which a lodging's location adds nothing
@@ -157,3 +168,32 @@ first_token_s: 6.0            # the first streamed token must arrive by this lon
 total_s: 20.0                 # the whole answer must arrive by this long
 rethink_drops: 4              # dropping this many places in one planning session: a turn's next drop is refused,
                               # the user is told to go back to Place Decision instead (not a chip-level limit)
+
+# Realistic itinerary (docs/superpowers/specs/2026-10-15-planning-realistic-redesign-design.md). Minutes unless noted.
+realistic:
+  wait_max: 20               # a wait longer than this becomes free time or a rest at the lodging
+  rest_home_min: 90          # free time at least this long, with the lodging near, is spent resting there
+  rest_home_road_max: 15     # "near": each leg to and from the lodging at most this
+  meal_min: 60               # a meal slot shrinks to fit the day's end, never below this
+  fill_min_gap: 60           # free time at least this long gets a suggestion
+  light_factor: 0.5          # a light day holds this share of a normal day
+  early_day_factor: 0.6      # a dawn day's capacity after its midday rest
+  luggage_radius_min: 20     # last day by motorbike / bus after checkout: places this close to the exit only
+  arrive_buffer_min: 45      # landing / getting off the bus to ready to go
+  leave_buffer_min: 45       # at the airport / station before departure
+  drop_bags_min: 15          # day one, arriving before check-in: stop at the lodging first
+  checkin_default: "14:00"   # the lodging's check-in when the user gave none (the usual hour in Vietnam)
+  remote_where: ["online", "trực tuyến", "call", "gọi", "remote", "từ xa"]   # a busy block here keeps the person where they are
+  breakfast_dishes: ["bánh căn", "phở", "bánh mì", "bún", "xôi", "hủ tiếu", "cháo", "bánh cuốn", "bánh ướt", "bánh canh"]
+  light_groups: ["dessert", "cafe"]
+  light_dishes: ["kem bơ", "chè", "tiệm bánh"]
+  meal_detour_max: 15
+  suggest_radius_min: 15
+  suggest_pool_max: 60
+  extend_max_min: 60
+  better_order_min: 15
+  event_early_min: 15
+  # Round 3, 22 corpus cases: create p95 6.777s with exact=5/passes=2; 4.192s with 4/1.
+  # Retain bounded 4/1 search; the create target <2s remains unmet after pace recovery.
+  seeded_exact_n: 4          # a day ordered from the layout's order: every permutation only up to this many stops
+  seeded_passes: 1           # and at most this many seeded 2-opt + or-opt sweeps above it

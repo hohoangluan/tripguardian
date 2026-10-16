@@ -2,8 +2,10 @@
 and the encrypted Calendar refresh token (docs/ACCOUNTS.md)."""
 
 import base64
+import re
 import hashlib
 import io
+import hmac
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -16,14 +18,20 @@ from .google import CALENDAR_SCOPE, LOGIN_SCOPES, GoogleClient, GoogleError
 SESSION_DAYS = 30
 SLIDE_AFTER_S = 3600  # a session seen again after this long gets 30 fresh days
 GUEST_HOURS = 24  # a guest session lives this long after the last visit; then the guest and their trips are deleted
+LEAVE_GRACE_S = 45  # a guest whose page closed is deleted after this long, unless the same guest comes back (a reload)
 STATE_MINUTES = 10
 TERMS_VERSION = "2026-10-09"
-PROFILE_FIELDS = {"display_name": 60, "home_city": 80, "usual_mobility": 40, "usual_companions": 40}
+PROFILE_FIELDS = {"display_name": 60, "home_city": 80, "usual_mobility": 40, "usual_companions": 40, "nickname": 24,
+                  "bio": 160}
+NICKNAME = re.compile(r"[a-z0-9._]{3,24}")  # how friends find each other (users.nickname is unique)
 MOBILITY = {"motorbike", "car", "walk"}  # trip.domain.state Vehicle
 COMPANIONS = {"solo", "partner", "friends", "kids", "parents"}  # trip.domain.state Who
 AVATAR_MAX_BYTES = 5 * 1024 * 1024
 AVATAR_PX = 256
 AVATAR_FORMATS = {"JPEG", "PNG", "WEBP"}
+EMAIL = re.compile(r"[^@\s]{1,64}@[^@\s.]+(\.[^@\s.]+)+")
+PASSWORD_MIN, PASSWORD_MAX = 8, 128
+SCRYPT = {"n": 2 ** 14, "r": 8, "p": 1}
 
 
 class AuthError(ValueError):
@@ -35,6 +43,30 @@ class AuthError(ValueError):
 
 def _hash(token: str) -> bytes:
     return hashlib.sha256(token.encode()).digest()
+
+
+def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    return hashlib.scrypt(password.encode(), salt=salt, n=n, r=r, p=p, dklen=32, maxmem=128 * n * r * 2)
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = _scrypt(password, salt, **SCRYPT)
+    return "scrypt${n}${r}${p}$".format(**SCRYPT) + base64.b64encode(salt).decode() + "$" + base64.b64encode(digest).decode()
+
+
+def check_password(password: str, stored: str | None) -> bool:
+    """False for a missing or malformed hash too (a Google-only account has none)."""
+    try:
+        kind, n, r, p, salt, digest = (stored or "").split("$")
+        want = base64.b64decode(digest)
+        got = _scrypt(password, base64.b64decode(salt), int(n), int(r), int(p))
+        return kind == "scrypt" and hmac.compare_digest(got, want)
+    except (ValueError, TypeError):
+        return False
+
+
+_DUMMY = hash_password("no-such-account")  # checked when the email is unknown, so timing does not tell who has an account
 
 
 def safe_next(path: str | None) -> str:
@@ -104,6 +136,13 @@ class Accounts:
 
     def _upsert(self, claims: dict) -> str:
         with self.pool.connection() as conn:
+            # Google has confirmed this email. An account made with the same email and a password joins this Google
+            # sign-in; its password is dropped and its sessions end, as nobody confirmed that password's owner.
+            linked = conn.execute(
+                "UPDATE users SET google_sub = %s, password_hash = NULL WHERE email = %s AND google_sub IS NULL "
+                "AND password_hash IS NOT NULL AND kind = 'user' RETURNING id", (claims["sub"], claims.get("email"))).fetchone()
+            if linked:
+                conn.execute("DELETE FROM auth_sessions WHERE user_id = %s", (linked["id"],))
             row = conn.execute(
                 "INSERT INTO users (google_sub, email, display_name, picture_url, last_login_at) "
                 "VALUES (%s, %s, %s, %s, now()) ON CONFLICT (google_sub) DO UPDATE SET email = EXCLUDED.email, "
@@ -115,6 +154,39 @@ class Accounts:
                 raise AuthError("account is not active")
             conn.execute("INSERT INTO profiles (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (row["id"],))
         return str(row["id"])
+
+    def register(self, email: str, password: str, name: str = "", user_agent: str = "") -> str:
+        """A new account from an email and a password; returns the session token. The email is not confirmed by mail:
+        it is how this person signs in, nothing more. A taken email is refused (also one that signed in with Google)."""
+        email = (email or "").strip().lower()
+        name = (name or "").strip()
+        if len(email) > 254 or not EMAIL.fullmatch(email):
+            raise ValueError("email is not valid")
+        if not PASSWORD_MIN <= len(password or "") <= PASSWORD_MAX:
+            raise ValueError(f"password must have {PASSWORD_MIN}-{PASSWORD_MAX} characters")
+        if len(name) > PROFILE_FIELDS["display_name"]:
+            raise ValueError("name is too long")
+        digest = hash_password(password)
+        with self.pool.connection() as conn:
+            row = conn.execute(
+                "INSERT INTO users (email, password_hash, display_name, last_login_at) VALUES (%s, %s, %s, now()) "
+                "ON CONFLICT (email) DO NOTHING RETURNING id", (email, digest, name or None)).fetchone()
+            if not row:
+                raise ValueError("email is taken")
+            conn.execute("INSERT INTO profiles (user_id) VALUES (%s)", (row["id"],))
+        return self.session(str(row["id"]), user_agent)
+
+    def login_password(self, email: str, password: str, user_agent: str = "") -> str:
+        """Session token for a right email and password; AuthError otherwise, with one message for every cause."""
+        email = (email or "").strip().lower()
+        with self.pool.connection() as conn:
+            row = conn.execute("SELECT id, password_hash, status FROM users WHERE email = %s AND kind = 'user' "
+                               "AND deleted_at IS NULL", (email,)).fetchone()
+            ok = check_password(password or "", row["password_hash"] if row else _DUMMY)
+            if not (row and ok and row["status"] == "active"):
+                raise AuthError("wrong email or password")
+            conn.execute("UPDATE users SET last_login_at = now() WHERE id = %s", (row["id"],))
+        return self.session(str(row["id"]), user_agent)
 
     def test_login(self, email: str, name: str, user_agent: str = "") -> str:
         """Only for the walk-through route that the server enables with TG_TEST_LOGIN on a non-https base URL."""
@@ -135,12 +207,15 @@ class Accounts:
             return None, False
         with self.pool.connection() as conn:
             row = conn.execute(
-                "SELECT u.id, u.role, u.kind, extract(epoch FROM now() - s.last_seen_at) AS idle FROM auth_sessions s "
+                "SELECT u.id, u.role, u.kind, s.leaving_at IS NOT NULL AS leaving, "
+                "extract(epoch FROM now() - s.last_seen_at) AS idle FROM auth_sessions s "
                 "JOIN users u ON u.id = s.user_id WHERE s.token_hash = %s AND s.expires_at > now() "
                 "AND u.status = 'active' AND u.deleted_at IS NULL", (_hash(token),)).fetchone()
             if not row:
                 return None, False
             guest = row["kind"] == "guest"
+            if row["leaving"]:  # the page that was closing came back: same guest, nothing to delete
+                conn.execute("UPDATE auth_sessions SET leaving_at = NULL WHERE token_hash = %s", (_hash(token),))
             refreshed = row["idle"] > SLIDE_AFTER_S
             if refreshed:
                 conn.execute("UPDATE auth_sessions SET last_seen_at = now(), "
@@ -167,6 +242,24 @@ class Accounts:
             uid = conn.execute("INSERT INTO users (kind, last_login_at) VALUES ('guest', now()) RETURNING id").fetchone()["id"]
             conn.execute("INSERT INTO profiles (user_id) VALUES (%s)", (uid,))
         return self.session(str(uid), user_agent, guest=True)
+
+    def leave(self, token: str | None) -> None:
+        """The browser says this guest's page is closing: mark the session; `purge_leavers` deletes the guest soon
+        unless a request from the same session (user_for) arrives first. Accounts are never marked."""
+        if token and len(token) <= 100:
+            with self.pool.connection() as conn:
+                conn.execute("UPDATE auth_sessions s SET leaving_at = now() FROM users u "
+                             "WHERE s.token_hash = %s AND u.id = s.user_id AND u.kind = 'guest'", (_hash(token),))
+
+    def purge_leavers(self) -> int:
+        """Deletes the guests whose page closed more than LEAVE_GRACE_S ago and who did not come back."""
+        with self.pool.connection() as conn:
+            ids = [r["id"] for r in conn.execute(
+                "SELECT u.id FROM users u WHERE u.kind = 'guest' AND NOT EXISTS (SELECT 1 FROM auth_sessions s "
+                "WHERE s.user_id = u.id AND (s.leaving_at IS NULL OR s.leaving_at > now() - make_interval(secs => %s))) "
+                "AND EXISTS (SELECT 1 FROM auth_sessions s WHERE s.user_id = u.id)", (LEAVE_GRACE_S,)).fetchall()]
+            self._drop(conn, ids)
+        return len(ids)
 
     def drop_guest(self, user_id: str) -> bool:
         """Deletes one guest (False when the user is not a guest): the trips go; journeys, events and feedback stay
@@ -197,7 +290,7 @@ class Accounts:
     def me(self, user_id: str) -> dict:
         with self.pool.connection() as conn:
             row = conn.execute(
-                "SELECT u.id, u.email, u.display_name, u.picture_url, u.avatar_key, u.role, u.kind, u.created_at, "
+                "SELECT u.id, u.email, u.display_name, u.nickname, u.bio, u.picture_url, u.avatar_key, u.role, u.kind, u.created_at, "
                 "p.home_city, p.usual_mobility, p.usual_companions, p.consents, "
                 "(c.user_id IS NOT NULL AND c.revoked_at IS NULL) AS calendar "
                 "FROM users u LEFT JOIN profiles p ON p.user_id = u.id "
@@ -207,6 +300,7 @@ class Accounts:
         consents = row["consents"] or {}
         guest = row["kind"] == "guest"
         return {"id": row["id"].hex, "email": row["email"], "name": row["display_name"] or "", "guest": guest,
+                "nickname": row["nickname"], "bio": row["bio"] or "",
                 "avatar": f"/api/harness/avatars/{row['avatar_key']}" if row["avatar_key"] else row["picture_url"],
                 "role": row["role"], "home_city": row["home_city"], "usual_mobility": row["usual_mobility"],
                 "usual_companions": row["usual_companions"], "consents": consents,
@@ -223,7 +317,8 @@ class Accounts:
         return self.me(user_id)
 
     def update(self, user_id: str, patch: dict) -> dict:
-        """Optional fields; null or "" clears one. Values are only a prior for Trip, never facts of a trip."""
+        """Optional fields; null or "" clears one. Mobility and companions are only a prior for Trip, never facts of a
+        trip; nickname and bio are what friends see."""
         if not patch or set(patch) - set(PROFILE_FIELDS):
             raise ValueError("unknown profile field")
         clean = {}
@@ -231,6 +326,10 @@ class Accounts:
             if value is not None and not isinstance(value, str):
                 raise ValueError(f"{key} must be text")
             value = (value or "").strip() or None
+            if value and key == "nickname":
+                value = value.lstrip("@").lower()
+                if not NICKNAME.fullmatch(value):
+                    raise ValueError("nickname: 3-24 of a-z, 0-9, dot, underscore")
             if value and len(value) > PROFILE_FIELDS[key]:
                 raise ValueError(f"{key} is too long")
             if value and ((key == "usual_mobility" and value not in MOBILITY)
@@ -238,8 +337,12 @@ class Accounts:
                 raise ValueError(f"bad {key}")
             clean[key] = value
         with self.pool.connection() as conn:
-            if "display_name" in clean:
-                conn.execute("UPDATE users SET display_name = %s WHERE id = %s", (clean.pop("display_name"), user_id))
+            for key in ("display_name", "nickname", "bio"):  # columns of users; the rest live in profiles
+                if key in clean:
+                    if key == "nickname" and clean[key] and conn.execute(
+                            "SELECT 1 FROM users WHERE nickname = %s AND id <> %s", (clean[key], user_id)).fetchone():
+                        raise ValueError("nickname is taken")
+                    conn.execute(f"UPDATE users SET {key} = %s WHERE id = %s", (clean.pop(key), user_id))
             for key, value in clean.items():  # keys come from PROFILE_FIELDS only
                 conn.execute(f"UPDATE profiles SET {key} = %s, updated_at = now() WHERE user_id = %s", (value, user_id))
         return self.me(user_id)
@@ -276,7 +379,8 @@ class Accounts:
         return path
 
     def delete(self, user_id: str) -> None:
-        """Personal rows and files go; journeys, events, feedback, trips and notifications stay without a user."""
+        """Personal rows and files go (friends, messages and saved items too); journeys, events, feedback, trips and
+        notifications stay without a user."""
         token = self.calendar_token(user_id)
         if token:
             try:
@@ -286,12 +390,14 @@ class Accounts:
         with self.pool.connection() as conn:
             row = conn.execute("SELECT avatar_key FROM users WHERE id = %s", (user_id,)).fetchone()
             for table in ("profiles", "calendar_links", "push_subscriptions", "notification_prefs", "auth_sessions",
-                          "oauth_states"):
+                          "oauth_states", "saved_items"):
                 conn.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+            conn.execute("DELETE FROM friendships WHERE requester = %s OR addressee = %s", (user_id, user_id))
+            conn.execute("DELETE FROM messages WHERE sender = %s OR recipient = %s", (user_id, user_id))
             for table in ("journeys", "events", "feedback", "trips", "notifications"):
                 conn.execute(f"UPDATE {table} SET user_id = NULL WHERE user_id = %s", (user_id,))
             conn.execute("UPDATE users SET deleted_at = now(), status = 'deleted', email = NULL, display_name = NULL, "
-                         "picture_url = NULL, google_sub = NULL, avatar_key = NULL WHERE id = %s", (user_id,))
+                         "picture_url = NULL, google_sub = NULL, password_hash = NULL, avatar_key = NULL, nickname = NULL, bio = NULL WHERE id = %s", (user_id,))
         if row and row["avatar_key"]:
             (self.avatars / f"{row['avatar_key']}.webp").unlink(missing_ok=True)
 

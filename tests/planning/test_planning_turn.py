@@ -1,6 +1,6 @@
 import dataclasses
 
-from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, small_trip
+from plan_fixtures import CFG, FakeLive, LODGING, fake_matrix, no_geocode, small_trip
 
 from planning.engine import Engine
 from planning.guard import PlanUpdate, TurnPlan
@@ -20,8 +20,8 @@ def fake_route(points, mode, live_cfg):
 
 def engine(agent=None):
     d, recs = small_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route,
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route,
               background=False, agent=agent)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})

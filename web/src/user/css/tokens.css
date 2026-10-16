@@ -1,26 +1,29 @@
-/* TripGuardian /preview — design tokens. Light, warm paper; pine (primary) + sun (highlight). */
+/* TripGuardian /preview — design tokens. Light, neutral white and black; pine (primary, black) + sun (highlight, grey). Names kept from the earlier palette. */
 .tg {
-  --tg-bg: #faf7f2;
+  --tg-bg: #f6f6f6;
   --tg-surface: #ffffff;
-  --tg-ink: #1b2a2f;
-  --tg-ink-2: #4a5a60;
-  --tg-ink-3: #6b787d;
-  --tg-line: #e7e1d6;
-  --tg-line-2: #d6cdbb;
-  --tg-pine: #0f5f5a;
-  --tg-pine-d: #0b4743;
-  --tg-pine-soft: #e3f1ee;
-  --tg-pine-line: #bcdcd6;
-  --tg-sun: #e8590c;
-  --tg-sun-ink: #b8420a;
-  --tg-sun-soft: #fdebdd;
+  --tg-ink: #111111;
+  --tg-ink-2: #444444;
+  --tg-ink-3: #6b6b6b;
+  --tg-line: #e5e5e5;
+  --tg-line-2: #d4d4d4;
+  --tg-pine: #111111;
+  --tg-pine-d: #000000;
+  --tg-pine-soft: #f0f0f0;
+  --tg-pine-line: #d4d4d4;
+  --tg-sun: #525252;
+  --tg-sun-ink: #262626;
+  --tg-sun-soft: #ececec;
   --tg-warn: #8a5a00;
   --tg-warn-bg: #fff4dc;
   --tg-warn-line: #f0d9a0;
   --tg-danger: #b42318;
   --tg-danger-bg: #fdeceb;
   --tg-danger-line: #f3c2bd;
-  --tg-night: #14262b;
+  --tg-night: #111111;
+  --tg-brown: #2b2720; /* primary action buttons (same brown as the theme-blog "Bắt đầu với ý tưởng này" button) */
+  --tg-brand: #b4532a; /* sunset terracotta of the logo and mascot: a small accent only (active dot, map pins, the route), never a large fill */
+  --tg-brand-soft: #f4c9ae; /* the mascot's cheeks; rare pale backgrounds */
 
   --tg-display: 'Playfair Display', 'Times New Roman', Georgia, serif;
   --tg-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -29,13 +32,17 @@
   --tg-r-s: 10px;
   --tg-r-m: 16px;
   --tg-r-l: 22px;
-  --tg-sh-1: 0 1px 2px rgba(27, 42, 47, 0.06), 0 6px 20px rgba(27, 42, 47, 0.06);
-  --tg-sh-2: 0 2px 4px rgba(27, 42, 47, 0.06), 0 18px 48px rgba(27, 42, 47, 0.14);
+  --tg-sh-1: 0 1px 2px rgba(0, 0, 0, 0.05), 0 6px 20px rgba(0, 0, 0, 0.05);
+  --tg-sh-2: 0 2px 4px rgba(0, 0, 0, 0.05), 0 18px 48px rgba(0, 0, 0, 0.12);
   --tg-ease: cubic-bezier(0.22, 0.8, 0.3, 1);
   --tg-rail: 76px;
   --tg-top: 68px;
   --tg-bar: 76px;
-  --tg-max: 1280px;
-  --tg-gutter: 48px;
+  /* fluid frame: 1280px content at 1520px wide, ~1610px at 1920px (the reference screen), capped at 1760px */
+  --tg-max: clamp(1120px, 84vw, 1760px);
+  --tg-gutter: clamp(32px, 3vw, 64px);
   color-scheme: light;
 }
+
+/* The app is drawn at 82.5% (web/vite.config.ts turns the authored px into rem); the landing keeps the browser's 100%. */
+html.tg-scaled { font-size: 82.5%; }

@@ -51,10 +51,11 @@ Không được làm: dùng số sao / phần trăm trần làm tín hiệu chí
 
 ```text
 NAV   rail trái: logo · Khám phá · Chuyến của tôi · Đã lưu · Hồ sơ · avatar
-FLOW  thanh trên: logo · stepper 3 bước (Hiểu chuyến đi → Chọn nơi → Lịch trình) · vé (ở bước 1) · avatar
+FLOW  Chọn nơi / Lịch trình: thanh trên logo · stepper 3 bước · avatar
+CHAT  Hiểu chuyến đi: rail homepage + lịch sử | chat | tiến độ (Trang 3)
 ```
 
-Bước đã xong trên stepper bấm được để quay lại; hành trình trên máy chủ lùi theo (`back`), không bao giờ tiến hộ. Vé chuyến đi là một nút nhỏ mở popover, không phải panel cố định.
+Bước đã xong trên stepper bấm được để quay lại; hành trình trên máy chủ lùi theo (`back`), không bao giờ tiến hộ. Vé đầy đủ của Hiểu chuyến đi mở từ `Sửa` / `Xem đầy đủ`; tiến độ tám nhóm nằm cố định ở cột phải.
 
 ---
 
@@ -72,47 +73,41 @@ Hero ảnh Đà Lạt + **một ô nhập tự do** (Enter để bắt đầu; c
 
 ### Trang 3 — Hiểu chuyến đi (`/app/understand`) — trang khó nhất
 
-Một khung chat có thẻ chọn, chốt 2026-10-13 theo mock `docs/design/desktop/v4-chat-cards/mock.html` (ảnh `01-understand-research.png`, `02-understand-image-choice.png`). Màu là bộ hồng của landing (`.tg-rose`, chỉ trang này), chữ Lora + Be Vietnam Pro. Hành vi phía máy chủ: `docs/TRIP_UNDERSTANDING.md` §4, §18.
+Không gian trò chuyện theo mẫu người dùng duyệt ngày 15/10/2026, dùng font Be Vietnam Pro, nền sáng trắng/xám, thẻ kính và nút đen đồng nhất homepage. Hành vi phía máy chủ: `docs/TRIP_UNDERSTANDING.md` §4, §18.
 
 ```text
-┌──────────────────────────────────────────────┬────────────────────┐
-│ ▾ 3 ngày · người yêu · Xe máy           Sửa  │ [ảnh Đà Lạt] Đà Lạt │
-│ (avatar) Chuyến Đà Lạt bạn đang mong…         │ 1.761 địa điểm hợp │
-│                  [3 ngày với người yêu, retro]│ ✦ 27 nơi theo …    │
-│ ✦ Đã tìm hiểu 3 giây ▸                        │ [Ăn uống] [Khác]   │
-│ Lời agent (chữ trơn)                          │ ┌ thẻ nơi ┐ ♡       │
-│ Câu hỏi / thẻ (tối đa một thẻ mở mỗi lượt)    │ └─────────┘         │
-│ ✓ câu đã trả lời co thành một dòng            │ Còn chưa rõ: …      │
-│ [📎][🖼] Kể thêm, hoặc gửi ảnh / link…    (➤) │ [ Bắt đầu tìm → ]   │
-└──────────────────────────────────────────────┴────────────────────┘
+┌──────┬─────────────────┬───────────────────────────┬────────────────────┐
+│ logo │ Lịch sử chat  + │ Lời chào + 4 thẻ gợi ý    │ Những nơi đang hợp │
+│      │ tìm kiếm        │ (nền xám sáng) hoặc hội  │ N địa điểm         │
+│ nav  │ các chuyến thật │ thoại có thẻ chọn         │ Vé: vòng N/8 +     │
+│      │                 │                           │ 8 mục timeline     │
+│      │                 │ nhắn…                     │ [Tiếp tục chọn nơi]│
+│ thoát│                 │ [file][ảnh]         [gửi] │ lời giải thích     │
+└──────┴─────────────────┴───────────────────────────┴────────────────────┘
 ```
 
-Trang vừa đúng chiều cao cửa sổ; chat và bảng nơi tự cuộn bên trong.
-
-**Cột trái: cuộc trò chuyện** (`screens/Understand.tsx`, `screens/understand/`)
-- Dòng tóm tắt trên cùng (ngày · ai đi · phương tiện) với `Sửa` mở `Xem đầy đủ` (vé, `ui/Ticket.tsx`); `Vé chuyến` ở thanh trên vẫn có.
-- Lời user: khối hồng canh phải (ảnh gửi hiện trong khối). Lời agent: chữ trơn cạnh avatar. Phiên mở lại dựng chat từ transcript; thẻ cũ thành chữ.
-- **Khối "đang tìm hiểu"** (sự kiện `progress`): các bước có chấm quay khi chạy, ✓ khi xong, hổ phách khi lỗi ("Không tìm được nguồn, mình hiểu theo dữ liệu có sẵn"); bước tìm web kèm tên miền các nguồn. Xong lượt thì co lại thành `Đã tìm hiểu N giây ▸`, bấm mở lại được.
-- **Thẻ** dưới lời agent, luôn có lối ra (`Chưa chắc`, `Bỏ qua`, hoặc gõ). Bấm xong, thẻ co thành `✓ câu trả lời`, không lặp thêm bong bóng:
+- Thanh điều hướng icon dùng chung `Sidebar` của homepage. Lịch sử là một menu nền gradient nhạt như thanh điều hướng của các trang khác (mỗi chuyến một hàng icon + tên + dòng phụ, chuyến đang mở là hàng trắng nổi). Dữ liệu dùng `GET /api/harness/trips`, hiển thị ngày/số người/số nơi và stage có thật; không thêm thời gian hay số tin nhắn giả. Tìm theo nội dung thẻ, mở chuyến ở đúng stage; nút `+` tạo chuyến riêng, giữ chuyến cũ trên server. Có trạng thái đang tải, rỗng, không tìm thấy và lỗi/thử lại.
+- **Chat:** chưa có hội thoại thì hiện lời chào theo tên tài khoản (khách dùng lời chào chung) và bốn thẻ gợi ý xếp lệch (Săn mây, Sống chậm, Cả nhà cùng đi, Ăn cho đã): bấm thẻ chỉ điền câu mở đầu vào ô nhắn, người dùng vẫn tự gửi. Khung chat nền xám sáng phẳng (không lưới). Khi bắt đầu kể thì hiện hội thoại, có khung avatar tròn trống (không hình) cạnh lời bot và lời người dùng (không còn thanh tóm tắt `Sửa` phía trên; sửa thông tin ở cột phải). Mục lịch sử không hiện dòng trạng thái khi chuyến còn ở bước tìm hiểu. Phiên mở lại dựng chat từ transcript; thẻ cũ thành chữ. Không đổi SSE, trả lời nhanh, chỉnh vé hay handoff.
+- **Khối "đang tìm hiểu"** (sự kiện `progress`, như khối suy nghĩ của Claude): mỗi việc agent làm là một dòng do code viết ("Đọc tin nhắn của bạn", "Ghi nhận ngày đi", "Hỏi tiếp: phương tiện", tìm web kèm tên miền nguồn); chấm quay khi chạy, ✓ khi xong, hổ phách khi lỗi. Xong lượt thì co lại thành `Đã tìm hiểu N giây ▸`, bấm mở lại được.
+- **Mỗi lượt một câu hỏi** (`docs/TRIP_UNDERSTANDING.md` §5). Câu hỏi bằng chữ của agent là dòng cuối lời nó, ô nhắn mở. Câu hỏi có lựa chọn hiện như một dòng chat đậm (kèm dòng `vì sao` nhạt), dưới là một thẻ (`screens/understand/Ask.tsx`); không còn chồng thẻ nhiều tab. Luôn có lối ra (`Khác` để gõ, `Bỏ qua`). Chọn xong, thẻ co thành `✓ lựa chọn`, rồi agent phản hồi và hỏi câu kế:
 
 | Thẻ | Khi nào | Hình dạng |
 |---|---|---|
-| Nút trả lời nhanh | Câu kế tiếp của bộ câu hỏi, khi lời agent không hỏi gì | Câu hỏi đậm + `Vì sao hỏi`; nút tròn, chọn một thì gửi ngay, chọn nhiều thì `Xong`; số nơi đổi (`−475`) cạnh nút; ô tìm cho xuất phát / chỗ ở, ô ngày |
+| Câu hỏi (`AskCard`) | Câu đào sâu của agent (`ask_user`), mục bắt buộc agent chọn (`ask_required`), hoặc câu app chọn khi lời agent không hỏi gì | Thẻ trắng viền mảnh: đầu thẻ icon + tên mục + `Chọn một` / `Chọn một hoặc nhiều`; tối đa 3 lựa chọn đánh số 1–3 (nhãn + mô tả một dòng, ✎ cho lựa chọn code đoán), dòng 4 là ô `Khác: gõ câu trả lời…` gửi bằng Enter (đi vào chat như lời người dùng); phím 1–4 chọn. Chọn một và không có ô nhập thì gửi ngay (dòng được chọn sáng lên ~180 ms, các dòng khác mờ đi); chọn nhiều hoặc có ô nhập (ngày, giờ, số người, số tiền, tìm chỗ ở: mỗi ô một hàng) thì `Gửi`; `Bỏ qua` ở chân thẻ. Thẻ vào bằng trượt nhẹ, các dòng xuất hiện so le 45 ms |
+| Khung chọn ảnh (`PhotoStage`) | Drill ảnh (`visual`) | Mở trên toàn màn, nền phía sau mờ (blur 14 px, phủ tối 34%) để người dùng chỉ nhìn các nơi; tiêu đề + `vì sao` chữ trắng; **mọi kiểu có ảnh thật** (tối đa 6, không cắt còn 3) xếp hàng ngang, thẻ giữa nổi lên, thẻ hai bên nhỏ dần, xoay nhẹ và mờ hơn, thẻ xa hơn hai bước ẩn (chuyển 560 ms); mỗi thẻ gọn: ảnh thật, tên kiểu, một dòng `N nơi · tên nơi trong ảnh`, nút tròn `+` / `✓` để chọn; **lăn chuột để xoay** (một nấc một thẻ, nghỉ 260 ms giữa hai lần), mũi tên ‹ › và phím ← →, Space chọn, Esc để sau (khung co thành một dòng trong chat có ảnh thu nhỏ, bấm mở lại); dưới hàng thẻ là chấm vị trí và dòng hướng dẫn có biểu tượng chuột `Lăn chuột hoặc dùng ← → để xoay · bấm thẻ giữa để chọn · 3/5`; thanh dưới: `Khác: tả kiểu bạn thích…`, `Bỏ qua`, `Chọn N kiểu`. Ra nhanh hơn vào (220 ms) |
 | Dấu hiệu (`cues`) | Agent đoán một phong cách | `DẤU HIỆU MÌNH SẼ TÌM`: chip có ×, chip đã bỏ gạch ngang (bấm + để thêm lại), `+ thêm dấu hiệu`; `CÓ VÀI KIỂU … KHÁC NHAU`: mỗi kiểu một ảnh thật + tên + số nơi; `Đúng rồi, xem ảnh các kiểu` · `Gửi ảnh mẫu thay vì chọn`; hộp `Nguồn mình đã đọc` (gập) kèm câu cố định "Nguồn web chỉ dùng để hiểu từ … Nơi được gợi ý luôn lấy từ dữ liệu đã kiểm chứng." |
 | Các kiểu (`kinds`) | Sau thẻ dấu hiệu, hoặc ảnh user gửi | Lưới thẻ: một ảnh lớn + hai ảnh nhỏ của các nơi thật, vòng tích khi chọn, tên kiểu, tên vài nơi, số nơi; ô `Gửi ảnh kiểu bạn thích`; `Xong (N)` · `Không kiểu nào giống`. Bấm ảnh mở chi tiết nơi đó |
 | Có phải nơi này? (`photo_pick`) | Ảnh user gửi khớp rõ một nơi | Ảnh + tên nơi (mở chi tiết); `Đúng nơi này` · `Không phải` |
 
-- **Ô nhắn** cố định cuối cột: kẹp giấy (danh sách nơi dạng file, đọc ở trình duyệt), ảnh, kéo-thả, dán; Enter gửi. Dòng nhỏ dưới ô: "Ảnh bạn gửi chỉ dùng trong chuyến này."
+- **Ô nhắn** là một thẻ trắng cố định cuối cột: chữ nhắn ở trên, hàng nút bên dưới (kẹp giấy, ảnh ở trái, gửi ở phải); kẹp giấy (danh sách nơi dạng file, đọc ở trình duyệt), ảnh, kéo-thả, dán; Enter gửi. Dòng nhỏ dưới ô: "Ảnh bạn gửi chỉ dùng trong chuyến này."
 
-**Cột phải: nơi đang hợp** (`screens/understand/Board.tsx`)
-- Ảnh Đà Lạt, chip `Đà Lạt` và ngày / số ngày khi đã biết.
-- Số lớn = `understanding.matching` (chạy số khi đổi), nhãn `địa điểm` khi chưa kể gì, `địa điểm hợp` sau đó; `Xem tất cả` mở ngăn kéo lưới.
-- Mỗi phong cách đã chọn một dòng: "27 nơi theo “vibe retro” (…) được xếp lên đầu".
-- Chip lọc theo loại (Tham quan, Ăn uống, Mua sắm, Khác) trong danh sách đang hiện.
-- Thẻ nơi (`board.ids`): ảnh, tên, sao + số đánh giá, khu, loại · giờ mở; nhãn `Gần kiểu bạn tả` cho nơi của phong cách; ♡ lưu. Bấm mở `PlaceSheet` như ở Chọn nơi.
-- `Còn chưa rõ: …` (trường bắt buộc còn thiếu) và nút `Bắt đầu tìm` (luôn bấm được).
-
-**Không bao giờ hiện**: phân số câu (`câu 2 / 3`), thanh tiến độ theo số câu, câu kế tiếp dạng chữ ma, danh sách ý định sắp hỏi. Số nơi trên bảng là số thật, không phải dự đoán.
+**Cột phải: những nơi đang hợp** (`screens/understand/Board.tsx`)
+- Đầu cột: `Những nơi đang hợp` và số địa điểm lấy từ `understanding.matching`. Tiêu đề và số địa điểm dùng Fraunces đậm (SOFT 100) làm bản gần nhất của kiểu retro Ragile mà người dùng chọn; font Ragile thật chưa có file nên chưa nhúng được. Cả màn này cỡ chữ lớn hơn 10% so với trước (15/10/2026). Màn này dùng bảng Yale Blue #0f3b59 / Cool Steel #7d929e / Dust Grey #dbd4cc / Goldenrod #dba12c / Dark Coffee #3e251e: lời bot nền trắng viền mảnh chữ gần đen, lời người dùng nền Dust Grey chữ Dark Coffee, nền khung chat là Dust Grey rất nhạt, nút hành động (nút gửi, `Tiếp tục đến chọn nơi`, `Tạo chuyến đi`, nút tháng sau và ngày đầu cuối trên lịch) là nâu `--tg-brown` #2b2720, cùng nâu với nút `Bắt đầu với ý tưởng này`, vòng cung tiến độ Goldenrod.
+- Vé xám `Chuyến của bạn`: tám nhóm ở trên, tổng quan ở cuối vé. Tổng quan là vòng cung mảnh hiện `N/8 thông tin` (không hiện phần trăm; progressbar vẫn có giá trị cho trình đọc màn hình) cạnh `Chuyến của bạn` và tiêu đề `Kể mình nghe chuyến đi` (đổi thành `Chuyến Đà Lạt của bạn` khi đã ghi ít nhất một mục). Tỷ lệ tính theo nhóm có thông tin, **không phải số câu hỏi hoặc mức khả thi**; đủ 8 nhóm không thay quyết định readiness của server. Màu icon và đường nối dùng bảng ở trên (khai báo `--pl-*` trong `workspace.css`, chỉ áp cho màn này).
+- Đầu vé: nhãn `Thông tin chuyến` (viền đứt) — đường đứt — nhãn trạng thái (`Đang ghi nhận` / `Đang cập nhật` / `Đã đủ thông tin`). Dưới là tám nhóm cố định dạng timeline: icon tròn viền đứt (Ngày đi, Đi với, Phương tiện, Nơi lưu trú, Giờ giấc, Mục đích, Nhịp độ, Mới hay quen) nối nhau bằng đường dọc; bên phải là tên nhóm, trạng thái xám (`Đã ghi nhận` / `Đang ghi nhận…` / `Chưa điền`) và dòng mô tả (giá trị đã ghi, hoặc câu "Mình sẽ hỏi …"). Chữ phụ đạt tương phản ≥ 4,5:1; nhóm đã ghi hiện giá trị đậm, nhãn `Đã ghi nhận` dạng chip tô màu, dấu ✓ đen ở góc icon; nhóm đang ghi có viền đen, chip đen và nhịp sáng nhẹ (tắt khi giảm chuyển động). Nhóm đã ghi: icon tròn nền tô màu bảng (Goldenrod / Cool Steel / Yale Blue / Dust Grey / Dark Coffee theo thứ tự) và đường nối cùng màu. `lodging`, `base`, `lodging_booked` cùng một nhóm, không đếm trùng; nhóm đã có giá trị có nút `Sửa` mở vé vào đúng trường.
+- Giá trị mỗi nhóm nằm trên một dòng (dài thì cắt bằng `…`, đủ nội dung trong `title`), chữ `Sửa` có chỗ riêng nên không bị chèn; `Ngày đi` chỉ ghi ngày (`21–22/10 · 2 ngày`), giờ bắt đầu / kết thúc nằm trong vé và bản đọc lại.
+- Dưới vé chỉ còn nút đen `Tiếp tục đến chọn nơi`, dùng handoff hiện có, không yêu cầu hoàn tất cả tám nhóm.
+- Các cột cuộn độc lập; ô nhập giữ trong khung ở desktop. Màn hình desktop hẹp xếp lại cột; thiết bị điện thoại vẫn theo trang Dùng ứng dụng chung của dự án.
 
 Trạng thái: chưa nối được máy chủ (`Thử lại`) · đang chuyển sang Chọn nơi · chỉ mục ảnh chưa sẵn (thẻ dấu hiệu không có ảnh kiểu) · tìm web lỗi (bước hổ phách, lượt vẫn tiếp) · ảnh hỏng hoặc quá lớn (báo trong chat, không gửi).
 
@@ -126,7 +121,7 @@ Mục bắt buộc:
 3. **Thẻ địa điểm**: ảnh thật (ghi nguồn) · nhãn "Hợp nhất" cho nơi `top` · tên · loại · khu · *Vì sao phù hợp* (≤3 ✓) · *Đánh đổi* (hổ phách, ngay dưới) · thời gian (khoảng) · giá hoặc "Chưa có giá" · khoảng cách ước tính · độ tin cậy · `Thêm · Khóa · So sánh · Bỏ` + trái tim lưu. Hàng thao tác phụ hiện rõ hơn khi hover/focus nhưng luôn bấm được.
 4. **Cách xem Đĩa xoay**: nửa đĩa ở mép trái, các nơi là cánh quạt hình mảnh vành khuyên (cạnh trong, cạnh ngoài cong theo cùng một vòng tròn, khe đều 8px) khép thành một vòng liền trên 180°; nơi đang xem nằm ngang ở giữa, viền xanh. Đĩa là vòng lặp, không có điểm đầu. Tối đa 7 cánh (3 trên, 1 giữa, 3 dưới) để ảnh trên cánh to và rõ; ít nơi hơn thì góc mỗi cánh = 180° / số nơi (tối đa 45°). Lăn chuột hay kéo trên đĩa thì xoay đĩa; phần còn lại cuộn như trang, không cắt chữ, đĩa nằm trên thanh "Đã chọn". Nhóm nơi là hàng tab có chữ và số ở đầu cột nội dung; không có hàng "Nơi trước / Nơi sau". ↑ ↓ đổi nơi, ← → xem ảnh; cùng thao tác như thẻ. Màn hẹp (≤ 900px): đĩa thành dải cánh cuộn ngang.
 5. **Câu hỏi làm hẹp** (`pending`) chen trong lưới, một câu, bỏ qua được. So sánh mở từ nút nổi "So sánh N nơi".
-6. **Tab "Chỗ ở"** (luôn có; nhãn *cần chọn* khi chưa có chỗ ở, ✓ khi đã có; cả chuyến một chỗ ở, đổi chỗ ở đã đặt hoặc đã chọn thì hỏi *"Đổi chỗ ở? … Giữ chỗ cũ / Xác nhận đổi"*, bỏ lựa chọn cũng hỏi): thẻ chỗ ở có ảnh, tên, điểm, giá/đêm + *"giá tham khảo trên Maps ngày dd/mm; kiểm lại khi đặt"* hoặc *"chưa có giá"*, *"Hợp vì: …"*, số phút trung bình tới các nơi đã chọn; thẻ đầu *"Hợp gu bạn nhất"* khi có bằng chứng gu; bấm ảnh mở `PlaceSheet`; *Ở đây* · *Tìm chỗ ở khác*; dải *"Bạn ở X · giá/đêm. Mọi ngày bắt đầu và kết thúc ở đây."* + *Đổi*. Danh sách theo các nơi đã chọn; chưa chọn nơi nào → *"Chọn vài nơi muốn đi trước…"*.
+6. **Tab "Chỗ ở"** (luôn có; nhãn *cần chọn* khi chưa có chỗ ở, ✓ khi đã có; cả chuyến một chỗ ở, đổi chỗ ở đã đặt hoặc đã chọn thì hỏi *"Đổi chỗ ở? … Giữ chỗ cũ / Xác nhận đổi"*, bỏ lựa chọn cũng hỏi): thẻ chỗ ở **cùng kiểu thẻ địa điểm** (ảnh, nhãn *Chỗ ở*, *Hợp nhất* khi hợp gu nhất, tên, điểm, giá/đêm + *"giá tham khảo trên Maps ngày dd/mm; kiểm lại khi đặt"* hoặc *"chưa có giá"*, *"Hợp vì: …"*, số phút trung bình tới các nơi đã chọn; thẻ đầu *"Hợp gu bạn nhất"* khi có bằng chứng gu; bấm ảnh mở `PlaceSheet`; nút *Thêm* khi chưa có chỗ ở; đã có thì thẻ đang chọn là *Đã chọn* và các thẻ còn lại hiện *Đổi sang chỗ này* (không phải thêm), bấm thì hỏi xác nhận; *Tìm chỗ ở khác*; dải *"Bạn ở X · giá/đêm. Mọi ngày bắt đầu và kết thúc ở đây."* + *Đổi*. Danh sách luôn hiện: chưa chọn nơi nào thì xếp theo gu, chọn rồi thì xếp thêm theo độ gần các nơi đó. Chỗ ở đang chọn là một dòng đầu trong giỏ (*Chỗ ở · mọi ngày bắt đầu và kết thúc ở đây*, nút *Đổi*).
 7. **Không chặn**: quá tải, vướng điều kiện, chưa có chỗ ở chỉ hiện thông báo; *Lập lịch* luôn bấm được khi đã chọn ít nhất một nơi, chưa có chỗ ở thì cạnh nút có *Chưa chọn chỗ ở*.
 6. **Giới hạn đã loại N nơi** — mở ra theo từng giới hạn, `Nới giới hạn` đưa về Hiểu chuyến đi.
 7. **Chưa xác minh được điều kiện của bạn** gập lại.
@@ -173,7 +168,29 @@ Bốn trạng thái:
 
 Xung đột với giới hạn người dùng có hàng *nới* đưa về vé chuyến; xung đột vật lý **không** có hàng nới. Cuối danh sách: *"Để dành cho dịp khác"*. Bấm thân thanh mở danh sách đã chọn (khóa / bỏ từng nơi, cảnh báo cần kiểm tra trước khi đi). Thông báo là vùng `aria-live="polite"`.
 
+### Trước khi lập lịch (hộp thoại khi bấm *Lập lịch*, `ui/ReadbackSheet.tsx`)
+
+Hộp thoại sáng màu kem trên nền mờ (`css/gate.css`, `ui/Gate.tsx`). Đầu hộp: *Trước khi lên lịch*, tiêu đề *Còn N câu hỏi nữa thôi!*, dòng *Cho mình biết thêm một chút để lên lịch trình thật hợp ý bạn nhé.* và viên *Còn x/y*. Giữa hộp là **chồng thẻ câu hỏi xòe quạt**: mỗi câu một thẻ pastel (tông của thẻ xu hướng ở trang chủ), thẻ đang trả lời nằm trước (icon + tên chủ đề + số câu, **câu hỏi làm tiêu đề** — câu đầu đứng, phần sau nghiêng — rồi đáp án là các ô lớn, ô đã chọn đen có dấu ✓; chủ đề Ngày đi dùng **lịch chọn khoảng ngày** và **bộ chỉnh giờ ±30 phút**, không dùng ô ngày giờ gốc của trình duyệt). Các thẻ khác lấp ló hai bên (tối đa 3 mỗi bên, nghiêng và nhỏ dần), chỉ lộ dải mép có icon, tên, số câu hoặc ✓ khi đã trả lời; bấm một dải để đưa thẻ đó lên trước. **Thanh ghi nhận nằm ngang ngay dưới các thẻ**, chỉ có icon: mỗi điều đã ghi nhận một vòng icon nối nhau bằng đường mảnh (đặc = bạn nói, viền đứt = mình đoán kèm `×` khi rê vào để bỏ, nhạt = mặc định, vàng = cần xem lại); rê chuột hoặc focus thì hiện chữ của điều đó, bấm để sửa trong Tìm hiểu. Chân hộp: *Sửa trong Tìm hiểu*, `Tiếp` / `Xong`. Hết câu hỏi thì cùng khung ấy thành **trang đọc lại**: nửa trái đếm *N điều đã ghi nhận* và nói *Mình sẽ xếp lịch theo những điều này*; nửa phải có hàng chú giải đếm theo nguồn (*Bạn nói / Mình đoán / Mặc định / Cần xem lại*), khối vàng **Cần bạn xem lại** nằm trên cùng, rồi mỗi điều một hàng lớn (vòng icon đặc = bạn nói, viền đứt = mình đoán, kèm `×` để bỏ; nhạt = mặc định; bấm một hàng để sửa trong Tìm hiểu), nút **Đúng rồi, xếp lịch**. Sau một câu trả lời bắt buộc còn dở, hộp đọc lại cổng còn mở qua `GET …/read/trip/readback`.
+
 ### Lịch trình (`/app/plan`)
+
+Bố cục theo mẫu `ui_mock_for_design/designs/itinerary/`, tràn hết bề ngang màn hình (tối đa 1840 px), chữ và ảnh lớn. Bốn màn trong một route, đổi bằng trạng thái (không đổi URL):
+
+```mermaid
+flowchart LR
+  C[Chọn phương án] -->|Xem lịch trình| O[Tổng quan]
+  O -->|mở một ngày| D[Từng ngày]
+  D -->|Đổi / Thêm| S[Tìm nơi]
+  S -->|Áp dụng| D
+  O -->|Đổi phương án| C
+```
+
+- **Chọn phương án**: lần đầu vào, các thẻ nằm **mờ** phía sau một tấm bưu thiếp giải thích *vì sao có N phương án* (quá tải thì nêu số nơi / số ngày; mỗi phương án một dòng: tên, ý, bao nhiêu nơi giữ hay bỏ); bấm *Xem N phương án* thì nền rõ lên và ba thẻ hiện ra (đổi phương án đã chọn thì vào thẳng các thẻ). Thẻ trắng theo mẫu `ui_mock_for_design`: ảnh đại diện có nhãn *Tạm bỏ N nơi* / *Giữ đủ các nơi*, tên + ý, ba số (nơi ghé, đi lại, chi phí), các nơi tạm bỏ kèm lý do (xem thêm khi quá 3), nút nâu *Chọn phương án này*; chọn một thẻ rồi mới bấm *Xem lịch trình* (khóa tới lúc chọn). *So sánh chi tiết* mở bảng đánh đổi.
+- **Tổng quan**: bản đồ cả chuyến, rồi đến / chỗ nghỉ / thẻ từng ngày / về; thanh dưới có chi phí đã biết, *Chốt kế hoạch*, *Xem lịch từng ngày*.
+- **Từng ngày**: danh sách trái (thanh ngày cố định, cuộn riêng), bản đồ phải. Kéo thẻ hoặc ảnh (giữ ~150 ms), tay nắm, hoặc nút lên / xuống để đổi thứ tự (`reorder`); Esc hủy kéo; giảm chuyển động thì bỏ animation. Nơi bắt buộc không có Đổi / Bỏ nhưng vẫn đổi được thứ tự.
+- **Tìm nơi**: ô tìm, bộ lọc trái, kết quả phải; chỉ gồm nơi trong lựa chọn hoặc nơi dự phòng đã kiểm tra; chọn → xem trước thay đổi → áp dụng.
+
+Các mục dưới đây vẫn đúng; "tab phương án / tab ngày / hai cách xem" nay là các màn trên (sơ đồ *Hành trình* mở từ Tổng quan).
 
 Mục bắt buộc:
 1. **Tab phương án** + **bảng đánh đổi** giữa các phương án (mỗi phương án tối ưu một mục tiêu khác: ít di chuyển / nhiều trải nghiệm / rẻ hơn…), có cột chi phí (*"Một phần chưa có giá"* khi thiếu).
@@ -261,7 +278,14 @@ Thông tin thực tế (chính thức / Google) và bằng chứng trải nghi�
 
 ## 8. Hệ thị giác — nền giấy, Thông / Nắng
 
-Hướng **editorial dẫn bằng ảnh thật**, nền sáng. Màu và khoảng cách là biến CSS trong `web/src/user/css/tokens.css`; component không hard-code màu.
+Hướng **editorial dẫn bằng ảnh thật**, nền sáng. Tông **trắng–đen cơ bản** (2026-10-14, thẻ trắng, nút đen, viền xám nhạt) cho mọi trang, kể cả landing (bỏ tông hồng mận 2026-10-15). Màu và khoảng cách là biến CSS trong `web/src/user/css/tokens.css`; component không hard-code màu.
+
+**Màu thương hiệu** (2026-10-15): đất nung hoàng hôn, màu của logo và linh vật (`web/public/img/brand/`). Chỉ là điểm nhấn nhỏ, không làm nền mảng lớn; nút và chữ giữ `--tg-brown` / `--tg-ink`.
+
+| Token | Giá trị | Dùng cho |
+|---|---|---|
+| `--tg-brand` | `#b4532a` (5,0:1 trên trắng) | logo, linh vật, chấm bước đang chọn, số trên ghim, tuyến chấm, giờ đang tới |
+| `--tg-brand-soft` | `#f4c9ae` | má linh vật, quầng quanh chấm brand; nền nhạt rất ít chỗ |
 
 | Vai trò | Giá trị | Tương phản |
 |---|---|---|

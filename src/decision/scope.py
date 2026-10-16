@@ -12,6 +12,10 @@ def _out(step: str | None) -> dict:
 
 def replan_scope(action: dict) -> dict:
     t = action.get("type")
+    if t == 'answer' and str(action.get('qid', '')).startswith('meal:'):
+        return _out('screen')
+    if t in ("set_lodging", "clear_lodging"):  # where the user sleeps is Planning's: no place is ranked again
+        return _out(None)
     if t == "drop":
         return _out(DROP_STEP.get(action.get("reason"), "diversify"))
     if t == "feedback":

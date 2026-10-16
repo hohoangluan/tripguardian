@@ -5,13 +5,17 @@ enough_factor: 1.5  # a hard filter's coverage is "enough" when verified passes 
 first_token_s: 8    # agents runtime contract; the Trip loop only uses total_s
 total_s: 30         # agent: one model call, first token to last
 clef_timeout_s: 1    # Clef (Cloudflare classifier) limit; slower or failing = it decides nothing
-clef_reject_min: 0.88 # Clef must be this sure a message is off topic / abuse to answer it with the fixed reply (a wrong reject costs more than a miss)
-clef_data_min: 0.8   # ... and this sure the user asks for a real-world figure (weather, price, hours) to answer with the fixed reply
 clef_feature_min: 0.5  # search_features, when the keywords find nothing: Clef ranks features, those from this probability are returned
 clef_verify_min: 0.75 # record_fact (an inferred soft / hard fact): Clef must be this sure the quote does not say the fact to refuse it
 clef_reply_min: 0.9   # Clef must be this sure a reply promises results or states an unsaid fact to replace it
 tool_steps: 6       # maximum model calls in one turn (each may call several tools)
-required: [days, companions, mobility, when]  # known before the user may press Next (when = a start date or a month)
+required: [trip, companions, mobility, care, pace, budget, lodging]
+frame:
+  day_start: "08:00"
+  day_end: "21:00"
+  first_start: "14:00"
+  last_end: "12:00"
+entry_min: 30       # hub to lodging, and lodging to hub
 max_tokens: 1500    # agent: completion limit of one model call
 
 coach_min_people: 9 # a party this big in its own car must go to places a coach or 16-seater reaches (hard filter coach_access != no)
@@ -61,3 +65,92 @@ web_timeout_s: 6.0
 web_cache_dir: data/web_cache
 web_ttl_days: 30
 looks: true            # corpus.index for "vibe retro" and photos the user sends
+
+drill_min: 10
+drill_score_min: 0.14
+say_stream_s: 0.6     # the reply streams word by word over this long, only after Clef and the guards passed it
+drill_scores_path: data/trip/drill_scores.json  # written offline by `python -m trip drills`, read at start when its key matches
+# Photo cards for a broad taste the user just said (domain/drill.py TOPICS): the app builds them, no model call.
+# Each variant: label (<= 40 chars), cues (visible signs matched to corpus photos), writes (soft only). A variant
+# shows only with a real photo and >= drill_min matching places; a card needs two such variants.
+drills:
+  chill:
+    header: "Kiểu chill"
+    question: "Chill với bạn trông giống kiểu nào? Chọn một hay nhiều."
+    variants:
+      - {label: "Cà phê ngắm đồi thông", axis: place, cues: [quán cà phê trên đồi, view đồi thông, bàn ghế ngoài trời], writes: [{field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Quán nhỏ ấm cúng, yên tĩnh", axis: place, cues: [quán nhỏ decor ấm cúng, ánh đèn vàng, góc ngồi yên tĩnh], writes: [{field: soft, value: "cozy_decor=present:love"}, {field: soft, value: "noise=quiet:love"}]}
+      - {label: "Ngồi lâu đọc sách, làm việc", axis: place, cues: [kệ sách, bàn gỗ, người ngồi đọc sách], writes: [{field: soft, value: "long_stay_chill=present:love"}]}
+      - {label: "Dạo hồ, rừng thông", axis: place, cues: [mặt hồ, rừng thông, lối đi dạo], writes: [{field: soft, value: "nature=present:love"}]}
+      - {label: "Vườn hoa, sân vườn xanh", axis: place, cues: [vườn hoa, sân vườn nhiều cây xanh, lối đi nhỏ], writes: [{field: soft, value: "flower_garden=present:love"}]}
+  cà phê:
+    header: "Kiểu quán cà phê"
+    question: "Bạn thích quán cà phê kiểu nào? Chọn một hay nhiều."
+    variants:
+      - {label: "View đồi, thung lũng", axis: place, cues: [quán cà phê view thung lũng, đồi thông, ban công ngoài trời], writes: [{field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Decor xinh, ấm cúng", axis: place, cues: [decor ấm cúng, đèn vàng, đồ gỗ], writes: [{field: soft, value: "cozy_decor=present:love"}]}
+      - {label: "Sân vườn ngoài trời", axis: place, cues: [sân vườn, bàn ngoài trời, cây xanh], writes: [{field: soft, value: "outdoor_seating=present:love"}]}
+      - {label: "Ngồi làm việc, học bài", axis: place, cues: [bàn làm việc, laptop, không gian yên tĩnh], writes: [{field: soft, value: "laptop_friendly=present:love"}]}
+      - {label: "Cà phê ngon, pha chế kỹ", axis: place, cues: [quầy pha chế, máy pha espresso, ly cà phê], writes: [{field: soft, value: "drink_quality=good:love"}]}
+  săn mây:
+    header: "Kiểu săn mây"
+    question: "Bạn muốn săn mây ở kiểu chỗ nào?"
+    variants:
+      - {label: "Đồi trống ngắm biển mây", axis: place, cues: [biển mây, đồi cỏ, bình minh], writes: [{field: soft, value: "cloud_hunting=present:love"}]}
+      - {label: "Quán cà phê săn mây", axis: place, cues: [quán cà phê trên cao, biển mây phía dưới, ghế gỗ], writes: [{field: soft, value: "cloud_hunting=present:love"}, {field: soft, value: "long_stay_chill=present:love"}]}
+      - {label: "Leo núi đón mây", axis: place, cues: [đỉnh núi, đường mòn, mây trắng], writes: [{field: soft, value: "cloud_hunting=present:love"}, {field: soft, value: "hiking=present:love"}]}
+  ngắm đồi:
+    header: "Kiểu ngắm đồi"
+    question: "Bạn muốn ngắm đồi kiểu nào?"
+    variants:
+      - {label: "Đồi thông xanh", axis: place, cues: [đồi thông, cỏ xanh, bầu trời], writes: [{field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Đồi hoa", axis: place, cues: [đồi hoa, thảm hoa, sườn đồi], writes: [{field: soft, value: "flower_garden=present:love"}]}
+      - {label: "Hoàng hôn trên đồi", axis: place, cues: [hoàng hôn, đồi núi, trời cam], writes: [{field: soft, value: "sunset_view=present:love"}]}
+      - {label: "Đi bộ lên đồi", axis: place, cues: [đường mòn lên đồi, người đi bộ, rừng], writes: [{field: soft, value: "hiking=present:love"}]}
+  chụp ảnh:
+    header: "Kiểu chụp ảnh"
+    question: "Bạn muốn có những tấm ảnh kiểu nào? Chọn một hay nhiều."
+    variants:
+      - {label: "Góc decor check-in", axis: place, cues: [góc check-in, decor nhiều màu, tiểu cảnh], writes: [{field: soft, value: "photo_spot=present:love"}]}
+      - {label: "Vườn hoa rực rỡ", axis: place, cues: [vườn hoa, hoa nhiều màu, lối đi giữa hoa], writes: [{field: soft, value: "flower_garden=present:love"}]}
+      - {label: "Kiến trúc cổ", axis: place, cues: [kiến trúc cổ, mái ngói, tường vàng], writes: [{field: soft, value: "heritage_architecture=present:love"}]}
+      - {label: "Phong cảnh đồi núi", axis: place, cues: [phong cảnh đồi núi, hồ nước, rừng thông], writes: [{field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Thuê trang phục chụp", axis: place, cues: [người mặc trang phục, áo dài, cổ phục], writes: [{field: soft, value: "costume_rental=present:love"}]}
+  thiên nhiên:
+    header: "Kiểu thiên nhiên"
+    question: "Thiên nhiên bạn muốn là kiểu nào? Chọn một hay nhiều."
+    variants:
+      - {label: "Thác nước", axis: place, cues: [thác nước, đá, suối], writes: [{field: soft, value: "nature=present:love"}]}
+      - {label: "Rừng thông, đường mòn", axis: place, cues: [rừng thông, đường mòn, cây cao], writes: [{field: soft, value: "hiking=present:love"}]}
+      - {label: "Hồ nước yên bình", axis: place, cues: [hồ nước, mặt hồ phẳng, cây ven hồ], writes: [{field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Vườn, nông trại tự hái", axis: place, cues: [vườn dâu, nông trại, luống rau], writes: [{field: soft, value: "pick_your_own=present:love"}]}
+  cắm trại:
+    header: "Kiểu cắm trại"
+    question: "Bạn muốn cắm trại kiểu nào?"
+    variants:
+      - {label: "Glamping lều tiện nghi", axis: place, cues: [lều glamping, giường trong lều, đèn dây], writes: [{field: soft, value: "camping=present:love"}, {field: soft, value: "cozy_decor=present:love"}]}
+      - {label: "Cắm trại bên hồ", axis: place, cues: [lều cắm trại, bờ hồ, bãi cỏ], writes: [{field: soft, value: "camping=present:love"}, {field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Cắm trại trong rừng thông", axis: place, cues: [lều trong rừng thông, lửa trại, cây thông], writes: [{field: soft, value: "camping=present:love"}, {field: soft, value: "nature=present:love"}]}
+  ăn uống:
+    header: "Kiểu ăn uống"
+    question: "Bạn muốn ăn ở những chỗ kiểu nào? Chọn một hay nhiều."
+    variants:
+      - {label: "Quán đặc sản địa phương", axis: place, cues: [món đặc sản, quán bình dân, bàn ghế nhựa], writes: [{field: soft, value: "local_specialty_food=present:love"}]}
+      - {label: "Nhà hàng view đẹp", axis: place, cues: [nhà hàng view đồi, cửa kính lớn, bàn ăn], writes: [{field: soft, value: "scenic_view=present:love"}, {field: soft, value: "food_quality=good:love"}]}
+      - {label: "Quán ấm cúng", axis: place, cues: [quán ăn ấm cúng, đèn vàng, nồi lẩu], writes: [{field: soft, value: "cozy_decor=present:love"}]}
+      - {label: "Đông khách, nhiều món ngon", axis: place, cues: [quán đông người, nhiều món, khay đồ ăn], writes: [{field: soft, value: "food_quality=good:love"}]}
+  về đêm:
+    header: "Kiểu buổi tối"
+    question: "Buổi tối bạn muốn đi kiểu nào?"
+    variants:
+      - {label: "Nhạc sống, acoustic", axis: place, cues: [sân khấu nhỏ, người hát, đèn sân khấu], writes: [{field: soft, value: "live_music=present:love"}]}
+      - {label: "Bar, quán view đêm", axis: place, cues: [quầy bar, view thành phố về đêm, ánh đèn], writes: [{field: soft, value: "scenic_view=present:love"}]}
+      - {label: "Quán ấm cúng yên tĩnh", axis: place, cues: [quán đèn vàng, góc ngồi yên tĩnh, buổi tối], writes: [{field: soft, value: "noise=quiet:love"}, {field: soft, value: "cozy_decor=present:love"}]}
+  tâm linh:
+    header: "Kiểu nơi tâm linh"
+    question: "Bạn muốn ghé nơi tâm linh kiểu nào?"
+    variants:
+      - {label: "Chùa kiến trúc đẹp", axis: place, cues: [chùa, mái cong, tượng phật], writes: [{field: soft, value: "heritage_architecture=present:love"}]}
+      - {label: "Thiền viện yên tĩnh", axis: place, cues: [chùa trên đồi, sân vườn yên tĩnh, hồ sen], writes: [{field: soft, value: "noise=quiet:love"}]}
+      - {label: "Nhà thờ cổ", axis: place, cues: [nhà thờ, tháp chuông, kính màu], writes: [{field: soft, value: "heritage_architecture=present:love"}]}
+gaps_path: data/trip/gaps.jsonl

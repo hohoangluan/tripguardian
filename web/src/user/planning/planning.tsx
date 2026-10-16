@@ -10,7 +10,7 @@ interface PlanningCtx {
   lodgingProgress: ProgressEvent | null
   error: string | null
   busy: boolean
-  act: (a: Action) => Promise<void>
+  act: (a: Action) => Promise<boolean>
   previewAct: (a: Action) => Promise<ActPreview | null>
   editPreview: ActPreview | null
   dismissPreview: () => void
@@ -105,16 +105,18 @@ export function PlanningProvider({ children }: { children: ReactNode }) {
 
   const act = useCallback(
     async (a: Action) => {
-      if (!id) return
+      if (!id) return false
       gate.current.invalidate()
       const ticket = gate.current.ticket()
       pending.current++
       setBusy(true)
       try {
         const r = await api.act(id, a)
-        if (accept(ticket, r.revision, r.view, true)) { setDiff(r.diff); setError(null) }
+        if (accept(ticket, r.revision, r.view, true)) { setDiff(r.diff); setError(null); return true }
+        return false
       } catch (e) {
         if (ticket.generation === gate.current.ticket().generation) setError(e instanceof api.PlanningError ? `Không thực hiện được: ${e.detail || e.status}` : OFFLINE)
+        return false
       } finally {
         if (ticket.generation === gate.current.ticket().generation) { pending.current--; setBusy(pending.current > 0) }
       }

@@ -28,8 +28,8 @@ def _file():
     return data_dir() / "review" / "decisions.jsonl"
 
 
-def _all() -> list[dict]:
-    f = _file()
+def _all(root=None) -> list[dict]:
+    f = (root / "review" / "decisions.jsonl") if root is not None else _file()
     return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines()] if f.exists() else []
 
 
@@ -41,17 +41,17 @@ def decide(kind: str, id: str, decision: str, note: str = "") -> dict:
     return rec
 
 
-def latest(kind: str) -> dict[str, dict]:
+def latest(kind: str, *, root=None) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    for rec in _all():
+    for rec in _all(root):
         if rec["kind"] == kind:
             out[rec["id"]] = rec
     return out
 
 
-def decisions(kind: str) -> dict[str, str]:
+def decisions(kind: str, *, root=None) -> dict[str, str]:
     """id -> latest decision for one kind of item."""
-    return {id: rec["decision"] for id, rec in latest(kind).items()}
+    return {id: rec["decision"] for id, rec in latest(kind, root=root).items()}
 
 
 def retry_ids(kind: str, fetched_at: dict[str, str] | None = None) -> set[str]:

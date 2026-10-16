@@ -1,7 +1,7 @@
 import threading
 
 import pytest
-from plan_fixtures import CENTRE, CFG, FakeLive, decision, fake_lodging, fake_matrix, no_geocode, sample_trip, small_trip, spot
+from plan_fixtures import CENTRE, CFG, FakeLive, decision, LODGING, fake_matrix, no_geocode, sample_trip, small_trip, spot
 
 from planning.engine import Engine, NoSession
 from planning.session import ActionError, Store
@@ -11,29 +11,31 @@ def fake_route(points, mode, live_cfg):
     return {"points": [list(p) for p in points], "source": "osrm", "fetched_at": "t"}
 
 
-def engine(records=None, lodging_fn=fake_lodging):
-    d, recs = sample_trip() if records is None else (None, None)
-    return Engine([], cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-                 sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=lodging_fn)
+def engine():
+    return Engine(LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+                 sun_fn=lambda *a: (6 * 60, 17 * 60 + 30))
 
 
-def test_create_returns_variants_right_away_without_waiting_on_lodging():
+def test_create_returns_variants_right_away_without_waiting_on_lodging(monkeypatch):
+    import planning.engine as pe
     d, recs = sample_trip()
     gate = threading.Event()
+    ranked = pe.lodging_candidates
 
-    def slow_lodging(*a):  # the crawl runs in the background; create must not wait for it
+    def slow_candidates(*a):  # the lodging list is built in the background; create must not wait for it
         gate.wait(5)
-        return fake_lodging(*a)
+        return ranked(*a)
 
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=slow_lodging)
+    monkeypatch.setattr(pe, "lodging_candidates", slow_candidates)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
+               matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30))
     out = e.create(d, None)
     assert out["id"] and out["view"]["ok"] and out["view"]["variants"]
     assert out["view"]["lodging"]["status"] == "pending"
     gate.set()
 
 
-def test_engine_overload_offers_profiles_and_tracks_profile_specific_drops():
+def test_engine_overload_offers_directions_and_tracks_direction_specific_drops():
     records = [spot(f"p{i}", CENTRE, i % 7, price={"typical_vnd": 200000 if i == 7 else 10000},
                     group=f"kind-{i % 4}") for i in range(8)]
     d = decision([r["id"] for r in records], days=1, leave_at="21:00")
@@ -41,20 +43,20 @@ def test_engine_overload_offers_profiles_and_tracks_profile_specific_drops():
                         "conflicts": [{"check": "time", "id": "time"}]}
     for chosen in d["confirmed"]:
         chosen["utility"] = 0.1 if chosen["id"] == "p7" else 1.0
-    e = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
-               matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), lodging_fn=fake_lodging, background=False)
+    e = Engine(records + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode,
+               matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), background=False)
     created = e.create(d, None)
     sid, view = created["id"], created["view"]
     assert view["overload"]["level"] == "overloaded"
-    assert {v["preset"] for v in view["variants"]} == {"low_cost", "diverse", "least_travel"}
-    cheap = next(v for v in view["variants"] if v["preset"] == "low_cost")
+    assert {d for v in view["variants"] for d in [v["id"], *v.get("merged", [])]} == {"fit", "travel", "cost"}
+    cheap = next(v for v in view["variants"] if "cost" in [v["id"], *v.get("merged", [])])
     assert cheap["status"] == "available" and "p7" not in cheap["kept"]
     e.act(sid, {"type": "pick_variant", "id": cheap["id"]})
     chosen = e.load(sid)["view"]
     assert set(chosen["state"]["plan_dropped"]) == set(cheap["dropped_by_plan"][i]["place_id"]
                                                         for i in range(len(cheap["dropped_by_plan"])))
     assert {i["place_id"] for day in chosen["itinerary"] for i in day["items"] if i["kind"] == "visit"} == set(cheap["kept"])
-    other = next(v for v in view["variants"] if v["preset"] == "least_travel" and v["status"] == "available")
+    other = next(v for v in view["variants"] if "travel" in [v["id"], *v.get("merged", [])] and v["status"] == "available")
     switched = e.act(sid, {"type": "pick_variant", "id": other["id"]})["view"]
     assert set(switched["state"]["plan_dropped"]) == {x["place_id"] for x in other["dropped_by_plan"]}
     assert not switched["state"]["dropped"]
@@ -92,10 +94,10 @@ def test_load_an_unknown_session_is_no_session():
         e.load("0" * 12)
 
 
-def test_lodging_turns_ready_once_the_background_crawl_finishes():
+def test_lodging_turns_ready_once_the_served_stays_are_ranked():
     d, recs = sample_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)  # run synchronously in tests
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)  # run synchronously in tests
     out = e.create(d, None)
     sid = out["id"]
     lod = e.lodging(sid)
@@ -107,8 +109,8 @@ def test_a_lower_budget_drops_candidates_but_never_silently_changes_the_chosen_o
     # cap = budget * lodging_share / nights (planning.lodging.price_cap); nights = days - 1 = 1 here, so a 5M
     # budget caps at 1.5M/night -- comfortably over h2's 900k -- before the later set_lodging_budget tightens it.
     d, recs = sample_trip(budget=5_000_000)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)
     sid = e.create(d, None)["id"]
     variants = e.variants(sid)
     e.act(sid, {"type": "pick_variant", "id": variants[0]["id"]})
@@ -123,17 +125,18 @@ def test_a_lower_budget_drops_candidates_but_never_silently_changes_the_chosen_o
 
 def started(budget=None):
     d, recs = small_trip(budget=budget)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     return e, sid
 
 
 def test_acting_before_pick_variant_is_refused():
-    d, recs = small_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    recs = [spot(f"p{i}", CENTRE, i) for i in range(8)]
+    d = decision([r["id"] for r in recs], days=1, leave_at="21:00")
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)
     sid = e.create(d, None)["id"]
     with pytest.raises(ActionError):
         e.act(sid, {"type": "reorder", "day": 0, "order": ["a", "b", "c"]})
@@ -143,7 +146,7 @@ def test_reorder_changes_only_the_day_it_touches():
     e, sid = started()
     before = e.load(sid)["view"]["state"]
     out = e.act(sid, {"type": "reorder", "day": 0, "order": ["c", "b", "a"]})
-    assert out["view"]["itinerary"][0]["items"][0]["place_id"] == "c"
+    assert next(i["place_id"] for i in out["view"]["itinerary"][0]["items"] if i["kind"] == "visit") == "c"
 
 
 def test_picking_a_variant_again_keeps_dropped_places_out():
@@ -165,8 +168,8 @@ def test_moving_a_locked_place_is_refused_and_the_session_does_not_change():
 
 def test_two_acts_on_the_same_day_compose_and_every_other_day_is_byte_identical():
     d, recs = sample_trip(days=2)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     before = e.load(sid)["view"]["itinerary"]
@@ -190,8 +193,8 @@ def test_a_new_act_after_undo_discards_the_redone_future():
 
 def test_undo_with_nothing_to_undo_is_an_action_error():
     d, recs = small_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)
     sid = e.create(d, None)["id"]          # position 0, no act committed yet -- unlike started(), which already
     with pytest.raises(ActionError):       # did one pick_variant and so has something to undo
         e.act(sid, {"type": "undo"})
@@ -219,8 +222,8 @@ def test_confirm_refuses_an_unvalidated_plan():
 
 def two_day_started(**kw):
     d, recs = sample_trip(days=2, **kw)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     return e, sid
@@ -257,8 +260,8 @@ def test_a_variant_whose_later_day_opens_early_for_a_sunrise_place_confirms():
     recs = [rec(f"c{i}", CENTRE[0] + i * 0.002, CENTRE[1] + i * 0.002, area="area-1") for i in range(3)]
     recs.append(rec("cloud", CENTRE[0] + 0.006, CENTRE[1] + 0.006, area="area-1", hours=None,
                     features={"cloud_hunting": "present"}))
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route,
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route,
                background=False)
     out = e.create(decision([r["id"] for r in recs]), None)
     v = out["view"]["variants"][0]
@@ -275,8 +278,8 @@ def far_geocode(text):
 
 def test_set_lodging_relays_out_every_day_not_just_an_already_offered_candidate():
     d, recs = sample_trip(days=2)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=far_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=far_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     before = e.load(sid)["view"]["travel_load"]
@@ -286,8 +289,8 @@ def test_set_lodging_relays_out_every_day_not_just_an_already_offered_candidate(
 
 def test_a_late_finishing_crawl_does_not_lose_a_manual_lodging_point_set_in_the_meantime():
     d, recs = sample_trip(days=2)
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=far_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, route_fn=fake_route, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=far_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
     sid = e.create(d, None)["id"]
     e.act(sid, {"type": "pick_variant", "id": e.variants(sid)[0]["id"]})
     e.act(sid, {"type": "set_lodging", "text": "Far homestay"})
@@ -316,9 +319,8 @@ def test_a_session_reloaded_after_the_process_restarts_replays_to_the_same_sched
     d, recs = sample_trip(days=2)
 
     def new_engine():
-        return Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(tmp_path), geocode_fn=no_geocode,
-                      matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging,
-                      route_fn=fake_route, background=False)
+        return Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(tmp_path), geocode_fn=no_geocode,
+                      matrix_fn=fake_matrix, sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), route_fn=fake_route, background=False)
 
     e1 = new_engine()
     sid = e1.create(d, None)["id"]
@@ -345,9 +347,10 @@ def test_baseline_travel_min_uses_the_same_day_membership_with_a_naive_order():
 
 
 def test_baseline_travel_min_without_a_chosen_variant_is_an_error():
-    d, recs = small_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    recs = [spot(f"p{i}", CENTRE, i) for i in range(8)]
+    d = decision([r["id"] for r in recs], days=1, leave_at="21:00")
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)
     sid = e.create(d, None)["id"]
     with pytest.raises(ActionError):
         e.baseline_travel_min(sid)
@@ -355,8 +358,8 @@ def test_baseline_travel_min_without_a_chosen_variant_is_an_error():
 
 def test_preview_builds_variants_without_a_session_and_create_reuses_it():
     d, recs = sample_trip()
-    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
-              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), lodging_fn=fake_lodging, background=False)
+    e = Engine(recs + LODGING, cfg=CFG, live_cfg=FakeLive(), store=Store(None), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+              sun_fn=lambda *a: (6 * 60, 17 * 60 + 30), background=False)
     preview = e.preview(d)
     assert preview["ok"] and preview["variants"] and preview["days"] == 2
     assert all(len(v["places"]) == preview["days"] for v in preview["variants"])
@@ -370,3 +373,96 @@ def test_preview_builds_variants_without_a_session_and_create_reuses_it():
     assert [v["id"] for v in out["view"]["variants"]] == [v["id"] for v in preview["variants"]]
     e.create(d, None)
     assert built == [1]                                   # a base belongs to one session only
+
+
+def test_fitting_trip_opens_on_main_and_the_tray_never_duplicates_visits():
+    e, sid = started()
+    view = e.load(sid)["view"]
+    assert view["state"]["chosen_variant"] == "main"
+    assert view["overload"] is None and view["keep_all"] is None
+    assert [v["id"] for v in view["variants"]] == ["main"]
+    shown = {it["place_id"] for d in view["itinerary"] for it in d["items"] if it["kind"] == "visit"}
+    assert not shown & {p["place_id"] for p in view["unplaced"]}
+
+
+@pytest.mark.parametrize("resume", ["load", "act"])
+def test_extend_offer_rebuilds_all_picks_and_replays_identically(resume):
+    from test_planning_overload import trip_of, heavy
+    # This fixture is one hour short and its day's end can move (part A's verified extend fixture).
+    trip = trip_of([spot(f"c{i}", CENTRE, i, visit=(50, 60, 70)) for i in range(4)], days=1)
+    from dataclasses import replace
+    ctxs = [replace(cx, day=replace(cx.day, depart_by=None)) for cx in trip.ctxs]
+    trip = replace(trip, ctxs=ctxs, days=[cx.day for cx in ctxs])
+    e = Engine([], cfg=CFG, live_cfg=FakeLive(), background=False)
+    e._prepare = lambda *a, **kw: trip
+    created = e.create(trip.decision)
+    sid, view = created["id"], created["view"]
+    ext = view["overload"]["extend"]
+    assert ext
+    after = e.act(sid, {"type": "extend_days", **ext})["view"]
+    assert after["state"]["chosen_variant"] == "main"
+    assert not after["state"]["plan_dropped"] and not after["unplaced"]
+    assert {it["place_id"] for d in after["itinerary"] for it in d["items"] if it["kind"] == "visit"} == set(trip.by_place)
+    e._base.clear()
+    e._schedules.clear()
+    if resume == "load":
+        assert e.load(sid)["view"]["itinerary"] == after["itinerary"]
+    else:
+        resumed = e.act(sid, {"type": "set_pace", "level": "normal"})["view"]
+        assert resumed["state"]["chosen_variant"] == "main"
+        assert not resumed["unplaced"]
+
+
+def test_unavailable_chosen_direction_uses_base_leftover_in_the_tray():
+    from types import SimpleNamespace
+    from planning.session import State
+    e = engine()
+    trip = SimpleNamespace(by_place={p: SimpleNamespace(name=p.upper()) for p in ("a", "b")}, unplaced=[])
+    base = SimpleNamespace(trip=trip, leftover=("b",), variants=[
+        {"id": "fit", "available": False, "dropped": [{"place_id": "a", "name": "A"}]}])
+    session = SimpleNamespace(state=State(chosen_variant="fit"))
+    assert [p["place_id"] for p in e._unplaced(session, base, None)] == ["b"]
+
+
+def test_lodging_before_a_direction_choice_updates_its_explanation_and_tray():
+    from dataclasses import replace
+    from test_planning_consistency import make_engine
+    from planning.overload import plan_or_directions
+    records = [spot(f'p{i}', CENTRE, i % 3, price={'typical_vnd': 10000}) for i in range(16)]
+    e, sid = make_engine(decision([r['id'] for r in records]), records)
+    before = e.load(sid)['view']
+    assert before['state']['chosen_variant'] is None
+    after = e.act(sid, {'type': 'set_lodging', 'text': 'Far hotel',
+                        'lat': CENTRE[0] + .15, 'lng': CENTRE[1]})['view']
+    session, base = e.store.get(sid), e._base[sid]
+    trip, ctxs = e._ctxs_for(base.trip, base.trip.by_place, e._home_for(session, base), session.state)
+    expected = plan_or_directions(replace(trip, ctxs=ctxs, days=[cx.day for cx in ctxs]))
+    assert after['overload']['missing_min'] == expected['overload']['missing_min']
+    assert [(v['id'], v['kept']) for v in after['overload']['directions']] == [(v['id'], v['kept']) for v in after['variants']]
+    assert {p['place_id'] for p in after['unplaced']} == set(expected['leftover'])
+    e._base.clear()
+    e._schedules.clear()
+    assert e.load(sid)['view']['unplaced'] == after['unplaced']
+    card = next(v for v in after['variants'] if v['available'])
+    selected = e.act(sid, {'type': 'pick_variant', 'id': card['id']})['view']
+    drops = lambda v: {d['place_id']: (d['reason'], d['value']) for d in v['dropped']}
+    assert drops(selected['active_variant']) == drops(card)
+    assert selected['active_variant']['label'] == card['label']
+    assert selected['active_variant']['merged'] == card.get('merged', [])
+    originals = {v['id']: v for v in after['variants']}
+    for offered in selected['variants']:
+        assert drops(offered) == drops(originals[offered['id']])
+        assert offered['label'] == originals[offered['id']]['label']
+        assert offered['merged'] == originals[offered['id']].get('merged', [])
+    e._base.clear()
+    e._schedules.clear()
+    assert drops(e.load(sid)['view']['active_variant']) == drops(card)
+
+
+def test_main_is_selected_even_when_confirmation_still_requires_lodging():
+    d, recs = small_trip()
+    e = Engine(recs, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode, matrix_fn=fake_matrix,
+               sun_fn=lambda *a: (360, 1050), background=False)
+    view = e.create(d, require_lodging=True)['view']
+    assert view['state']['chosen_variant'] == 'main'
+    assert view['needs_hotel']

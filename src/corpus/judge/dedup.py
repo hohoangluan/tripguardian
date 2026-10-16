@@ -115,9 +115,10 @@ def confirmed(note: dict) -> bool:
     return "model" not in note or (note.get("strong") or {}).get("relation") == "same_place"
 
 
-def merges() -> dict[str, str]:
+def merges(*, root=None) -> dict[str, str]:
     """fid -> canonical fid for every Judge same_place pair (chains resolved: a=b, b=c -> all to one)."""
     parent: dict[str, str] = {}
+    data_root = root
 
     def root(x: str) -> str:
         while parent.get(x, x) != x:
@@ -125,7 +126,8 @@ def merges() -> dict[str, str]:
         return x
 
     canon: dict[str, str] = {}
-    for pair, rec in decision_records("place_merge").items():
+    records = decision_records("place_merge", root=data_root) if data_root is not None else decision_records("place_merge")
+    for pair, rec in records.items():
         note = json.loads(rec.get("note") or "{}")
         if rec["decision"] != "same_place" or not confirmed(note):
             continue

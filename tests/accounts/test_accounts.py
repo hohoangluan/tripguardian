@@ -234,3 +234,91 @@ def test_a_guest_who_signs_out_or_ends_the_visit_is_deleted_an_account_is_not(ac
     assert accounts.drop_guest(user) is False
     accounts.logout(token)
     assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'user'")[0]["n"] == 1
+
+
+def test_nickname_is_normalised_unique_and_cleared_on_delete(accounts):
+    a = accounts.user_for(login(accounts, "g-n1")["token"])[0]["id"]
+    b = accounts.user_for(login(accounts, "g-n2")["token"])[0]["id"]
+    me = accounts.update(a, {"nickname": "@An.Nguyen", "bio": "Thích cà phê"})
+    assert me["nickname"] == "an.nguyen" and me["bio"] == "Thích cà phê"
+    for bad in ("ab", "có dấu", "x" * 25):
+        with pytest.raises(ValueError):
+            accounts.update(b, {"nickname": bad})
+    with pytest.raises(ValueError, match="taken"):
+        accounts.update(b, {"nickname": "AN.NGUYEN"})
+    accounts.delete(a)
+    assert accounts.update(b, {"nickname": "an.nguyen"})["nickname"] == "an.nguyen"
+
+
+def test_email_account_registers_signs_in_and_keeps_a_clean_profile(accounts):
+    token = accounts.register(" Lan@Example.com ", "mat-khau-dai", "Lan")
+    user, _ = accounts.user_for(token)
+    me = accounts.me(user["id"])
+    assert user["guest"] is False and me["email"] == "lan@example.com" and me["name"] == "Lan"
+    assert me["home_city"] is None and me["consents"] == {} and me["needs_consent"] is True
+    stored = _rows(accounts, "SELECT password_hash FROM users")[0]["password_hash"]
+    assert stored.startswith("scrypt$") and "mat-khau-dai" not in stored
+    again = accounts.login_password("LAN@example.com", "mat-khau-dai")
+    assert accounts.user_for(again)[0]["id"] == user["id"]
+
+
+def test_email_account_refuses_bad_input_and_wrong_passwords(accounts):
+    accounts.register("lan@example.com", "mat-khau-dai")
+    for email, password in [("not-an-email", "mat-khau-dai"), ("b@example.com", "short"), ("b@example.com", "x" * 129)]:
+        with pytest.raises(ValueError):
+            accounts.register(email, password)
+    with pytest.raises(ValueError, match="taken"):
+        accounts.register("LAN@example.com", "mat-khau-khac")
+    for email, password in [("lan@example.com", "sai-mat-khau"), ("nobody@example.com", "mat-khau-dai"), ("lan@example.com", "")]:
+        with pytest.raises(AuthError):
+            accounts.login_password(email, password)
+
+
+def test_google_account_cannot_sign_in_with_a_password_and_blocks_its_email(accounts):
+    login(accounts, "g-7")  # g-7@example.com
+    with pytest.raises(AuthError):
+        accounts.login_password("g-7@example.com", "mat-khau-dai")
+    with pytest.raises(ValueError, match="taken"):
+        accounts.register("g-7@example.com", "mat-khau-dai")
+
+
+def test_google_sign_in_takes_over_an_unconfirmed_email_account(accounts):
+    old = accounts.register("g-8@example.com", "mat-khau-dai", "Squatter")
+    out = login(accounts, "g-8")
+    assert accounts.user_for(old)[0] is None  # the unconfirmed password and its sessions are gone
+    with pytest.raises(AuthError):
+        accounts.login_password("g-8@example.com", "mat-khau-dai")
+    assert accounts.user_for(out["token"])[0] is not None
+    assert _rows(accounts, "SELECT count(*) AS n FROM users")[0]["n"] == 1
+
+
+def _age(accounts, seconds):
+    with accounts.pool.connection() as conn:
+        conn.execute("UPDATE auth_sessions SET leaving_at = now() - make_interval(secs => %s) WHERE leaving_at IS NOT NULL",
+                     (seconds,))
+
+
+def test_a_guest_whose_page_closed_is_deleted_after_a_short_wait(accounts):
+    from accounts import LEAVE_GRACE_S
+    token = accounts.guest()
+    uid = accounts.user_for(token)[0]["id"]
+    with accounts.pool.connection() as conn:
+        conn.execute("INSERT INTO journeys (id, user_id, stage, revision, envelope) VALUES ('j-left', %s, 'trip', 0, '{}')", (uid,))
+    accounts.leave(token)
+    assert accounts.purge_leavers() == 0  # still inside the wait: a reload would come back
+    _age(accounts, LEAVE_GRACE_S + 5)
+    assert accounts.purge_leavers() == 1
+    assert accounts.user_for(token) == (None, False)  # the closed session never opens again
+    assert _rows(accounts, "SELECT count(*) AS n FROM users WHERE kind = 'guest'")[0]["n"] == 0
+    assert _rows(accounts, "SELECT user_id FROM journeys")[0]["user_id"] is None
+
+
+def test_a_guest_who_comes_back_within_the_wait_is_kept_and_accounts_are_never_marked(accounts):
+    from accounts import LEAVE_GRACE_S
+    token, member = accounts.guest(), login(accounts)["token"]
+    accounts.leave(token)
+    accounts.leave(member)
+    assert accounts.user_for(token)[0]["guest"] is True  # the reloaded page asks again: no longer leaving
+    _age(accounts, LEAVE_GRACE_S + 5)
+    assert accounts.purge_leavers() == 0
+    assert accounts.user_for(token)[0] is not None and accounts.user_for(member)[0] is not None

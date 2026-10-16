@@ -1,4 +1,4 @@
-// Shapes of the Trip Understanding API (src/trip/engine.py, understanding.py, state.py SearchInput).
+// Shapes of the public Trip Understanding API.
 
 export interface Chip {
   id: string
@@ -8,6 +8,7 @@ export interface Chip {
 }
 
 export interface Card {
+  kind?: 'card'
   qid: string
   group: string
   text: string
@@ -23,6 +24,41 @@ export interface Card {
   custom: boolean
   params?: Record<string, any> // cues / kinds / photo_pick: see VibeParams
 }
+
+export interface Option {
+  id: string
+  label: string
+  description: string
+  prefilled: boolean
+  because: string
+  count: number | null
+  photo: { place_id: string; name: string; url: string } | null
+  cues: string[]
+  places: string[]
+}
+
+export interface Tab {
+  qid: string
+  kind: 'required' | 'drill' | 'confirm' | 'agent' | 'maybe'
+  header: string
+  question: string
+  why: string
+  visual: boolean
+  multi: boolean
+  inputs: string[]
+  options: Option[]
+}
+
+export interface Deck { kind: 'deck'; tabs: Tab[]; left: number; total: number }
+export interface DeckIssue { key: string; code: 'past_date' | 'end_before_start' | 'too_long' | 'people_below_groups' | 'contradicts_said' | 'invalid' }
+export interface ReadbackLine {
+  kind: 'said' | 'guess' | 'default' | 'check'
+  text: string
+  tab: 'trip' | 'companions' | 'mobility' | 'care' | 'pace' | 'budget' | 'lodging' | 'more'
+  undo?: string | null
+}
+export interface Readback { lines: ReadbackLine[]; digest: string | null; ok: boolean; missing?: string[]; deck?: Deck | null }
+export type DeckAnswers = Record<string, string | string[]>
 
 // One look-alike kind of a look (corpus.index): real places, real photos (src/trip/domain/vibes.py).
 export interface VibeKind {
@@ -139,6 +175,8 @@ export interface SoftRow {
 }
 
 export interface Understanding {
+  readback: Readback | null
+  required: { key: string; title: string; label: string; done: boolean }[] // title: short name; label: the sentence form
   purpose: Row | null
   trip: Row[]
   anchors: AnchorRow[]
@@ -152,7 +190,7 @@ export interface Understanding {
   unknowns: string[]
   unmapped: { target: string; phrase: string }[]
   safety_pending: boolean
-  ready: boolean // the minimum is known: Next is allowed (decided by the server, not by the agent)
+  ready: boolean // no unresolved safety signal blocks choosing places; planning completion is required[].done
   missing: { target: string; label: string }[]
   matching: number // places passing the hard limits now (a fact, not a forecast)
   total: number
@@ -170,22 +208,57 @@ export interface View {
   id: string
   transcript: Turn[]
   understanding: Understanding
-  card: Card | null
+  card: Card | Deck | null
   phase: 'chat' | 'quiz' | 'review'
+}
+
+export type Source = 'user' | 'anchor' | 'profile' | 'inferred' | 'default'
+export interface Evidence { turn: number; quote?: string | null; tool?: string | null }
+export type BudgetScope = 'trip_total' | 'per_day' | 'per_person' | 'per_person_day'
+export interface Moment { at: string; how: 'self' | 'bus' | 'plane' }
+export interface CompiledFrame {
+  days: { date: string; start: string; end: string; busy: { start: string; end: string; kinds: string[]; labels: string[]; where: string | null }[]; intensity: 'light' | 'normal' | 'full' | 'free' }[]
+  arrive: Moment | null
+  leave: Moment | null
+  drive_day_min: number | null
+  periods: { period: string; kinds: string[]; activity: string | null; weight: number }[]
+  visit: Record<string, number>
+  meals: { skip: string[]; breakfast_at_lodging: boolean; snacks: boolean; shift_min: number }
+  rest: { every_min: number; rest_min: number } | null
+  pattern: 'interleave_kids' | null
+  issues: { code: string; day: number }[]
 }
 
 export interface SearchInput {
   ontology_version: number
+  readiness?: { missing: string[]; readback_ok: boolean } | null
+  sources?: Record<string, Source>
+  wishes?: { dishes: { dish: string; quote: string; place_ids: string[] }[]; kinds: { kind: string; quote: string; place_ids: string[] }[]; like: { place_id: string; but: string[]; quote: string }[] }
+  corpus_binding?: Record<string, unknown> | null
+  liked_groups?: string[]
+  activities?: Record<string, string>
+  time_preferences?: { place_id: string | null; activity: string | null; period: string; weight: number; evidence: Evidence[] }[]
+  vibes?: { phrase: string; cues: string[]; styles: string[]; places: string[] }[]
   context: {
     start_date: string | null
+    month_part?: 'early' | 'mid' | 'late' | null
+    nights?: number | null
+    driver?: 'self' | 'hired' | null
+    companions_other?: string[]
+    budget_unlimited?: boolean | null
+    budget_intent?: { amount: number; currency: 'VND'; scope: BudgetScope; scope_guessed: boolean; source: Source; scope_source: Source; evidence: Evidence[]; scope_evidence: Evidence[] } | null
+    frame?: CompiledFrame | null
+    purpose?: string | null
+    entry_point?: Base | null
+    exit_point?: Base | null
     month: number | null
     days: number | null
     base: Base | null
     mobility: 'motorbike' | 'car' | 'walk' | null
     companions: string[]
     people: number | null
-    arrive_at: string | null
-    leave_at: string | null
+    checkin_at: string | null
+    checkout_at: string | null
     day_end: string | null
     budget_vnd: number | null
     experience: 'first' | 'returning' | null
@@ -206,6 +279,9 @@ export interface SearchInput {
 }
 
 export type TurnInput =
+  | { kind: 'deck'; answers: DeckAnswers }
+  | { kind: 'drop'; target: string }
+  | { kind: 'readback_ok'; value: string }
   | { kind: 'text'; text: string }
   | { kind: 'answer'; qid: string; chips: string[]; value?: string | null }
   | { kind: 'edit'; target: string; value: string | null }
@@ -216,7 +292,9 @@ export interface Handlers {
   preview?: (d: { fields: { target: string; value: unknown; quote: string }[] }) => void
   say?: (d: { delta?: string; replace?: string }) => void
   state?: (d: { understanding: Understanding }) => void
-  card?: (d: Card | null) => void
+  card?: (d: Card | Deck | null) => void
+  deck_issues?: (d: { issues: DeckIssue[] }) => void
+  readback?: (d: Readback) => void
   progress?: (d: { steps: Step[]; sources: WebSource[] }) => void
   done?: (d: { search_input: SearchInput }) => void
   error?: (d: { message: string }) => void

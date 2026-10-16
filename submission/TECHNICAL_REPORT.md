@@ -1192,7 +1192,7 @@ Ghi chú: danh sách này chưa được đối chiếu lại bằng Crossref tr
 ### A. GitHub Repository & Demo
 
 - Mã nguồn: https://github.com/hohoangluan/tripguardian
-- Demo: https://tripguardian.visioncare-host.uk (nút "Dùng thử" vào được không cần tài khoản)
+- Demo: https://tripguardianfinal.visioncare-host.uk/app (nút "Dùng thử" vào được không cần tài khoản)
 - Gói dữ liệu cho người chấm: Drive của nhóm, liên kết ở `README.md` §Thiết lập (zip giải nén tại gốc repo)
 - Bằng chứng cho giám khảo: thư mục `submission/` của repo
 

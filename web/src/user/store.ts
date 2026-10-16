@@ -1,6 +1,8 @@
-// Browser-side state of the user web that is not a module's business state: saved places, the journeys this
-// browser started, the assistant panel, toasts. The backend (harness) owns trips, selections and schedules.
+// Client state of the user web that is not a module's business state: saved places and themes and recent opens
+// (mirrored from the account's library on the harness), the journeys this browser started, the assistant panel,
+// toasts. The backend (harness) owns trips, selections and schedules.
 import { useSyncExternalStore } from 'react'
+import { FORGET_EVENT } from './account'
 
 export interface Msg {
   id: number
@@ -18,9 +20,13 @@ export interface Optimized {
   seen: boolean
 }
 
+export interface Opened { kind: 'place' | 'theme'; id: string; at: string }
+
 interface Ui {
   optimized: Record<string, Optimized>
-  saved: string[]
+  saved: string[] // place ids, newest first
+  savedThemes: string[]
+  recent: Opened[]
   trips: string[]
   toast: string | null
   flashId: string | null
@@ -51,6 +57,8 @@ const TRIPS = 'tg.trips.v1'
 let ui: Ui = {
   optimized: {},
   saved: read<string[]>(SAVED, []),
+  savedThemes: [],
+  recent: [],
   trips: read<string[]>(TRIPS, []),
   toast: null,
   flashId: null,
@@ -91,14 +99,41 @@ export function flash(id: string | null) {
   flashTimer = setTimeout(() => setUi({ flashId: null }), 1200)
 }
 
-// Saved places live in this browser (no account backend yet); they never enter a trip on their own.
-export function toggleSaved(id: string, name?: string) {
-  const on = ui.saved.includes(id)
-  const saved = on ? ui.saved.filter((x) => x !== id) : [id, ...ui.saved]
-  write(SAVED, saved)
-  setUi({ saved })
-  if (!on) toast(`Đã lưu ${name ?? 'nơi này'}`)
+if (typeof window !== 'undefined') addEventListener(FORGET_EVENT, () => setUi({ saved: [], savedThemes: [], recent: [], trips: [], optimized: {}, cmp: [] }))
+
+// Saved places and themes belong to the account (GET/POST /api/harness/me/library); they never enter a trip on their
+// own. Places saved in this browser before the library existed go up once, then the browser copy is dropped.
+type Library = { saved: { kind: Opened['kind']; id: string }[]; recent: Opened[] }
+const LIBRARY = '/api/harness/me/library'
+function keepLibrary(l: Library) {
+  setUi({ saved: l.saved.filter((i) => i.kind === 'place').map((i) => i.id), savedThemes: l.saved.filter((i) => i.kind === 'theme').map((i) => i.id), recent: l.recent })
 }
+const saveItem = (kind: Opened['kind'], id: string, on: boolean) =>
+  fetch(LIBRARY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id, on }) }).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.json() as Promise<Library>
+  })
+export async function loadLibrary() {
+  try {
+    const res = await fetch(LIBRARY)
+    if (!res.ok) return
+    let l = (await res.json()) as Library
+    const local = read<string[]>(SAVED, [])
+    for (const id of local.filter((x) => !l.saved.some((i) => i.kind === 'place' && i.id === x)).reverse()) l = await saveItem('place', id, true)
+    if (local.length) try { localStorage.removeItem(SAVED) } catch { /* nothing stored */ }
+    keepLibrary(l)
+  } catch { /* offline: the page shows what it has */ }
+}
+function toggleItem(kind: Opened['kind'], id: string, label: string) {
+  const set = (list: string[]) => setUi(kind === 'place' ? { saved: list } : { savedThemes: list })
+  const before = kind === 'place' ? ui.saved : ui.savedThemes
+  const on = !before.includes(id)
+  set(on ? [id, ...before] : before.filter((x) => x !== id))
+  if (on) toast(`Đã lưu ${label}`)
+  saveItem(kind, id, on).then(keepLibrary, () => { set(before); toast('Chưa lưu được, bạn thử lại nhé') })
+}
+export const toggleSaved = (id: string, name?: string) => toggleItem('place', id, name ?? 'nơi này')
+export const toggleTheme = (id: string, title: string) => toggleItem('theme', id, title)
 
 // Journeys started in this browser, newest first: what "Chuyến của tôi" asks the server about.
 export function rememberTrip(id: string) {

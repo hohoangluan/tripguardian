@@ -3,7 +3,7 @@
 
 from .compile import run as compile_index
 from .embedder import Embedder
-from .query import Cluster, Index, PhotoHit, PlaceHit, SpanHit, TextVec
+from .query import Cluster, Index, PhotoHit, PlaceHit, SpanHit, SpanRow, TextVec
 from .vectors import run as embed_vectors
 
-__all__ = ["Cluster", "Embedder", "Index", "PhotoHit", "PlaceHit", "SpanHit", "TextVec", "compile_index", "embed_vectors"]
+__all__ = ["Cluster", "Embedder", "Index", "PhotoHit", "PlaceHit", "SpanHit", "SpanRow", "TextVec", "compile_index", "embed_vectors"]

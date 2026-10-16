@@ -173,8 +173,8 @@ export default function AdminApp() {
 function Emblem() {
   return (
     <svg className="a-emblem" viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M16 2l12 14-12 14L4 16z" fill="none" stroke="#f2b31b" strokeWidth="1.6" />
-      <path d="M16 8l5 7h-3l4 5h-4l3 4H11l3-4h-4l4-5h-3z" fill="#d5dee0" />
+      <path d="M16 2l12 14-12 14L4 16z" fill="none" stroke="#ffffff" strokeWidth="1.6" />
+      <path d="M16 8l5 7h-3l4 5h-4l3 4H11l3-4h-4l4-5h-3z" fill="#ffffff" />
     </svg>
   )
 }

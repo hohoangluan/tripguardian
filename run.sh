@@ -1,10 +1,11 @@
 #!/bin/sh
 # Start / stop TripGuardian.
-#   ./run.sh start      dev: harness + analytics (private, :8770) + review + Vite dev server (localhost only)
+#   ./run.sh start      dev: 9router (the Agent's endpoint) + harness + analytics (private, :8770) + review + Vite dev
+#                       server (localhost only)
 #   ./run.sh stop       stop the dev stack (and anything still holding its ports)
 #   ./run.sh prod       production deploy: db backup + migrate, thumbnails, build web into a staging dir (slim +
-#                       precompressed) and copy it over web/dist only when it built, SearXNG, (re)start harness and the
-#                       public web server on :28899, notify worker, Cloudflare tunnel, then a smoke test
+#                       precompressed) and copy it over web/dist only when it built, SearXNG, 9router, (re)start harness
+#                       and the public web server on :28899, notify worker, Cloudflare tunnel, then a smoke test
 #   ./run.sh prod-stop  stop the production stack (tunnel included)
 #   ./run.sh prewarm    fill the coach / flight caches for the next weeks (cron, once a day; scripts/prewarm_transit.py)
 #   ./run.sh db         start the project Postgres (container tripguardian-pg, 127.0.0.1:5433), create roles, migrate
@@ -12,7 +13,7 @@
 # Logs: logs/run/<name>.log. PIDs: logs/run/<name>.pid.
 # Env overrides: PYTHON (default .venv python, else python on PATH), PUBLIC_PORT (28899),
 #   TUNNEL_TOKEN_FILE (default ~/.cloudflared/tripguardian.token; no file = no tunnel),
-#   HARNESS_GPU (default 0: the GPU the harness embeds the user's look / photo on, corpus.index).
+#   HARNESS_GPU (default 1,3: the GPUs the harness embeds on, corpus.index: SigLIP2 on the first, bge-m3 on the second).
 cd "$(dirname "$0")" || exit 1
 export PYTHONIOENCODING=utf-8
 export PYTHONPATH="$PWD/src"
@@ -38,8 +39,8 @@ web|5173|node web/node_modules/vite/bin/vite.js web --port 5173 --strictPort"
 
 # Production: only what the internet may reach (web/server.mjs keeps /admin and the review API private).
 # The harness never inherits a dev APP_BASE_URL / TG_TEST_LOGIN from this shell (it reads the public one from .env:
-# a dev value 403s every POST, test login must stay off); it gets one GPU for corpus.index (Trip looks and photos).
-HARNESS_GPU=${HARNESS_GPU:-0}
+# a dev value 403s every POST, test login must stay off); it gets two GPUs for corpus.index (Trip looks and photos).
+HARNESS_GPU=${HARNESS_GPU:-1,3}
 PROD_SERVICES="harness|8769|env -u APP_BASE_URL -u TG_TEST_LOGIN CUDA_VISIBLE_DEVICES=$HARNESS_GPU $PYTHON -m harness serve --port 8769
 public|$PUBLIC_PORT|node web/server.mjs $PUBLIC_PORT"
 
@@ -120,6 +121,7 @@ start() {
     echo "web/node_modules missing: run 'cd web && npm install' first."
     exit 1
   fi
+  router_start
   echo "$SERVICES" | while IFS='|' read -r name port cmd; do
     start_one "$name" "$port" "$cmd"
   done
@@ -212,6 +214,25 @@ searx_start() {
   fi
 }
 
+# 9router: the local endpoint of the Agent role (AGENT_BASE_URL, docs/LLM_PROVIDER.md), shared with the Judge. Started
+# when nothing answers on its port; never stopped here (other tools use it too).
+router_start() {
+  url=$(env_value AGENT_BASE_URL)
+  port=$(echo "$url" | sed -n 's#^https\{0,1\}://\(127\.0\.0\.1\|localhost\):\([0-9]*\).*#\2#p')
+  [ -n "$port" ] || return 0  # the Agent is on a remote endpoint
+  if curl -s -m 2 -o /dev/null "http://127.0.0.1:$port/v1/models"; then echo "[9router] running on :$port"; return 0; fi
+  bin=$(PATH="$HOME/node/bin:$PATH" command -v 9router)
+  [ -n "$bin" ] || { echo "[9router] not installed (npm i -g 9router): the Agent falls back to its policy replies"; return 0; }
+  PATH="$HOME/node/bin:$PATH" nohup "$bin" -n -l --skip-update -H 127.0.0.1 -p "$port" > "$RUN_DIR/9router.log" 2>&1 &
+  echo $! > "$RUN_DIR/9router.pid"
+  for _ in $(seq 1 30); do
+    curl -s -m 2 -o /dev/null "http://127.0.0.1:$port/v1/models" && { echo "[9router] started on :$port"; return 0; }
+    sleep 1
+  done
+  echo "[9router] NOT up after 30s, see $RUN_DIR/9router.log"
+  return 1
+}
+
 # Build into a staging dir and copy it over web/dist only once it built: an `npm run build` straight into dist empties
 # the live site while it runs, and a failed build leaves it 404. Old hashed assets stay for tabs still open.
 build_web() {
@@ -264,6 +285,7 @@ prod() {
   $PYTHON web/scripts/make_thumbs.py > "$RUN_DIR/thumbs.log" 2>&1 || echo "[build] thumbnails failed (originals are served instead), see $RUN_DIR/thumbs.log"
   build_web || exit 1
   searx_start
+  router_start
   # a deploy runs the new code: whatever answers on the ports now is stopped first
   echo "$PROD_SERVICES" | while IFS='|' read -r name port cmd; do
     stop_one "$name" "$port"

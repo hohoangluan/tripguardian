@@ -1,13 +1,14 @@
 import pytest
-from plan_fixtures import CFG, FakeLive, fake_lodging, fake_matrix, no_geocode, small_trip
+from plan_fixtures import CFG, FakeLive, LODGING, fake_matrix, no_geocode, small_trip
 from planning.engine import Engine
 
 
 def started(agent):
     decision, records = small_trip()
-    e = Engine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
+    decision["trip_context"]["context"]["leave_at"] = "21:00"
+    e = Engine(records + LODGING, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
                matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050),
-               lodging_fn=fake_lodging, route_fn=lambda *a: {'points': []},
+               route_fn=lambda *a: {'points': []},
                background=False, proposal_agent=agent)
     return e, e.create(decision)['id']
 
@@ -29,7 +30,7 @@ def test_invalid_proposal_keeps_deterministic_baseline(bad):
     assert out['id'] == sid and out['view']['itinerary']
     assert out['proposal']['status'] == 'fallback'
     assert len(calls) == 1
-    assert out['view']['state']['chosen_variant'] == 'v1'
+    assert out['view']['state']['chosen_variant'] == 'main'
     assert out['view']['state']['locked'] == []
 
 
@@ -52,10 +53,10 @@ def test_timeout_preserves_baseline():
 
 def test_reorder_cannot_change_locked_scheduled_slot():
     async def agent(fields):
-        return {'fingerprint': fields['fingerprint'], 'variant_id': 'v1',
+        return {'fingerprint': fields['fingerprint'], 'variant_id': 'main',
                 'acts': [{'type': 'reorder', 'day': 0, 'order': ['c', 'b', 'a']}]}
     e, sid = started(agent)
-    e.act(sid, {'type': 'pick_variant', 'id': 'v1'})
+    e.act(sid, {'type': 'pick_variant', 'id': 'main'})
     e.act(sid, {'type': 'lock_slot', 'place': 'a'})
     before = e.load(sid)
     assert e.recommend(sid)['proposal']['status'] == 'fallback'
@@ -66,7 +67,7 @@ def test_valid_noop_reorder_and_restart_replay(tmp_path):
     from planning.session import Store
     async def agent(fields):
         order = [item['place_id'] for item in fields['itinerary'][0]['items'] if item['kind'] == 'visit']
-        return {'fingerprint': fields['fingerprint'], 'variant_id': 'v1',
+        return {'fingerprint': fields['fingerprint'], 'variant_id': 'main',
                 'acts': [{'type': 'reorder', 'day': 0, 'order': order}]}
     e, sid = started(agent)
     e.store.root = tmp_path
@@ -94,7 +95,7 @@ def test_wrapper_uses_structured_schema_and_stream_deadlines():
 
 def test_unknown_place_alias_is_rejected():
     async def agent(fields):
-        return {'fingerprint': fields['fingerprint'], 'variant_id': 'v1',
+        return {'fingerprint': fields['fingerprint'], 'variant_id': 'main',
                 'acts': [{'type': 'move_place', 'place': 'P1', 'day': 0}]}
     e, sid = started(agent)
     out = e.recommend(sid)
@@ -104,9 +105,9 @@ def test_unknown_place_alias_is_rejected():
 
 def test_persist_failure_does_not_commit_draft():
     async def agent(fields):
-        return {'fingerprint': fields['fingerprint'], 'variant_id': 'v1'}
+        return {'fingerprint': fields['fingerprint'], 'variant_id': 'main'}
     e, sid = started(agent)
-    e.act(sid, {'type': 'pick_variant', 'id': 'v1'})
+    e.act(sid, {'type': 'pick_variant', 'id': 'main'})
     before = e.store.get(sid).model_dump()
     def fail_save(session):
         raise OSError('disk full')
@@ -121,20 +122,20 @@ def test_lower_travel_cannot_worsen_current_diversity_objective():
     records = [spot('a', CENTRE, 0, group='x'), spot('b', CENTRE, 1, group='x'),
                spot('c', SOUTH, 0, group='y'), spot('d', SOUTH, 1, group='y')]
     async def agent(fields):
-        return {'fingerprint': fields['fingerprint'], 'variant_id': 'v1',
+        return {'fingerprint': fields['fingerprint'], 'variant_id': 'main',
                 'acts': [{'type': 'move_place', 'place': 'b', 'day': 0},
                          {'type': 'move_place', 'place': 'c', 'day': 1}]}
-    e = Engine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
+    e = Engine(records + LODGING, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
                matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050),
-               lodging_fn=fake_lodging, background=False, proposal_agent=agent)
+               background=False, proposal_agent=agent)
     sid = e.create(decision(['a', 'b', 'c', 'd'], days=2))['id']
-    e.act(sid, {'type': 'pick_variant', 'id': 'v1'})
+    e.act(sid, {'type': 'pick_variant', 'id': 'main'})
     e.act(sid, {'type': 'set_objective', 'name': 'diverse'})
     for place, day in [('a', 0), ('c', 0), ('b', 1), ('d', 1)]:
         e.act(sid, {'type': 'move_place', 'place': place, 'day': day})
     session, base = e.store.get(sid), e._base[sid]
     baseline = e._turn_current(session, base)
-    proposal = {'variant_id': 'v1', 'acts': [{'type': 'move_place', 'place': 'b', 'day': 0},
+    proposal = {'variant_id': 'main', 'acts': [{'type': 'move_place', 'place': 'b', 'day': 0},
                                            {'type': 'move_place', 'place': 'c', 'day': 1}]}
     state, draft = e._proposal_trial(base, session, session.state, baseline, proposal)
     _, ctxs = e._ctxs_for(base.trip, e._places_for(session, base), e._home_for(session, base), state)
@@ -150,16 +151,39 @@ def test_lower_travel_cannot_worsen_current_diversity_objective():
 def test_decision_locked_role_keeps_its_exact_scheduled_slot():
     from plan_fixtures import CENTRE, decision, spot
     async def agent(fields):
-        return {'fingerprint': fields['fingerprint'], 'variant_id': 'v1',
+        return {'fingerprint': fields['fingerprint'], 'variant_id': 'main',
                 'acts': [{'type': 'reorder', 'day': 0, 'order': ['c', 'b', 'a']}]}
     records = [spot('a', CENTRE, 0), spot('b', CENTRE, 1), spot('c', CENTRE, 2)]
-    e = Engine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
+    e = Engine(records + LODGING, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
                matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050),
-               lodging_fn=fake_lodging, background=False, proposal_agent=agent)
-    sid = e.create(decision(['a', 'b', 'c'], days=1, roles={'a': 'locked'}))['id']
-    e.act(sid, {'type': 'pick_variant', 'id': 'v1'})
+               background=False, proposal_agent=agent)
+    sid = e.create(decision(['a', 'b', 'c'], days=1, leave_at='21:00', roles={'a': 'locked'}))['id']
+    e.act(sid, {'type': 'pick_variant', 'id': 'main'})
     e.act(sid, {'type': 'reorder', 'day': 0, 'order': ['a', 'b', 'c']})
     before = e.load(sid)
     result = e.recommend(sid)
     assert result['proposal'] == {'status': 'fallback', 'diagnostics': ['protected_slot_changed']}
     assert e.load(sid) == before
+
+
+def test_proposal_receives_pinned_bounded_corpus_context():
+    from types import SimpleNamespace
+    from corpus.releases import Binding
+    from corpus.retrieval import EvidenceHit
+    captured = []
+    async def agent(fields):
+        captured.append(fields)
+        return {'fingerprint': fields['fingerprint'], 'variant_id': fields['variants'][0]['id']}
+    e, sid = started(agent)
+    binding = Binding(region='dalat', release_id='r-pinned')
+    e.store.get(sid).decision['corpus_binding'] = binding.model_dump(mode='json')
+    e.retrieval = SimpleNamespace(binding=binding, evidence=lambda pid, fid, **kw: [EvidenceHit(
+        pid, 'o1', 'Grounded quote', (fid+'=present',), 1., 'r-pinned',
+        feature=fid, value='present', status='VERIFIED')])
+    e.by_id['a']['experience']['scenic_view'] = {'value': 'present', 'status': 'VERIFIED'}
+    assert e.recommend(sid)['proposal']['status'] == 'accepted'
+    fields = captured[0]
+    assert fields['corpus_binding'] == binding.model_dump(mode='json')
+    assert 0 < len(fields['corpus_context']) <= 3
+    assert {p['place_id'] for p in fields['corpus_context']} <= {'a', 'b', 'c'}
+    assert fields['corpus_context'][0]['features'][0]['quote'] == 'Grounded quote'

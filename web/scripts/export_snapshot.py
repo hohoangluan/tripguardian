@@ -9,12 +9,14 @@ Run from the repo root after `python -m corpus aggregate --city dalat`:
 
 import json
 import random
+import sys
 from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
 OUT = ROOT / "web" / "public" / "data" / "snapshot.json"
+sys.path.insert(0, str(ROOT / "src"))
 
 OUTDATED_DAYS = 365
 SAMPLE_RATE = 0.05
@@ -26,6 +28,9 @@ SIGHT = ("Điểm thu hút", "Đỉnh núi", "Vườn", "Trang trại", "Công v
 FOOD = ("Quán cà phê", "Cà phê", "Nhà hàng", "Trà", "Tiệm bánh", "Món", "Quán bar", "Khu ăn uống", "Quán ăn", "Cửa hàng ăn",
         "Quán", "Bánh", "Lẩu", "Kem", "Cửa hàng cà phê", "Cửa hàng bán đồ tráng miệng")
 SHOP = ("Chợ", "Cửa hàng", "Trung tâm mua sắm", "Siêu thị")
+# lodging (data/gmaps/list/<city>_stay.json): only the "Chỗ ở" tab and its detail sheet show it, never a section
+STAY = ("khách sạn", "nhà nghỉ", "nhà khách", "nhà trọ", "homestay", "khu nghỉ dưỡng", "resort", "biệt thự", "villa",
+        "căn hộ", "chỗ ở", "hostel", "motel", "guest house", "guesthouse", "lưu trú")
 
 
 def read(p: Path):
@@ -34,6 +39,8 @@ def read(p: Path):
 
 def group_of(category: str | None) -> str:
     c = category or ""
+    if any(w in c.lower() for w in STAY):
+        return "stay"
     for prefix, g in (("Cửa hàng bán đồ tráng miệng", "food"), ("Cửa hàng cà phê", "food"), ("Cửa hàng ăn", "food")):
         if c.startswith(prefix):
             return g
@@ -229,10 +236,24 @@ def recent_errors(limit: int = 40) -> list[dict]:
     return out[:limit]
 
 
-def main() -> None:
+def main(view: str = "serving") -> None:
+    from corpus.releases import resolve
+    from corpus import data_root
+    global DATA, SERVING, CLIPS
+    DATA = data_root()
+    release = resolve(DATA)
+    SERVING = release / "serving" / "places.json"
+    CLIPS = DATA / "tiktok" / "clips" / "dalat.json"
+    _serving.clear()
+    _clips.clear()
+    if view == "serving" and release != DATA:
+        OUT.parent.mkdir(parents=True, exist_ok=True)
+        OUT.write_bytes((release / "projection" / "serving.json").read_bytes())
+        print(f"serving release {release.name} -> {OUT}")
+        return
     random.seed(11)
     places, review = [], []
-    intel_dir = DATA / "intel" / "places"
+    intel_dir = release / "intel" / "places"
     intel_ids = set()
     as_of = None
     for f in sorted(intel_dir.glob("*.json")):
@@ -300,13 +321,20 @@ def main() -> None:
               "errors": recent_errors(), "videos": sum(1 for _ in (DATA / "tiktok" / "videos").glob("*/video.json")),
               "gmapsPlaces": sum(1 for _ in (DATA / "gmaps" / "places").glob("*/place.json"))}
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
+    destination = OUT.with_name("snapshot-admin.json") if view == "admin" else OUT
+    destination.parent.mkdir(parents=True, exist_ok=True)
     snap = {"asOf": as_of or date.today().isoformat(), "city": "dalat", "places": places, "review": review,
             "decisions": decisions, "system": system,
-            "build": json.loads((DATA / "intel" / "summary.json").read_text(encoding="utf-8"))}
-    OUT.write_text(json.dumps(snap, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"{len(places)} places ({len(intel_ids)} with evidence, {inventory} inventory), {len(review)} review items -> {OUT}")
+            "build": json.loads((release / "intel" / "summary.json").read_text(encoding="utf-8")),
+            "corpusReleaseId": release.name if release != DATA else None, "view": view}
+    destination.write_text(json.dumps(snap, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"{len(places)} places ({len(intel_ids)} with evidence, {inventory} inventory), {len(review)} review items -> {destination}")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--view", choices=("serving", "admin", "both"), default="both")
+    args = parser.parse_args()
+    for view in ("serving", "admin") if args.view == "both" else (args.view,):
+        main(view)

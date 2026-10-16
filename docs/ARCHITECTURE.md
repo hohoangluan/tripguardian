@@ -73,10 +73,10 @@ Mỗi giai đoạn là một package độc lập, giao tiếp **chỉ** qua pub
 
 ```text
 corpus   ──►  (không phụ thuộc gì)
-trip     ──►  corpus.serving, corpus.ontology
-decision ──►  corpus.serving, corpus.ontology
+trip     ──►  corpus.serving, corpus.ontology, corpus.snapshot, corpus.index, corpus.releases, corpus.retrieval
+decision ──►  corpus.serving, corpus.ontology, corpus.snapshot, corpus.releases, corpus.retrieval
 live     ──►  corpus.crawl            (chỉ 3 tên: open_sessions, maps_search, LoginRequired)
-planning ──►  live, decision, trip, corpus.serving, corpus.ontology
+planning ──►  live, decision, trip, corpus.serving, corpus.ontology, corpus.snapshot, corpus.releases, corpus.retrieval
 agents   ──►  corpus.llm
 db       ──►  (không phụ thuộc gì)
 accounts ──►  db
@@ -87,6 +87,11 @@ harness  ──►  trip, decision, planning, agents, accounts, companion, notif
 ```
 
 Agent của module dùng runtime public `agents`; `harness` gọi `Tools` public của module, router chọn module theo stage. Hành trình, capability và persistence: `docs/AGENT_HARNESS.md`.
+
+Journey pin public corpus binding qua ba module; restore/copy giữ release và reader version,
+không theo pointer mới. Budget giữ amount/scope/provenance trước quy đổi; unknown và activity
+giữ qua handoff. Retrieval chỉ rank trong scope; bằng chứng đọc riêng từ feature đang phục vụ.
+Contract chi tiết ở tài liệu module và `docs/CORPUS.md` §Chuẩn hóa và release offline.
 
 Quanh bốn giai đoạn có ba phần online chỉ ghi dữ liệu người dùng, không bao giờ ghi Place Intelligence: tài khoản (`docs/ACCOUNTS.md`), chế độ Đang đi + Google Calendar + thông báo (`docs/COMPANION.md`), sự kiện và số liệu Admin (`docs/ANALYTICS.md`). Check-in và thông báo không phải bằng chứng về địa điểm.
 
@@ -114,6 +119,7 @@ Mọi ngưỡng nằm trong `config/`, không trong code:
 | `serving.yaml` | corpus | ngưỡng của serving record |
 | `trip.yaml` | trip | ngân hàng câu hỏi, ngưỡng dừng hỏi |
 | `agents.yaml` | agents | giới hạn call và queue của runtime trong tiến trình |
+| `security.yaml` | agents + harness + trip | heuristic/Judge chat, giới hạn request và giải mã ảnh; `docs/AGENT_HARNESS.md` §5 |
 | `decision.yaml` | decision | trọng số xếp hạng, cỡ shortlist, ngưỡng sàng |
 | `planning.yaml` | planning | nhịp độ, cụm, ngày, mục tiêu, độ vững, dự phòng, chỗ ở |
 | `live.yaml` | live | endpoint và TTL từng nguồn live |
@@ -185,7 +191,7 @@ Chức năng từng màn theo vai trò: `docs/Role_Web_Functional_Design.md`. Ng
 | Kiểm tra là tất định | Một kế hoạch trông hợp lý là chưa đủ |
 | Độ vững đi sau khả thi | Kế hoạch đúng về toán vẫn có thể dễ đổ vỡ trong thực tế |
 | Phương án dự phòng dùng lại các ứng viên bị loại | Phương án thay thế giải thích được và hợp bối cảnh |
-| Chỗ ở không vào Place Intelligence, chỉ tra live theo request | Giá và tình trạng phòng đổi theo ngày; nó là biến trong bài tối ưu, không phải tri thức về địa điểm |
+| Chỗ ở có trong Place Intelligence; giá/availability ngày đi tra live theo request | Đặc tính nơi và giá tham khảo là corpus; khả năng đặt phòng đúng chuyến là dữ liệu live |
 | User Profile là prior, xếp hạng sau constraint | Hành vi trong quá khứ không được lấn át chuyến đi hiện tại hay constraint của nó |
 | Session profile và long-term profile tách riêng | Sở thích có thể thay đổi trong một chuyến mà không viết lại gu dài hạn |
 | Lịch sử trải nghiệm tách khỏi sở thích | Đã đến không có nghĩa là thích; chưa trải nghiệm không có nghĩa là không thích |

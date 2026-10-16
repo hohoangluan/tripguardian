@@ -1,5 +1,7 @@
 """⑩ Decision Output (docs/PLACE_DECISION.md §15): the input of Planning & Validation."""
 
+from requirements import activity_for
+
 from .cards import warning_text
 
 
@@ -34,7 +36,14 @@ def build(s, res, cfg) -> dict:
             codes = [f["code"] for f in res.cands[x["id"]].flags if f["code"] in ("rain", "crowded")]
             backup.append({"id": x["id"], "name": x["name"], "for": None,
                            "reason": f"context:{codes[0]}" if codes else "next_best"})
-    return {"confirmed": confirmed, "backup_pool": backup, "wishlist": res.view["wishlist"],
+    activities = {**si.activities, **st.activities}
+    for pid in st.selected:
+        if pid in res.cands and pid not in activities:
+            activity = activity_for(res.cands[pid].rec, role=res.cands[pid].role)
+            if activity is not None:
+                activities[pid] = activity
+    return {"corpus_binding": si.corpus_binding.model_dump(mode="json") if si.corpus_binding else None,
+            "confirmed": confirmed, "backup_pool": backup, "wishlist": res.view["wishlist"],
             "chunk_assignments": dict(st.chunk_assignments),
-            "trip_context": si.model_dump(mode="json"), "decision_log": list(s.log),
-            "feasibility": res.view["feasibility"]}
+            "trip_context": si.model_copy(update={'activities': activities}).model_dump(mode="json"), "decision_log": list(s.log),
+            "feasibility": res.view["feasibility"], "lodging": st.lodging.model_dump() if st.lodging else None}

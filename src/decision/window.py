@@ -1,36 +1,22 @@
-"""The window of places shown per display group, and how it survives a new ranking (docs/PLACE_DECISION.md §9.4):
-places that still match stay where they are, freed slots take the best new places, a mostly stale window is
-replaced whole."""
+"""The page of places shown per tab (docs/PLACE_DECISION.md §9.4): a tab is its ranking cut into pages of page_size,
+best first; the user picks the page. A new ranking keeps the page number, and says how much of the page changed."""
 
 
-def _change(old: list[str], new: list[str], replaced_all: bool) -> dict:
-    o, n = set(old), set(new)
-    return {"kept": len(o & n), "added": len(n - o), "removed": len(o - n), "replaced_all": replaced_all}
+def pages(n: int, cfg) -> int:
+    return max(1, -(-n // cfg.page_size))
 
 
-def merge(old: list[str], ranked: list[str], pinned: set[str], cfg) -> tuple[list[str], dict]:
+def window(ranked: list[str], page: int, cfg) -> tuple[list[str], int]:
+    """(ids of the page, the page actually shown): a page past the end shows the last one."""
+    p = min(max(0, page), pages(len(ranked), cfg) - 1)
+    return ranked[p * cfg.page_size:(p + 1) * cfg.page_size], p
+
+
+def change(old: list[str], new: list[str], cfg) -> dict:
+    """A tab never shown before has nothing to compare with: no change, so it is not marked "mới"."""
     if not old:
-        win = ranked[: cfg.page_size]
-        return win, _change([], win, False)
-    pos = {pid: i for i, pid in enumerate(ranked)}
-    limit = int(cfg.keep_factor * len(old))
-    keep = {p for p in old if p in pinned or pos.get(p, limit) < limit}
-    size = min(len(old), len(ranked) + len(pinned - set(ranked)))
-    replaced_all = len(keep) < cfg.replace_below * len(old)
-    if replaced_all:  # mostly stale: only the user's own picks keep their slots
-        keep = {p for p in old if p in pinned}
-    fresh = iter([p for p in ranked if p not in keep])
-    win = []
-    for p in old:
-        if p in keep:
-            win.append(p)
-        elif (nxt := next(fresh, None)) is not None:
-            win.append(nxt)
-    while len(win) < size and (nxt := next(fresh, None)) is not None:
-        win.append(nxt)
-    return win, _change(old, win, replaced_all)
-
-
-def extend(window: list[str], ranked: list[str], cfg) -> list[str]:
-    have = set(window)
-    return window + [p for p in ranked if p not in have][: cfg.page_size]
+        return {"kept": 0, "added": 0, "removed": 0, "replaced_all": False}
+    o, n = set(old), set(new)
+    kept = len(o & n)
+    return {"kept": kept, "added": len(n - o), "removed": len(o - n),
+            "replaced_all": bool(old) and kept < cfg.replace_below * len(old)}

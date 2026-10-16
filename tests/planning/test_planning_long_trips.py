@@ -52,7 +52,7 @@ def test_cross_week_edit_recomputes_only_source_and_destination_days(monkeypatch
     matrix_calls = []
     eng = Engine(records, cfg=CFG, live_cfg=FakeLive(), store=Store(None), background=False,
                  geocode_fn=no_geocode, matrix_fn=lambda *a: (matrix_calls.append(1) or fake_matrix(*a)),
-                 sun_fn=fixed_sun, lodging_fn=lambda *a: [])
+                 sun_fn=fixed_sun)
     created = eng.create(d, None)
     sid = created["id"]
     eng.act(sid, {"type": "pick_variant", "id": created["view"]["variants"][0]["id"]})
@@ -63,9 +63,11 @@ def test_cross_week_edit_recomputes_only_source_and_destination_days(monkeypatch
     pid = original[src].order[0]
     dest = 7 if src < 7 else 0
     calls = []
-    repair = engine_module.repair_day
-    monkeypatch.setattr(engine_module, "repair_day", lambda ids, cx, *a, **kw:
-                        (calls.append(cx.day.index) or repair(ids, cx, *a, **kw)))
+    # Spec §8: move_place inserts where it costs least and retimes the source day (Engine._quick_order), with no
+    # repair search; only those two days are laid out again.
+    quick = engine_module.Engine._quick_order
+    monkeypatch.setattr(engine_module.Engine, "_quick_order", staticmethod(lambda ids, prev, cx, *a:
+                        (calls.append(cx.day.index) or quick(ids, prev, cx, *a))))
     out = eng.act(sid, {"type": "move_place", "place": pid, "day": dest})
     current = eng._active_itinerary(s, base)["results"]
     assert set(calls) == {src, dest}
@@ -76,12 +78,14 @@ def test_cross_week_edit_recomputes_only_source_and_destination_days(monkeypatch
     assert out["diff"]["affected_chunks"] == [0, 1]
 
 
-def test_dense_week_keeps_day_window_failure_visible():
+def test_dense_week_reports_what_does_not_fit_instead_of_running_past_the_days():
     d, records = inputs(98)
     records = [{**r, "operation": {**r["operation"], "visit_minutes": {
         **r["operation"]["visit_minutes"], "short": 120, "typical": 180, "long": 240}}} for r in records]
     schedule = schedule_trip(prepare_trip(d, records))
-    assert any(v.kind == "day_window" for v in schedule.violations)
+    assert not any(v.kind == "day_window" for v in schedule.violations)
+    placed = [pid for ids in schedule.per_day for pid in ids]
+    assert schedule.leftover and sorted(placed + list(schedule.leftover)) == sorted(r["id"] for r in records)
 
 
 def test_daily_budget_remains_per_person_per_day_across_weeks():
@@ -114,14 +118,14 @@ def test_legacy_week_allocation_is_shared_across_objectives_and_home_variants(mo
     d.pop("chunk_assignments")
     trip = prepare_trip(d, records)
     coarse_weights = []
-    assign = build.assign_days
+    assign = build.assign
 
-    def counted_assign(clusters, ctxs):
+    def counted_assign(trip_, ctxs, ids):
         if len(ctxs) > trip.cfg.chunk_days:
             coarse_weights.append(dict(ctxs[0].cfg.weights))
-        return assign(clusters, ctxs)
+        return assign(trip_, ctxs, ids)
 
-    monkeypatch.setattr(build, "assign_days", counted_assign)
+    monkeypatch.setattr(build, "assign", counted_assign)
     schedules = [
         schedule_trip(trip, {key: 1000 for key in trip.cfg.weights}),
         schedule_trip(trip, {key: 0 for key in trip.cfg.weights}),

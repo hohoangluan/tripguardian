@@ -1,19 +1,9 @@
-import * as Dialog from '@radix-ui/react-dialog'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useSnapshot } from '../../../data/store'
-import { info } from '../../lib'
-import { toggleSaved, useUi } from '../../store'
+import { useEffect, useRef, useState } from 'react'
 import type { Understanding } from '../../tu/types'
-import { PlacePhoto } from '../../ui/common'
-import { HeartFill, Icon } from '../../ui/icons'
-import { openPlace } from '../../ui/PlaceSheet'
-import { dateLine } from '../../ui/Ticket'
+import { Icon, type IconName } from '../../ui/icons'
+import { dateLine, requiredLines } from '../../ui/Ticket'
 
-// The board beside the chat: Đà Lạt, how many places fit right now, and the best of them (a chosen look's places
-// first). The count is the server's `matching`; the list is `board.ids`. Opening a place uses the shared PlaceSheet.
-
-const GROUP_LABEL: Record<string, string> = { sight: 'Tham quan', food: 'Ăn uống', shop: 'Mua sắm', other: 'Khác' }
-const GROUP_ICON = { sight: 'compass', food: 'utensils', shop: 'bookmark', other: 'sparkle' } as const
+const ICONS: Record<string, IconName> = { trip: 'calendar', companions: 'users', mobility: 'route', care: 'heart', pace: 'sliders', budget: 'wallet', lodging: 'bed' }
 
 function useCount(value: number) {
   const [shown, setShown] = useState(value)
@@ -35,83 +25,53 @@ function useCount(value: number) {
   return shown
 }
 
-function PlaceRow({ id, i, look }: { id: string; i: number; look: boolean }) {
-  const p = info(id)
-  const saved = useUi((u) => u.saved.includes(id))
-  if (!p) return null
-  return (
-    <div className="tg-cx__pc" style={{ '--i': i } as CSSProperties}>
-      <button type="button" className="tg-cx__pc-open" onClick={(e) => openPlace(id, e.currentTarget.querySelector('figure'))} aria-label={`Xem chi tiết ${p.name}`}>
-        <PlacePhoto id={id} name={p.name} className="tg-cx__pc-im" sizes="112px" />
-        <span className="tg-cx__pc-tx">
-          <b>{p.name}</b>
-          <span className="tg-cx__meta">
-            {p.rating != null && <span><Icon name="star" size={13} className="tg-cx__star" /><b>{p.rating.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</b>{p.reviews ? ` (${p.reviews.toLocaleString('vi-VN')} đánh giá)` : ''}</span>}
-            <span><Icon name="pin" size={13} />{p.area}</span>
-          </span>
-          <span className="tg-cx__ds">{[p.category, p.hours ? `mở ${p.hours}` : null].filter(Boolean).join(' · ')}</span>
-          {look && <span className="tg-cx__chp"><i>Gần kiểu bạn tả</i></span>}
-        </span>
-      </button>
-      <button type="button" className={`tg-cx__heart ${saved ? 'is-on' : ''}`} aria-pressed={saved} aria-label={saved ? `Bỏ lưu ${p.name}` : `Lưu ${p.name}`} onClick={() => toggleSaved(id, p.name)}>
-        {saved ? <HeartFill size={18} /> : <Icon name="heart" size={18} />}
-      </button>
-    </div>
-  )
-}
-
-export function Board({ u, busy, onShow }: { u: Understanding | null; busy: boolean; onShow: () => void }) {
-  useSnapshot() // the place cards read the snapshot once it lands
-  const [group, setGroup] = useState<string | null>(null)
-  const [all, setAll] = useState(false)
+export function Board({ u, busy, preview, onShow, onOpen }: { u: Understanding | null; busy: boolean; preview: Set<string>; onShow: () => void; onOpen: (target: string | null) => void }) {
   const n = useCount(u?.matching ?? u?.total ?? 0)
-  const ids = (u?.board.ids ?? []).filter((id) => info(id))
-  const look = new Set(u?.board.vibe ?? [])
-  const groups = Object.entries(ids.reduce<Record<string, number>>((m, id) => { const g = info(id)!.group; m[g] = (m[g] ?? 0) + 1; return m }, {}))
-  const shown = group ? ids.filter((id) => info(id)!.group === group) : ids
-  const told = !!u && (u.trip.length > 0 || u.soft.length > 0 || u.hard.length > 0 || u.vibes.length > 0)
-  const when = u ? dateLine(u) : ''
+  const lines = u ? requiredLines(u) : []
+  const groups = (u?.required ?? []).map(group => ({ ...group, line: lines.find(line => line.key === group.key), active: preview.has(group.key) }))
+  // The board keeps the trip to its dates on one line; day hours and their reasons stay in the ticket and the read-back.
+  const short = (key: string, value: string) => (key === 'trip' && u ? dateLine(u) || value : value)
+  const done = groups.filter(group => group.done).length
+  const percent = groups.length ? Math.round(done / groups.length * 100) : 0
   return (
-    <aside className="tg-cx__side tg-cx__panel" aria-label="Nơi đang hợp với bạn">
-      <div className="tg-cx__cover">
-        <img src="/img/landing-p1.webp" alt="Đà Lạt" />
-        <span className="tg-cx__glass is-l"><Icon name="pin" size={16} />Đà Lạt</span>
-        {when && <span className="tg-cx__glass is-r"><Icon name="calendar" size={16} />{when}</span>}
-      </div>
-      <div className="tg-cx__sheet">
-        <div className="tg-cx__hd">
-          <p className="tg-cx__n"><b>{n.toLocaleString('vi-VN')}</b><span>{told ? 'địa điểm hợp' : 'địa điểm'}</span></p>
-          {ids.length > 0 && <button type="button" className="tg-cx__all" onClick={() => setAll(true)}>Xem tất cả <Icon name="arrow" size={14} /></button>}
+    <aside className="tg-cx__side tg-cx__panel tg-trail" aria-label="Nơi đang hợp với bạn">
+      <header className="tg-trail__head">
+        <h2>Những nơi đang hợp</h2>
+        <p>{u ? <><b>{n.toLocaleString('vi-VN')}</b> địa điểm</> : <span>Đang mở…</span>}</p>
+      </header>
+      <section className="tg-ticket2" aria-label="Thông tin chuyến đi">
+        <div className="tg-ticket2__bar">
+          <span className="tg-ticket2__pill">Thông tin chuyến</span>
+          <i aria-hidden="true" />
+          <span className={`tg-ticket2__state ${busy ? 'is-busy' : ''}`} role="status"><Icon name="check" size={13} strokeWidth={2.4} />{busy ? 'Đang cập nhật' : groups.length > 0 && done === groups.length ? 'Đã đủ thông tin' : 'Đang ghi nhận'}</span>
         </div>
-        {u?.vibes.filter((v) => v.status === 'done' && v.places).map((v) => (
-          <p key={v.target} className="tg-cx__look"><Icon name="sparkle" size={14} /><span><b>{v.places}</b> nơi {v.picked ? `cùng phong cách ${v.picked}` : `theo “${v.phrase}”${v.chosen.length ? ` (${v.chosen.join(', ')})` : ''}`} được xếp lên đầu</span></p>
-        ))}
-        {groups.length > 1 && (
-          <div className="tg-cx__cats" role="group" aria-label="Lọc theo loại">
-            {groups.map(([g, c]) => (
-              <button key={g} type="button" className={group === g ? 'is-on' : ''} aria-pressed={group === g} onClick={() => setGroup(group === g ? null : g)}>
-                <Icon name={GROUP_ICON[g as keyof typeof GROUP_ICON] ?? 'sparkle'} size={15} />{GROUP_LABEL[g] ?? g}<small>{c}</small>
-              </button>
-            ))}
+        <ol className="tg-cx__steps2">
+          {groups.map(group => (
+            <li key={group.key} className={group.done ? 'is-done' : group.active ? 'is-working' : ''}>
+              <span className="tg-cx__mark" aria-hidden="true"><Icon name={ICONS[group.key] ?? 'info'} size={22} /></span>
+              <div className="tg-progress__row">
+                <div className="tg-progress__top"><h4>{group.title ?? group.label}</h4><small>{group.done ? 'Đã ghi nhận' : group.active ? 'Đang ghi nhận…' : 'Chưa điền'}</small></div>
+                <p className={group.line?.value ? 'tg-cx__val' : 'tg-cx__ask'} title={group.line?.value || undefined}>{group.line?.value ? short(group.key, group.line.value) : group.done ? 'Đã ghi nhận' : `Bổ sung ${(group.title ?? group.label).toLowerCase()}`}</p>
+                {<button type="button" className="tg-link tg-progress__edit" disabled={busy} aria-label={`Sửa ${(group.title ?? group.label).toLowerCase()}`} onClick={() => onOpen(group.key)}>Sửa</button>}
+              </div>
+            </li>
+          ))}
+        </ol>
+        <footer className="tg-ticket2__foot">
+          <div className="tg-ticket2__ring" role="progressbar" aria-label="Thông tin chuyến đi đã ghi nhận" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${done} trên ${groups.length} thông tin`}>
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle className="tg-ticket2__track" cx="60" cy="60" r="50" />
+              {done > 0 && <circle className="tg-ticket2__arc" cx="60" cy="60" r="50" pathLength={100} strokeDasharray={`${percent} 100`} />}
+            </svg>
+            <span><b>{done}/{groups.length}</b><small>thông tin</small></span>
           </div>
-        )}
-        <div className="tg-cx__feed">
-          {shown.map((id, i) => <PlaceRow key={id} id={id} i={i} look={look.has(id)} />)}
-          {!shown.length && <p className="tg-cx__empty">{u ? 'Kể thêm về chuyến đi, các nơi hợp sẽ hiện ở đây.' : 'Đang mở…'}</p>}
-        </div>
-        {u && u.missing.length > 0 && <p className="tg-cx__miss">Còn chưa rõ: {u.missing.map((m) => m.label).join(', ')}</p>}
-        <button type="button" className="tg-cx__go" disabled={busy || !u} onClick={onShow}>Bắt đầu tìm <Icon name="arrow" size={18} /></button>
-      </div>
-      <Dialog.Root open={all} onOpenChange={setAll}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="tg-cx__dim" />
-          <Dialog.Content className="tg-cx__drawer" aria-describedby={undefined}>
-            <header><Dialog.Title>{(u?.matching ?? 0).toLocaleString('vi-VN')} địa điểm</Dialog.Title><Dialog.Close className="tg-cx__x" aria-label="Đóng"><Icon name="x" size={18} /></Dialog.Close></header>
-            <p className="tg-cx__drawer-note">{ids.length} nơi hợp nhất lúc này. Danh sách đầy đủ, kèm lý do, ở bước Lựa chọn.</p>
-            <div className="tg-cx__grid">{ids.map((id, i) => <PlaceRow key={id} id={id} i={i} look={look.has(id)} />)}</div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+          <div>
+            <small>Chuyến của bạn</small>
+            <h3>{done ? 'Chuyến Đà Lạt của bạn' : 'Kể mình nghe chuyến đi'}</h3>
+          </div>
+        </footer>
+      </section>
+      <button type="button" className="tg-cx__go" disabled={busy || !u} onClick={onShow}><Icon name="sparkle" size={20} />Tiếp tục đến chọn nơi</button>
     </aside>
   )
 }

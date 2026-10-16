@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 
 from corpus.serving import check, feature, load as load_records
+from corpus.snapshot import shared
 from trip import Catalog
 
 from .hidden import EFFORT_SIGNALS, ROOT, AnchorTruth, Dates, HardRule, HiddenTrip, expected_hard, save
@@ -62,7 +63,7 @@ class Generator:
         self.cfg = settings()
         self.k = top_k()
         self.records = load_records()
-        catalog = Catalog.load(ROOT / "data", 1)
+        catalog = Catalog.from_snapshot(shared().region(), 1)
         self.loves = [x for x in self.cfg["love_keys"] if catalog.count(x) >= self.k]
         self.avoids = [x for x in self.cfg["avoid_keys"] if catalog.count(x) >= self.k]
         served = {r["id"] for r in self.records}

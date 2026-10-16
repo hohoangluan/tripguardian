@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from 'react'
 import type { Vehicle } from '../data/store'
+import { FORGET_EVENT } from './account'
 import type { SearchInput } from './tu/types'
 
 export type Who = 'partner' | 'friends' | 'kids' | 'parents' | 'solo' | 'baby' | 'pet' | 'coworkers'
@@ -16,9 +17,9 @@ export interface TripState {
   startWith: string | null
   startText: string | null // what the user typed on the start page; the first turn of Trip Understanding
   startDate: string
-  days: number
+  days: number | null
   who: Who[]
-  people: number
+  people: number | null
   vehicle: Vehicle | null
   lodging: string | null // place id or free text address
   mustVisit: string[]
@@ -40,26 +41,20 @@ export interface TripState {
   planningId: string | null // Planning session (src/planning); the backend holds the schedule and its edits
 }
 
-const today = () => {
-  const d = new Date()
-  d.setDate(d.getDate() + 14)
-  return d.toISOString().slice(0, 10)
-}
-
 export const initialTrip: TripState = {
   experience: null,
   startWith: null,
   startText: null,
-  startDate: today(),
-  days: 3,
+  startDate: '',
+  days: null,
   who: [],
-  people: 2,
+  people: null,
   vehicle: null,
   lodging: null,
   mustVisit: [],
-  arriveAt: '09:00',
-  leaveAt: '15:00',
-  rules: { maxLegMin: null, avoidSteep: false, dayEnd: '21:30' },
+  arriveAt: '',
+  leaveAt: '',
+  rules: { maxLegMin: null, avoidSteep: false, dayEnd: '' },
   prefs: {},
   pace: null,
   answered: [],
@@ -143,6 +138,11 @@ const Ctx = createContext<{ trip: TripState; dispatch: (a: Action) => void } | n
 export function TripProvider({ children }: { children: ReactNode }) {
   const [trip, dispatch] = useReducer(reducer, undefined, restore)
   useEffect(() => {
+    const reset = () => dispatch({ type: 'reset' })
+    addEventListener(FORGET_EVENT, reset)
+    return () => removeEventListener(FORGET_EVENT, reset)
+  }, [])
+  useEffect(() => {
     try {
       localStorage.setItem(KEY, JSON.stringify(trip))
     } catch {
@@ -158,12 +158,11 @@ export function useTrip() {
   return c
 }
 
-// The three steps of the flow (top bar stepper, trip progress). Paths are relative to /app.
+// The three steps of the flow (top bar stepper, trip progress). Paths are relative to /app. /done (feedback) is no step.
 export const STEPS = [
   { id: 'understand', path: '/understand', label: 'Tìm hiểu' },
   { id: 'explore', path: '/explore', label: 'Lựa chọn' },
   { id: 'plan', path: '/plan', label: 'Lịch trình' },
-  { id: 'review', path: '/done', label: 'Đánh giá' },
 ] as const
 export type StepId = (typeof STEPS)[number]['id']
 

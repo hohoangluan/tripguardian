@@ -3,14 +3,24 @@
 from typing import Literal, Protocol, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from corpus.releases import Binding
 
 Stage = Literal["trip", "decision", "planning"]
-Operation = Literal["turn", "act", "advance", "back", "confirm", "recommend"]
+Operation = Literal["turn", "act", "advance", "back", "confirm", "recommend", "trip"]
 Emit = Callable[[str, dict], None]
 
 
 class Conflict(ValueError):
     """A stale revision, a reused request_id, or a journey another writer changed first (HTTP 409)."""
+
+
+class TripNotReady(Conflict):
+    """Planning needs trip answers or confirmation of the current read-back."""
+
+    def __init__(self, missing: list[str], readback: dict):
+        super().__init__("trip_incomplete")
+        self.missing = list(missing)
+        self.readback = readback
 
 
 class Request(BaseModel):
@@ -32,6 +42,7 @@ class Journey(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(pattern=r"^[0-9a-f]{12}$")
     user_id: str | None = Field(None, pattern=r"^[0-9a-f]{32}$")  # the account that owns it (uuid hex)
+    corpus_binding: Binding | None = None
     stage: Stage = "trip"
     revision: int = 0
     sessions: dict[Stage, str] = Field(default_factory=dict)

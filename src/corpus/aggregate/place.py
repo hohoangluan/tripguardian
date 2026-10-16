@@ -1,6 +1,6 @@
 """Aggregate (docs/CORPUS.md §5), code only: every source's observations of a place -> one intel file.
 
-Reads data/*/observations/*.json and data/*/photo_observations/*.json without knowing the source, writes data/intel/places/<fid_dir>.json and removes
+Reads the normalization manifest of saved, eligible source documents, writes data/intel/places/<fid_dir>.json and removes
 every other file there (a place that has no observation file now): the folder is one build. Observation files of an
 older ontology version still count until observe re-runs them (values the ontology dropped are left out);
 `observation_versions` and the summary's `stale_files` say how many. Per feature:
@@ -170,7 +170,7 @@ def feature_signal(feat: Feature, obs: list[dict], as_of: date, voices: int = 0,
         for c in sorted(groups):
             by_context[f"{k}={c}"] = votes(groups[c])
     people = [o for o in unique if o["source_type"] not in AUTHORITATIVE]  # dated by when someone said it
-    dates = [o["observed_at"] for o in people if o.get("observed_at")]
+    dates = [o["observed_at"] for o in people if o.get("observed_at") and len(o["observed_at"]) == 10]
     declared = {o["value"] for o in unique if o["source_type"] in AUTHORITATIVE}
     conflict = bool(declared) and bool({o["value"] for o in people} - declared or len(declared) > 1)
     authority = next(iter(declared)) if len(declared) == 1 and not conflict else None
@@ -295,7 +295,7 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
         for k, v in (f.get("place") or {}).items():
             if v is not None:
                 identity.setdefault(k, v)
-    cg = group(identity.get("category"))["id"]  # lodging keeps only the stay features
+    cg = group(identity.get("category"), identity.get("name"))["id"]  # lodging keeps only the stay features
     by_feature = collections.defaultdict(list)
     for f in files:
         for o in f["observations"]:
@@ -305,6 +305,11 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
     voices = sum(f.get("voices") or 0 for f in files)
     voices_targeted = sum(f.get("voices_targeted") or 0 for f in files)  # count only where targeted samples count
     quality, reviewed = quality or {}, reviewed or {}
+    excluded = {key for f in files for key in f.get("normalization_excluded_features", [])}
+    dropped = collections.defaultdict(set)  # feature -> values of claims normalization dropped (source/span failed)
+    for f in files:
+        for d in f.get("normalization_dropped_claims", []):
+            dropped[d["feature"]].add(d["value"])
     features = {}
     for fid in ont.features:
         if fid in by_feature:
@@ -314,6 +319,8 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
             features[fid] = judge(sig, quality.get((fid, sig["top_value"])), reviewed.get(fid))
     for fid in SILENCE_FEATURES:
         if not ont.applies(fid, "", cg):
+            continue
+        if fid in excluded or "*" in excluded or fid in dropped:  # someone did name it: silence is unknown
             continue
         said = [o for f in files for o in f["observations"] if o["feature"] == fid and ont.valid(fid, o["value"])
                 and ont.applies(fid, o["value"], cg) and verdicts.get(label_key(o["source_id"], fid, o["value"], o["span"]["quote"])) != "wrong"]
@@ -328,6 +335,12 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
             feat = ont.features[fid]
             sig = feature_signal(feat, said, as_of, voices + voices_targeted if targeted_ok(feat) else voices, verdicts)
             features[fid] = inferred(sig, "mentioned", quality.get((fid, "present")), reviewed.get(fid))
+    for fid, signal in features.items():
+        # a dropped claim that agreed only lowers support (judged above); one that disagreed would inflate agreement
+        disagreed = bool(dropped.get(fid, set()) - {signal.get("top_value")})
+        if (fid in excluded or "*" in excluded or disagreed) and signal["status"] != "disabled":
+            signal["status"], signal["servable"] = "uncertain", False
+            signal["normalization_issue"] = "invalidated_evidence"
     ratings = [r for f in files for r in f.get("ratings", []) if r.get("sample") not in TARGETED]
     proposed = collections.defaultdict(list)
     for f in files:
@@ -346,43 +359,46 @@ def aggregate_place(files: list[dict], ont: Ontology, quality: dict | None = Non
         "as_of": as_of.isoformat(), "ontology_version": ont.version, "identity": identity, "voices": voices,
         "voices_targeted": voices_targeted,
         "features": features, "coverage": coverage(features, ont), "details": place_details(files, ont, verdicts),
-        "operation": {"price_range": facts.get("price"), **hours, "closure": facts.get("closure"),
+        "operation": {"price_range": facts.get("price"), "price_night": facts.get("price_night"), **hours,
+                      "closure": facts.get("closure"),
                       "tickets_vnd": official.get("tickets_vnd"), "last_entry": official.get("last_entry"),
                       "crowd_by_time": crowd_by_time(facts.get("popular_times")),
                       "popular_times": facts.get("popular_times")},
         "estimates": estimates(identity.get("category"), features, [o for os in by_feature.values() for o in os],
                                (facts.get("tickets") or {}).get("usd"), official.get("tickets_vnd"),
-                               facts.get("time_spent")),
+                               facts.get("time_spent"), identity.get("name")),
         "rating_trend": rating_trend(ratings) if ratings else None,
         "proposed_features": sorted(({"label": k, "count": len(v), "authors": len(set(v))} for k, v in proposed.items()),
                                     key=lambda x: (-x["count"], x["label"])),
     }
 
 
-def run(city: str) -> dict:
-    """city is accepted for a uniform CLI; observations are already per place."""
+def run(city: str, *, output_root=None, root=None, normalization=None) -> dict:
+    """Normalize the city's inventory, or consume a prevalidated normalization in a release build."""
     ont = load_ontology()
-    root = data_dir()
+    root = root or data_dir()
     files, inputs, stale = collections.defaultdict(list), collections.defaultdict(list), 0
-    canonical = merges()
-    for p in sorted([*root.glob("*/observations/*.json"), *root.glob("*/photo_observations/*.json")]):
-        f = json.loads(p.read_text(encoding="utf-8"))
+    canonical = merges(root=root)
+    from ..normalize import normalize
+    normalized = normalization or normalize(city, root, canonical)
+    for path, f in normalized.documents():
         stale += f.get("ontology_version") != ont.version
         fid = canonical.get(f["place_fid"], f["place_fid"])
         files[fid].append(f)
-        inputs[fid].append(p.relative_to(root).as_posix())
+        inputs[fid].append(path)
     for fid in files:  # the canonical entry's own files first: its name, place facts and identity win
         files[fid].sort(key=lambda f: f["place_fid"] != fid)
     status = collections.Counter()
-    out = root / "intel" / "places"
+    destination = output_root or root
+    out = destination / "intel" / "places"
     quality = {(r["feature"], r["value"]): {k: r[k] for k in ("precision", "lower", "correct", "wrong", "gate")}
-               for r in label_stats()["rows"] if r["correct"] + r["wrong"]}
+               for r in label_stats(root=root)["rows"] if r["correct"] + r["wrong"]}
     reviewed = collections.defaultdict(dict)
-    for item, d in decisions("feature_review").items():
+    for item, d in decisions("feature_review", root=root).items():
         place_fid, _, feature = item.partition("#")
         if d != "undo":
             reviewed[place_fid][feature] = d
-    verdicts = label_verdicts()
+    verdicts = label_verdicts(root=root)
     for fid, fs in files.items():
         if fs[0]["place_fid"] != fid:  # only a merged entry's files: the canonical one has no evidence of its own
             fs = [{**fs[0], "place_fid": fid, "observations": [], "place": {}, "place_facts": {}, "voices": 0,
@@ -390,15 +406,15 @@ def run(city: str) -> dict:
         intel = aggregate_place(fs, ont, quality, reviewed.get(fid), verdicts)
         status.update(f"{k}={v}" for k, v in intel["coverage"].items())
         write_json(out / f"{safe_name(fid)}.json", {**intel, "inputs": inputs[fid], "built_at": now(),
-                                                    "observation_versions": sorted({f.get("ontology_version") for f in fs})})
+                                                    "observation_versions": sorted({f.get("ontology_version") for f in fs}, key=str)})
     built = {f"{safe_name(fid)}.json" for fid in files}
     removed = 0
     for p in out.glob("*.json") if out.exists() else []:
         if p.name not in built:  # a place without observations now: derived, rebuilt from evidence
             p.unlink()
             removed += 1
-    summary = {"at": now(), "places": len(files), "stale_files": stale, "removed": removed,
+    summary = {"at": now(), "places": len(files), "stale_files": stale, "removed": removed, "normalization_id": normalized.id,
                "coverage": dict(sorted(status.items()))}
-    write_json(root / "intel" / "summary.json", summary)
+    write_json(destination / "intel" / "summary.json", summary)
     print(f"aggregate {city}: {json.dumps(summary, ensure_ascii=False)}")
     return summary

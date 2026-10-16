@@ -48,8 +48,9 @@ def _read(f) -> list[dict]:
     return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines() if l.strip()] if f.exists() else []
 
 
-def _all() -> list[dict]:
-    return _read(_judge_file()) + _read(_file())  # people last: the latest label per claim wins
+def _all(root=None) -> list[dict]:
+    base = (root or data_dir()) / "review"
+    return _read(base / "judge_labels.jsonl") + _read(base / "labels.jsonl")  # people last
 
 
 def fv(feature: str, value: str) -> tuple[str, str]:
@@ -65,12 +66,12 @@ def key(source_id: str, feature: str, value: str, quote: str) -> str:
     return "|".join((source_id, feature, value, _norm(quote)))
 
 
-def latest() -> dict[str, dict]:
+def latest(*, root=None) -> dict[str, dict]:
     """content key -> latest label (a Gemma label never replaces another's, stand_in). Records written before labels
     kept their quote are keyed through the current observations by id (migrate() writes the key into them once)."""
-    by_id = {r[1]: r[4] for r in _rows()}
+    by_id = {r[1]: r[4] for r in (_rows(root) if root is not None else _rows())}
     out = {}
-    for rec in _all():
+    for rec in (_all(root) if root is not None else _all()):
         k = rec.get("key") or by_id.get(rec["id"])
         if k and not (stand_in(rec) and k in out and not stand_in(out[k])):
             out[k] = rec
@@ -83,21 +84,31 @@ def stand_in(rec: dict) -> bool:
     return rec.get("by", "").startswith("judge:gemma")
 
 
-def _rows() -> list[tuple]:
+def _rows(data_root=None) -> list[tuple]:
     """(file stem, observation id, feature, value, key, source folder) of every model-made observation (and detail)
     whose value the ontology still has; each file is read again only when it changed."""
     ont, rows, seen = load_ontology(), [], set()
     for source, types in SOURCES.items():
-        root = data_dir().joinpath(*FOLDERS[source])
+        root = (data_root or data_dir()).joinpath(*FOLDERS[source])
         for f in sorted(root.glob("*.json")) if root.exists() else []:
             seen.add(f)
             mtime = os.stat(f).st_mtime_ns
             if _files.get(f, (None,))[0] != mtime:
-                doc = json.loads(f.read_text(encoding="utf-8"))
+                try:
+                    doc = json.loads(f.read_text(encoding="utf-8"))
+                except ValueError:
+                    continue
+                if not isinstance(doc, dict):
+                    continue
+                observations, details = doc.get("observations") or [], doc.get("details") or []
+                if not isinstance(observations, list) or not isinstance(details, list):
+                    continue
                 _files[f] = (mtime, [(f.stem, o["id"], o["feature"], o["value"],
                                       key(o["source_id"], o["feature"], o["value"], o["span"]["quote"]), source)
-                                     for o in doc["observations"] + (doc.get("details") or [])
-                                     if o["source_type"] in types])
+                                     for o in observations + details
+                                     if isinstance(o, dict) and o.get("source_type") in types
+                                     and all(isinstance(o.get(k), str) for k in ("id", "feature", "value", "source_id"))
+                                     and isinstance(o.get("span"), dict) and isinstance(o["span"].get("quote"), str)])
             rows += [r for r in _files[f][1] if ont.valid(r[2], r[3]) or ont.valid_detail(r[2])]
     for f in set(_files) - seen:
         del _files[f]
@@ -297,11 +308,11 @@ def judge_label(obs: dict, place_stem: str, source: str, label_: str, note: str,
     return rec
 
 
-def verdicts() -> dict[str, str]:
+def verdicts(*, root=None) -> dict[str, str]:
     """content key -> latest label (person over Judge): what aggregate drops (wrong, unsure_again) and counts as
     checked. unsure_again: the strong Judge's second look was still unsure, so the source is not enough evidence."""
     return {k: "unsure_again" if rec["label"] == "unsure" and rec.get("look", 1) > 1 else rec["label"]
-            for k, rec in latest().items()}
+            for k, rec in latest(root=root).items()}
 
 
 def evidence(stem: str, o: dict, source: str) -> dict:
@@ -340,7 +351,7 @@ def wilson_lower(correct: int, n: int, z: float = 1.96) -> float:
     return (p + z * z / (2 * n) - z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
 
 
-def stats() -> dict:
+def stats(*, root=None) -> dict:
     """Per (feature, value) -- (detail.<kind>, "*") for a detail: labels, precision, Wilson lower bound and whether the value passes the gate; by_source
     splits the correct / wrong counts per source folder (a new source has to earn its own precision).
 
@@ -349,14 +360,14 @@ def stats() -> dict:
     wrong (docs/CORPUS.md §6), so mixing them in pulled values whose accurate labels pass well below the gate --
     food_quality=good measured 0.95 on 73 accurate labels and 0.83 once Gemma's were added (2026-10-06, 12 values and
     84.6k claims held back this way). Which labels decide is reported as `measured_by`."""
-    rows = _rows()
+    rows = _rows(root)
     pool = collections.Counter(fv(r[2], r[3]) for r in rows)
     current = {r[4]: r[5] for r in rows}
     got = collections.defaultdict(collections.Counter)
     per_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     strong = collections.defaultdict(collections.Counter)
     strong_source = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
-    for k, rec in latest().items():
+    for k, rec in latest(root=root).items():
         if k in current:  # a label on a claim the current observations no longer make says nothing about them
             stratum = fv(rec["feature"], rec["value"])
             got[stratum][rec["label"]] += 1

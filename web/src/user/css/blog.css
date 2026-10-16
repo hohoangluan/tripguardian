@@ -1,0 +1,84 @@
+/* Theme blog (home/ThemeBlog.tsx): a postcard-style page over the blurred app. Cream paper, the photo in a frame, a stamp on the
+   corner, the other ideas as tabs on the right edge. The paper colours are this page's own; all else comes from the tokens. */
+.tg-bl, .tg-bl__veil {
+  --bl-paper: #f4f0e6;
+  --bl-paper-hi: #faf7ef;
+  --bl-ink: #2b2720;
+  --bl-soft: #6b6457;
+  --bl-stamp: #f1e4a2;
+  --bl-stamp-ink: #fffdf3;
+  --bl-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* the page behind: blurred, dimmed, tinted by the photo of the idea on show */
+.tg-bl__veil { position: fixed; inset: 0; z-index: 80; overflow: hidden; background: rgba(28, 23, 16, 0.4); backdrop-filter: blur(16px) saturate(1.15); animation: tg-bl-veil 380ms ease-out both; }
+.tg-bl__veil[data-state='closed'] { animation: tg-bl-veil-out 240ms ease-in both; }
+.tg-bl__veil img { position: absolute; left: -10%; top: -10%; width: 120%; height: 120%; object-fit: cover; filter: blur(46px) saturate(1.25); opacity: 0; scale: 1.08; transition: opacity 650ms ease, scale 900ms var(--bl-ease); }
+.tg-bl__veil img.is-on { opacity: 0.5; scale: 1; }
+@keyframes tg-bl-veil { from { opacity: 0; } }
+@keyframes tg-bl-veil-out { to { opacity: 0; } }
+
+.tg-bl { position: fixed; z-index: 81; left: calc(50% - 28px); top: 50%; translate: -50% -50%; width: min(680px, calc(100vw - 200px)); outline: none; }
+.tg-bl[data-state='closed'] { animation: tg-bl-out 240ms cubic-bezier(0.4, 0, 1, 1) both; }
+@keyframes tg-bl-out { to { opacity: 0; transform: translateY(14px) scale(0.97); } }
+
+.tg-bl__paper { position: absolute; z-index: 1; inset: 0; border-radius: 28px; background: radial-gradient(120% 80% at 20% 0%, var(--bl-paper-hi), transparent 60%), var(--bl-paper); box-shadow: 0 50px 100px -34px rgba(0, 0, 0, 0.6), 0 2px 0 rgba(255, 255, 255, 0.7) inset; animation: tg-bl-paper 560ms var(--bl-ease) both; }
+@keyframes tg-bl-paper { from { opacity: 0; transform: translateY(34px) scale(0.93); } }
+
+.tg-bl__x { position: absolute; z-index: 4; right: 0; top: -52px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); color: #fff; backdrop-filter: blur(8px); transition: background 180ms, transform 220ms var(--bl-ease); animation: tg-bl-fade 400ms 200ms both; }
+.tg-bl__x:hover { background: rgba(255, 255, 255, 0.3); transform: rotate(90deg); }
+@keyframes tg-bl-fade { from { opacity: 0; } }
+
+.tg-bl__page { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; padding: 36px 36px 34px; text-align: center; }
+
+/* the photo: flies out of the clicked card (WAAPI in ThemeBlog.tsx); from the tabs it is revealed from the top down instead */
+.tg-bl__photo { width: 100%; height: min(430px, 44vh); overflow: hidden; border-radius: 10px; background: var(--bl-soft); will-change: transform, clip-path; }
+.tg-bl__photo img { width: 100%; height: 100%; object-fit: cover; }
+.tg-bl__photo:not([data-fly]) { animation: tg-bl-reveal 640ms var(--bl-ease) both; }
+.tg-bl__photo:not([data-fly]) img { animation: tg-bl-zoom 900ms var(--bl-ease) both; }
+@keyframes tg-bl-reveal { from { clip-path: inset(0 0 100% 0 round 10px); } to { clip-path: inset(0 0 0 0 round 10px); } }
+@keyframes tg-bl-zoom { from { scale: 1.12; } }
+
+/* the stamp pops onto the corner */
+.tg-bl__stamp { position: absolute; z-index: 3; left: -34px; top: -30px; display: grid; place-items: center; width: 108px; height: 108px; rotate: -7deg; color: var(--bl-stamp-ink); filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.2)); animation: tg-bl-stamp 700ms 240ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.tg-bl__stamp svg:first-child { position: absolute; inset: 0; width: 100%; height: 100%; fill: var(--bl-stamp); }
+.tg-bl__stamp svg:last-child { position: relative; stroke-width: 1.4; }
+@keyframes tg-bl-stamp { from { opacity: 0; scale: 0.35; rotate: -34deg; } }
+
+.tg-bl__title { margin: 28px 0 0; font: 400 2.4rem/1.12 'Lora', Georgia, serif; letter-spacing: -0.02em; color: var(--bl-ink); text-wrap: balance; }
+.tg-bl__title em { font-style: italic; }
+.tg-bl__desc { max-width: 42ch; margin-top: 14px; font-size: 1.02rem; line-height: 1.65; color: var(--bl-soft); }
+.tg-bl__cat { display: flex; align-items: center; gap: 12px; margin-top: 18px; font: 500 0.7rem/1 var(--tg-sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--bl-soft); }
+.tg-bl__cat::before, .tg-bl__cat::after { content: ''; width: 26px; height: 1px; background: currentColor; opacity: 0.5; }
+.tg-bl__act { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+.tg-bl__go { display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 24px; border-radius: 999px; background: var(--bl-ink); color: var(--bl-paper); font-size: 0.9rem; font-weight: 500; transition: transform 220ms var(--bl-ease), background 180ms, box-shadow 220ms; }
+.tg-bl__go:hover { background: #000; transform: translateY(-2px); box-shadow: 0 12px 22px -10px rgba(0, 0, 0, 0.55); }
+.tg-bl__go:active { transform: translateY(0) scale(0.98); }
+.tg-bl__go svg { transition: transform 220ms var(--bl-ease); }
+.tg-bl__go:hover svg { transform: translateX(3px); }
+.tg-bl__save { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(43, 39, 32, 0.22); color: var(--bl-ink); transition: background 180ms, color 180ms, transform 220ms var(--bl-ease); }
+.tg-bl__save:hover { background: rgba(43, 39, 32, 0.08); }
+.tg-bl__save:active { transform: scale(0.92); }
+.tg-bl__save[aria-pressed='true'] { background: var(--bl-ink); border-color: var(--bl-ink); color: var(--bl-paper); }
+
+/* the words rise one after another (the page is keyed by the idea, so a tab switch replays this) */
+.tg-bl__page > :is(.tg-bl__title, .tg-bl__desc, .tg-bl__cat, .tg-bl__act) { animation: tg-bl-up 560ms var(--bl-ease) var(--d) both; }
+.tg-bl__title { --d: 170ms; }
+.tg-bl__desc { --d: 230ms; }
+.tg-bl__cat { --d: 290ms; }
+.tg-bl__act { --d: 350ms; }
+@keyframes tg-bl-up { from { opacity: 0; transform: translateY(14px); } }
+
+/* tabs on the right edge: they slide out from under the paper; the open one juts out further */
+.tg-bl__tabs { position: absolute; z-index: 0; top: 0; bottom: 26px; left: calc(100% - 16px); width: 74px; display: flex; flex-direction: column; gap: 6px; }
+.tg-bl__tabs button { flex: 1; display: grid; place-items: center; padding-left: 16px; border-radius: 0 20px 20px 0; background: var(--bl-paper); color: var(--bl-soft); writing-mode: vertical-rl; font: 600 0.7rem/1 var(--tg-sans); letter-spacing: 0.16em; text-transform: uppercase; transition: transform 340ms var(--bl-ease), color 200ms, background 200ms; animation: tg-bl-tab 560ms var(--bl-ease) both; animation-delay: calc(220ms + var(--i) * 55ms); }
+.tg-bl__tabs button:hover { transform: translateX(4px); color: var(--bl-ink); }
+.tg-bl__tabs button[aria-selected='true'] { transform: translateX(10px); background: var(--bl-paper-hi); color: var(--bl-ink); }
+@keyframes tg-bl-tab { from { opacity: 0; translate: -56px 0; } }
+.tg-bl :focus-visible { outline: 2px solid var(--bl-ink); outline-offset: 2px; }
+.tg-bl__x:focus-visible { outline-color: #fff; }
+
+@media (max-width: 900px) {
+  .tg-bl { width: calc(100vw - 110px); left: calc(50% - 20px); }
+  .tg-bl__title { font-size: 1.7rem; }
+}

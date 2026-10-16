@@ -13,6 +13,8 @@ Place Decision      src/decision/ → shortlist → người dùng tuyển chọ
 Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ vững → Plan Output
 ```
 
+Phần dùng chung: `src/harness/` (HTTP/SSE, hành trình chung), `src/agents/` (Agent, tool, skill), `src/accounts/` + `src/db/` (tài khoản, Postgres), `src/companion/` (chế độ Đang đi), `src/analytics/`, `src/notify/`, `src/requirements/`, `src/social/`, `src/speech/`, `src/bench/` (đo độ trễ). Giao diện: `web/`.
+
 ## Tài liệu
 
 | Tài liệu | Nội dung |
@@ -21,7 +23,9 @@ Planning & Valid.   src/planning/ + src/live/ → phương án, chỗ ở, độ
 | `docs/ARCHITECTURE.md` | Bản đồ hệ thống: bốn giai đoạn, ranh giới module, constraint, cấu hình, quyết định thiết kế |
 | `docs/AGENT_HARNESS.md` | Agent/tool/skill, router, hành trình chung, revision/retry, HTTP và SSE |
 | `docs/CORPUS.md` | Place Intelligence: nguồn, vai trò model, pipeline, gate, data model, CLI, đo chất lượng |
+| `docs/NORMALIZED_CORPUS_RECHECK.md` | Tái kiểm normalized data, đọc audit/nhãn strong, integrity/release và coverage |
 | `docs/TRIP_UNDERSTANDING.md` | Trip State, chọn câu hỏi, ngân hàng câu hỏi, Search Input, CLI và API |
+| `docs/TRIP_UNDERSTANDING_QA.md` | Inventory field/tag, thông tin cốt lõi và tùy chọn, QA prompt → hoàn tất field, mẫu case và bàn giao Planning |
 | `docs/PLACE_DECISION.md` | Sàng lọc fail-closed, xếp hạng, đa dạng, khả thi của tổ hợp, Decision Output, CLI và API |
 | `docs/PLANNING.md` | Live Context, chia ngày, thứ tự, chỗ ở live, độ vững, dự phòng, Plan Output, CLI và API |
 | `docs/PLANNING_PERFORMANCE.md` | Báo cáo tương thích chuyến dài và số đo tối ưu Planning bảy / mười bốn ngày |
@@ -58,21 +62,23 @@ cp .env.example .env                                     # điền key: docs/LLM
 2. **Key.** Trip Understanding, chọn câu hỏi và mọi phase cần model gọi API UIT, chỉ trả lời trong mạng campus; key và endpoint ở `.env`. Lỗi chứng chỉ `llm.uit.edu.vn`: tạo CA bundle một lần mỗi máy — `docs/LLM_PROVIDER.md` §Chứng chỉ TLS.
 3. **OSRM** (thời gian di chuyển cho Planning): `bash scripts/osrm_setup.sh` một lần mỗi máy — tải OSM Việt Nam, dựng chỉ mục vào `osrm-data/`, mở `127.0.0.1:5000`. Lần sau chỉ cần chạy lại container (dòng `docker run ... -p 127.0.0.1:5000:5000` cuối script). Không có OSRM thì Planning ước lượng thô và gắn cảnh báo. Endpoint và TTL ở `config/live.yaml`; `LIVE_CONTACT` trong `.env` là liên hệ gửi kèm request.
 4. **Postgres** (tài khoản, hành trình, event, thông báo; cần Docker): điền `POSTGRES_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_READONLY` trong `.env`, rồi `./run.sh db` — tạo container `tripguardian-pg` ở `127.0.0.1:5433`, role, database và chạy migration (chạy lại an toàn). `./run.sh db-backup` sao lưu vào `data/backup/pg/`. Đăng nhập Google, Calendar và web push cần thêm `APP_BASE_URL`, `GOOGLE_*`, `TOKEN_ENC_KEY`, `VAPID_*` (`.env.example`, `docs/ACCOUNTS.md`). Hành trình cũ dạng file: `python -m harness import-files data/harness/sessions data/harness/feedback.jsonl`.
-5. **Chỉ khi crawl:** đăng nhập tài khoản phụ một lần mỗi máy, `python -m corpus login tiktok`, `python -m corpus login gmaps` (profile lưu ở `.browser/`, đã gitignore). Chạy dịch vụ và Planning lodging không cần đăng nhập.
+5. **Agent endpoint và web search.** `AGENT_BASE_URL` trỏ `127.0.0.1:<cổng>` thì `./run.sh start` tự bật **9router** (cần `npm i -g 9router`; không có thì Agent trả lời theo policy dự phòng). `./run.sh prod` bật thêm **SearXNG** (`127.0.0.1:8888`, Docker; `docker/searxng/README.md`) cho tool `web_search` của Trip agent; `web_base_url` trống ở `config/trip.yaml` thì agent không có tool web.
+6. **Chỉ mục ngữ nghĩa** (ảnh / câu → "vibe", "chỗ như này"): nằm trong gói dữ liệu ở `data/index/`. Harness nạp embedder trên GPU `HARNESS_GPU` (mặc định `1,3`); dựng lại: `python -m corpus index` (`docs/CORPUS.md` §Chỉ mục ngữ nghĩa).
+7. **Chỉ khi crawl:** đăng nhập tài khoản phụ một lần mỗi máy, `python -m corpus login tiktok`, `python -m corpus login gmaps` (profile lưu ở `.browser/`, đã gitignore). Chạy dịch vụ và Planning lodging không cần đăng nhập.
 
 Người giữ dữ liệu tạo gói mới: `python scripts/pack_data.py [--no-photos] [--out <thư mục>]` (cái gì bị bỏ và vì sao: docstring của script), rồi đưa zip lên Drive. Sửa `data/` xong mà web cần thấy: `python web/scripts/export_snapshot.py` trước khi đóng gói.
 
 ## Chạy
 
 ```sh
-./run.sh start   # harness + analytics (private) + review + web dev server + worker thông báo, in ra URL khi mọi cổng đã trả lời
+./run.sh start   # 9router + harness + analytics (private) + review + web dev server + worker thông báo, in ra URL khi mọi cổng đã trả lời
 ./run.sh stop    # dừng mọi tiến trình script này khởi động
 ```
 
 Production (gpu156, public qua Cloudflare tunnel):
 
 ```sh
-./run.sh prod       # thumbnail → build web (build:prod) → harness :8769 → web/server.mjs :28899 → worker thông báo → tunnel (token ở ~/.cloudflared/tripguardian.token)
+./run.sh prod       # backup + migrate db → thumbnail → build web (build:prod) → SearXNG → 9router → harness :8769 → web/server.mjs :28899 → worker thông báo → tunnel (token ở ~/.cloudflared/tripguardian.token) → smoke test
 ./run.sh prod-stop  # dừng tất cả
 ```
 
@@ -84,7 +90,10 @@ Tốc độ production: `web/scripts/make_thumbs.py` tạo WebP rộng ≤ 480 p
 |---|---|---|
 | Web (Vite) | 5173 | `http://127.0.0.1:5173/` (landing) · `/app` · `/admin` |
 | Agent harness (Trip, Decision, Planning) | 8769 | `python -m harness serve` |
+| Analytics (private) | 8770 | `python -m analytics serve --port 8770` |
 | Trang review / gán nhãn | 8765 | `python -m corpus review` |
+| 9router (endpoint của Agent) | theo `AGENT_BASE_URL` | `9router` |
+| SearXNG (`web_search`, chỉ prod) | 8888 | container `tripguardian-searxng` |
 
 Chuyến bay / xe khách cho câu hỏi hậu cần được tra trước mỗi ngày vào cache `data/live/flights/`, `data/live/vexere/` (phạm vi: `config/live.yaml` `transit_prewarm`; ~1.300 lượt tra, chuyến bay mở trình duyệt; một nguồn lỗi 8 lần liền thì dừng nguồn đó). Máy không có Chrome: `run.sh` tự trỏ Playwright vào Chromium trong `.cache/ms-playwright` cho harness và cho lệnh này. Cron trên máy production:
 
@@ -118,7 +127,14 @@ Lệnh đầy đủ của từng giai đoạn nằm trong tài liệu của giai
 python -m corpus gmaps all --city dalat --headed     # search → filter → counts → list → crawl → qc → observe
 python -m corpus gmaps photos && python -m corpus gmaps photo_observe
 python -m corpus tiktok all --city dalat --headed
-python -m corpus aggregate && python -m corpus serving
+python -m corpus aggregate && python -m corpus serving   # serving cũng biên dịch snapshot cho phần online
+python -m corpus snapshot                            # chỉ biên dịch lại snapshot từ data/serving/places.json
+python -m corpus index                               # chỉ mục ngữ nghĩa: vector theo GPU (vectors) rồi gộp vào data/index/ (compile)
+python -m corpus normalize --city dalat              # chuẩn hóa, báo membership/source/schema; không đổi serving pointer
+python -m corpus normalize --rebuild --city dalat    # dựng release staging chỉ từ dữ liệu đã lưu, không model/network
+python -m corpus normalize --rebuild --publish --city dalat  # dựng, kiểm chứng rồi chuyển release pointer
+python web/scripts/export_snapshot.py --view both    # User Web theo release; Admin có snapshot riêng
+python -m bench latency --scale 1,5,20               # độ trễ phần dùng corpus (data/bench/latency/)
 
 # 2. Đo xem corpus đã đủ cho Place Decision chưa (docs/PLACE_DECISION.md §17)
 python -m decision evaluate                          # 30 Trip State ẩn → data/decision/eval.json
@@ -129,6 +145,11 @@ python -m planning variants <decision_output.json> [--weather forecast.json]
 python -m planning lodging  <decision_output.json>   # chỗ ở cạnh tranh làm neo mỗi ngày
 python -m planning evaluate                          # 30 chuyến ẩn qua Decision → Planning
 ```
+
+Journey giữ corpus binding qua Trip → Decision → Planning và restore/copy; đổi release pointer
+không chuyển journey đã pin. Sau khi cập nhật code hoặc muốn deployment nhận release mặc định
+mới, restart toàn harness theo quy trình đang dùng. Build `publish=false` không cần restart.
+Contract và rollback: `docs/CORPUS.md` §Chuẩn hóa và release offline.
 
 Phase cần model cần mạng UIT; gặp captcha thì giải trong cửa sổ trình duyệt (`--headed`). `evaluate` của Planning cần OSRM đang chạy và không chạy trong CI.
 

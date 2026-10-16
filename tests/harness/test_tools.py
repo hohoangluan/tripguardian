@@ -29,13 +29,13 @@ def test_real_decision_and_planning_tools_preserve_selection_on_handoff(tmp_path
     records = [srec("place-1", name="Synthetic Place")]
     decision_tools = DecisionTools(DecisionEngine(Data(records), load_settings(), DecisionStore(None)))
     planning_tools = PlanningTools(PlanningEngine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-        matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), lodging_fn=lambda *a: [],
-        route_fn=lambda *a: {"points": [], "source": "osrm", "fetched_at": "t"}, background=False))
+        matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), route_fn=lambda *a: {"points": [], "source": "osrm", "fetched_at": "t"}, background=False))
     harness = Harness(FakeTools("trip"), decision_tools, planning_tools, Store(tmp_path))
     view = decision(harness)
     view = run(harness, view, "act", "select", {"type": "select", "place_id": "place-1"})
     view = run(harness, view, "advance", "to-planning")
     assert view["outputs"]["decision"]["confirmed"][0]["id"] == "place-1"
+    assert view["outputs"]["decision"]["trip_context"]["activities"]["place-1"] == "coffee"
     view = run(harness, view, "back", "more-places")
     assert view["result"]["view"]["selected"] == ["place-1"]
 
@@ -51,8 +51,7 @@ def test_real_overload_handoff_offers_profiles_and_confirms_only_valid_drafts(tm
         record['provenance'] = {'voices': 1}
     dt = DecisionTools(DecisionEngine(Data(records), load_settings(), DecisionStore(None)))
     pt = PlanningTools(PlanningEngine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-        matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), lodging_fn=lambda *a: [],
-        route_fn=lambda *a: {'points': [], 'source': 'fixture', 'fetched_at': 't'}, background=False))
+        matrix_fn=fake_matrix, sun_fn=lambda *a: (360, 1050), route_fn=lambda *a: {'points': [], 'source': 'fixture', 'fetched_at': 't'}, background=False))
     h = Harness(FakeTools('trip'), dt, pt, Store(tmp_path))
     v = decision(h)
     for i in range(16):
@@ -69,6 +68,9 @@ def test_real_overload_handoff_offers_profiles_and_confirms_only_valid_drafts(tm
     assert {p['preset'] for p in pv['variants']} == {'low_cost', 'diverse', 'least_travel'}
     v = run(h, v, 'recommend', 'automatic-proposal')
     assert v['result']['view']['state']['chosen_variant'] is None
+    assert not pv['needs_hotel']  # a plan without a lodging is offered, never refused
+    v = run(h, v, 'act', 'choose-hotel', {'type': 'set_lodging', 'text': 'Chosen hotel', 'lat': 11.94, 'lng': 108.45})
+    pv = v['result']['view']
     available = next(p for p in pv['variants'] if p['confirmable'])
     v = run(h, v, 'act', 'pick-valid-profile', {'type': 'pick_variant', 'id': available['id']})
     assert not v['result']['view']['violations']
@@ -92,11 +94,12 @@ def test_real_planning_suggestion_read_preserves_snapshot_and_tags_journey_revis
     records = [srec("place-1", name="Synthetic Place")]
     decision_tools = DecisionTools(DecisionEngine(Data(records), load_settings(), DecisionStore(None)))
     planning_tools = PlanningTools(PlanningEngine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-        matrix_fn=fake_matrix, sun_fn=lambda *a: None, lodging_fn=lambda *a: [], background=False))
+        matrix_fn=fake_matrix, sun_fn=lambda *a: None, background=False))
     harness = Harness(FakeTools("trip"), decision_tools, planning_tools, Store(tmp_path))
     view = decision(harness)
     view = run(harness, view, "act", "select", {"type": "select", "place_id": "place-1"})
     view = run(harness, view, "advance", "to-planning")
+    view = run(harness, view, "act", "choose-hotel", {"type": "set_lodging", "text": "Chosen hotel", "lat": 11.94, "lng": 108.45})
     variant = view["result"]["view"]["variants"][0]["id"]
     view = run(harness, view, "act", "pick", {"type": "pick_variant", "id": variant})
     sid = view["sessions"]["planning"]
@@ -118,11 +121,12 @@ def test_real_planning_preview_act_is_read_only_and_returns_a_bound_token(tmp_pa
     records = [srec("place-1", name="Synthetic Place")]
     decision_tools = DecisionTools(DecisionEngine(Data(records), load_settings(), DecisionStore(None)))
     planning_tools = PlanningTools(PlanningEngine(records, cfg=CFG, live_cfg=FakeLive(), geocode_fn=no_geocode,
-        matrix_fn=fake_matrix, sun_fn=lambda *a: None, lodging_fn=lambda *a: [], background=False))
+        matrix_fn=fake_matrix, sun_fn=lambda *a: None, background=False))
     harness = Harness(FakeTools("trip"), decision_tools, planning_tools, Store(tmp_path))
     view = decision(harness)
     view = run(harness, view, "act", "select", {"type": "select", "place_id": "place-1"})
     view = run(harness, view, "advance", "to-planning")
+    view = run(harness, view, "act", "choose-hotel", {"type": "set_lodging", "text": "Chosen hotel", "lat": 11.94, "lng": 108.45})
     variant = view["result"]["view"]["variants"][0]["id"]
     view = run(harness, view, "act", "pick", {"type": "pick_variant", "id": variant})
     sid = view["sessions"]["planning"]
@@ -156,19 +160,23 @@ def test_harness_adapter_refuses_a_second_persistence_owner(tmp_path):
 def test_real_trip_compiles_clues_and_harness_advances_with_a_scripted_agent(tmp_path):
     import json
     from trip import Tools
-    from trip.agent import Assistant, Call
+    from langchain_core.messages import AIMessageChunk
     from harness import Harness, Store
     from test_dispatch import Tools as FakeTools, run
 
     def fact(field, value, quote):
         args = {"field": field, "op": "set", "value": value, "quote": quote, "how": "said"}
-        return Call(f"c_{field}", "record_fact", json.dumps(args))
-    script = [Assistant(calls=[fact("days", "3", "3 ngày"), fact("mobility", "car", "ô tô"),
-                               fact("companions", "solo", "một mình"), fact("month", "12", "tháng 12")]),
-              Assistant(content="Mình đã ghi lại rồi.")]  # facts only: the loop calls the model again, which answers
+        return {"id": f"c_{field}", "name": "record_fact", "args": json.dumps(args)}
+    calls = [fact("days", "3", "3 ngày"), fact("mobility", "car", "ô tô"),
+             fact("companions", "solo", "một mình"), fact("month", "12", "tháng 12")]
+    script = [AIMessageChunk(content="", tool_call_chunks=[dict(c, index=i) for i, c in enumerate(calls)]),
+              AIMessageChunk(content="Mình đã ghi lại rồi.")]
 
     async def scripted(messages, tools, on_say):
-        return script.pop(0)
+        chunk = script.pop(0)
+        if chunk.text:
+            on_say(chunk.text)
+        return chunk
     trip = Tools(TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), scripted))
     harness = Harness(trip, FakeTools("decision"), FakeTools("planning"), Store(tmp_path))
     view = harness.create("first", "nothing")
@@ -190,3 +198,19 @@ def test_decision_compare_is_read_only_for_canonical_journey_snapshot():
     before = tools.snapshot(sid)
     assert tools.read(sid, "compare", {"a":"a", "b":"b"})["a"]["id"] == "a"
     assert tools.snapshot(sid) == before
+
+
+def test_a_trip_saved_by_an_older_build_still_opens():
+    from trip import Tools
+    engine = TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), chat=None)
+    tools = Tools(engine)
+    created = tools.create({"user_id": "user-abc-123", "remember": True})
+    snapshot = tools.snapshot(created["id"])
+    # fields later builds dropped, as old saved journeys still carry them (50 of 556 on 2026-10-16)
+    snapshot["state"]["other_facts"] = []
+    snapshot["state"]["meta"]["requiz"] = False
+    snapshot["state"]["meta"]["phase"] = "paused"
+    snapshot["state"]["unmapped"] = [{"phrase": "đi chơi", "turn": 1, "group": "x"}]
+    restored = Tools(TripEngine(Catalog.from_records([], 1), Settings(), SessionStore(None), chat=None))
+    restored.restore(snapshot)
+    assert restored.load(created["id"])["id"] == created["id"]

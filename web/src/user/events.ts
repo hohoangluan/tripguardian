@@ -1,7 +1,7 @@
 // Usage events for Admin analytics (docs/ANALYTICS.md §Client). Batched to POST /api/harness/events; the server keeps
 // only allowlisted names and props. Never put typed text, names or emails here.
 
-type Name = 'page_view' | 'landing_cta' | 'card_impression' | 'detail_open' | 'evidence_play' | 'compare_open' | 'outbound_click' | 'tab_hidden' | 'today_open' | 'suggestion_open' | 'install_prompt_seen' | 'push_permission'
+type Name = 'page_view' | 'landing_cta' | 'card_impression' | 'detail_open' | 'theme_open' | 'evidence_play' | 'compare_open' | 'outbound_click' | 'tab_hidden' | 'today_open' | 'suggestion_open' | 'install_prompt_seen' | 'push_permission'
 type Ev = { name: Name; props?: Record<string, string | number | boolean | null>; journey_id?: string }
 
 const URL_ = '/api/harness/events'

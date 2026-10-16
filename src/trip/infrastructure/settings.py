@@ -25,27 +25,37 @@ class PatternSettings:
 
 @dataclass(frozen=True)
 class Settings:
+    drill_min: int = 10
+    drill_score_min: float = 0.14
+    gaps_path: str = "data/trip/gaps.jsonl"
+    max_tabs: int = 4
+    pace_per_day: dict = field(default_factory=lambda: yaml.safe_load(
+        (ROOT / "config" / "planning.yaml").read_text(encoding="utf-8"))["per_day"])
     n_min: int = 1
     top_k: int = 20
     enough_factor: float = 1.5
     first_token_s: float = 8.0  # shared agents runtime contract (src/agents/runtime.py); the Trip loop uses total_s
     total_s: float = 30.0
     clef_timeout_s: float = 1.0
-    clef_reject_min: float = 0.88
-    clef_data_min: float = 0.8
     clef_feature_min: float = 0.5  # a feature Clef ranks for a wish counts from this probability
     clef_verify_min: float = 0.75  # D-gate (chat): sure the quote does not say the fact: a low fact is refused
     clef_clarity_min: float = 0.75  # quiz other-gate: sure a free-typed answer is clear for the field: fill it, else to chatbot
     clef_reply_min: float = 0.9    # sure a reply promises results or states an unsaid fact: it is replaced
     tool_steps: int = 6
-    required: tuple = ("days", "companions", "mobility", "when")  # known before the user may press Next
+    required: tuple = ("trip", "companions", "mobility", "care", "pace", "budget", "lodging")
     max_tokens: int = 1500
     coach_min_people: int = COACH_MIN_PEOPLE  # a party this big in its own car needs places a coach or 16-seater reaches
     arrival_buffer_min: int = ARRIVAL_BUFFER_MIN  # from a coach / flight's arrival to the first stop, and from the last stop to departure
+    entry_min: int = 30
+    frame: dict = field(default_factory=lambda: {"day_start": "08:00", "day_end": "21:00",
+                                               "first_start": "14:00", "last_end": "12:00"})
     entry_roads: tuple = ()  # ({from_deg, to_deg, text}, …): the road into the city by the bearing toward the origin
     airports: tuple = ()  # ({iata, name, lat, lng}, …) with direct flights to the city (config/airports.yaml)
     patterns: PatternSettings = field(default_factory=PatternSettings)
     themes: dict = field(default_factory=dict)  # theme id -> {title, say, soft: [...], groups: [...]} (Khám phá cards)
+    drills: dict = field(default_factory=dict)  # drill topic -> {header, question, variants: [...]} (photo cards, domain/drill.py)
+    drill_scores_path: str = "data/trip/drill_scores.json"  # photo-card scores saved by `python -m trip drills`
+    say_stream_s: float = 0.0  # a checked reply is streamed word by word over this long (0 = sent whole)
     web_base_url: str = ""  # self-hosted SearXNG for the agent's web_search (docker/searxng); "" = no web tools
     web_timeout_s: float = 6.0
     web_cache_dir: str = "data/web_cache"
