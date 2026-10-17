@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { DeckIssues, ExtraInputs, TAB_ICON, clockOf, useDeckForm, type DeckForm } from '../screens/understand/Deck'
 import type { Deck, DeckAnswers, DeckIssue, Option, ReadbackLine } from '../tu/types'
 import { Icon, type IconName } from './icons'
@@ -8,9 +8,12 @@ import { Icon, type IconName } from './icons'
 // one being answered in front and the rest peeking out on both sides (click one to bring it forward); what is already noted
 // runs as one horizontal bar under the cards. The paper colours live in gate.css.
 
-// One pastel per question (the tones of the home trend cards), so the fan reads as a hand of different cards.
-const TINT: Record<string, string> = { trip: '#d2e5fb', companions: '#fbdce5', mobility: '#d9f4ae', care: '#fde1cb', pace: '#e5def9', budget: '#fbf6b8', lodging: '#cdeee3', more: '#e5def9' }
+// The card colours: the Petal Ritual palette (petal flush #F2D4D6, blue veil #C9D8E5, tangerine mist #F4CB82, olive cream #D8D1BE,
+// milk tint #FDFBF9) plus a lilac and a peach mixed from two of them, in an order where neighbours never look alike.
+const TINTS = ['#f2d4d6', '#c9d8e5', '#f4cb82', '#d8d1be', '#fdfbf9', '#dfd6e0', '#f3ceaa']
 const VISIBLE = 3 // cards fanned out on each side of the front one; the rest wait behind the last
+const SPRING = { k: 190, c: 24 } // slightly under-damped: the card that arrives overshoots a hair, then settles
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 const ICONS: Record<ReadbackLine['tab'], IconName> = { trip: 'calendar', companions: 'users', mobility: 'car', care: 'heart', pace: 'gauge', budget: 'wallet', lodging: 'bed', more: 'star' }
 export const MARKERS: Record<ReadbackLine['kind'], string> = { said: 'Bạn nói', guess: 'Mình đoán', default: 'Mặc định', check: 'Cần xem lại' }
 
@@ -47,12 +50,138 @@ function Checklist({ lines, busy, changed, onEdit, onDrop }: { lines: ReadbackLi
   </section>
 }
 
+// The hand of cards as one continuous position: `pos` (a card index, fractional while moving) chases the card being answered
+// on a spring, and every card is laid out from its distance to it, so the next card slides in over the one it replaces
+// instead of jumping. Dragging, a sideways wheel and the arrow keys move it too. Written straight to the elements each frame
+// (no React render per frame); the lengths are calc() on --step, so the app's px->rem scale applies.
+function useFan(count: number, at: number, goTo: (i: number) => void) {
+  const stage = useRef<HTMLDivElement>(null)
+  const cards = useRef<(HTMLDivElement | null)[]>([])
+  const live = useRef({ pos: at, vel: 0, target: at, dir: 1, motion: 0, raf: 0, last: 0, drag: null as null | { x: number; pos: number; moved: boolean; id: number; marks: { x: number; t: number }[] }, onSettle: () => {} })
+  const latest = useRef({ at, count, goTo })
+  latest.current = { at, count, goTo }
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const paint = useCallback(() => {
+    const s = live.current, n = latest.current.count
+    const shift = (clamp(s.pos, 0, VISIBLE) - clamp(n - 1 - s.pos, 0, VISIBLE)) * 0.5 // the hand stays centred when one side is short
+    cards.current.forEach((el, i) => {
+      if (!el) return
+      const o = i - s.pos, t = Math.abs(o), side = Math.sign(o)
+      const far = Math.min(t, VISIBLE + 1)
+      const x = shift + side * Math.min(t, VISIBLE)
+      const rot = side * (t <= 1 ? t * 3 : 3 + (t - 1) * 1.4)
+      const lift = s.motion * Math.max(0, 1 - t) // the card crossing the middle swells and rises
+      el.style.transform = `translateX(calc(var(--step) * ${x.toFixed(4)})) translateY(calc(var(--step) * ${(far * 0.12 - lift * 0.12).toFixed(4)})) rotate(${rot.toFixed(3)}deg) scale(${(1 - far * 0.03 + lift * 0.05).toFixed(4)})`
+      el.style.zIndex = String(Math.round(1000 - t * 100 + s.dir * side * 5))
+      el.style.opacity = String(clamp(VISIBLE + 1 - t, 0, 1))
+      el.style.pointerEvents = t > VISIBLE + 0.5 ? 'none' : ''
+      el.style.setProperty('--strip', String(clamp((t - 0.03) * 3, 0, 1)))
+      el.style.setProperty('--face', String(clamp(1 - t * 2.5, 0, 1)))
+      el.dataset.side = side < 0 ? 'l' : 'r'
+    })
+  }, [])
+
+  const run = useCallback(() => {
+    const s = live.current
+    if (s.raf) return
+    s.last = performance.now()
+    const tick = (now: number) => {
+      const dt = Math.min(0.032, (now - s.last) / 1000)
+      s.last = now
+      if (!s.drag?.moved) {
+        s.vel += (-SPRING.k * (s.pos - s.target) - SPRING.c * s.vel) * dt
+        s.pos += s.vel * dt
+      }
+      s.motion = Math.min(1, Math.abs(s.vel) / 3)
+      const rest = !s.drag?.moved && Math.abs(s.pos - s.target) < 0.003 && Math.abs(s.vel) < 0.03 // under a quarter of a pixel off
+      if (rest) { s.pos = s.target; s.vel = 0; s.motion = 0 }
+      paint()
+      if (rest) { s.raf = 0; s.onSettle(); return }
+      s.raf = requestAnimationFrame(tick)
+    }
+    s.raf = requestAnimationFrame(tick)
+  }, [paint])
+
+  useLayoutEffect(() => { paint() }) // a re-render must not leave a card without its layout
+  useEffect(() => {
+    const s = live.current
+    s.target = at
+    if (reduced) { s.pos = at; s.vel = 0; s.motion = 0; paint(); return }
+    s.dir = Math.sign(at - s.pos) || s.dir
+    run()
+  }, [at, reduced, paint, run])
+  useEffect(() => () => cancelAnimationFrame(live.current.raf), [])
+
+  const settle = (fn: () => void) => { live.current.onSettle = fn }
+  const unit = () => (stage.current?.clientWidth ?? 800) * 0.22 // a card's worth of dragging
+  const dragEnd = useRef(0) // a drag ends in a click on whatever was under the finger: swallow it
+  const handlers = {
+    onPointerDown: (e: ReactPointerEvent) => {
+      if (e.button !== 0 || (e.target as Element).closest('input, textarea, select')) return
+      live.current.drag = { x: e.clientX, pos: live.current.pos, moved: false, id: e.pointerId, marks: [{ x: e.clientX, t: e.timeStamp }] }
+    },
+    onPointerMove: (e: ReactPointerEvent) => {
+      const s = live.current, d = s.drag
+      if (!d) return
+      const dx = e.clientX - d.x
+      if (!d.moved) {
+        if (Math.abs(dx) < 8) return
+        d.moved = true
+        stage.current?.setPointerCapture(d.id)
+        s.vel = 0
+      }
+      d.marks.push({ x: e.clientX, t: e.timeStamp }); if (d.marks.length > 6) d.marks.shift()
+      s.pos = clamp(d.pos - dx / unit(), -0.35, latest.current.count - 0.65) // a little give past either end
+      s.dir = Math.sign(-dx) || s.dir
+      s.motion = 0.5
+      paint()
+    },
+    onPointerUp: (e: ReactPointerEvent) => {
+      const s = live.current, d = s.drag
+      s.drag = null
+      if (!d?.moved) return
+      dragEnd.current = Date.now()
+      stage.current?.releasePointerCapture(d.id)
+      const m = d.marks, first = m[0], lastMark = m[m.length - 1]
+      const v = lastMark.t > first.t ? -(lastMark.x - first.x) / (lastMark.t - first.t) * 1000 / unit() : 0 // cards per second
+      const to = clamp(Math.round(s.pos + v * 0.14), 0, latest.current.count - 1)
+      s.vel = v * 0.4
+      s.target = to
+      s.dir = Math.sign(to - s.pos) || s.dir
+      if (to !== latest.current.at) latest.current.goTo(to); else run()
+      e.preventDefault()
+    },
+    onPointerCancel: () => { live.current.drag = null; live.current.target = latest.current.at; run() },
+    onClickCapture: (e: React.MouseEvent) => { if (Date.now() - dragEnd.current < 80) { e.preventDefault(); e.stopPropagation() } },
+  }
+  const wheel = useRef(0)
+  const onWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaX) < 24 || Math.abs(e.deltaX) < Math.abs(e.deltaY) || e.timeStamp - wheel.current < 420) return
+    const to = clamp(latest.current.at + Math.sign(e.deltaX), 0, latest.current.count - 1)
+    if (to === latest.current.at) return
+    wheel.current = e.timeStamp
+    latest.current.goTo(to)
+  }
+  return { stage, cards, handlers: { ...handlers, onWheel }, settle }
+}
+
+
 export function GateAsk({ deck, busy, issues, lines, changed, error, onAnswer, onOther, onDrop }: {
   deck: Deck; busy: boolean; issues: DeckIssue[]; lines: ReadbackLine[]; changed: boolean; error: string | null
   onAnswer: (answers: DeckAnswers) => void; onOther: () => void; onDrop: (target: string) => void
 }) {
   const [at, setAt] = useState(0)
+  const [ghost, setGhost] = useState<{ i: number; html: string } | null>(null) // the card just left, still showing its words while it slides away
   const front = useRef<HTMLDivElement>(null)
+  const goTo = (i: number) => {
+    if (i === at) return
+    setGhost(front.current ? { i: at, html: front.current.innerHTML } : null)
+    setAt(i)
+    requestAnimationFrame(() => front.current?.focus({ preventScroll: true }))
+  }
+  const fan = useFan(deck.tabs.length, at, goTo)
+  fan.settle(() => setGhost(null))
   const form = useDeckForm(deck, at)
   const { tab, selected, choose, skip, answers } = form
   if (!tab) return null
@@ -62,8 +191,9 @@ export function GateAsk({ deck, busy, issues, lines, changed, error, onAnswer, o
   const notes = issues.filter(i => i.key === tab.qid || i.key.startsWith(`${tab.qid}.`))
   const rest = issues.filter(i => !deck.tabs.some(t => i.key === t.qid || i.key.startsWith(`${t.qid}.`)))
   const answered = (qid: string) => Object.keys(answers).some(k => k === qid || k.startsWith(`${qid}.`))
+  const leftHere = deck.tabs.filter(t => !answered(t.qid)).length // the same set the cards show, falling as the user answers
   const [lead, tail] = split(tab.question)
-  const bringForward = (i: number) => { setAt(i); requestAnimationFrame(() => front.current?.focus({ preventScroll: true })) }
+  const bringForward = goTo
   const chips = (options: Option[]): ReactNode => <div className="tg-gt__opts">{options.map(o => <button type="button" key={o.id} className={`tg-gt__opt ${selected.includes(o.id) ? 'is-on' : ''}`} disabled={busy} aria-pressed={selected.includes(o.id)} onClick={() => choose(o)}>
     <b>{o.prefilled && <Icon name="edit" size={13} aria-label="Mình đoán" />}{o.label}</b>
     {o.description && <span>{o.description}</span>}
@@ -72,17 +202,24 @@ export function GateAsk({ deck, busy, issues, lines, changed, error, onAnswer, o
     <header className="tg-gt__top">
       <div>
         <p className="tg-gt__kicker">Trước khi lên lịch</p>
-        <Dialog.Title className="tg-gt__heading">Còn {deck.left} câu hỏi nữa thôi!</Dialog.Title>
+        <Dialog.Title className="tg-gt__heading">Còn {leftHere} câu hỏi nữa thôi!</Dialog.Title>
         <Dialog.Description className="tg-gt__sub">Cho mình biết thêm một chút để lên lịch trình thật hợp ý bạn nhé.</Dialog.Description>
       </div>
-      <span className="tg-gt__meter" role="img" aria-label={`Còn ${deck.left} trên ${deck.total} câu`}>Còn {deck.left}/{deck.total}<i><b style={{ width: `${deck.total ? (deck.total - deck.left) / deck.total * 100 : 0}%` }} /></i></span>
+      <span className="tg-gt__meter" role="img" aria-label={`Còn ${leftHere} trên ${deck.tabs.length} câu`}>Còn {leftHere}/{deck.tabs.length}<i><b style={{ width: `${(deck.tabs.length - leftHere) / deck.tabs.length * 100}%` }} /></i></span>
     </header>
-    <div className="tg-gt__stage" role="group" aria-label="Các câu hỏi" style={{ '--lr': Math.min(at, VISIBLE) - Math.min(deck.tabs.length - 1 - at, VISIBLE) } as CSSProperties}>
+    <div className={`tg-gt__stage ${deck.tabs[at]?.qid === 'lodging' ? 'is-lodging' : ''}`} role="group" aria-label="Các câu hỏi" ref={fan.stage} {...fan.handlers}>
       {deck.tabs.map((t, i) => {
-        const o = i - at, a = Math.abs(o), on = o === 0, done = answered(t.qid)
-        const style = { '--s': Math.sign(o), '--a': Math.min(a, VISIBLE), '--tint': TINT[t.qid] ?? TINT.more } as CSSProperties
-        return <div key={t.qid} className={`tg-gt__card ${on ? 'is-front' : ''} ${done ? 'is-done' : ''} ${a > VISIBLE ? 'is-far' : ''} ${o < 0 ? 'is-left' : ''}`} style={style}>
-          {on ? <div className="tg-gt__front" key={tab.qid} ref={front} tabIndex={-1} aria-current="step" aria-label={`Câu ${i + 1}: ${t.header}`}>
+        const on = i === at, done = answered(t.qid)
+        return <div key={t.qid} ref={el => { fan.cards.current[i] = el }} className={`tg-gt__card ${on ? 'is-front' : ''} ${done ? 'is-done' : ''}`} style={{ '--tint': TINTS[i % TINTS.length] } as CSSProperties}>
+          <button type="button" className="tg-gt__strip" disabled={busy || on} tabIndex={on ? -1 : 0} aria-hidden={on || undefined} onClick={() => goTo(i)} aria-label={`Câu ${i + 1}: ${t.header}${done ? ', đã trả lời' : ''}`}>
+            <i>{done ? <Icon name="check" size={16} /> : <Icon name={TAB_ICON[t.qid] ?? 'sparkle'} size={18} />}</i>
+            <span>{t.header}</span>
+            <small>{i + 1}</small>
+          </button>
+          {!on && ghost?.i !== i && <div className="tg-gt__front is-peek" aria-hidden="true"><p className="tg-gt__cat"><span className="tg-gt__ico"><Icon name={TAB_ICON[t.qid] ?? 'sparkle'} size={20} /></span><b>{t.header}</b><small>{i + 1}/{deck.tabs.length}</small></p></div>}
+          {ghost?.i === i && !on && <div className="tg-gt__front is-ghost" aria-hidden="true" ref={el => { if (el) el.inert = true }} dangerouslySetInnerHTML={{ __html: ghost.html }} />}
+          {on && <div className="tg-gt__front" key={tab.qid} ref={front} tabIndex={-1} aria-current="step" aria-label={`Câu ${i + 1}: ${t.header}`}
+            onKeyDown={e => { if (e.target !== e.currentTarget) return; if (e.key === 'ArrowRight') { e.preventDefault(); goTo(Math.min(at + 1, deck.tabs.length - 1)) } else if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(Math.max(at - 1, 0)) } }}>
             <p className="tg-gt__cat"><span className="tg-gt__ico"><Icon name={TAB_ICON[t.qid] ?? 'sparkle'} size={20} /></span><b>{t.header}</b><small>{i + 1}/{deck.tabs.length}</small>{tab.multi && <em>Chọn được nhiều ý</em>}</p>
             <h2 className="tg-gt__q"><span>{lead}</span>{tail && <> <em>{tail}</em></>}</h2>
             {tab.why && <p className="tg-gt__why">{tab.why}</p>}
@@ -93,20 +230,15 @@ export function GateAsk({ deck, busy, issues, lines, changed, error, onAnswer, o
                   <b>{o.prefilled ? '✎ ' : ''}{o.label}</b>
                   <small>{o.count !== null ? `${o.count.toLocaleString('vi-VN')} nơi` : ''}</small>
                 </button>)}</div> : chips(normal)}
-              <ExtraInputs form={form} busy={busy} />
+              <ExtraInputs form={form} busy={busy} ranked />
               <DeckIssues issues={notes} />
-              {(tab.options.some(o => o.id === 'other') || tab.options.some(o => o.id === 'skip')) && <div className="tg-gt__soft">
+              {tab.qid !== 'lodging' && (tab.options.some(o => o.id === 'other') || tab.options.some(o => o.id === 'skip')) && <div className="tg-gt__soft">
                 {tab.options.some(o => o.id === 'other') && <button type="button" disabled={busy} onClick={onOther}>Khác, tự gõ</button>}
-                {tab.options.some(o => o.id === 'skip') && <button type="button" disabled={busy} onClick={() => { skip(); if (!last) bringForward(at + 1) }}>Bỏ qua{selected.includes('skip') ? ' ✓' : ''}</button>}
+                {tab.options.some(o => o.id === 'skip') && <button type="button" disabled={busy} onClick={() => { skip(); if (!last) goTo(at + 1) }}>Bỏ qua{selected.includes('skip') ? ' ✓' : ''}</button>}
               </div>}
               {!!reasons.length && <p className="tg-gt__note"><Icon name="edit" size={15} />{reasons.join(' · ')}</p>}
             </div>
-          </div>
-            : <button type="button" className="tg-gt__strip" disabled={busy || a > VISIBLE} tabIndex={a > VISIBLE ? -1 : 0} onClick={() => bringForward(i)} aria-label={`Câu ${i + 1}: ${t.header}${done ? ', đã trả lời' : ''}`}>
-              <i>{done ? <Icon name="check" size={16} /> : <Icon name={TAB_ICON[t.qid] ?? 'sparkle'} size={18} />}</i>
-              <span>{t.header}</span>
-              <small>{i + 1}</small>
-            </button>}
+          </div>}
         </div>
       })}
     </div>

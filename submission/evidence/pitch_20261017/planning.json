@@ -1,0 +1,128 @@
+{
+ "summary": {
+  "trips": 10,
+  "ok": 10,
+  "feasible_itinerary_rate": 1.0,
+  "avg_saved_vs_baseline_pct": -22.3,
+  "avg_lodging_saved_min_per_day": 0.0,
+  "robustness": {
+   "solid": 0,
+   "feasible": 0,
+   "fragile": 10
+  },
+  "ms_total_max": 16428,
+  "not_ok_trips": []
+ },
+ "trips": [
+  {
+   "trip": "elderly_views",
+   "ok": true,
+   "ms_variants": 8593,
+   "ms_total": 8927,
+   "travel_min": 80,
+   "travel_with_lodging_min": 80,
+   "baseline_travel_min": 72,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "kids_animals",
+   "ok": true,
+   "ms_variants": 8327,
+   "ms_total": 12433,
+   "travel_min": 191,
+   "travel_with_lodging_min": 191,
+   "baseline_travel_min": 163,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "wheelchair_cafe",
+   "ok": true,
+   "ms_variants": 3926,
+   "ms_total": 4333,
+   "travel_min": 131,
+   "travel_with_lodging_min": 131,
+   "baseline_travel_min": 115,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "couple_sunset",
+   "ok": true,
+   "ms_variants": 12118,
+   "ms_total": 16428,
+   "travel_min": 51,
+   "travel_with_lodging_min": 51,
+   "baseline_travel_min": 58,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "group_food",
+   "ok": true,
+   "ms_variants": 564,
+   "ms_total": 2469,
+   "travel_min": 36,
+   "travel_with_lodging_min": 36,
+   "baseline_travel_min": 31,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "rainy_day",
+   "ok": true,
+   "ms_variants": 11519,
+   "ms_total": 12088,
+   "travel_min": 70,
+   "travel_with_lodging_min": 70,
+   "baseline_travel_min": 53,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "no_trap_budget",
+   "ok": true,
+   "ms_variants": 4604,
+   "ms_total": 4841,
+   "travel_min": 56,
+   "travel_with_lodging_min": 56,
+   "baseline_travel_min": 49,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "hikers",
+   "ok": true,
+   "ms_variants": 3728,
+   "ms_total": 6466,
+   "travel_min": 158,
+   "travel_with_lodging_min": 158,
+   "baseline_travel_min": 99,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "worker",
+   "ok": true,
+   "ms_variants": 7156,
+   "ms_total": 10642,
+   "travel_min": 90,
+   "travel_with_lodging_min": 90,
+   "baseline_travel_min": 69,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  },
+  {
+   "trip": "rough_road_scooter",
+   "ok": true,
+   "ms_variants": 9043,
+   "ms_total": 9568,
+   "travel_min": 119,
+   "travel_with_lodging_min": 119,
+   "baseline_travel_min": 85,
+   "lodging_saved_min_per_day": 0.0,
+   "robustness": "fragile"
+  }
+ ]
+}

@@ -1,0 +1,110 @@
+{
+  "head": "4676c6748093b91259707b4fb541baf34d699123",
+  "started_at": "2026-10-16T22:52:33.194399+00:00",
+  "counts": {
+    "passed": 2950,
+    "skipped": 3
+  },
+  "deselected": 7,
+  "elapsed_s": 446.46,
+  "scope": "pytest --collect-in-virtualenv -q --ignore=tests/crawl (default: not live); TEST_DATABASE_URL configured",
+  "modules": {
+    "accounts": {
+      "passed": 21
+    },
+    "agents": {
+      "passed": 65
+    },
+    "aggregate": {
+      "passed": 64
+    },
+    "analytics": {
+      "passed": 10
+    },
+    "bench": {
+      "passed": 3
+    },
+    "companion": {
+      "passed": 14
+    },
+    "db": {
+      "passed": 3
+    },
+    "decision": {
+      "passed": 336
+    },
+    "harness": {
+      "passed": 263,
+      "skipped": 3
+    },
+    "index": {
+      "passed": 7
+    },
+    "judge": {
+      "passed": 24
+    },
+    "live": {
+      "passed": 145
+    },
+    "normalization": {
+      "passed": 68
+    },
+    "notify": {
+      "passed": 14
+    },
+    "observe": {
+      "passed": 99
+    },
+    "planning": {
+      "passed": 867
+    },
+    "retrieval": {
+      "passed": 40
+    },
+    "review": {
+      "passed": 18
+    },
+    "serving": {
+      "passed": 30
+    },
+    "snapshot": {
+      "passed": 13
+    },
+    "social": {
+      "passed": 7
+    },
+    "test_build": {
+      "passed": 1
+    },
+    "test_llm_judge_parsing": {
+      "passed": 5
+    },
+    "test_llm_task": {
+      "passed": 5
+    },
+    "test_ontology": {
+      "passed": 13
+    },
+    "trip": {
+      "passed": 809
+    },
+    "web": {
+      "passed": 6
+    }
+  },
+  "skipped": [
+    {
+      "test": "tests.harness.test_dispatch::test_feedback_is_validated_and_appended_beside_the_sessions[pg]",
+      "reason": "file layout only; tests/harness/test_pgstore.py covers the feedback table"
+    },
+    {
+      "test": "tests.harness.test_overload_browser::test_overload_browser_flow[file]",
+      "reason": "set TG_BROWSER_TEST=1 to run Chromium"
+    },
+    {
+      "test": "tests.harness.test_overload_browser::test_overload_browser_flow[pg]",
+      "reason": "set TG_BROWSER_TEST=1 to run Chromium"
+    }
+  ],
+  "tracked_inputs_changed_during_run": []
+}

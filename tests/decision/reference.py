@@ -12,7 +12,7 @@ from decision.chunks import assign_chunks, coverage, describe_chunks
 from decision.curation import pending
 from decision.diversify import pick, sizes, tab
 from decision.feasibility import evaluate
-from decision.fit import centers, fit
+from decision.fit import DAYTIME, centers, fit
 from decision.model import FIRM, Cand, role_of
 from decision.pipeline import Result, _lodging_view, _rule_label, stub, wanted
 from decision.rank import score
@@ -68,7 +68,12 @@ def run_reference(s, records: list[dict], cfg) -> Result:
     visited = set(si.novelty.visited) | set(st.profile.visited)
     listed = [c for c in live if not c.keep and c.status == "main" and c.id not in dropped and c.id not in wish
               and not (si.novelty.level == "new" and c.id in visited)]
-    pool = [c for c in listed if c.fit >= cfg.min_context_fit]
+    from decision import diet as dietary
+    from corpus.snapshot import Region
+    diet = dietary.wanted(si, st.profile, st.unmapped)
+    tier = dietary.tiers(Region.from_records(records), [i for i in [*st.selected, *(c.id for c in listed)]
+                                                       if group_of.get(i) in dietary.TABS], diet)
+    pool = [c for c in listed if c.fit >= cfg.min_context_fit and tier.get(c.id, 1) < 3]
     chosen = [cands[i] for i in st.selected if i in cands]
     size = sizes(si, len(days), sum(1 for a in anchors if cands[a].role == "experience"), cfg)
     reps, alts = [], {}
@@ -84,14 +89,22 @@ def run_reference(s, records: list[dict], cfg) -> Result:
             if same:
                 alts[c.id] = same[:3]
 
+    avoid = (st.profile.crowd_tolerance or si.pace.crowd_tolerance) == "avoid"
+    day_types = sorted({d.day_type for d in days if d.day_type}) or ["weekday", "weekend"]
+
+    def crowded(c) -> bool:  # Google calls the place busy at some time of the trip's day types
+        cbt = c.rec["operation"].get("crowd_by_time")
+        return avoid and bool(cbt) and any((cbt.get(dt) or {}).get(b, 0) >= cfg.crowd_busy_pct for dt in day_types for b in DAYTIME)
+
     ranked: dict[str, list[str]] = {}
-    for c in sorted([*(x for x in chosen if x.id not in anchors), *listed], key=lambda c: (-c.score, c.id)):
+    for c in sorted([*(x for x in chosen if x.id not in anchors), *listed],
+                    key=lambda c: (tier.get(c.id, 1), crowded(c), -c.score, c.id)):
         ranked.setdefault(group_of.get(c.id, "sights"), []).append(c.id)
     picked = {c.id for c in chosen}
     top = set()
     for gid, ids in ranked.items():
         k = sum(1 for c in reps if group_of.get(c.id) == gid)
-        top.update([p for p in ids if p not in picked][:k])
+        top.update([p for p in ids if p not in picked and tier.get(p, 1) < 2][:k])
 
     suggested = next((c.id for c in reps if group_of[c.id] == st.suggest_group), None) if st.suggest_group else None
     want = wanted(si, st.profile)

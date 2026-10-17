@@ -37,10 +37,8 @@ function useSend() {
       return
     }
     const bot = pushMsg({ role: 'bot', text: '' })
-    const diff = await say(text, (soFar) => editMsg(bot, { text: soFar }))
-    // The places that came in (a few), else the ones that left: a whole rebuilt list would bury the reply.
-    const changed = diff ? (diff.added.length ? diff.added.slice(0, 6) : diff.removed.slice(0, 3)) : []
-    if (changed.length) editMsg(bot, { places: changed })
+    // The grid itself shows what changed; the reply stays text only.
+    await say(text, (soFar) => editMsg(bot, { text: soFar }))
   }
 }
 

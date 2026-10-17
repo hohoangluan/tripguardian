@@ -22,6 +22,7 @@ class Settings:
     crowd_penalty: float
     rainy_months: tuple
     min_context_fit: float
+    max_travel_min: int  # a place farther than this from the trip's first center is hidden (docs §9.3)
     weights: dict
     price_ref_vnd: int
     near_min: int

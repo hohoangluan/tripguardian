@@ -46,7 +46,7 @@ export function Discover() {
 
         <section className="tg-hm__hero" aria-label="Gợi ý khám phá Đà Lạt">
           <div className="tg-hm__cover">
-            <img src="/img/home/cloud.jpg" alt="Bình minh giữa rừng thông và mây tại Đồi Đa Phú, Đà Lạt" />
+            <img src="/img/home/dalat-rays.jpg" alt="Tia nắng sớm xuyên qua rừng thông và biển mây ở Đà Lạt" />
             {snap && <span className="tg-hm__chip"><Icon name="pin" size={14} />{snap.places.length.toLocaleString('vi-VN')} địa điểm</span>}
           </div>
           <div className="tg-hm__hbody">

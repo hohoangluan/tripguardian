@@ -219,6 +219,8 @@ Quy tắc:
 - Thứ tự ưu tiên khi hai nguồn trọng số mâu thuẫn giữ đúng `TRIP_UNDERSTANDING.md` §2.
 - `wish` chỉ nâng, gom mọi mong muốn của Trip (`decision/wishes.py`): món (`place_ids` theo thứ tự, 1 → 0,5, mọi nơi có ghi món đó: quán cà phê có cà phê muối cũng được cộng), kiểu nơi (1), phong cách ảnh (1 → 0,5 theo hạng; độ giống ảnh không phải bằng chứng), giống X (`corpus.serving.similarity` ≥ `like_min`, trừ chính X; phần "nhưng" đã là `soft_weights`), `liked_groups` (cả nhóm, mức thấp), `purpose` (theo map, mức thấp nhất). Khớp nhiều mong muốn thì cao hơn; không khớp = 0, không âm, không loại; sàng lọc chạy trước; nơi chưa có bản ghi không được cộng. Mỗi ảnh user gửi và mỗi nơi tham chiếu là một mong muốn riêng. Mức `a`, `like_min`, map `purpose` ở `config/decision.yaml` `wish`. Danh sách mỗi nhóm vẫn đủ mọi nơi qua sàng lọc; không lọc theo ngưỡng điểm.
 - Trọng số `w_*` nằm trong config, có version; mỗi điểm lưu kèm từng thành phần để giải thích và debug.
+- **Né đông.** Khi user né đông (`profile.crowd_tolerance` hoặc `pace.crowd_tolerance` = `avoid`), mỗi tab xếp các nơi Google ghi là đông (≥ `crowd_busy_pct` ở khung giờ nào đó của loại ngày trong chuyến, hoặc cả hai loại ngày khi chưa biết ngày) sau mọi nơi còn lại, bất kể điểm; nơi không có popular times không bị coi là đông (`frame.busy_mask`).
+- **Chế độ ăn** (`decision/diet.py`, chỉ tab `meal`, `snack`). Có yêu cầu chay (hard hoặc soft `vegetarian_options` / `vegan_options` = yes) hay ghi chú "dị ứng hải sản" ở `unmapped` (Trip không có feature dị ứng, chỉ giữ ghi chú): tab xếp theo bậc, rồi mới đến điểm. Bậc 0: nơi tự nhận là quán chay (tên hoặc category Google có "chay"). Bậc 1: không có gì trái chế độ (chay: đã verify `vegetarian_options` = yes). Bậc 2: chưa verify được món chay (chỉ xảy ra với yêu cầu soft; hard thì nơi này vào mục chưa xác minh). Bậc 3: tên hoặc category tự nhận là nơi nướng / thịt / hải sản… (chay) hoặc hải sản (dị ứng). Bậc ≥ 2 không bao giờ được "Hợp nhất"; bậc 3 không vào shortlist và thẻ có ghi chú; bậc 3 vẫn nằm trong tab (không có bằng chứng "chỉ có món mặn" ngoài tự nhận, nên không loại cứng). Thiếu bằng chứng là `unknown`, không bao giờ được xếp như "khớp".
 
 ## 9. Đa dạng và cỡ shortlist
 
@@ -253,7 +255,9 @@ Cỡ shortlist là số nơi MMR chọn ở mỗi vai trò; nó quyết định 
 
 Danh sách nằm trong các tab theo loại nơi (`config/decision.yaml` `tabs`: tab → nhóm category của corpus; nhóm không có trong tab nào → `sights`): Ăn uống, Ăn vặt và tráng miệng, Cà phê, Thiên nhiên và ngắm cảnh, Vườn và trang trại, Cắm trại, Điểm tham quan, Di tích / chùa / bảo tàng, Vui chơi, Bar và về đêm, Spa, Chợ và mua sắm (`frame.tabs`, `diversify.tab`). Tab không có nơi nào thì không hiện. Anchor luôn đứng đầu, tách riêng. `display_groups` (4 nhóm thô) chỉ dùng cho mong muốn `liked_groups` / `purpose` (§8 `wish`), không phải tab.
 
-Mỗi tab liệt kê **mọi** nơi qua sàng lọc của nó (kể cả nơi có `context_fit` dưới `min_context_fit`; ngưỡng đó chỉ áp cho pool của shortlist), kể cả nơi user đã chọn, xếp **chỉ theo `score`**. "Hợp nhất" (`top`) đánh dấu các nơi chưa chọn đứng đầu tab, đúng bằng số nơi MMR (§9.2) lấy từ tab đó.
+**Nơi quá xa bị ẩn** (fail-closed, không có đường nới): nơi có thời gian di chuyển từ tâm gần nhất trong các tâm của `fit` (chỗ ở / base nếu đã có, không thì tâm thành phố mà `fit.radius` đang dùng, cộng các nơi user đã đặt làm anchor; nơi gần một anchor thì với tới được) vượt `max_travel_min` (`config/decision.yaml`, mặc định 90 phút; công thức `geo.minutes`) không nằm trong tab nào, shortlist hay mục chưa xác minh. Ngoại lệ: nơi user đã chọn hoặc đặt làm anchor không bao giờ bị ẩn; nơi không có toạ độ không bị coi là xa (không có bằng chứng thì không loại). `why-not` của nơi bị ẩn nói rõ "Xa so với <tâm> (≈N phút, quá giới hạn 90 phút)" với N tính từ toạ độ thật. Số "N nơi hợp với chuyến" của Web là tổng `total` các tab nên đã không đếm nơi bị ẩn.
+
+Mỗi tab liệt kê **mọi** nơi còn lại qua sàng lọc của nó (kể cả nơi có `context_fit` dưới `min_context_fit`; ngưỡng đó chỉ áp cho pool của shortlist), kể cả nơi user đã chọn, xếp theo `score` (sau bậc chế độ ăn và quy tắc né đông ở §8; ngoài hai trường hợp đó không có tiêu chí nào khác). "Hợp nhất" (`top`) đánh dấu các nơi chưa chọn đứng đầu tab, đúng bằng số nơi MMR (§9.2) lấy từ tab đó.
 
 ### 9.4 Trang, tìm kiếm và lọc lại
 
@@ -480,7 +484,7 @@ python -m decision serve [--port 8767] # HTTP + SSE độc lập
 corpus binding, đọc root/version đó; không chọn pointer độc lập. Thiếu snapshot trả lỗi.
 `Data(records)` dựng một vùng trong RAM cho test. Mỗi phiên giữ memo ba tầng (screen, fit,
 score) theo input của từng tầng (`frame.table`), nên `select` / `lock` / `undo` không tính lại
-phần không đổi.
+phần không đổi. `corpus.ontology.load` parse YAML một lần cho mỗi phiên bản file (theo mtime và kích thước): mỗi request validate Search Input nhiều lần, parse lại tốn ~1,4 s ở lượt tạo phiên đầu.
 
 Search Input, snapshot và Decision Output giữ binding của journey; adapter từ chối binding
 lệch Engine, kể cả restore/rebase. Decision Output validate binding khớp `trip_context`, giữ
@@ -504,7 +508,7 @@ POST   /api/decision/sessions/<id>/confirm      → Decision Output; 409 khi ch�
 
 Lỗi: 400 act sai hoặc `text` rỗng / > 1000 ký tự, 404 không có phiên, 409 version ontology của Search Input khác corpus hoặc chưa chốt được.
 
-Lượt chữ: agent trả các update `select | drop | lock | visited` (một nơi trên màn), `travel | crowd | price` (phản hồi chung) và `trip` — mong muốn về chuyến hoặc kiểu nơi ("yên tĩnh hơn", "không thích quán giống X"), quote là đúng lời người dùng. Engine áp các update nơi như act; các update `trip` không đổi phiên Decision mà phát event `trip {texts}` trước `view`. Harness chuyển chúng cho Trip Understanding (`refine`) rồi `rebase` Decision trên Search Input mới (`docs/AGENT_HARNESS.md` §2). Gu không bao giờ thành act `prefer` / `note` từ lượt chữ.
+Lượt chữ: agent trả các update `select | drop | lock | visited` (một nơi trên màn), `travel | crowd | price` (phản hồi chung) và `trip` — mong muốn về chuyến hoặc kiểu nơi ("yên tĩnh hơn", "không thích quán giống X"), quote là đúng lời người dùng. Engine áp các update nơi như act; các update `trip` không đổi phiên Decision mà phát event `trip {texts}` trước `view`. Harness chuyển chúng cho Trip Understanding (`refine`) rồi `rebase` Decision trên Search Input mới (`docs/AGENT_HARNESS.md` §2). Gu không bao giờ thành act `prefer` / `note` từ lượt chữ. Không gọi model khi: lệnh tên chính xác; toàn câu là phản hồi chung có sẵn ("ít đông", "yên tĩnh", "rẻ hơn", "gần trung tâm" → `feedback` crowded / pricey / far, `heuristics.common_wish`); hoặc câu không nêu nơi nào trên màn, không chọn / bỏ, không phải câu hỏi (`general_wish`): khi đó chuyển thẳng thành update `trip` cho Trip Understanding. Còn lại một lượt gọi model với prompt chỉ gồm nơi user nêu tên, nơi đã chọn và vài nơi đầu mỗi tab (`Engine._prompt_places`). Câu trả lời sau khi dựng lại danh sách nêu đúng số nơi ở tiêu đề trang (tổng các tab).
 
 Act trên một địa điểm: `select`, `drop` (kèm `reason`: `far | crowded | pricey | dislike | visited`), `lock`, `unlock`, `swap`, `relax`, `wishlist`; ngoài ra `prefer`, `feedback`, `answer`, `undo`, `confirm`. `scope.replan_scope(act)` trả bước sớm nhất phải chạy lại theo bảng §14; `scope.input_scope(old, new)` làm điều đó khi người dùng sửa bản hiểu nhu cầu.
 

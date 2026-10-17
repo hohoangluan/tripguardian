@@ -125,7 +125,7 @@ export function DayView({ days, dayIdx, week, onDay, busy, locked, durationRange
               </div>
               {stops.length > 1 && <span className="tg-it-hint"><Icon name="grip" size={15} strokeWidth={3.2} />Nhấn giữ thẻ để kéo</span>}
             </div>}
-            {d && stops.length > 0 && <dl className="tg-it-stats" aria-label={`Tóm tắt ngày ${d.day}`}>
+            {d && stops.length > 0 && <dl className="tg-it-stats is-day" aria-label={`Tóm tắt ngày ${d.day}`}>
               <div><dt>Điểm dừng</dt><dd>{stops.length}</dd></div>
               <div><dt>Di chuyển</dt><dd>{totalLeg ? `≈ ${fmtMin(totalLeg)}` : '—'}</dd></div>
               <div><dt>Ở lại</dt><dd>{fmtMin(totalStay)}</dd></div>
@@ -150,14 +150,16 @@ export function DayView({ days, dayIdx, week, onDay, busy, locked, durationRange
                       <div className="tg-it-card__top">
                         <div className="tg-it-grip" aria-hidden="true"><Icon name="grip" size={20} strokeWidth={3.6} /><span>{i + 1}</span></div>
                         <button type="button" className="tg-it-card__photo" data-drag-ok aria-label={`Xem chi tiết ${name}`} onClick={() => { if (!drag.justDragged()) onOpen(id) }}>
-                          <PlacePhoto id={id} name={name} sizes="225px" />
+                          <PlacePhoto id={id} name={name} sizes="132px" />
                         </button>
                         <div className="tg-it-card__info">
                           <div className="tg-it-card__cat">{p?.category ?? 'Địa điểm'}</div>
                           <h2><button type="button" onClick={() => onOpen(id)}>{name}</button></h2>
-                          <div className="tg-it-rate"><Icon name="star" size={15} />{p?.rating != null ? <><b>{p.rating.toFixed(1)}</b>{p.reviews != null && <span>({p.reviews.toLocaleString('vi-VN')} đánh giá)</span>}</> : <span>Chưa có đánh giá</span>}</div>
-                          <div className="tg-it-sub"><Icon name="pin" size={14} />{p?.area ?? 'Đà Lạt'}</div>
-                          <div className="tg-it-sub"><Icon name="clock" size={14} />Ở lại ≈ {fmtMin(dur)}</div>
+                          <div className="tg-it-card__meta">
+                            <span className="tg-it-rate"><Icon name="star" size={14} />{p?.rating != null ? <><b>{p.rating.toFixed(1)}</b>{p.reviews != null && <span>({p.reviews.toLocaleString('vi-VN')})</span>}</> : <span>Chưa có đánh giá</span>}</span>
+                            <span className="tg-it-sub"><Icon name="pin" size={14} />{p?.area ?? 'Đà Lạt'}</span>
+                            <span className="tg-it-sub"><Icon name="clock" size={14} />Ở lại ≈ {fmtMin(dur)}</span>
+                          </div>
                         </div>
                       </div>
                       <div className="tg-it-card__bottom">

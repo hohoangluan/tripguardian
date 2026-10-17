@@ -53,3 +53,11 @@ def test_arrival_outside_trip_leaves_every_date_empty():
 def test_departure_before_trip_leaves_every_date_empty():
     result = compile_trip(leave=field({"at": "2026-11-19T10:00", "how": "plane"}))
     assert all(d.start == d.end and d.intensity == "free" for d in result.days)
+
+
+def test_afternoon_bus_arrival_keeps_a_normal_first_day_with_real_time_left():
+    result = compile_trip(arrive=field({"at": "2026-11-20T14:00", "how": "bus"}))
+    first = result.days[0]
+    assert first.start == "15:15" and first.end > first.start
+    assert first.intensity == "normal"
+    assert not any(i.code == "day_has_no_time" for i in result.issues)

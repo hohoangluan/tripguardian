@@ -63,9 +63,9 @@ def test_local_insertion_uses_linear_simulations_and_drop_keeps_order(monkeypatc
     cx = day_ctx([rec(pid, 11.94, 108.45) for pid in ("a", "b", "c", "d")])
     calls = []
     original = repair.simulate
-    def counted(order, ctx):
+    def counted(order, ctx, **kw):
         calls.append(tuple(order))
-        return original(order, ctx)
+        return original(order, ctx, **kw)
     monkeypatch.setattr(repair, "simulate", counted)
     result = repair.repair_day(["a", "b", "c", "d"], cx, ("c", "b", "a"), set(), CFG)
     assert not result.violations

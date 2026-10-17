@@ -18,6 +18,19 @@ class Line(Frozen):
     undo: str | None = None
 
 
+def party_conflict(companions, people) -> str | None:
+    """A head count the companions cannot make: "Một mình" with 6 people, or a partner / kids / parents with 1. None when
+    they agree or one of them is unknown (unknown is never a contradiction)."""
+    who = set(companions or ())
+    if not who or not people:
+        return None
+    if "solo" in who and people != 1:
+        return f"Bạn chọn đi một mình nhưng số người là {people}. Đi mấy người, có ai đi cùng không?"
+    if people == 1 and who - {"solo", "pet"}:
+        return "Số người là 1 nhưng bạn có người đi cùng. Đi mấy người?"
+    return None
+
+
 class Readback(Frozen):
     lines: tuple[Line, ...]
     digest: str
@@ -158,6 +171,8 @@ def build(si: SearchInput) -> Readback:
     if c.companions_other:
         companions.append(part(", ".join(c.companions_other), source="user"))
     group("companions", companions)
+    if conflict := party_conflict(c.companions, c.people):
+        lines.append(Line(kind="check", text="Cần xác nhận: " + conflict, tab="companions"))
 
     mobility = []
     if c.mobility:

@@ -174,7 +174,7 @@ def build(state: TripState, catalog: Catalog, cfg: Settings, agent=(), at="under
     left = len(missing(state, cfg.required))
     if at == "gate":
         optional = tuple(t for t in optional if t.kind == "confirm")
-        return Deck(tabs=(required + optional)[:cfg.max_tabs], left=left, agent=tuple(agent), at=at)
+        return Deck(tabs=required + optional[:max(0, cfg.max_tabs - len(required))], left=left, agent=tuple(agent), at=at)  # every missing required topic: one round trip
     question = (question or "").strip() or None
     chosen = [t.model_copy(update={"question": question}) if question else t for t in required if t.qid == ask]
     follow = [t for t in optional if t.kind in ("drill", "agent")]

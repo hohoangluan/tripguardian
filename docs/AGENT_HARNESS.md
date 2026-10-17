@@ -99,7 +99,7 @@ Bind `127.0.0.1`; Vite proxy `/api/harness` và `/api/auth` đến cổng 8769 (
 | `POST /api/harness/sessions/<id>/request` | Mutation JSON; `Accept: text/event-stream` để nhận SSE |
 | `GET /api/harness/places?q=` | Tra nơi từ serving index |
 | `GET /api/harness/geo?q=` | Ô "Bạn khởi hành từ đâu?": ≤ 6 `{text, address, province, lat, lng, source, fetched_at}` (`live.geosearch` qua Planning); nguồn lỗi → `[]` |
-| `GET /api/harness/lodging/suggest?q=` | Ô chỗ ở: ≤ 6 `{kind: "corpus", id, text, address, rating?, lat, lng}` — chỉ chỗ ở của mình (serving nhóm `stay`, nhiều đánh giá trước); không dùng `geosearch` vì địa chỉ tìm online lệch ra ngoài vùng chuyến đi |
+| `GET /api/harness/lodging/suggest?q=&top=N` | Ô chỗ ở: ≤ 6 `{kind: "corpus", id, text, address, rating?, lat, lng, price_vnd?, price_at?, category?, area?, reviews}`; `q` rỗng + `top=N` (≤ 12): N chỗ ở tốt nhất để hiện thành thẻ khi người dùng chưa có chỗ ở (điểm đã làm mượt theo số người đánh giá, ≥ 10 người; ~3 ms) — chỉ chỗ ở của mình (serving nhóm `stay`, nhiều đánh giá trước); không dùng `geosearch` vì địa chỉ tìm online lệch ra ngoài vùng chuyến đi |
 | `GET /api/harness/sessions/<id>/read/decision/compare?a=&b=` | So sánh |
 | `GET /api/harness/sessions/<id>/read/decision/why-not?place=` | Lý do loại |
 | `GET /api/harness/sessions/<id>/read/decision/page?group=&n=` | Hiện trang `n` (1 = đầu; thiếu `n` = trang sau) của một tab, lưu trong phiên → `{view}` (`docs/PLACE_DECISION.md` §9.4) |

@@ -3,7 +3,7 @@ import { initialOf, useAccount } from '../account'
 import { enterStage, requestStageEntry, resumeJourney, type Stage } from '../journey'
 import { STEPS, useTrip, type StepId } from '../trip'
 import { go, href, Link } from './common'
-import { Icon, Logo } from './icons'
+import { Icon } from './icons'
 
 function Me({ className }: { className: string }) {
   const account = useAccount()
@@ -48,7 +48,7 @@ export function FlowBar({ step, aside, onAhead }: { step: StepId | 'done'; aside
   }
   return (
     <header className="tg-flowbar">
-      <Link to="/" className="tg-flowbar__logo" aria-label="Về Khám phá"><Logo size={30} /></Link>
+      <span aria-hidden="true" />
       <ol className="tg-steps" aria-label="Tiến trình chuyến đi">
         {STEPS.map((s, i) => {
           const state = going ? (s.id === going ? 'now' : 'next') : i < idx ? 'done' : i === idx ? 'now' : 'next'

@@ -4,6 +4,7 @@ import type { Deck, DeckAnswers, DeckIssue, LodgingHit, Option, Tab } from '../.
 import { Icon, type IconName } from '../../ui/icons'
 import { CardImg, preloadPhotos } from '../../ui/common'
 import { PlaceInput } from '../../ui/PlaceInput'
+import { LodgingCards } from './LodgingCards'
 
 const ISSUE_TEXT: Record<DeckIssue['code'], string> = {
   past_date: 'Ngày đi đã qua, bạn chọn lại nhé.',
@@ -108,8 +109,9 @@ export function TripInputs({ form, busy, chips }: { form: DeckForm; busy: boolea
   </>
 }
 
-export function ExtraInputs({ form, busy }: { form: DeckForm; busy: boolean }) {
-  const { tab, fields, selected, toggleInput, pickLodging } = form
+// send: the chat's card answers at once when a stay is tapped; the gate keeps the pick on the form (its tab gets a tick). ranked: places are chosen, so stays are listed around them.
+export function ExtraInputs({ form, busy, send, ranked = false }: { form: DeckForm; busy: boolean; send?: (answers: DeckAnswers, shown: string) => void; ranked?: boolean }) {
+  const { tab, fields, selected, toggleInput, pickLodging, skip } = form
   const budgetAmount = Number(fields['budget.amount']?.replace(',', '.'))
   // A couple or one person is two or one: the head count is asked only once a bigger group is picked (or when only
   // the count is open, the group already known). Nothing picked yet: nothing to count.
@@ -130,10 +132,13 @@ export function ExtraInputs({ form, busy }: { form: DeckForm; busy: boolean }) {
     {tab.qid === 'budget' && tab.inputs.includes('amount') && <div className="tg-ask__find">
       <label>Ngân sách (triệu đồng)<input className="tg-line-input" type="text" inputMode="decimal" disabled={busy || selected.includes('unlimited') || fields['budget.unlimited'] === 'true'} value={fields['budget.amount'] ?? ''} placeholder="Ví dụ: 25 hoặc 2,5" onChange={e => toggleInput('budget.amount', e.target.value, 'amount.')} /><output aria-live="polite">{budgetAmount > 0 && Number.isFinite(budgetAmount) ? `= ${budgetAmount.toLocaleString('vi-VN')} triệu` : 'Nhập số tiền tính theo triệu đồng'}</output></label>
     </div>}
-    {tab.qid === 'lodging' && <div className="tg-ask__find"><PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" disabled={busy} fetcher={lodgingSuggest}
-      row={h => ({ key: h.id ?? `${h.lat},${h.lng}`, icon: 'bed', name: h.text, sub: h.address, rating: h.rating })}
-      onPick={pickLodging} />
-      {fields.lodging && <small><Icon name="check" size={14} /> Đã chọn chỗ ở</small>}
+    {tab.qid === 'lodging' && <div className="tg-ask__find">
+      <LodgingCards ranked={ranked} busy={busy} onAuto={() => send ? send({ lodging: ['skip'] }, 'Cứ xếp giúp') : skip()}
+        onPick={p => { const hit = { kind: p.kind, id: p.id, text: p.text, lat: p.lat as number, lng: p.lng as number }; if (send) send({ lodging: JSON.stringify(hit) }, p.text); else pickLodging(hit as LodgingHit) }}
+        typed={<PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" disabled={busy} fetcher={lodgingSuggest}
+          row={h => ({ key: h.id ?? `${h.lat},${h.lng}`, icon: 'bed', name: h.text, sub: h.address, rating: h.rating })}
+          onPick={h => { if (send) send({ lodging: JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }) }, h.text); else pickLodging(h) }} />} />
+      {fields.lodging && <small><Icon name="check" size={14} /> Đã chọn chỗ ở: {JSON.parse(fields.lodging).text}</small>}
     </div>}
   </>
 }

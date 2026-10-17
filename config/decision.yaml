@@ -9,6 +9,7 @@ crowd_busy_pct: 70          # Google popular times at or above this = busy
 crowd_penalty: 0.2
 rainy_months: [5, 6, 7, 8, 9, 10]
 min_context_fit: 0.1        # below: stays in the pool, never in the shortlist
+max_travel_min: 90          # travel time from the first center (lodging / base, else city center) above which a place is hidden; kept places and unknown positions stay
 weights: {ctx: 1.0, pref: 2.0, nov: 1.0, exp: 0.3, pop: 0.2, unc: 0.5, price: 0.5, wish: 1.5}  # wish: Trip's wishes (decision.wishes)
 wish:                       # decision.wishes: how much meeting one wish lifts a place (docs/PLACE_DECISION.md §8)
   a: {dish: 0.8, kind: 0.8, vibe: 0.8, like: 0.8, group: 0.4, purpose: 0.25}

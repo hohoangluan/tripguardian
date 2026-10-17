@@ -1439,7 +1439,11 @@ class Engine:
             before = s2.model_copy(update={"states": [old_state], "position": 0})
             active = self._active_itinerary(before, base, prev_results) if old_state.chosen_variant else None
             offered = self._offered_variants(before, base, active)
-            card = next(v for v in offered if v["id"] == s2.state.chosen_variant)
+            # A replayed pick may name a variant no longer offered (merged as identical, or the trip changed): keep the
+            # plan usable with the first one offered instead of failing the whole load.
+            card = next((v for v in offered if v["id"] == s2.state.chosen_variant), offered[0] if offered else None)
+            if card is None:
+                return prev_results
             results, _ = self._relayout(base, s2, card["_results"], set())
             return results
         scope = act_scope(action)

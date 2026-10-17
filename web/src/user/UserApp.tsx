@@ -24,7 +24,7 @@ import { Understand } from './screens/Understand'
 import { TripProvider, useTrip } from './trip'
 import { Busy, Empty, Loading, ArtHills, go, Toast } from './ui/common'
 import { PlaceSheet } from './ui/PlaceSheet'
-import { Frame } from './home/Frame'
+import { FlowSide, Frame } from './home/Frame'
 import { Recent } from './screens/Recent'
 import { Support } from './screens/Support'
 import './css/tokens.css'
@@ -97,6 +97,7 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
   useEffect(() => { if (signedIn && !guest && p === '/login') go('/', { replace: true }) }, [signedIn, guest, p])
   let m: Record<string, string> | null
   let rail = true
+  let side = false // the trip-flow screens have no frame of their own, but keep the sidebar
   let screen: ReactNode
   if (account === undefined) { screen = <div className="tg-page"><Busy text="Đang mở TripGuardian…" /></div>; rail = false }
   else if (!account || account.needs_consent) {
@@ -118,11 +119,11 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
     ) : (
       <Loading />
     )
-  } else if (p === '/explore') { screen = <Explore />; rail = false }
-  else if ((m = match(p, '/explore/place/:id'))) { screen = <PlaceDetail id={m.id} key={m.id} />; rail = false }
-  else if ((m = match(p, '/explore/compare/:ids'))) { screen = <Compare ids={m.ids.split(',')} key={m.ids} />; rail = false }
-  else if (p === '/plan') { screen = <PlanningProvider><Plan /></PlanningProvider>; rail = false }
-  else if (p === '/done') { screen = <Done />; rail = false }
+  } else if (p === '/explore') { screen = <Explore />; rail = false; side = true }
+  else if ((m = match(p, '/explore/place/:id'))) { screen = <PlaceDetail id={m.id} key={m.id} />; rail = false; side = true }
+  else if ((m = match(p, '/explore/compare/:ids'))) { screen = <Compare ids={m.ids.split(',')} key={m.ids} />; rail = false; side = true }
+  else if (p === '/plan') { screen = <PlanningProvider><Plan /></PlanningProvider>; rail = false; side = true }
+  else if (p === '/done') { screen = <Done />; rail = false; side = true }
   else if (p === '/today') screen = guest ? <GuestGate what="Hôm nay" /> : <Today />
   else if (p === '/saved') screen = <Saved />
   else if (p === '/recent') screen = <Recent />
@@ -133,7 +134,8 @@ function Shell({ p, sheet }: { p: string; sheet: string | null }) {
       {rail ? (
         <Frame path={p}><main id="tg-main" tabIndex={-1} key={p} className="tg-hf__main tg-flow"><Guard>{screen}</Guard></main></Frame>
       ) : (
-        <div className="tg-app">
+        <div className={`tg-app ${side ? 'has-rail' : ''}`}>
+          {side && <FlowSide path={p} />}
           <main id="tg-main" tabIndex={-1} key={p} className="tg-flow"><Guard>{screen}</Guard></main>
         </div>
       )}

@@ -5,7 +5,7 @@ from plan_fixtures import CFG, day_ctx, decision, prepared, rec
 from planning.build import build_plan, schedule_trip
 from planning.route import order_day
 from planning.schedule import simulate
-from planning.timefit import visit_score, windows_for
+from planning.timefit import visit_penalty, visit_score, windows_for
 
 
 def test_photo_garden_and_nightlife_are_scored_at_actual_visit_time():
@@ -141,3 +141,16 @@ def test_route_cache_does_not_reuse_the_old_paces_visit_length():
     visit = next(i for i in second.results[0].items if i.kind == "visit")
     assert visit.end - visit.start == 90
     assert first.results[0] != second.results[0]
+
+
+def test_visit_penalty_is_exactly_the_penalty_of_visit_score():
+    """The route search compares start times by visit_penalty alone; it must be the number visit_score reports."""
+    cx = day_ctx([rec("garden", 11.94, 108.45, group="garden_farm", features={"flower_garden": "present"}),
+                  rec("bar", 11.941, 108.45, group="bar"), rec("coffee", 11.942, 108.45, group="cafe")])
+    for purpose in (None, "photo"):
+        cxp = replace(cx, purpose=purpose, mobility="motorbike", sun=(330, 1050))
+        for pid in cxp.places:
+            for start in range(360, 1260, 45):
+                for length in (20, 60, 150):
+                    assert visit_penalty(cxp.places[pid], start, start + length, cxp) == \
+                        visit_score(cxp.places[pid], start, start + length, cxp)[0]

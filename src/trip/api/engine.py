@@ -26,7 +26,7 @@ from ..domain import vibes
 from ..domain.card import OPENING, Chip, Question, conversation_card
 from ..domain.compile import UnhandledSignal, compile_search_input
 from ..domain.frame import FrameDefaults
-from ..domain.readback import build as build_readback, plan_digest
+from ..domain.readback import build as build_readback, party_conflict, plan_digest
 from ..domain.guard import asks_settled_care, same_question, prune_say, bad_say, drop_questions, trim_say
 from ..domain.logistics import pick_transit
 from ..domain.patterns import Summary, seed, seed_profile, votes_from_state
@@ -109,10 +109,11 @@ BAD_PHOTO = "Ảnh này mình không mở được, bạn thử ảnh JPG hoặc
 # Prepass proposals allowed straight into the Trip State: high-precision slots only (dates, counts,
 # money, explicit body signals, effort hard filters, single-meaning soft). Everything else arrives as
 # agent-only suggestions and is recorded via record_fact.
+FOLLOWUP_LIMIT = 3  # the agent's own questions in a row after which the app asks a required topic itself
 APPLIED_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights", "people", "budget_vnd",
-                            "budget_scope", "signal", "hard", "soft"})
+                            "budget_scope", "signal", "hard", "soft", "arrival_mode", "mobility", "driver", "unmapped"})
 # Of those, the ones written as the user's own words (source user): the agent is told not to record or compute them again
-EXACT_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights", "people", "budget_vnd", "budget_scope", "signal"})
+EXACT_FIELDS = frozenset({"start_date", "month", "month_part", "days", "nights", "people", "budget_vnd", "budget_scope", "signal", "arrival_mode", "unmapped"})
 
 
 class TurnInput(Frozen):
@@ -467,14 +468,48 @@ class Engine:
             # whatever the user pressed (an option the agent wrote, a required topic, a photo variant, Bỏ qua) is
             # already written: the agent reads it like a reply in the talk, reacts and chooses the next question in
             # words that fit the talk. The app opens no required topic by itself.
+            if self._tap_only(s, available, inp):
+                return self._tap_next(s, turn, emit)
             return self._run(s, s.transcript[-1]["text"], emit, answer=True, picked=True)
         emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
         emit("card", self._card(s.state, s.card))
+
+    def _tap_only(self, s: Session, available: dict, inp: TurnInput) -> bool:
+        """True when the user only tapped options on required-topic cards, no words, and a required topic is still
+        missing: the app records and opens the next one itself, without a model call."""
+        if inp.text.strip() or self._user_asks(s):
+            return False
+        owners = {key.partition(".")[0] for key in inp.answers}
+        if not owners or any((tab := available.get(o)) is None or tab.kind != "required" for o in owners):
+            return False
+        return self._next_required(s) is not None
+
+    def _next_required(self, s: Session) -> str | None:
+        m = s.state.meta
+        return next((k for k, _ in missing(s.state, self.cfg.required)
+                     if k not in m.declined and m.nudged.count(k) < 2), None)
+
+    def _tap_next(self, s: Session, turn: int, emit: Emit) -> None:
+        """A plain card tap: the answer is already written; open the next missing required topic in its default words."""
+        started = time.monotonic()
+        due = self._next_required(s)
+        s.state = with_meta(derive(s.state, self.catalog, turn), unsure_streak=0, idle_streak=0, told=True,
+                            nudged=(*s.state.meta.nudged, due), followups=0)
+        s.card = deck.build(s.state, self.catalog, self.cfg, ask=due)
+        s.transcript.append({"role": "system", "text": f"tap_next {due}", "turn": turn, "tools": {}})
+        s.transcript.append({"role": "agent", "text": NOTED_SAY, "turn": turn, "kind": "say"})
+        emit("say", {"replace": NOTED_SAY})
+        emit("state", {"understanding": understanding(s.state, self.catalog, self.cfg)})
+        emit("card", self._card(s.state, s.card))
+        log_turn(s.id, turn, "(tap)", [f"tap_next {due}", f"t_turn {time.monotonic() - started:.2f}"], NOTED_SAY, s.card.qid, {})
 
     def _readback_ok(self, s: Session, inp: TurnInput, emit: Emit) -> None:
         digest = plan_digest(self._compile(s.state)) if not pending_signals(s.state) else None
         if inp.value and inp.value != digest:
             emit("readback", self._readback(s.state))
+            return
+        if party_conflict(s.state.companions.value, s.state.people.value):
+            emit("readback", self._readback(s.state))  # the clash is asked, not planned over
             return
         if not missing(s.state, self.cfg.required):
             s.state = with_meta(s.state, readback_digest=digest)
@@ -484,7 +519,9 @@ class Engine:
         needed = [key for key, _ in missing(state, self.cfg.required)]
         try:
             rb = build_readback(self._compile(state))
-            data = {**rb.model_dump(mode="json"), "ok": not needed and state.meta.readback_digest == rb.digest}
+            clash = party_conflict(state.companions.value, state.people.value)
+            data = {**rb.model_dump(mode="json"), "conflicts": [clash] if clash else [],
+                    "ok": not needed and not clash and state.meta.readback_digest == rb.digest}
         except UnhandledSignal:
             data = {"lines": [], "digest": None, "ok": False}
         gate = deck.build(state, self.catalog, self.cfg, at="gate") if needed else None
@@ -969,6 +1006,17 @@ class Engine:
             elif (qq := find_quiz(other, tools.state, self.catalog, self.cfg)) is not None:
                 card = qq  # not resolved yet: the chat clarifies, the chips stay available
         failed = "step_cap" in log or any(x.startswith("agent_error") for x in log)
+        if card is None and not failed and may_ask and (due := self._due_required(s, say)):
+            # the agent asked no required topic and the talk drifts (statement, or its own questions in a row): the
+            # app asks the next one in the topic's default words, so the seven answers are never left to chance
+            log.append(f"required_fallback {due}")
+            if asks_in_text(say):
+                say = drop_questions(say)
+                emit("say", {"replace": say})
+                if s.transcript and s.transcript[-1].get("kind") == "say":
+                    s.transcript[-1]["text"] = say
+            s.state = with_meta(s.state, nudged=(*s.state.meta.nudged, due))
+            card = deck.build(s.state, self.catalog, self.cfg, ask=due)
         # a failed agent leaves the text box: the user says it again before anything else is asked
         s.card = card or (conversation_card() if failed else self._next(s, say))
         if may_ask:
@@ -1194,6 +1242,10 @@ class Engine:
                                       evidence=Evidence(turn=turn, quote=p.quote)))
             except (ValueError, ValidationError):
                 pass
+        if allergy := next((p for p in pre.proposals if p.field == "unmapped"), None):
+            if not (st.care.known and st.care.source == "user"):  # the care question is answered by what they told
+                st = apply(st, Update(field="care", value="listed", source="user", confidence="high",
+                                      evidence=Evidence(turn=turn, quote=allergy.quote, tool="derived:allergy")))
         hints = tuple((p.value, p.quote) for p in pre.suggestions if p.field == "companions")
         rushed = bool(re.search(r"\b(goi y luon|tim luon|khoi hoi|nhanh len)\b", fold(text)))
         st = with_meta(st, companion_hints=tuple(dict.fromkeys((*st.meta.companion_hints, *hints))),
@@ -1224,6 +1276,21 @@ class Engine:
         built = deck.build(s.state, self.catalog, self.cfg,
                            agent=s.card.agent if isinstance(s.card, Deck) else ())
         return self._open(s, built)
+
+    def _due_required(self, s: Session, say: str) -> str | None:
+        """The required topic the app opens itself after a turn, or None. Only when the agent opened none and either
+        its reply asks nothing (no deck tab waits either) or it has asked its own questions FOLLOWUP_LIMIT times in a
+        row. Never while the user is asking, for a topic they skipped, nor more than twice for one topic."""
+        m = s.state.meta
+        asking = asks_in_text(say)
+        last = fold(next((t["text"] for t in reversed(s.transcript) if t["role"] == "user"), ""))
+        if self._user_asks(s) or (asking and m.followups < FOLLOWUP_LIMIT) or re.search(
+                r"\b(khong muon (?:di|tiep)|khong di nua|thoi khong|huy)\b", last):
+            return None
+        if not asking and (built := deck.build(s.state, self.catalog, self.cfg, agent=s.card.agent if isinstance(s.card, Deck) else ())).tabs:
+            return None
+        return next((k for k, _ in missing(s.state, self.cfg.required)
+                     if k not in m.declined and m.nudged.count(k) < 2), None)
 
     def _open(self, s: Session, built: Deck) -> Question | Deck:
         """The deck the app built, or the text box: no tab, or only the app's own confirmation while the user asks."""

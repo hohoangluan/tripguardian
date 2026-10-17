@@ -82,7 +82,7 @@ class Tools:
         return [{"text": q, "address": "", "province": "Hồ Chí Minh", "lat": 10.77, "lng": 106.7,
                  "source": "photon", "fetched_at": "2026-10-08T00:00:00+00:00"}]
 
-    def lodging_suggest(self, q):
+    def lodging_suggest(self, q, top=0):
         return [{"kind": "address", "text": q, "address": "", "lat": 11.94, "lng": 108.45}]
 
 
@@ -298,11 +298,14 @@ def test_summaries_carry_the_chat_title_or_none():
     assert h.summaries([h.create()["id"]])[0]["title"] is None
 
 
+U1, U2 = "a" * 32, "b" * 32  # owners the pg conftest inserts (journeys.user_id is a uuid foreign key)
+
+
 def test_trips_of_an_account_are_all_listed_not_the_first_twenty():
     h, _ = make()
-    ids = {h.create(owner="u1")["id"] for _ in range(23)}
-    h.create(owner="u2")
-    assert {t["id"] for t in h.trips("u1")} == ids  # the profile counts these: a cap would show 20 for 23
+    ids = {h.create(owner=U1)["id"] for _ in range(23)}
+    h.create(owner=U2)
+    assert {t["id"] for t in h.trips(U1)} == ids  # the profile counts these: a cap would show 20 for 23
 
 
 def test_feedback_is_validated_and_appended_beside_the_sessions(tmp_path, store_kind):
@@ -405,10 +408,10 @@ def test_discard_takes_the_journey_away_from_its_owner_and_no_one_else_can_do_it
 
 def test_one_journey_that_cannot_be_restored_never_empties_the_history_list():
     h, tools = make()
-    ids = {h.create(owner="u1")["id"] for _ in range(3)}
+    ids = {h.create(owner=U1)["id"] for _ in range(3)}
     h._loaded.clear()  # a restart: the next read restores every module from its snapshot
 
     def old_snapshot(_snapshot):  # a trip saved by an older build, its fields no longer valid
         raise ValueError("old snapshot")
     tools["trip"].restore = old_snapshot
-    assert {t["id"] for t in h.trips("u1")} == ids  # still listed: title and places come from the saved copy
+    assert {t["id"] for t in h.trips(U1)} == ids  # still listed: title and places come from the saved copy

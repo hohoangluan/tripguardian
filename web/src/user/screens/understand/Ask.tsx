@@ -77,7 +77,7 @@ export function AskCard({ deck, busy, issues = [], onAnswer, onText }: {
         <button type="button" className="tg-qa__send" disabled={busy || !typed.trim()} aria-label="Gửi câu trả lời khác" onClick={other}><Icon name="send" size={16} /></button>
       </li>}
     </ol>
-    {!grouped && <ExtraInputs form={form} busy={busy} />}
+    {!grouped && <ExtraInputs form={form} busy={busy} send={onAnswer} />}
     {!!reasons.length && <p className="tg-qa__why">✎ {Array.from(new Set(reasons)).join(' · ')}</p>}
     <DeckIssues issues={issues} />
     {(canSkip || !instant) && <footer className="tg-qa__foot">

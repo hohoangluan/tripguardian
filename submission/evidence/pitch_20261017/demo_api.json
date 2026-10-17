@@ -1,0 +1,1667 @@
+{
+  "at": "2026-10-16T23:00:30.681195+00:00",
+  "mode": "public_api_no_agent_no_browser",
+  "input": {
+    "wishes": {
+      "dishes": [],
+      "kinds": [],
+      "like": []
+    },
+    "readiness": null,
+    "sources": {},
+    "corpus_binding": null,
+    "ontology_version": 12,
+    "context": {
+      "start_date": "2026-12-14",
+      "month": null,
+      "month_part": null,
+      "days": 2,
+      "nights": null,
+      "base": null,
+      "entry_point": null,
+      "exit_point": null,
+      "mobility": "motorbike",
+      "driver": null,
+      "budget_unlimited": null,
+      "frame": {
+        "days": [
+          {
+            "date": "2026-12-14",
+            "start": "09:00",
+            "end": "21:00",
+            "busy": [],
+            "intensity": "normal"
+          },
+          {
+            "date": "2026-12-15",
+            "start": "08:00",
+            "end": "18:00",
+            "busy": [],
+            "intensity": "normal"
+          }
+        ],
+        "arrive": null,
+        "leave": null,
+        "drive_day_min": null,
+        "periods": [],
+        "visit": {},
+        "meals": {
+          "skip": [],
+          "breakfast_at_lodging": false,
+          "snacks": false,
+          "shift_min": 0
+        },
+        "rest": null,
+        "pattern": null,
+        "issues": []
+      },
+      "companions": [],
+      "companions_other": [],
+      "people": 2,
+      "checkin_at": null,
+      "checkout_at": null,
+      "day_end": null,
+      "budget_vnd": 500000,
+      "budget_intent": null,
+      "experience": null,
+      "origin": null,
+      "arrival_mode": null,
+      "inbound": null,
+      "outbound": null,
+      "lodging_booked": null,
+      "lodging": null,
+      "purpose": null
+    },
+    "hard_filters": [],
+    "anchors": [],
+    "soft_weights": [
+      {
+        "meaning": null,
+        "scope": null,
+        "subject": "unspecified",
+        "subject_count": null,
+        "ambiguity": null,
+        "feature": "nature",
+        "value": "present",
+        "context": null,
+        "weight": 1,
+        "source": "user",
+        "strength": "preference",
+        "evidence": []
+      },
+      {
+        "meaning": null,
+        "scope": null,
+        "subject": "unspecified",
+        "subject_count": null,
+        "ambiguity": null,
+        "feature": "cozy_decor",
+        "value": "present",
+        "context": null,
+        "weight": 1,
+        "source": "user",
+        "strength": "preference",
+        "evidence": []
+      }
+    ],
+    "pace": {
+      "level": "normal",
+      "max_leg_min": null,
+      "crowd_tolerance": null
+    },
+    "novelty": {
+      "level": null,
+      "visited": []
+    },
+    "unknowns": [],
+    "unmapped": [],
+    "liked_groups": [],
+    "activities": {},
+    "time_preferences": [],
+    "vibes": []
+  },
+  "selection": [
+    {
+      "id": "0x31711344dbfee2cd:0x59ba296e9158de74",
+      "name": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery"
+    },
+    {
+      "id": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+      "name": "Cafe Đợi Một Người - Yersin"
+    },
+    {
+      "id": "0x31711321921ab1eb:0xed01f038d0123ec1",
+      "name": "Xuân Hương Garden Coffee"
+    },
+    {
+      "id": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+      "name": "Cà Phê Amelie"
+    },
+    {
+      "id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+      "name": "Coffee Em và Trịnh"
+    },
+    {
+      "id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+      "name": "Săn Mây Nhà Gỗ Cầu Đất"
+    },
+    {
+      "id": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+      "name": "Thác Prenn"
+    },
+    {
+      "id": "0x31711321284ed77f:0x7752634a02e162e9",
+      "name": "Hồ Xuân Hương"
+    },
+    {
+      "id": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+      "name": "Đồi Thông Hai Mộ"
+    },
+    {
+      "id": "0x31711342bf22ad85:0xfcbe6c44b3b0aeda",
+      "name": "Đèo Prenn"
+    }
+  ],
+  "runs": [
+    {
+      "run": 1,
+      "selection_s": 0.358,
+      "planning_s": 3.657,
+      "total_s": 4.246,
+      "confirmed": true,
+      "chosen": "fit",
+      "variants": [
+        {
+          "id": "fit",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x31711342bf22ad85:0xfcbe6c44b3b0aeda",
+              "name": "Đèo Prenn",
+              "reason": "fit",
+              "text": "ít khớp gu nhất",
+              "saved_min": 60,
+              "saved_vnd": null,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "id": "travel",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất",
+              "reason": "travel",
+              "text": "bớt 47′ đi xe",
+              "saved_min": 60,
+              "saved_vnd": 120000,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        }
+      ],
+      "overload": {
+        "places": 10,
+        "missing_min": 180,
+        "available": 1320,
+        "needed": 1500,
+        "text": "Không đủ thời gian cho cả 10 nơi: thiếu ~3 giờ"
+      },
+      "robustness": "fragile",
+      "warnings": [
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cafe Đợi Một Người - Yersin cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cà Phê Amelie cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "hours_unknown",
+          "text": "Đèo Prenn: chưa có giờ mở cửa, không kiểm."
+        },
+        {
+          "code": "base_unknown",
+          "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+        },
+        {
+          "code": "travel_rough",
+          "text": "Thời gian di chuyển là ước lượng thô (không có OSRM), không dùng để kết luận độ vững."
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Chưa có giờ mở cửa"
+        }
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "date": "2026-12-14",
+          "weekday": "mon",
+          "window": [
+            "05:28",
+            "21:00"
+          ],
+          "method": "exact",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "05:28",
+              "end": "07:58",
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất"
+            },
+            {
+              "kind": "meal_free",
+              "start": "07:58",
+              "end": "08:28",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:28",
+              "end": "09:38",
+              "from": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "to": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "mode": "motorbike",
+              "note": "+30"
+            },
+            {
+              "kind": "visit",
+              "start": "09:38",
+              "end": "11:00",
+              "place_id": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "name": "Đồi Thông Hai Mộ"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:41",
+              "from": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "to": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:41",
+              "end": "16:11",
+              "place_id": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "name": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery"
+            },
+            {
+              "kind": "travel",
+              "start": "16:11",
+              "end": "16:34",
+              "from": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "to": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:34",
+              "end": "18:04",
+              "place_id": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "name": "Xuân Hương Garden Coffee"
+            },
+            {
+              "kind": "meal_free",
+              "start": "18:04",
+              "end": "19:34",
+              "name": "dinner",
+              "note": "optional"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-12-15",
+          "weekday": "tue",
+          "window": [
+            "05:29",
+            "18:00"
+          ],
+          "method": "heuristic",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "06:30",
+              "end": "08:00",
+              "place_id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "name": "Coffee Em và Trịnh"
+            },
+            {
+              "kind": "meal_free",
+              "start": "08:00",
+              "end": "08:30",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:30",
+              "end": "09:14",
+              "from": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "to": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "09:14",
+              "end": "09:44",
+              "place_id": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "name": "Thác Prenn"
+            },
+            {
+              "kind": "travel",
+              "start": "09:44",
+              "end": "10:27",
+              "from": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "to": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "10:27",
+              "end": "10:57",
+              "place_id": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "name": "Cà Phê Amelie"
+            },
+            {
+              "kind": "wait",
+              "start": "10:57",
+              "end": "11:00",
+              "note": "meal"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:32",
+              "from": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "to": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:32",
+              "end": "15:45",
+              "place_id": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "name": "Cafe Đợi Một Người - Yersin"
+            },
+            {
+              "kind": "travel",
+              "start": "15:45",
+              "end": "16:09",
+              "from": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "to": "0x31711321284ed77f:0x7752634a02e162e9",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:09",
+              "end": "18:00",
+              "place_id": "0x31711321284ed77f:0x7752634a02e162e9",
+              "name": "Hồ Xuân Hương"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "travel": {
+          "source": "rough",
+          "fetched_at": null
+        },
+        "points": {}
+      }
+    },
+    {
+      "run": 2,
+      "selection_s": 0.715,
+      "planning_s": 3.662,
+      "total_s": 4.562,
+      "confirmed": true,
+      "chosen": "fit",
+      "variants": [
+        {
+          "id": "fit",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x31711342bf22ad85:0xfcbe6c44b3b0aeda",
+              "name": "Đèo Prenn",
+              "reason": "fit",
+              "text": "ít khớp gu nhất",
+              "saved_min": 60,
+              "saved_vnd": null,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "id": "travel",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất",
+              "reason": "travel",
+              "text": "bớt 47′ đi xe",
+              "saved_min": 60,
+              "saved_vnd": 120000,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        }
+      ],
+      "overload": {
+        "places": 10,
+        "missing_min": 180,
+        "available": 1320,
+        "needed": 1500,
+        "text": "Không đủ thời gian cho cả 10 nơi: thiếu ~3 giờ"
+      },
+      "robustness": "fragile",
+      "warnings": [
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cafe Đợi Một Người - Yersin cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cà Phê Amelie cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "hours_unknown",
+          "text": "Đèo Prenn: chưa có giờ mở cửa, không kiểm."
+        },
+        {
+          "code": "base_unknown",
+          "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+        },
+        {
+          "code": "travel_rough",
+          "text": "Thời gian di chuyển là ước lượng thô (không có OSRM), không dùng để kết luận độ vững."
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Chưa có giờ mở cửa"
+        }
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "date": "2026-12-14",
+          "weekday": "mon",
+          "window": [
+            "05:28",
+            "21:00"
+          ],
+          "method": "exact",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "05:28",
+              "end": "07:58",
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất"
+            },
+            {
+              "kind": "meal_free",
+              "start": "07:58",
+              "end": "08:28",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:28",
+              "end": "09:38",
+              "from": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "to": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "mode": "motorbike",
+              "note": "+30"
+            },
+            {
+              "kind": "visit",
+              "start": "09:38",
+              "end": "11:00",
+              "place_id": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "name": "Đồi Thông Hai Mộ"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:41",
+              "from": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "to": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:41",
+              "end": "16:11",
+              "place_id": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "name": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery"
+            },
+            {
+              "kind": "travel",
+              "start": "16:11",
+              "end": "16:34",
+              "from": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "to": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:34",
+              "end": "18:04",
+              "place_id": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "name": "Xuân Hương Garden Coffee"
+            },
+            {
+              "kind": "meal_free",
+              "start": "18:04",
+              "end": "19:34",
+              "name": "dinner",
+              "note": "optional"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-12-15",
+          "weekday": "tue",
+          "window": [
+            "05:29",
+            "18:00"
+          ],
+          "method": "heuristic",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "06:30",
+              "end": "08:00",
+              "place_id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "name": "Coffee Em và Trịnh"
+            },
+            {
+              "kind": "meal_free",
+              "start": "08:00",
+              "end": "08:30",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:30",
+              "end": "09:14",
+              "from": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "to": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "09:14",
+              "end": "09:44",
+              "place_id": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "name": "Thác Prenn"
+            },
+            {
+              "kind": "travel",
+              "start": "09:44",
+              "end": "10:27",
+              "from": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "to": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "10:27",
+              "end": "10:57",
+              "place_id": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "name": "Cà Phê Amelie"
+            },
+            {
+              "kind": "wait",
+              "start": "10:57",
+              "end": "11:00",
+              "note": "meal"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:32",
+              "from": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "to": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:32",
+              "end": "15:45",
+              "place_id": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "name": "Cafe Đợi Một Người - Yersin"
+            },
+            {
+              "kind": "travel",
+              "start": "15:45",
+              "end": "16:09",
+              "from": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "to": "0x31711321284ed77f:0x7752634a02e162e9",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:09",
+              "end": "18:00",
+              "place_id": "0x31711321284ed77f:0x7752634a02e162e9",
+              "name": "Hồ Xuân Hương"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "travel": {
+          "source": "rough",
+          "fetched_at": null
+        },
+        "points": {}
+      }
+    },
+    {
+      "run": 3,
+      "selection_s": 0.217,
+      "planning_s": 4.057,
+      "total_s": 4.466,
+      "confirmed": true,
+      "chosen": "fit",
+      "variants": [
+        {
+          "id": "fit",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x31711342bf22ad85:0xfcbe6c44b3b0aeda",
+              "name": "Đèo Prenn",
+              "reason": "fit",
+              "text": "ít khớp gu nhất",
+              "saved_min": 60,
+              "saved_vnd": null,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "id": "travel",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất",
+              "reason": "travel",
+              "text": "bớt 47′ đi xe",
+              "saved_min": 60,
+              "saved_vnd": 120000,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        }
+      ],
+      "overload": {
+        "places": 10,
+        "missing_min": 180,
+        "available": 1320,
+        "needed": 1500,
+        "text": "Không đủ thời gian cho cả 10 nơi: thiếu ~3 giờ"
+      },
+      "robustness": "fragile",
+      "warnings": [
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cafe Đợi Một Người - Yersin cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cà Phê Amelie cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "hours_unknown",
+          "text": "Đèo Prenn: chưa có giờ mở cửa, không kiểm."
+        },
+        {
+          "code": "base_unknown",
+          "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+        },
+        {
+          "code": "travel_rough",
+          "text": "Thời gian di chuyển là ước lượng thô (không có OSRM), không dùng để kết luận độ vững."
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Chưa có giờ mở cửa"
+        }
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "date": "2026-12-14",
+          "weekday": "mon",
+          "window": [
+            "05:28",
+            "21:00"
+          ],
+          "method": "exact",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "05:28",
+              "end": "07:58",
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất"
+            },
+            {
+              "kind": "meal_free",
+              "start": "07:58",
+              "end": "08:28",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:28",
+              "end": "09:38",
+              "from": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "to": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "mode": "motorbike",
+              "note": "+30"
+            },
+            {
+              "kind": "visit",
+              "start": "09:38",
+              "end": "11:00",
+              "place_id": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "name": "Đồi Thông Hai Mộ"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:41",
+              "from": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "to": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:41",
+              "end": "16:11",
+              "place_id": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "name": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery"
+            },
+            {
+              "kind": "travel",
+              "start": "16:11",
+              "end": "16:34",
+              "from": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "to": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:34",
+              "end": "18:04",
+              "place_id": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "name": "Xuân Hương Garden Coffee"
+            },
+            {
+              "kind": "meal_free",
+              "start": "18:04",
+              "end": "19:34",
+              "name": "dinner",
+              "note": "optional"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-12-15",
+          "weekday": "tue",
+          "window": [
+            "05:29",
+            "18:00"
+          ],
+          "method": "heuristic",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "06:30",
+              "end": "08:00",
+              "place_id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "name": "Coffee Em và Trịnh"
+            },
+            {
+              "kind": "meal_free",
+              "start": "08:00",
+              "end": "08:30",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:30",
+              "end": "09:14",
+              "from": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "to": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "09:14",
+              "end": "09:44",
+              "place_id": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "name": "Thác Prenn"
+            },
+            {
+              "kind": "travel",
+              "start": "09:44",
+              "end": "10:27",
+              "from": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "to": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "10:27",
+              "end": "10:57",
+              "place_id": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "name": "Cà Phê Amelie"
+            },
+            {
+              "kind": "wait",
+              "start": "10:57",
+              "end": "11:00",
+              "note": "meal"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:32",
+              "from": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "to": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:32",
+              "end": "15:45",
+              "place_id": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "name": "Cafe Đợi Một Người - Yersin"
+            },
+            {
+              "kind": "travel",
+              "start": "15:45",
+              "end": "16:09",
+              "from": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "to": "0x31711321284ed77f:0x7752634a02e162e9",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:09",
+              "end": "18:00",
+              "place_id": "0x31711321284ed77f:0x7752634a02e162e9",
+              "name": "Hồ Xuân Hương"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "travel": {
+          "source": "rough",
+          "fetched_at": null
+        },
+        "points": {}
+      }
+    },
+    {
+      "run": 4,
+      "selection_s": 0.234,
+      "planning_s": 3.796,
+      "total_s": 4.248,
+      "confirmed": true,
+      "chosen": "fit",
+      "variants": [
+        {
+          "id": "fit",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x31711342bf22ad85:0xfcbe6c44b3b0aeda",
+              "name": "Đèo Prenn",
+              "reason": "fit",
+              "text": "ít khớp gu nhất",
+              "saved_min": 60,
+              "saved_vnd": null,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "id": "travel",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất",
+              "reason": "travel",
+              "text": "bớt 47′ đi xe",
+              "saved_min": 60,
+              "saved_vnd": 120000,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        }
+      ],
+      "overload": {
+        "places": 10,
+        "missing_min": 180,
+        "available": 1320,
+        "needed": 1500,
+        "text": "Không đủ thời gian cho cả 10 nơi: thiếu ~3 giờ"
+      },
+      "robustness": "fragile",
+      "warnings": [
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cafe Đợi Một Người - Yersin cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cà Phê Amelie cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "hours_unknown",
+          "text": "Đèo Prenn: chưa có giờ mở cửa, không kiểm."
+        },
+        {
+          "code": "base_unknown",
+          "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+        },
+        {
+          "code": "travel_rough",
+          "text": "Thời gian di chuyển là ước lượng thô (không có OSRM), không dùng để kết luận độ vững."
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Chưa có giờ mở cửa"
+        }
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "date": "2026-12-14",
+          "weekday": "mon",
+          "window": [
+            "05:28",
+            "21:00"
+          ],
+          "method": "exact",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "05:28",
+              "end": "07:58",
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất"
+            },
+            {
+              "kind": "meal_free",
+              "start": "07:58",
+              "end": "08:28",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:28",
+              "end": "09:38",
+              "from": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "to": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "mode": "motorbike",
+              "note": "+30"
+            },
+            {
+              "kind": "visit",
+              "start": "09:38",
+              "end": "11:00",
+              "place_id": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "name": "Đồi Thông Hai Mộ"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:41",
+              "from": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "to": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:41",
+              "end": "16:11",
+              "place_id": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "name": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery"
+            },
+            {
+              "kind": "travel",
+              "start": "16:11",
+              "end": "16:34",
+              "from": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "to": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:34",
+              "end": "18:04",
+              "place_id": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "name": "Xuân Hương Garden Coffee"
+            },
+            {
+              "kind": "meal_free",
+              "start": "18:04",
+              "end": "19:34",
+              "name": "dinner",
+              "note": "optional"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-12-15",
+          "weekday": "tue",
+          "window": [
+            "05:29",
+            "18:00"
+          ],
+          "method": "heuristic",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "06:30",
+              "end": "08:00",
+              "place_id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "name": "Coffee Em và Trịnh"
+            },
+            {
+              "kind": "meal_free",
+              "start": "08:00",
+              "end": "08:30",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:30",
+              "end": "09:14",
+              "from": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "to": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "09:14",
+              "end": "09:44",
+              "place_id": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "name": "Thác Prenn"
+            },
+            {
+              "kind": "travel",
+              "start": "09:44",
+              "end": "10:27",
+              "from": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "to": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "10:27",
+              "end": "10:57",
+              "place_id": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "name": "Cà Phê Amelie"
+            },
+            {
+              "kind": "wait",
+              "start": "10:57",
+              "end": "11:00",
+              "note": "meal"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:32",
+              "from": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "to": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:32",
+              "end": "15:45",
+              "place_id": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "name": "Cafe Đợi Một Người - Yersin"
+            },
+            {
+              "kind": "travel",
+              "start": "15:45",
+              "end": "16:09",
+              "from": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "to": "0x31711321284ed77f:0x7752634a02e162e9",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:09",
+              "end": "18:00",
+              "place_id": "0x31711321284ed77f:0x7752634a02e162e9",
+              "name": "Hồ Xuân Hương"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "travel": {
+          "source": "rough",
+          "fetched_at": null
+        },
+        "points": {}
+      }
+    },
+    {
+      "run": 5,
+      "selection_s": 0.226,
+      "planning_s": 3.958,
+      "total_s": 4.426,
+      "confirmed": true,
+      "chosen": "fit",
+      "variants": [
+        {
+          "id": "fit",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x31711342bf22ad85:0xfcbe6c44b3b0aeda",
+              "name": "Đèo Prenn",
+              "reason": "fit",
+              "text": "ít khớp gu nhất",
+              "saved_min": 60,
+              "saved_vnd": null,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "id": "travel",
+          "status": "available",
+          "ok": null,
+          "dropped": [
+            {
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất",
+              "reason": "travel",
+              "text": "bớt 47′ đi xe",
+              "saved_min": 60,
+              "saved_vnd": 120000,
+              "regret": null,
+              "source": "plan"
+            }
+          ],
+          "violations": []
+        }
+      ],
+      "overload": {
+        "places": 10,
+        "missing_min": 180,
+        "available": 1320,
+        "needed": 1500,
+        "text": "Không đủ thời gian cho cả 10 nơi: thiếu ~3 giờ"
+      },
+      "robustness": "fragile",
+      "warnings": [
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cafe Đợi Một Người - Yersin cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "near_duplicate",
+          "text": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery và Cà Phê Amelie cùng một kiểu nơi: giữ cả hai cũng được, chỉ là chuyến đi kém đa dạng hơn."
+        },
+        {
+          "code": "hours_unknown",
+          "text": "Đèo Prenn: chưa có giờ mở cửa, không kiểm."
+        },
+        {
+          "code": "base_unknown",
+          "text": "Chưa biết nơi ở: mỗi ngày bắt đầu và kết thúc ở địa điểm đầu / cuối."
+        },
+        {
+          "code": "travel_rough",
+          "text": "Thời gian di chuyển là ước lượng thô (không có OSRM), không dùng để kết luận độ vững."
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Đường vào xấu, đi xe cẩn thận"
+        },
+        {
+          "code": "flag",
+          "text": "Chưa có giờ mở cửa"
+        }
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "date": "2026-12-14",
+          "weekday": "mon",
+          "window": [
+            "05:28",
+            "21:00"
+          ],
+          "method": "exact",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "05:28",
+              "end": "07:58",
+              "place_id": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "name": "Săn Mây Nhà Gỗ Cầu Đất"
+            },
+            {
+              "kind": "meal_free",
+              "start": "07:58",
+              "end": "08:28",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:28",
+              "end": "09:38",
+              "from": "0x317117858b26a649:0x76fcb551efeb3bbf",
+              "to": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "mode": "motorbike",
+              "note": "+30"
+            },
+            {
+              "kind": "visit",
+              "start": "09:38",
+              "end": "11:00",
+              "place_id": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "name": "Đồi Thông Hai Mộ"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:41",
+              "from": "0x31711257bb17c03f:0xf87f236fcb2a2e1c",
+              "to": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:41",
+              "end": "16:11",
+              "place_id": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "name": "Tiệm cà phê phía tây mặt trời - Specialty Coffee Roastery"
+            },
+            {
+              "kind": "travel",
+              "start": "16:11",
+              "end": "16:34",
+              "from": "0x31711344dbfee2cd:0x59ba296e9158de74",
+              "to": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:34",
+              "end": "18:04",
+              "place_id": "0x31711321921ab1eb:0xed01f038d0123ec1",
+              "name": "Xuân Hương Garden Coffee"
+            },
+            {
+              "kind": "meal_free",
+              "start": "18:04",
+              "end": "19:34",
+              "name": "dinner",
+              "note": "optional"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-12-15",
+          "weekday": "tue",
+          "window": [
+            "05:29",
+            "18:00"
+          ],
+          "method": "heuristic",
+          "items": [
+            {
+              "kind": "visit",
+              "start": "06:30",
+              "end": "08:00",
+              "place_id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "name": "Coffee Em và Trịnh"
+            },
+            {
+              "kind": "meal_free",
+              "start": "08:00",
+              "end": "08:30",
+              "name": "breakfast",
+              "note": "free"
+            },
+            {
+              "kind": "travel",
+              "start": "08:30",
+              "end": "09:14",
+              "from": "0x31711332f9d5e579:0x1877f002ad5b9bda",
+              "to": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "09:14",
+              "end": "09:44",
+              "place_id": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "name": "Thác Prenn"
+            },
+            {
+              "kind": "travel",
+              "start": "09:44",
+              "end": "10:27",
+              "from": "0x317115253d4e1fd1:0xebb00b8b120ac8c3",
+              "to": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "10:27",
+              "end": "10:57",
+              "place_id": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "name": "Cà Phê Amelie"
+            },
+            {
+              "kind": "wait",
+              "start": "10:57",
+              "end": "11:00",
+              "note": "meal"
+            },
+            {
+              "kind": "meal_free",
+              "start": "11:00",
+              "end": "12:00",
+              "name": "lunch",
+              "note": "free"
+            },
+            {
+              "kind": "busy",
+              "start": "12:00",
+              "end": "14:30",
+              "name": "Nghỉ trưa bù dậy sớm",
+              "note": "rest"
+            },
+            {
+              "kind": "travel",
+              "start": "14:30",
+              "end": "14:32",
+              "from": "0x317113cec54445ab:0xb8b4d3a9798ecc02",
+              "to": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "mode": "motorbike"
+            },
+            {
+              "kind": "visit",
+              "start": "14:32",
+              "end": "15:45",
+              "place_id": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "name": "Cafe Đợi Một Người - Yersin"
+            },
+            {
+              "kind": "travel",
+              "start": "15:45",
+              "end": "16:09",
+              "from": "0x317113b129f42dd1:0xb4e7fb39c030f63b",
+              "to": "0x31711321284ed77f:0x7752634a02e162e9",
+              "mode": "motorbike",
+              "note": "+20"
+            },
+            {
+              "kind": "visit",
+              "start": "16:09",
+              "end": "18:00",
+              "place_id": "0x31711321284ed77f:0x7752634a02e162e9",
+              "name": "Hồ Xuân Hương"
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "travel": {
+          "source": "rough",
+          "fetched_at": null
+        },
+        "points": {}
+      }
+    }
+  ]
+}

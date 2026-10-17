@@ -127,11 +127,13 @@ def harness_bench(trips_n: int = 10) -> dict:
     from decision import Tools, create_engine, eval_search_input, eval_trips
 
     tools = Tools(create_engine(ROOT / "data"))
+    binding = tools.engine.corpus_binding       # Tools refuses a Search Input that is not bound to the engine's release
     version, trips = eval_trips()
     times: dict[str, list[float]] = {"decision.create": [], "decision.select": []}
     for trip in trips[:trips_n]:
         si = eval_search_input(trip, version).model_dump(mode="json")
         si["ontology_version"] = load_ontology().version
+        si["corpus_binding"] = binding.model_dump(mode="json") if hasattr(binding, "model_dump") else binding
         d, dt = timed(tools.create, {"search_input": si})
         times["decision.create"].append(dt)
         cards = [c["id"] for g in d["view"]["groups"] for c in g["cards"]]

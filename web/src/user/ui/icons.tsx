@@ -108,9 +108,8 @@ export function BotAvatar({ size = 32, live = false }: { size?: number; live?: b
   )
 }
 
-// The terracotta brand artwork (web/public/img/brand, recoloured with cx/gpt-6.1-sol, see img/gen/manifest.json): `full` is the mascot with the
-// wordmark, `mark` the mascot alone for narrow places. Both sit centred in the same size×3 by size×2 box, so swapping
-// one for the other never moves the layout.
-export function Logo({ size = 28, dark = false, variant = 'full' }: { size?: number; dark?: boolean; variant?: 'full' | 'mark' }) {
-  return <img className={`tg-logo${dark ? ' is-dark' : ''}`} src={`/img/brand/${variant === 'mark' ? 'mark' : 'logo-full'}.webp`} width={size * 3} height={size * 2} alt="TripGuardian" />
+// The brand logo (web/public/img/brand/cat-full.webp, cut from the supplied logo, background transparent): the cat, the wordmark and "since 2026".
+// The old cloud (brand/mark.webp) stays only as the landing scene's mascot.
+export function Logo({ size = 28, dark = false }: { size?: number; dark?: boolean }) {
+  return <img className={`tg-logo${dark ? ' is-dark' : ''}`} src="/img/brand/cat-full.webp" width={size * 4} height={size * 1.5} alt="TripGuardian" />
 }

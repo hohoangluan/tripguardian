@@ -1,0 +1,79 @@
+{
+  "place_id": "0x317113000ae00179:0x4fe68f81ea58fd86",
+  "place_name": "Trạm Ký Ức",
+  "url": "https://www.google.com/maps/place/Tr%E1%BA%A1m+K%C3%BD+%E1%BB%A8c/data=!4m7!3m6!1s0x317113000ae00179:0x4fe68f81ea58fd86!8m2!3d11.956829!4d108.4876487!16s%2Fg%2F11vxcl85t4!19sChIJeQHgCgATcTERhv1Y6oGP5k8?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
+  "observation_file": "data/gmaps/observations/0x317113000ae00179_0x4fe68f81ea58fd86.json",
+  "review_file": "data/gmaps/places/0x317113000ae00179_0x4fe68f81ea58fd86/reviews.json",
+  "observation": {
+    "id": "gmaps:Ci9DQUlRQUNvZENodHljRjlvT2tJeFJHZG9VblpQZFdGdlZFdDRhblJUYVVWSk1FRRAB:2",
+    "place_fid": "0x317113000ae00179:0x4fe68f81ea58fd86",
+    "feature": "crowd",
+    "value": "high",
+    "context": {
+      "time_of_day": "unknown",
+      "day_type": "unknown",
+      "weather": "unknown"
+    },
+    "source_type": "gmaps_review",
+    "source_id": "Ci9DQUlRQUNvZENodHljRjlvT2tJeFJHZG9VblpQZFdGdlZFdDRhblJUYVVWSk1FRRAB",
+    "observed_at": "2026-09-12",
+    "span": {
+      "quote": "đông quá",
+      "field": "text",
+      "start_s": null,
+      "end_s": null
+    },
+    "extractor": "review_observe@9d7a20fc2532",
+    "ontology_version": 12
+  },
+  "published_text": "một tháng trước",
+  "as_of": "2026-10-12",
+  "serving_feature": {
+    "value": "high",
+    "distribution": {
+      "high": 21,
+      "low": 1
+    },
+    "status": "VERIFIED",
+    "reason": null,
+    "n": 22,
+    "mention_rate": 0.022,
+    "confidence": {
+      "independent_sources": 22,
+      "agreement": 0.955,
+      "freshness_days": 30,
+      "source_types": [
+        "provider"
+      ]
+    },
+    "by_context": {
+      "time_of_day=afternoon": {
+        "high": 2
+      },
+      "time_of_day=evening": {
+        "high": 1
+      },
+      "time_of_day=morning": {
+        "high": 1
+      },
+      "time_of_day=noon": {
+        "low": 1
+      },
+      "day_type=holiday": {
+        "high": 2
+      },
+      "weather=sunny": {
+        "high": 1
+      }
+    },
+    "precision": 0.748,
+    "evidence": [
+      "gmaps:Ci9DQUlRQUNvZENodHljRjlvT2tJeFJHZG9VblpQZFdGdlZFdDRhblJUYVVWSk1FRRAB:2",
+      "gmaps:Ci9DQUlRQUNvZENodHljRjlvT2xaRVF6UkJXVGt5UTJ0SE1HOUhlVU0wU1cxbFRXYxAB:2",
+      "gmaps:Ci9DQUlRQUNvZENodHljRjlvT2xOTFZ6ZHpVbnBOVmtoQlNHRm9ia0pvWlhvMU1sRRAB:3",
+      "gmaps:Ci9DQUlRQUNvZENodHljRjlvT2xJd1RVZHpPVEkwTkVkNmJUVldVelUxZG1sRk5XYxAB:0",
+      "gmaps:Ci9DQUlRQUNvZENodHljRjlvT21KcFpuWmlaMlIwTkdkMWVuTnJhaTFSUmxGU1ZuYxAB:4"
+    ]
+  },
+  "quote_verified_in_source": true
+}

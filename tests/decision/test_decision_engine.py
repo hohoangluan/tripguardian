@@ -5,7 +5,7 @@ from fixtures import hard, love, si, srec
 
 from decision.agent import AgentError
 from decision.curation import ActionError
-from decision.engine import Engine, NoSession, NotConfirmable, VersionMismatch, diff
+from decision.engine import PROMPT_PER_GROUP, Engine, NoSession, NotConfirmable, VersionMismatch, diff
 from decision.guard import PlanUpdate, TurnPlan
 from decision.pipeline import Data
 from decision.session import Store
@@ -207,11 +207,15 @@ def test_page_extends_the_window_and_is_kept_in_the_session():
             for i in range(60)]
     e = Engine(Data(recs), CFG, Store(None), None)
     out = e.create(trip())
-    g = next(x for x in out["view"]["groups"] if x["id"] == "chill")
+    g = next(x for x in out["view"]["groups"] if x["id"] == "cafe")  # the tab is the place kind (config tabs)
     assert len(g["cards"]) == CFG.page_size
-    more = e.page(out["id"], "chill")["view"]
-    g2 = next(x for x in more["groups"] if x["id"] == "chill")
-    assert len(g2["cards"]) == 2 * CFG.page_size and [c["id"] for c in g2["cards"]][: CFG.page_size] == [c["id"] for c in g["cards"]]
+    more = e.page(out["id"], "cafe")["view"]
+    g2 = next(x for x in more["groups"] if x["id"] == "cafe")
+    # a page replaces the previous one (docs/PLACE_DECISION.md §9.4): the next 24 places, not the first 24 plus 24
+    ranked = e._result(e.store.get(out["id"])).ranked["cafe"]
+    assert [c["id"] for c in g["cards"]] == ranked[:CFG.page_size]
+    assert [c["id"] for c in g2["cards"]] == ranked[CFG.page_size:2 * CFG.page_size]
+    assert (g2["page"], g2["offset"], g2["total"], g2["pages"]) == (1, CFG.page_size, 60, 3)
     assert e.load(out["id"])["view"]["groups"] == more["groups"]
 
 
@@ -275,22 +279,29 @@ def test_why_not_for_a_listed_place_below_the_loaded_window_says_where_it_is():
             for i in range(60)]
     e = Engine(Data(recs), CFG, Store(None), None)
     sid = e.create(trip())["id"]
-    ranked = e._result(e.store.get(sid)).ranked["chill"]
+    ranked = e._result(e.store.get(sid)).ranked["cafe"]
     r = e.why_not(sid, ranked[40])
-    assert r["reasons"] == ["Nơi này có trong danh sách Cà phê và thư giãn, xếp thứ 41/60; cuộn xuống để thấy"]
+    assert r["reasons"] == ["Nơi này có trong danh sách Cà phê, xếp thứ 41/60; ở trang 2"]
 
 
-def test_agent_sees_every_shown_place_but_reasons_only_for_the_first_page():
+def test_agent_sees_the_first_places_of_a_tab_and_those_the_user_names():
     recs = [srec(f"C{i:02d}", features={"scenic_view": "present", "steep_or_stairs": "absent"}, lng=108.44 + i / 1000)
             for i in range(60)]
     agent = FakeAgent(TurnPlan(say="Mình hiểu rồi."))
     e = Engine(Data(recs), CFG, Store(None), agent)
     sid = e.create(trip())["id"]
-    e.page(sid, "chill")
     e.turn(sid, "bạn nghĩ sao", lambda *a: None)
-    lines = agent.calls[0]["places"].splitlines()
-    assert len(lines) == 2 * CFG.page_size
-    assert sum(1 for x in lines if x.endswith("| ")) == CFG.page_size
+    lines = [x for x in agent.calls[0]["places"].splitlines() if x.startswith("P")]
+    assert len(lines) == PROMPT_PER_GROUP and not any(x.endswith("| ") for x in lines)  # first page: reasons
+    e.page(sid, "cafe")
+    e.turn(sid, "bạn nghĩ sao", lambda *a: None)
+    lines = [x for x in agent.calls[1]["places"].splitlines() if x.startswith("P")]
+    assert len(lines) == PROMPT_PER_GROUP and all(x.endswith("| ") for x in lines)  # a later page: places only
+    shown = [c["name"] for g in e.load(sid)["view"]["groups"] if g["id"] == "cafe" for c in g["cards"]]
+    named = shown[-1]  # on screen, far past the first few of the tab
+    assert not any(named in x for x in agent.calls[1]["places"].splitlines())
+    e.turn(sid, f"nghĩ sao về {named}", lambda *a: None)
+    assert any(named in x for x in agent.calls[2]["places"].splitlines())  # a shown place the user names is always sent
 
 
 def test_a_lodging_picked_at_lua_chon_goes_into_the_output_and_ranks_nothing_again():

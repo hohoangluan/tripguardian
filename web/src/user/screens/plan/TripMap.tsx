@@ -163,7 +163,7 @@ export function TripMap({ groups, title, className = '', hot, onHot, onOpen, lab
             <span key={`${s.id}-${s.n}`}>
               <button type="button" className={`tg-it-pin ${on ? 'is-hot' : ''}`} style={{ left: x, top: y }} aria-label={`${s.n}. ${info(s.id)?.name ?? s.id}`}
                 onMouseEnter={() => onHot?.(s.id)} onMouseLeave={() => onHot?.(null)} onFocus={() => onHot?.(s.id)} onBlur={() => onHot?.(null)} onClick={() => onOpen?.(s.id)}>{s.n}</button>
-              {labels && on && <span className="tg-it-pin__label" style={{ left: Math.max(70, Math.min(w - 70, x)), top: y }}>{info(s.id)?.name}</span>}
+              {labels && on && <span className="tg-it-pin__label" style={{ left: Math.max(100, Math.min(w - 100, x)), top: y }}><small>{info(s.id)?.category ?? 'Địa điểm'}</small><b>{info(s.id)?.name}</b></span>}
             </span>
           )
         })}

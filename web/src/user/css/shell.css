@@ -2,7 +2,10 @@
 .tg-logo { display: block; flex: none; object-fit: contain; }
 .tg-logo.is-dark { filter: brightness(0) invert(1); }
 .tg-app { min-height: 100vh; }
-.tg-app.has-rail { padding-left: var(--tg-rail); }
+.tg-app.has-rail { --tg-rail: 112px; --rail-in: 112px; padding-left: var(--tg-rail); }
+/* the sidebar beside the trip-flow screens: the same 76 px rail as the homepage, fixed to the left edge */
+.tg-flowside { position: fixed; z-index: 45; top: 0; bottom: 0; left: 18px; width: 76px; display: flex; padding: 14px 0 12px; }
+.tg-flowside > .tg-hf__side { width: 100%; }
 .tg-rail { position: fixed; z-index: 40; inset: 0 auto 0 0; width: var(--tg-rail); display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 18px 0; background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(12px); border-right: 1px solid var(--tg-line); }
 .tg-rail ul { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .tg-rail__logo { display: grid; place-items: center; width: 44px; height: 44px; }
@@ -18,7 +21,6 @@
 
 /* ---- focused flow bar ---- */
 .tg-flowbar { position: sticky; top: 0; z-index: 30; height: var(--tg-top); display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); column-gap: 16px; align-items: center; padding: 0 28px; background: rgba(246, 246, 246, 0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--tg-line); }
-.tg-flowbar__logo { display: inline-flex; align-items: center; justify-content: center; width: max-content; }
 .tg-flowbar__ops { justify-self: end; display: flex; align-items: center; gap: 10px; }
 .tg-steps { display: flex; align-items: center; gap: 6px; }
 .tg-steps li { display: flex; align-items: center; gap: 6px; }

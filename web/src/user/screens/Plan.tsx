@@ -219,7 +219,7 @@ export function Plan() {
     <>
       {note && screen !== 'swap' && <div className="tg-it-toast">{note}</div>}
       {screen === 'overview' && <Overview days={days} variant={variant} robustness={robustness} travelMin={travel} visitMin={metrics?.visit_min ?? 0} droppedCount={droppedCount}
-        lodgingName={lodgingName} hasHotel={hasHotel} notices={notices} footer={overviewFooter} busy={busy} delta={delta} sameAs={sameAs}
+        lodgingName={lodgingName} hasHotel={hasHotel} arriveHow={trip.searchInput?.context.frame?.arrive?.how ?? trip.searchInput?.context.arrival_mode} leaveHow={trip.searchInput?.context.frame?.leave?.how ?? trip.searchInput?.context.arrival_mode} notices={notices} footer={overviewFooter} busy={busy} delta={delta} sameAs={sameAs}
         after={view.keep_all ? <KeepAll variant={view.keep_all} busy={busy} onPick={(id) => act({ type: 'pick_variant', id })} /> : null} onReoptimize={() => { void previewAct({ type: 'reoptimize' }) }} onDay={openDay} onChangeVariant={() => setChanging(true)} onHotel={toLodging}
         onDropped={() => setDroppedOpen(true)} onStory={() => setStory(true)} onOpen={openPlace} />}
       {screen === 'day' && d && <DayView days={days} dayIdx={dayIdx} week={Math.floor(dayIdx / 7)} onDay={setDayIdx} busy={busy} locked={view.state.locked}

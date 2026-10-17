@@ -104,3 +104,31 @@ def test_a_released_pin_survives_a_pace_change_and_a_reorder_and_stays_confirmab
         assert 16 * 60 + 15 <= park.start <= 17 * 60 + 10, action
     e.act(sid, {"type": "set_lodging", "text": "Chosen hotel", "lat": 11.94, "lng": 108.45})
     assert e.confirm(sid)
+
+
+HOTPOT_SIDES = ["Ba chỉ bò", "Thăn bò", "Rau các loại", "Nấm", "Bò viên"]
+
+
+def test_one_porridge_on_a_hotpot_menu_does_not_make_a_breakfast_venue():
+    """Regression, journey f2290ada068b: three hotpot / grill restaurants each listed a porridge among their sides, were
+    read as breakfast venues (breakfast / lunch only), and left the 14:00-21:00 first day with no dinner and no visit."""
+    hotpot = eat("lau", "restaurant", "Lẩu nướng phố đêm", dishes=HOTPOT_SIDES + ["Cháo hải sản"])
+    assert meal_kind(hotpot, CFG) == "main"
+    porridge = eat("chao", "restaurant", "Quán Y", dishes=["Cháo lòng", "Cháo sườn", "Cháo cá"])
+    assert meal_kind(porridge, CFG) == "breakfast"
+    sectioned = eat("sang", "restaurant", "Quán Z", dishes=["Gà nướng", "Cơm"])
+    sectioned["menu"]["dishes"][0]["section"] = "Bữa sáng"
+    assert meal_kind(sectioned, CFG) == "breakfast"
+
+
+def test_a_late_first_day_still_gets_the_hotpot_dinner():
+    from planning.build import schedule_trip
+    recs = [eat(f"lau{i}", "restaurant", f"Lẩu {i}", dishes=HOTPOT_SIDES + ["Cháo hải sản"]) for i in range(3)]
+    for i, r in enumerate(recs):
+        r["identity"]["lat"], r["identity"]["lng"] = 11.94 + i * 0.002, 108.44
+    d = decision([r["id"] for r in recs], days=3, arrive_at="14:00")
+    from plan_fixtures import prepared
+    trip = prepared(d, recs)
+    sched = schedule_trip(trip)
+    assert not sched.leftover
+    assert sched.results[0].order, "day 1 (14:00-21:00) must hold the hotpot dinner, not stay empty"

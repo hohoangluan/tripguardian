@@ -15,7 +15,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from requirements import Activity
 
-from corpus.ontology import load as load_ontology
+from .feature_ontology import ontology
 
 from .settings import to_min
 
@@ -80,7 +80,7 @@ class ActCtx:
 
 
 def _is_physical(feature: str) -> bool:
-    f = load_ontology().features.get(feature)
+    f = ontology().features.get(feature)
     return f is not None and f.group == "effort"
 
 
@@ -292,7 +292,7 @@ def apply_act(state: State, action: dict, ctx: ActCtx) -> State:
         s.chosen_variant, s.plan_dropped, s.order_override = "main", [], {}
     elif t == "relax":
         feature = action.get("feature")
-        if feature not in load_ontology().features:
+        if feature not in ontology().features:
             raise ActionError(f"unknown feature {feature!r}")
         if _is_physical(feature):
             raise ActionError(f"{feature!r} is a physical constraint, it cannot be relaxed")

@@ -84,7 +84,9 @@ class Settings:
     repair_local_additions: int = 1
     repair_search_limit: int = 720
     cache_entries: int = 128
+    route_cache_entries: int = 4096   # one trip's day layouts / orders (build.Trip.routes), reused across the overload search
     suggestion_workers: int = 2
+    direction_workers: int = 3        # overload directions searched in forked processes at once (1 = in this process)
     chunk_days: int = 7
     long_trip_exact_n: int = 5
     composer: dict = field(default_factory=lambda: {"rho": 0.9, "alpha": 0.7, "tight_ratio": 0.8,

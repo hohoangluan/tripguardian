@@ -76,9 +76,9 @@ export function ReadbackSheet({ id, initial, missing: initialMissing, onClose, o
         {ask ? <GateAsk key={JSON.stringify(deck)} deck={deck} busy={busy} issues={issues} lines={readback.lines} changed={changed} error={error}
             onAnswer={answers => update({ kind: 'deck', answers })} onOther={edit} onDrop={target => update({ kind: 'drop', target })} />
           : <div className="tg-gt__page is-read">
-            <aside className="tg-gt__aside" style={{ '--photo': 'url(/img/home/cloud.jpg)' } as React.CSSProperties}>
+            <aside className="tg-gt__aside" style={{ '--photo': 'url(/img/home/dalat-tea-sunrise.jpg)' } as React.CSSProperties}>
               <Stamp icon={asking ? 'sparkle' : 'route'} className="tg-gt__stamp" />
-              <p className="tg-gt__kicker"><img src="/img/gen/bot-avatar.webp" alt="" width="34" height="34" />Trước khi lập lịch</p>
+              <p className="tg-gt__kicker">Trước khi lập lịch</p>
               <p className="tg-gt__num" aria-hidden="true">{readback.lines.length}<small> điều đã ghi nhận</small></p>
               <Dialog.Title className="tg-gt__title">{asking ? <>Còn {missing.length} câu nữa <em>là xếp lịch được</em></> : <>Mình sẽ xếp lịch <em>theo những điều này</em></>}</Dialog.Title>
               <Dialog.Description id="readback-description" className="tg-gt__why">{asking ? 'Còn vài điều chưa rõ. Bạn mở lại phần Tìm hiểu để bổ sung nhé.' : 'Bạn xem lại một lượt. Chỗ nào chưa đúng thì bấm vào dòng đó để sửa.'}</Dialog.Description>

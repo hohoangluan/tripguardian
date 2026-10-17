@@ -284,6 +284,7 @@ class Meta(Frozen):
     other_qid: str | None = None  # quiz card a typed answer left unclear: the chat is resolving it
     other_text: str | None = None  # that unclear answer, in the user's words
     followups: int = 0  # turns in a row that ended on the agent's own question (text or ask_user), not a required one
+    nudged: tuple[str, ...] = ()  # required topics the app itself opened because the agent asked none (each at most twice)
 
 
 class Draft(Frozen):

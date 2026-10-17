@@ -1,14 +1,22 @@
 """Bounded RAM entries keyed by the actual inputs of a day's computation."""
 
 import hashlib
-import json
 from dataclasses import is_dataclass
+
+import orjson
+
+
+def _encode(obj):
+    return vars(obj) if is_dataclass(obj) else str(obj)
+
+
+_OPTIONS = orjson.OPT_SORT_KEYS | orjson.OPT_NON_STR_KEYS | orjson.OPT_PASSTHROUGH_DATACLASS
 
 
 def fingerprint(value) -> str:
-    def encode(obj):
-        return vars(obj) if is_dataclass(obj) else str(obj)
-    return hashlib.sha256(json.dumps(value, sort_keys=True, default=encode).encode()).hexdigest()
+    """A stable hash of everything that decides a cached answer. orjson, not json: a day key serialises the whole day
+    (several hundred keys) and the standard encoder was a fifth of an edit."""
+    return hashlib.sha256(orjson.dumps(value, option=_OPTIONS, default=_encode)).hexdigest()
 
 
 _BY_ID: dict = {}          # id(frozen object) -> (object, fingerprint): Settings and Place are frozen and never mutated

@@ -1,0 +1,77 @@
+{
+  "source_run": "fast1",
+  "recorded_20261017": true,
+  "completed_topics": 34,
+  "total_topics": 35,
+  "rows": [
+    {
+      "persona": "friends",
+      "turns": 10,
+      "done": [
+        "trip",
+        "companions",
+        "mobility",
+        "care",
+        "pace",
+        "budget",
+        "lodging"
+      ],
+      "source": "logs/bench_trip/fast1/friends.json"
+    },
+    {
+      "persona": "vague",
+      "turns": 16,
+      "done": [
+        "companions",
+        "mobility",
+        "care",
+        "pace",
+        "budget",
+        "lodging"
+      ],
+      "source": "logs/bench_trip/fast1/vague.json"
+    },
+    {
+      "persona": "couple",
+      "turns": 8,
+      "done": [
+        "trip",
+        "companions",
+        "mobility",
+        "care",
+        "pace",
+        "budget",
+        "lodging"
+      ],
+      "source": "logs/bench_trip/fast1/couple.json"
+    },
+    {
+      "persona": "family",
+      "turns": 7,
+      "done": [
+        "trip",
+        "companions",
+        "mobility",
+        "care",
+        "pace",
+        "budget",
+        "lodging"
+      ],
+      "source": "logs/bench_trip/fast1/family.json"
+    },
+    {
+      "persona": "foodie",
+      "turns": 8,
+      "done": [
+        "trip",
+        "companions",
+        "mobility",
+        "care",
+        "pace",
+        "budget",
+        "lodging"
+      ],
+      "source": "logs/bench_trip/fast1/foodie.json"
+    }
+  ]
+}

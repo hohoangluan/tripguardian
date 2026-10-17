@@ -4,6 +4,8 @@ version: 1
 repair_local_additions: 1
 repair_search_limit: 720
 cache_entries: 128
+direction_workers: 3        # overload: fit / travel / cost searched in forked processes at once; 1 = one after another
+route_cache_entries: 4096   # Trip.routes: the days and orders of one trip, shared by every subset the overload search tries
 suggestion_workers: 2
 
 # Deterministic proposals from the user's selection. Transport rates require sourced configuration.

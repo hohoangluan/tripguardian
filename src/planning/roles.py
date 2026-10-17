@@ -63,12 +63,20 @@ def meal_kind(rec: dict, cfg) -> str | None:
     breakfast_sections = ('bữa sáng', 'breakfast', 'điểm tâm', 'ăn sáng')
     other_sections = ('lẩu', 'nướng', 'đồ uống', 'thức uống', 'nước uống', 'giải khát', 'tráng miệng',
                       'dessert', 'drinks', 'cà phê', 'coffee', 'bia', 'rượu', 'sinh tố', 'nước ép')
+    # A breakfast section decides at once. Breakfast dishes outside it decide only when they are the menu's bulk: one
+    # porridge among a hotpot / grill restaurant's side dishes does not make it a breakfast venue (it left the first
+    # evening of a trip with no dinner).
+    plain = hits = 0
     for dish in (rec.get('menu') or {}).get('dishes') or []:
         section = dish.get('section') or ''
         if _contains(section, breakfast_sections):
             return "breakfast"
-        if not _contains(section, other_sections) and _contains(dish.get('name') or '', breakfast):
-            return "breakfast"
+        if _contains(section, other_sections):
+            continue
+        plain += 1
+        hits += _contains(dish.get('name') or '', breakfast)
+    if hits and hits * 2 >= plain:
+        return "breakfast"
     return "main"
 
 

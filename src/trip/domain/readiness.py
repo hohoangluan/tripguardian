@@ -28,6 +28,6 @@ def missing(state: TripState, required: tuple[str, ...] = REQUIRED) -> list[tupl
         "pace": answered(state.pace) and "pace" not in state.meta.conflicts,
         "budget": (answered(state.budget_unlimited) and state.budget_unlimited.value is True)
                   or (answered(state.budget_vnd) and answered(state.budget_scope)),
-        "lodging": answered(state.lodging),
+        "lodging": answered(state.lodging) or "lodging" in state.meta.declined,  # skipped = "Cứ xếp giúp": the app picks
     }
     return [(key, LABEL[key]) for key in required if not known.get(key, False)]

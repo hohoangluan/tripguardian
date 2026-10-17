@@ -10,6 +10,10 @@ import { dayAreas, placeName, shortDate, visits } from './shared'
 // Mẫu ui_mock_for_design/designs/itinerary (màn tổng quan): the whole trip on one map, then the journey top to bottom —
 // arrival, where to sleep, one card per day, departure. A day opens on its own screen.
 
+// How the traveller comes and goes; an unknown way gets a neutral pin, never a plane.
+const WAY_ICON: Record<string, IconName> = { plane: 'plane', bus: 'bus', self: 'car' }
+const wayIcon = (how?: string | null): IconName => WAY_ICON[how ?? ''] ?? 'pin'
+
 const ROBUST_CLS: Record<string, string> = { solid: 'hi', feasible: 'mid', fragile: 'lo' }
 
 function Row({ icon, title, sub, children }: { icon: IconName; title: string; sub: string; children: ReactNode }) {
@@ -21,9 +25,9 @@ function Row({ icon, title, sub, children }: { icon: IconName; title: string; su
   )
 }
 
-export function Overview({ days, variant, robustness, travelMin, visitMin, droppedCount, lodgingName, hasHotel, notices, after, delta, sameAs, busy, footer, onDay, onChangeVariant, onHotel, onDropped, onStory, onReoptimize, onOpen }: {
+export function Overview({ days, variant, robustness, travelMin, visitMin, droppedCount, lodgingName, hasHotel, arriveHow, leaveHow, notices, after, delta, sameAs, busy, footer, onDay, onChangeVariant, onHotel, onDropped, onStory, onReoptimize, onOpen }: {
   days: ItineraryDay[]; variant: Variant | null; robustness?: Robustness; travelMin: number; visitMin: number; droppedCount: number
-  lodgingName: string | null; hasHotel: boolean; notices: ReactNode; after: ReactNode; delta: string | null; sameAs: string | null; busy: boolean; footer: ReactNode
+  lodgingName: string | null; hasHotel: boolean; arriveHow?: string | null; leaveHow?: string | null; notices: ReactNode; after: ReactNode; delta: string | null; sameAs: string | null; busy: boolean; footer: ReactNode
   onDay: (i: number) => void; onChangeVariant: () => void; onHotel: () => void; onDropped: () => void; onStory: () => void; onReoptimize: () => void; onOpen: (id: string) => void
 }) {
   const ids = days.flatMap((d) => visits(d).map((it) => it.place_id!))
@@ -50,20 +54,20 @@ export function Overview({ days, variant, robustness, travelMin, visitMin, dropp
           <div className="tg-it-intro">
             <h1>Đà Lạt</h1>
             <p>{days.length} ngày, {ids.length} nơi. Mở từng ngày để xem, đổi hoặc thêm nơi muốn ghé.</p>
-            {variant?.preset && variant.tradeoff && <p className="tg-it-intro__trade tg-faint">Đánh đổi: {variant.tradeoff}{sameAs ? ` · Cùng lịch với ${sameAs}.` : ''}</p>}
+            {variant && variant.id !== 'main' && variant.tradeoff && <p className="tg-it-intro__trade tg-faint">Đánh đổi: {variant.tradeoff}{sameAs ? ` · Cùng lịch với ${sameAs}.` : ''}</p>}
             {delta && <p className="tg-it-intro__trade tg-faint">{delta}</p>}
             <ul className="tg-it-facts">
               <li><Icon name="route" size={15} />≈ {fmtMin(travelMin)} di chuyển</li>
               <li><Icon name="clock" size={15} />≈ {fmtMin(visitMin)} tham quan</li>
               {robustness && <li><Hint label={robustness.reasons.join(' ') || robustness.label}><b className={`tg-robust is-${ROBUST_CLS[robustness.level]}`}>{robustness.label} <Icon name="info" size={14} /></b></Hint></li>}
               <li><button type="button" className="tg-it-textbtn" onClick={onStory}>Xem sơ đồ hành trình</button></li>
-              {variant?.preset && <li><button type="button" className="tg-it-textbtn" disabled={busy} onClick={onReoptimize}>Tối ưu lại quanh lựa chọn của tôi</button></li>}
+              {variant && variant.id !== 'main' && <li><button type="button" className="tg-it-textbtn" disabled={busy} onClick={onReoptimize}>Tối ưu lại quanh lựa chọn của tôi</button></li>}
             </ul>
             <div className="tg-it-plan"><span><Icon name="check" size={14} />{label} · {ids.length} nơi trong lịch</span>{droppedCount > 0 && <button type="button" className="tg-it-textbtn" onClick={onDropped}>{droppedCount} nơi tạm bỏ <Icon name="chevronRight" size={14} /></button>}</div>
           </div>
         </Row>
-        <Row icon="plane" title="Đến Đà Lạt" sub={shortDate(first?.date, 1)}>
-          <div className="tg-it-transit"><span><Icon name="plane" size={16} /><b>Di chuyển đến Đà Lạt</b></span><span>{first ? `Lịch ngày đầu bắt đầu lúc ${first.window[0]}` : 'Chưa có thông tin chuyến đến'}</span></div>
+        <Row icon={wayIcon(arriveHow)} title="Đến Đà Lạt" sub={shortDate(first?.date, 1)}>
+          <div className="tg-it-transit"><span><Icon name={wayIcon(arriveHow)} size={16} /><b>Di chuyển đến Đà Lạt</b></span><span>{first ? `Lịch ngày đầu bắt đầu lúc ${first.window[0]}` : 'Chưa có thông tin chuyến đến'}</span></div>
         </Row>
         <Row icon="bed" title="Chỗ nghỉ" sub={days.length > 1 ? `${days.length - 1} đêm` : 'Không nghỉ đêm'}>
           <div className="tg-it-transit"><span><Icon name="bed" size={16} /><b>{hasHotel && lodgingName ? lodgingName : 'Chưa chọn chỗ nghỉ'}</b></span><button type="button" className="tg-it-textbtn" onClick={onHotel}>{hasHotel ? 'Đổi chỗ nghỉ' : 'Chọn chỗ nghỉ'} <Icon name="chevronRight" size={14} /></button></div>
@@ -88,8 +92,8 @@ export function Overview({ days, variant, robustness, travelMin, visitMin, dropp
             })}
           </div>
         </Row>
-        <Row icon="plane" title="Rời Đà Lạt" sub={shortDate(last?.date, days.length)}>
-          <div className="tg-it-transit"><span><Icon name="plane" size={16} /><b>Di chuyển về</b></span><span>{last ? `Lịch ngày cuối kết thúc lúc ${last.window[1]}` : 'Chưa có thông tin chuyến về'}</span></div>
+        <Row icon={wayIcon(leaveHow)} title="Rời Đà Lạt" sub={shortDate(last?.date, days.length)}>
+          <div className="tg-it-transit"><span><Icon name={wayIcon(leaveHow)} size={16} /><b>Di chuyển về</b></span><span>{last ? `Lịch ngày cuối kết thúc lúc ${last.window[1]}` : 'Chưa có thông tin chuyến về'}</span></div>
         </Row>
         {after}
       </main>

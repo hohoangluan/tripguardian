@@ -36,6 +36,7 @@ Sửa sau này: chuyển Hiện tại sang Trước đó, viết Hiện tại m�
 ### Hiện tại (2026-10-16)
 - hành vi: trong chat app không tự mở mục bắt buộc; agent hỏi qua `ask_required(topic, question)` (hoặc `record_fact.ask_question`) bằng lời bám mạch, app thêm phần trả lời; lời mặc định của mục chỉ ở cổng trước lập lịch. Mọi lựa chọn trên thẻ chạy agent một lần (`picked`), nên câu kế bám câu trả lời vừa bấm.
 - hành vi: lựa chọn của `ask_user` do app đặt lời từ write (`taste_bank.py`), lựa chọn lạ hay chứa số người dùng chưa nói bị bỏ; thẻ sở thích hiện ảnh thật mỗi lựa chọn khi đủ ảnh; thẻ có thì lời agent không kèm câu hỏi thứ hai; thẻ xác nhận `confirm.*` đợi khi người dùng đang hỏi.
+- hành vi (2026-10-17): app tự mở mục bắt buộc kế tiếp khi agent không hỏi gì hoặc đã hỏi riêng 3 lượt liền (`engine._due_required`, `meta.nudged`); `prepass.party_size` đọc "nhóm mình 6 đứa". Bench 5 persona: 23/35 lên 33/35 fact bắt buộc.
 - hành vi: người yêu / vợ chồng, đi một mình không hỏi số người; nhóm khác hỏi số người sau khi chọn nhóm, có nút 2–6 người; thẻ chỉ hỏi số / ngày / chỗ ở không có dòng "Khác".
 - hành vi: overlay ảnh gửi được chữ gõ ("Gửi ý của bạn"). Kéo thả file vào bất kỳ chỗ nào của khung chat; một ảnh mỗi tin nhắn. Ảnh reader không thấy nơi chốn và không khớp rõ ảnh corpus (biểu đồ, ảnh chụp màn hình) trả `NOT_PLACE_SAY`, không dựng thẻ sở thích.
 

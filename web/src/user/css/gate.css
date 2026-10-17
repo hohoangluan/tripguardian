@@ -48,7 +48,6 @@
 @keyframes tg-gt-photo { from { opacity: 0; scale: 1.08; } }
 .tg-gt__aside > :is(.tg-gt__kicker, .tg-gt__num, .tg-gt__title, .tg-gt__why, .tg-gt__meter) { animation: tg-gt-up 560ms var(--gt-ease) var(--d, 120ms) both; }
 .tg-gt__aside .tg-gt__kicker { position: absolute; left: 88px; top: 44px; color: rgba(255, 255, 255, 0.92); }
-.tg-gt__aside .tg-gt__kicker img { width: 34px; height: 34px; }
 .tg-gt__num { --d: 160ms; margin: 0 0 6px; font: italic 400 5rem/1 'Lora', Georgia, serif; letter-spacing: -0.03em; color: rgba(255, 255, 255, 0.95); }
 .tg-gt__num small { margin-left: 4px; font-size: 1.5rem; font-style: normal; letter-spacing: 0; color: rgba(255, 255, 255, 0.6); }
 .tg-gt__aside .tg-gt__title { --d: 220ms; margin: 0; font-size: 2.55rem; line-height: 1.15; color: #fff; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35); }
@@ -74,7 +73,6 @@
 
 .tg-gt__head { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding-top: 22px; }
 .tg-gt__kicker { display: flex; align-items: center; gap: 10px; margin: 0; font: 600 0.82rem/1 var(--tg-sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gt-soft); }
-.tg-gt__kicker img { width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--gt-line); }
 .tg-gt__kicker span { padding-left: 8px; border-left: 1px solid var(--gt-line); color: var(--tg-brand); }
 .tg-gt__title { margin: 16px 0 0; font: 400 2.2rem/1.2 'Lora', Georgia, serif; letter-spacing: -0.015em; color: var(--gt-ink); text-wrap: balance; }
 .tg-gt__title em { display: block; margin-top: 6px; font-size: 0.82em; font-style: italic; color: var(--gt-soft); }
@@ -254,21 +252,26 @@
 .tg-gt__top .tg-gt__meter i { width: 64px; background: rgba(43, 39, 32, 0.12); }
 .tg-gt__top .tg-gt__meter b { background: var(--gt-ink); }
 
-/* the fan: every card is as wide as the front one; the others slide out sideways by a step each, lean away and shrink */
-.tg-gt__stage { --lr: 0; --step: 84px; --front-w: min(640px, 100%); position: relative; flex: 0 1 auto; min-height: 380px; height: clamp(380px, calc(100dvh - 350px), 640px); isolation: isolate; }
-.tg-gt__card { --a: 0; --s: 0; position: absolute; left: 50%; top: 0; bottom: 0; width: var(--front-w); margin-left: calc(var(--front-w) / -2); z-index: calc(10 - var(--a)); transform-origin: 50% 100%;
-  transform: translateX(calc((var(--lr, 0) * 0.5 + var(--s) * var(--a)) * var(--step))) translateY(calc(var(--a) * 10px)) rotate(calc(var(--s) * (1.6deg + var(--a) * 1.4deg))) scale(calc(1 - var(--a) * 0.03));
+/* the fan: every card is as wide as the front one; useFan (ui/Gate.tsx) places them each frame (transform, z-index, opacity) from
+   how far each is from the card being answered, so the others slide out sideways by a step each, lean away and shrink */
+.tg-gt__stage { --step: 84px; --front-w: min(640px, 100%); position: relative; flex: 0 1 auto; min-height: 380px; height: clamp(380px, calc(100dvh - 350px), 640px); isolation: isolate; touch-action: pan-y; overscroll-behavior-x: contain; user-select: none; }
+.tg-gt__stage.is-lodging { --front-w: min(940px, calc(100% - 2 * var(--step))); }
+.tg-gt__fan .tg-gt__stage.is-lodging { height: clamp(440px, calc(100dvh - 290px), 640px); }
+.tg-gt__stage.is-lodging .tg-lc__card { flex-basis: 232px; }
+.tg-gt__stage.is-lodging .tg-lc__ph { aspect-ratio: 16 / 9; }
+.tg-gt__stage input, .tg-gt__stage .tg-gt__front:not(.is-ghost) { user-select: text; }
+.tg-gt__card { position: absolute; left: 50%; top: 0; bottom: 0; width: var(--front-w); margin-left: calc(var(--front-w) / -2); transform-origin: 50% 100%; will-change: transform;
   border-radius: 30px; border: 1px solid rgba(43, 39, 32, 0.1); overflow: hidden; color: var(--gt-ink);
-  background: radial-gradient(120% 70% at 18% -8%, rgba(255, 255, 255, 0.85), transparent 58%), linear-gradient(168deg, var(--tint) 0%, color-mix(in srgb, var(--tint) 38%, #fff) 46%, var(--gt-paper-hi) 100%);
+  background: radial-gradient(120% 70% at 18% -8%, rgba(255, 255, 255, 0.8), transparent 58%), linear-gradient(168deg, var(--tint) 0%, color-mix(in srgb, var(--tint) 62%, var(--gt-paper-hi)) 55%, var(--gt-paper-hi) 100%);
   box-shadow: 0 18px 30px -22px rgba(43, 39, 32, 0.55), 0 2px 0 rgba(255, 255, 255, 0.7) inset;
-  transition: transform 560ms var(--gt-ease), box-shadow 320ms, opacity 320ms, filter 320ms; }
-.tg-gt__card.is-far { opacity: 0; pointer-events: none; }
-.tg-gt__card.is-front { z-index: 20; box-shadow: 0 36px 60px -30px rgba(43, 39, 32, 0.62), 0 2px 0 rgba(255, 255, 255, 0.8) inset; }
-.tg-gt__card:not(.is-front):hover { transform: translateX(calc((var(--lr, 0) * 0.5 + var(--s) * var(--a)) * var(--step))) translateY(calc(var(--a) * 10px - 12px)) rotate(calc(var(--s) * (0.6deg + var(--a) * 0.5deg))) scale(calc(1.01 - var(--a) * 0.03)); box-shadow: 0 26px 40px -22px rgba(43, 39, 32, 0.6), 0 2px 0 rgba(255, 255, 255, 0.7) inset; }
+  transition: translate 280ms var(--gt-ease), box-shadow 280ms; }
+.tg-gt__card.is-front { box-shadow: 0 36px 60px -30px rgba(43, 39, 32, 0.62), 0 2px 0 rgba(255, 255, 255, 0.8) inset; }
+.tg-gt__card:not(.is-front):hover { translate: 0 -12px; box-shadow: 0 26px 40px -22px rgba(43, 39, 32, 0.6), 0 2px 0 rgba(255, 255, 255, 0.7) inset; }
 
-/* a card waiting on the side: only its outer strip shows (icon, name, number) */
-.tg-gt__strip { position: absolute; top: 0; bottom: 0; right: 0; display: grid; justify-items: center; align-content: start; gap: 8px; width: var(--step); padding: 22px 6px 18px; text-align: center; transition: background 200ms; }
-.tg-gt__card.is-left .tg-gt__strip { right: auto; left: 0; }
+/* a card waiting on the side: only its outer strip shows (icon, name, number); it fades in as the card moves off the middle */
+.tg-gt__strip { position: absolute; top: 0; bottom: 0; right: 0; display: grid; justify-items: center; align-content: start; gap: 8px; width: var(--step); padding: 22px 6px 18px; text-align: center; opacity: var(--strip, 1); transition: background 200ms; }
+.tg-gt__card[data-side='l'] .tg-gt__strip { right: auto; left: 0; }
+.tg-gt__strip:disabled { cursor: default; opacity: var(--strip, 1); }
 .tg-gt__strip:hover:not(:disabled) { background: rgba(255, 255, 255, 0.4); }
 .tg-gt__strip i { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, 0.85); color: var(--gt-ink); box-shadow: 0 0 0 1px rgba(43, 39, 32, 0.12); transition: transform 320ms var(--gt-ease); }
 .tg-gt__strip:hover:not(:disabled) i { transform: scale(1.08) rotate(-6deg); }
@@ -278,8 +281,8 @@
 
 /* the front card: the question and its answers */
 .tg-gt__front:focus-visible { outline: none; }
-.tg-gt__front { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; padding: 26px 30px 22px; outline: none; animation: tg-gt-deal 520ms var(--gt-ease) both; }
-@keyframes tg-gt-deal { from { opacity: 0; transform: translateY(14px); } }
+.tg-gt__front { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; padding: 26px 30px 22px; outline: none; opacity: var(--face, 1); }
+.tg-gt__front.is-ghost, .tg-gt__front.is-peek { pointer-events: none; }
 .tg-gt__front .tg-gt__cat { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-transform: none; letter-spacing: 0; }
 .tg-gt__ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); color: var(--gt-ink); box-shadow: 0 0 0 1px rgba(43, 39, 32, 0.12); }
 .tg-gt__front .tg-gt__cat b { font: 700 0.8rem var(--tg-sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gt-ink); }

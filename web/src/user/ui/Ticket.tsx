@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { WHO_LABEL, type Who } from '../trip'
 import { geoSearch, lodgingSuggest, searchPlaces } from '../tu/api'
-import { ARRIVAL_LABEL, BUDGET_SCOPE_LABEL, CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, hardText, softText, valueText } from '../tu/labels'
+import { ARRIVAL_LABEL, BUDGET_SCOPE_LABEL, CROWD_LABEL, FIELD_LABEL, NOVELTY_LABEL, PACE_LABEL, PURPOSE_LABEL, careText, hardText, softText, valueText } from '../tu/labels'
 import type { GeoHit, HardRow, LodgingHit, Row, Understanding } from '../tu/types'
 import { Icon } from './icons'
 import { PlaceInput } from './PlaceInput'
@@ -72,9 +72,9 @@ export function linesOf(u: Understanding): Line[] {
   if (u.purpose) out.push({ key: 'purpose', label: 'Mục đích', value: valueText('purpose', u.purpose.value), target: 'purpose', mark: u.purpose.mark })
   if (u.pace || u.max_leg_min || u.crowd_tolerance) out.push({ key: 'pace', label: 'Nhịp độ', value: paceText(u), target: 'pace', mark: u.pace?.mark })
   if (u.novelty) out.push({ key: 'novelty', label: 'Mới hay quen', value: valueText('novelty', u.novelty.value), target: 'novelty', mark: u.novelty.mark })
-  if (t.care) out.push({ key: 'care', label: 'Cần lưu ý', value: valueText('care', t.care.value), target: 'care', mark: t.care.mark })
+  if (t.care) out.push({ key: 'care', label: 'Cần lưu ý', value: t.care.value === 'none' ? valueText('care', 'none') : careText(u), target: 'care', mark: t.care.mark })
   if (t.budget_unlimited?.value === true) out.push({ key: 'budget', label: 'Ngân sách', value: 'Không giới hạn', target: 'budget_unlimited', mark: t.budget_unlimited.mark })
-  else if (u.budget_vnd) out.push({ key: 'budget', label: 'Ngân sách', value: valueText('budget_vnd', u.budget_vnd.value), target: 'budget_vnd', mark: u.budget_vnd.mark })
+  else if (u.budget_vnd) out.push({ key: 'budget', label: 'Ngân sách', value: valueText('budget_vnd', u.budget_vnd.value, u.budget_vnd.solo), target: 'budget_vnd', mark: u.budget_vnd.mark })
   return out
 }
 // Required groups and their completion come from the backend; facts only fill their display text.
@@ -219,7 +219,7 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
                 </div>
               )
             })}
-            {u.budget_vnd && <p className="tg-faint tg-full__hint">Ngân sách {valueText('budget_vnd', u.budget_vnd.value)} · chưa kiểm được bằng dữ liệu giá.</p>}
+            {u.budget_vnd && <p className="tg-faint tg-full__hint">Ngân sách {valueText('budget_vnd', u.budget_vnd.value, u.budget_vnd.solo)} · chưa kiểm được bằng dữ liệu giá.</p>}
 
             {u.anchors.length > 0 && (
               <>

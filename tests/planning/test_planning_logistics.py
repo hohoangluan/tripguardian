@@ -48,3 +48,12 @@ def test_a_failing_geosearch_gives_no_origin_rows():
         raise live.Unavailable("photon and nominatim down")
 
     assert make(geo=down).geo("Bến Thành") == []
+
+
+def test_lodging_suggest_top_gives_the_best_stays_as_cards_without_a_query():
+    lg = make()
+    rows = lg.lodging_suggest("", top=5)
+    ids = [r["id"] for r in rows]
+    assert set(ids) <= {"s1", "s2", "s3"} and all(r["kind"] == "corpus" for r in rows)
+    assert all({"price_vnd", "category", "area", "reviews", "lat", "lng"} <= set(r) for r in rows)
+    assert lg.lodging_suggest("", top=0) == [] and len(lg.lodging_suggest("", top=1)) <= 1

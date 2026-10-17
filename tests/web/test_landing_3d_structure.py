@@ -23,13 +23,13 @@ def test_landing_keeps_approved_hero_layout_and_current_guest_entry() -> None:
     source = LANDING.read_text(encoding="utf-8")
 
     assert "Lịch trình Đà Lạt <em>vừa với bạn.</em>" in source
-    assert "Kể chuyến đi trong 2 phút." in source
+    assert "Kể chuyến đi trong vài phút." in source
     assert "Lên lịch chuyến của bạn" in source
     assert "Xem cách hoạt động" in source
     assert "Miễn phí" in source
     assert "Không cần tài khoản" in source
-    assert "Chỉ gồm nơi có thật" in source
-    assert "Xoay thử Đà Lạt 3D" in source
+    assert "Chỗ nào cũng có thật" in source
+    assert "Khám phá bản đồ Đà Lạt" in source
     assert "await startGuest()" in source
 
 

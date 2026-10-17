@@ -1,7 +1,7 @@
 import { featureLabel, TIME_VI, valueLabel } from '../../data/labels'
 import { VEHICLE_LABEL } from '../../data/store'
 import { WHO_LABEL, type Who } from '../trip'
-import type { HardRow, SoftRow } from './types'
+import type { HardRow, SoftRow, Understanding } from './types'
 
 export const FIELD_LABEL: Record<string, string> = {
   dates: 'Ngày đi', start_date: 'Ngày đi', month: 'Tháng', days: 'Số ngày', nights: 'Số đêm', companions: 'Đi với ai', people: 'Số người',
@@ -25,8 +25,26 @@ const HARD_TEXT: Record<string, string> = {
   steep_or_stairs: 'Tránh dốc, bậc thang', long_walk: 'Không đi bộ xa', vegetarian_options: 'Có món chay',
 }
 
-export function valueText(target: string, v: any): string {
-  if (target === 'companions') return (v as Who[]).map((w) => WHO_LABEL[w] ?? w).join(', ')
+// "Vợ chồng, có trẻ nhỏ" / "Người yêu / vợ chồng" / "Bạn bè": a party is read as a whole, then the rest one by one.
+export function companionsText(ids: string[]): string {
+  const one = (w: string) => (w === 'family' ? 'Gia đình' : WHO_LABEL[w as Who] ?? w)
+  const partner = ids.includes('partner')
+  const kids = ids.includes('kids') ? 'có trẻ nhỏ' : ids.includes('baby') ? 'có em bé' : ''
+  const rest = ids.filter((w) => !['partner', 'kids', 'baby'].includes(w)).map(one)
+  const couple = partner ? (kids ? `Vợ chồng, ${kids}` : 'Người yêu / vợ chồng') : ''
+  const head = couple || (kids ? kids[0].toUpperCase() + kids.slice(1) : '')
+  return [head, ...rest].filter(Boolean).join(', ')
+}
+
+// What the care row really holds: the hard limits (vegetarian -> "Ăn chay") and the notes nobody could map.
+const CARE_TEXT: Record<string, string> = { vegetarian_options: 'Ăn chay' }
+export function careText(u: Pick<Understanding, 'hard' | 'unmapped'>): string {
+  const bits = [...u.hard.map((h) => CARE_TEXT[h.feature] ?? hardText(h)), ...(u.unmapped ?? []).map((x) => x.phrase)]
+  return bits.length ? bits.join(', ') : 'Có điều cần lưu ý'
+}
+
+export function valueText(target: string, v: any, solo?: boolean | null): string {
+  if (target === 'companions') return companionsText(v as string[])
   if (target === 'mobility') return VEHICLE_LABEL[v as keyof typeof VEHICLE_LABEL] ?? v
   if (target === 'start_date') return new Date(v + 'T00:00').toLocaleDateString('vi-VN')
   if (target === 'month') return `tháng ${v}`
@@ -38,14 +56,15 @@ export function valueText(target: string, v: any): string {
   // a chosen coach / flight: "Vietjet Air 06:10 → 07:05"
   if (target === 'inbound' || target === 'outbound') return `${v.carrier} ${hhmm(v.depart_at)} → ${hhmm(v.arrive_at)}`
   if (target === 'arrive' || target === 'leave') return `${v.at.slice(11, 16)} (${({ plane: 'máy bay', bus: 'xe khách', self: 'tự đi' } as Record<string, string>)[v.how] ?? v.how})`
-  if (target === 'care') return v === 'none' ? 'Không có lưu ý' : 'Có điều cần lưu ý'
+  if (target === 'care') return v === 'none' ? 'Không có lưu ý' : 'Có điều cần lưu ý' // careText() has the real content
   if (target === 'driver') return v === 'hired' ? 'có tài xế' : 'tự lái'
   if (target === 'budget_unlimited') return v ? 'Không giới hạn' : ''
   if (target === 'max_leg_min') return `${v} phút`
   if (target === 'budget_vnd') {
     const amount = typeof v === 'number' ? v : v.amount
     const money = amount >= 1_000_000 ? `${(amount / 1_000_000).toLocaleString('vi-VN')} triệu` : `${amount.toLocaleString('vi-VN')} đồng`
-    return `${money} · ${BUDGET_SCOPE_LABEL[typeof v === 'number' ? 'per_person_day' : v.scope] ?? 'chưa rõ phạm vi'}`
+    const scope = typeof v === 'number' ? 'per_person_day' : v.scope
+    return `${money} · ${scope === 'trip_total' && solo ? 'cho 1 người, cả chuyến' : BUDGET_SCOPE_LABEL[scope] ?? 'chưa rõ phạm vi'}`
   }
   if (target === 'purpose') return PURPOSE_LABEL[v] ?? v
   if (target === 'pace') return PACE_LABEL[v] ?? v

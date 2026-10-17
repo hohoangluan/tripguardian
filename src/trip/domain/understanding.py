@@ -43,22 +43,26 @@ def to_taste(state: TripState):
 
 def matching(state: TripState, catalog: Catalog | None) -> int:
     """Places past the hard limits and to the taste so far: the "Đang hợp với bạn" count."""
-    fits = to_taste(state)
-    return sum(1 for c in (catalog.places if catalog is not None else ())
-               if admissible(c, state.hard, state.activities.get(c.id)) and fits(c))
+    return len(fitting(state, catalog))
 
 
 BOARD = 24  # places the Understand screen's board shows
 
 
-def board(state: TripState, catalog: Catalog | None, n: int = BOARD) -> dict:
+def fitting(state: TripState, catalog: Catalog | None) -> list:
+    """The places past the hard limits and to the taste: one pass shared by the count and the board."""
+    fits = to_taste(state)
+    return [c for c in (catalog.places if catalog is not None else ())
+            if admissible(c, state.hard, state.activities.get(c.id)) and fits(c)]
+
+
+def board(state: TripState, catalog: Catalog | None, n: int = BOARD, pool: list | None = None) -> dict:
     """The places that fit right now, for the board beside the chat: a chosen look's places first (in its order),
     then the places with most liked features, then the best documented. Ranking only: the count is `matching`,
     nothing here removes a place."""
     if catalog is None:
         return {"ids": [], "vibe": []}
-    fits = to_taste(state)
-    pool = [c for c in catalog.places if admissible(c, state.hard, state.activities.get(c.id)) and fits(c)]
+    pool = list(fitting(state, catalog) if pool is None else pool)
     rank: dict[str, int] = {}
     for v in state.vibes:
         if v.status != "none":
@@ -109,10 +113,12 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
             return None
         sc, guessed = budget_scope(state)
         r["value"] = {"amount": r["value"], "scope": sc, "guessed": guessed, "per_person_day": per_person_day(state)}
+        r["solo"] = state.people.value == 1 if state.people.known else None  # "cho 1 người", not "cả nhóm"
         r["mark"] = r["mark"] or guessed or state.budget_scope.source in MARKED
         return r
 
     places = catalog.places if catalog is not None else ()
+    fit = fitting(state, catalog)
     hard = []
     open_policy = False
     for h in state.hard:
@@ -161,9 +167,9 @@ def view(state: TripState, catalog: Catalog, cfg: Settings) -> dict:
         "safety_pending": bool(pending_signals(state)) or open_policy,
         # How many places fit the trip right now: past the hard limits and to the taste so far (to_taste). A fact about
         # the current state, never a forecast; soft values only rank later, this count does not remove anything.
-        "matching": matching(state, catalog),
+        "matching": len(fit),
         "total": len(places),
-        "board": board(state, catalog),
+        "board": board(state, catalog, pool=fit),
         # looks the user wants (domain/vibes.py): what the ticket says about each
         "vibes": [{"target": f"vibe:{i}", "phrase": v.phrase, "status": v.status, "cues": list(v.cues),
                    "chosen": [k.label for k in v.offered if k.id in v.chosen], "image": v.image,

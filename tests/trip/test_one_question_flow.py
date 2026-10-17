@@ -49,7 +49,7 @@ def test_ask_required_refuses_a_topic_that_is_not_needed(catalog, cfg, tmp_path)
     assert "error" in tools.run("ask_required", {"topic": "pace", "question": "Bạn muốn đi thong thả không?"})  # one card per turn
 
 
-def test_a_tap_on_a_required_card_is_written_once_then_read_by_the_agent(catalog, cfg, tmp_path):
+def test_a_tap_on_a_required_card_is_written_once_and_opens_the_next_topic_without_the_agent(catalog, cfg, tmp_path):
     chat = ScriptedChat(reply(call("ask_required", topic="mobility", question="Bạn đi lại bằng gì?"), text="Rõ rồi."), say("Đi xe máy nhé."))
     e = Engine(catalog, cfg, SessionStore(tmp_path), chat, today=lambda: date(2026, 10, 15))
     sid = e.create("first", "nothing")["id"]
@@ -57,15 +57,13 @@ def test_a_tap_on_a_required_card_is_written_once_then_read_by_the_agent(catalog
     turn = e.store.get(sid).state.meta.turn
     ev = run(e, sid, kind="deck", answers={"mobility": ["motorbike"]})
     s = e.store.get(sid)
-    assert chat.calls == 2  # Code writes the tap; the agent reads it exactly once.
-    assert context_of(chat.seen[-1][0])["picked"].startswith("The latest user message is what they chose on the card")
+    assert chat.calls == 1  # Code writes the tap and opens the next topic; no model call waits.
     assert s.state.mobility.value == "motorbike" and s.state.mobility.source == "user"
     assert s.state.meta.turn == turn + 1
     users = [t["text"] for t in s.transcript if t["role"] == "user"]
     assert users[-1] == "Phương tiện: Xe máy" and users.count("Phương tiện: Xe máy") == 1
-    assert ("say", {"replace": "Đi xe máy nhé."}) in ev
     card = ev[-1][1]
-    assert card["qid"] == "conversation" and card["input"] == "text"
+    assert card["tabs"][0]["kind"] == "required" and card["tabs"][0]["qid"] != "mobility"  # the next missing topic
     assert s.state.meta.followups == 0
 
 
@@ -240,9 +238,14 @@ def test_the_app_never_replaces_the_agents_question_with_a_required_topic(catalo
         run(e, sid, kind="text", text=text)
     ev = run(e, sid, kind="text", text=last)
     card = ev[-1][1]
-    assert card["qid"] == "conversation"
-    assert ("say", {"replace": "Rõ rồi. Bạn thích đi sáng hay chiều?"}) in ev
-    assert e.store.get(sid).transcript[-1]["text"] == "Rõ rồi. Bạn thích đi sáng hay chiều?"
+    if last.startswith("gợi ý"):  # the user asks for ideas: the agent's question stands, no card replaces it
+        assert card["qid"] == "conversation"
+        assert e.store.get(sid).transcript[-1]["text"] == "Rõ rồi. Bạn thích đi sáng hay chiều?"
+        return
+    # three agent questions in a row: the fourth is replaced by a required topic card (the app asks it itself)
+    assert card["tabs"][0]["kind"] == "required"
+    assert ("say", {"replace": "Rõ rồi."}) in ev
+    assert e.store.get(sid).transcript[-1]["text"] == "Rõ rồi."
     assert not any("thread_done" in t["text"] for t in e.store.get(sid).transcript if t["role"] == "system")
 
 
@@ -252,7 +255,7 @@ def test_a_required_card_put_off_in_words_moves_on_like_its_skip(catalog, cfg, t
     sid = e.create("first", "nothing")["id"]
     assert run(e, sid, kind="text", text="đi đà lạt")[-1][1]["tabs"][0]["qid"] == "trip"
     card = run(e, sid, kind="text", text="mình chưa chốt ngày nha, bỏ qua đi")[-1][1]
-    assert card["qid"] == "conversation" and card["input"] == "text"
+    assert card["tabs"][0]["kind"] == "required" and card["tabs"][0]["qid"] != "trip"  # moves on to the next topic
     assert "trip" in e.store.get(sid).state.meta.declined  # the read-back before planning asks it again
 
 
@@ -333,3 +336,27 @@ def test_a_checked_reply_streams_word_by_word_and_is_never_taken_back(catalog, c
     assert says[0] == {"replace": "Hai "} and all("delta" in d for d in says[1:])  # only the final words, in order
     assert "Hai " + "".join(d["delta"] for d in says[1:]) == "Hai bạn đi mấy ngày vậy?"
     assert [n for n, _ in ev if n in ("say", "card")][-1] == "card"
+
+
+def test_the_app_opens_a_missing_topic_when_the_agent_asks_nothing_but_never_a_skipped_one_nor_more_than_twice(catalog, cfg, tmp_path):
+    chat = ScriptedChat(*[say("Mình hiểu rồi.")] * 6)
+    e = Engine(catalog, cfg, SessionStore(tmp_path), chat, today=lambda: date(2026, 10, 15))
+    sid = e.create("first", "nothing")["id"]
+    first = run(e, sid, kind="text", text="đi đà lạt")[-1][1]["tabs"][0]
+    assert first["kind"] == "required" and first["qid"] == "trip"
+    run(e, sid, kind="deck", answers={"trip": ["skip"]})  # skipped: the topic is declined, never opened again here
+    nxt = run(e, sid, kind="text", text="ừ")[-1][1]["tabs"][0]
+    assert nxt["kind"] == "required" and nxt["qid"] != "trip"
+    seen = [nxt["qid"]]
+    for _ in range(3):
+        card = run(e, sid, kind="text", text="ừ nhé")[-1][1]
+        seen.append(card["tabs"][0]["qid"] if card.get("tabs") else "conversation")
+    assert "trip" not in seen
+    assert all(e.store.get(sid).state.meta.nudged.count(k) <= 2 for k in set(seen))
+
+
+def test_the_app_does_not_open_a_topic_while_the_user_asks_a_question(catalog, cfg, tmp_path):
+    chat = ScriptedChat(say("Tháng 12 khá lạnh."))
+    e = Engine(catalog, cfg, SessionStore(tmp_path), chat, today=lambda: date(2026, 10, 15))
+    sid = e.create("first", "nothing")["id"]
+    assert run(e, sid, kind="text", text="tháng 12 lạnh không?")[-1][1]["qid"] == "conversation"

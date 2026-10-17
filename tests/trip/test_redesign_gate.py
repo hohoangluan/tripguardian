@@ -182,7 +182,7 @@ def test_q13_required_tabs_are_written_as_the_users_answers_then_read_by_the_age
                  "care": ["none"], "pace": ["slow"], "budget.amount": "10000000", "budget.scope": ["trip_total"]})
     st = e.store.get(sid).state
     assert chat.calls == 1  # The agent reacts after code writes every answer.
-    assert e.load(sid)["card"]["qid"] == "conversation"
+    assert [x["qid"] for x in e.load(sid)["card"]["tabs"]] == ["lodging"]  # the one topic the tap did not answer
     assert (st.start_date.value, st.days.value, st.checkin_at.value, st.checkout_at.value) == (
         date(2026, 11, 20), 3, "10:00", "15:00")
     assert (st.mobility.value, st.driver.value, st.pace.value, st.care.value) == ("car", "hired", "slow", "none")

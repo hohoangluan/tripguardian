@@ -358,7 +358,7 @@ def schedule_trip(trip: Trip, weights: dict | None = None, *, kept=None, allow_s
         that want the same hour give theirs up first, as before (_unpin)."""
         memo = fingerprint(("lay", day_key(base[k], day_ids), tuple(day_ids), hard, budget, max_leg, overfull))
         if memo not in trip.routes:
-            put(trip.routes, memo, _lay(k, day_ids, overfull), cfg.cache_entries)
+            put(trip.routes, memo, _lay(k, day_ids, overfull), cfg.route_cache_entries)
         cx, r, pid = trip.routes[memo]
         # The memo may come from another call over the same day and places (a composer subset): only the day and the
         # day's own places (their pins as given up) are its; everything else is this call's.
@@ -400,10 +400,9 @@ def schedule_trip(trip: Trip, weights: dict | None = None, *, kept=None, allow_s
 
     def _lay_held(k: int, cx, pid, day_ids: list, overfull: bool | str) -> tuple:
         route_ctx = _route_ctx(cx)
-        route_seed = tuple(sorted(day_ids)) if len(day_ids) <= route_ctx.cfg.exact_n else tuple(day_ids)
-        key = fingerprint((day_key(route_ctx, day_ids), route_seed))
+        key = fingerprint((day_key(route_ctx, day_ids), _seed_key(day_ids, route_ctx, day_ids)))
         if key not in trip.routes:      # the order inside a day does not depend on the day-split weights
-            put(trip.routes, key, order_day(day_ids, route_ctx, seed=day_ids), cfg.cache_entries)
+            put(trip.routes, key, order_day(day_ids, route_ctx, seed=day_ids), cfg.route_cache_entries)
         r = trip.routes[key]
         wrong = {v.kind for v in validate([cx], [r], hard, set(), budget, max_leg)}
         # Spec section 5: a time of day is soft with a high weight. It yields only for a physical constraint that no
@@ -608,6 +607,16 @@ def schedule_trip(trip: Trip, weights: dict | None = None, *, kept=None, allow_s
     return Schedule(per_day, results, ctxs, violations, warnings, tuple(sorted(set(leftover))))
 
 
+def _seed_key(day_ids, route_ctx: DayCtx, route_seed):
+    """The part of a day-order cache key that stands for the seed. Up to seeded_exact_n stops order_day tries every
+    permutation, so the seed cannot change what it returns and the stops may be keyed sorted; above that the search
+    starts from the seed (the layout's insertion order), so a different order of the same stops is a different search
+    and its own entry (keying it sorted let a day be answered by another order's search)."""
+    if len(day_ids) <= route_ctx.cfg.realistic["seeded_exact_n"]:
+        return tuple(sorted(day_ids))
+    return tuple(route_seed) if route_seed is not None else None
+
+
 def _route_ctx(cx: DayCtx) -> DayCtx:
     """Bound full-frame subset and pin trials to section 6's local search instead of repeated 7! clocks."""
     return replace(cx, cfg=replace(cx.cfg, exact_n=min(cx.cfg.exact_n,
@@ -646,21 +655,21 @@ def _unpin(cx: DayCtx, r, day_ids: list, hard: list, budget, max_leg, seed: list
         keep_dawn is not None and i != keep_dawn and any(cx.cfg.pins[f]["anchor"] == "sunrise" for f in cx.places[i].pins))), key=lambda i: -first.get(i, 0))
     tried, dropped = cx, []
     route_seed = list(r.order) if seed is not None else None
-    for pid in pinned:
+    # The pins whose time of day can change the clock at all (a window does not depend on the other pins); opening
+    # hours already made the others ineffective, so giving one up cannot change the clock.
+    effective = [i for i in pinned
+                 if pin_window(replace(cx.places[i], pins=()), cx) != pin_window(cx.places[i], cx)]
+    for pid in effective:
         unpinned = replace(tried.places[pid], pins=())
-        if pin_window(unpinned, tried) == pin_window(tried.places[pid], tried):
-            continue                    # opening hours already made this pin ineffective; its clock cannot change
         tried = replace(tried, places={**tried.places, pid: unpinned})
         dropped.append(pid)
         route_ctx = _route_ctx(tried)
-        key_seed = tuple(sorted(day_ids)) if len(day_ids) <= route_ctx.cfg.exact_n else (
-            tuple(route_seed) if route_seed is not None else None)
-        key = fingerprint((day_key(route_ctx, day_ids), key_seed))
+        key = fingerprint((day_key(route_ctx, day_ids), _seed_key(day_ids, route_ctx, route_seed)))
         if routes is None:
             out = order_day(day_ids, route_ctx, seed=route_seed)
         else:
             if key not in routes:
-                put(routes, key, order_day(day_ids, route_ctx, seed=route_seed), cx.cfg.cache_entries)
+                put(routes, key, order_day(day_ids, route_ctx, seed=route_seed), cx.cfg.route_cache_entries)
             out = routes[key]
         if not validate([tried], [out], hard, set(), budget, max_leg):
             if reasons:

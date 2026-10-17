@@ -381,7 +381,7 @@ def handler(harness, accounts, base_url: str = "", test_login: bool = False,
             if path == "/api/harness/geo":
                 return self._call(lambda: harness.geo(query.get("q", "")))
             if path == "/api/harness/lodging/suggest":
-                return self._call(lambda: harness.lodging_suggest(query.get("q", "")))
+                return self._call(lambda: harness.lodging_suggest(query.get("q", ""), int(query["top"]) if query.get("top", "").isdigit() and len(query["top"]) < 3 else 0))
             if path == "/api/harness/trips":
                 return self._call(lambda: harness.trips(owner))
             if path == "/api/harness/me/library" and library is not None:

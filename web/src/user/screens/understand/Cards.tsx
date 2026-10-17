@@ -6,6 +6,7 @@ import { PlaceInput, type InputRow } from '../../ui/PlaceInput'
 import { CardImg } from '../../ui/common'
 import { openPlace } from '../../ui/PlaceSheet'
 import { PlaceSearch } from '../../ui/Ticket'
+import { LodgingCards } from './LodgingCards'
 
 // The cards a bot turn may carry (docs/UI_SPEC_USER_WEB.md Trang 3). Every card stays answerable later in the chat;
 // every card has a way out: "Chưa chắc", "Bỏ qua", or typing in the box below. Places and photos come from the corpus.
@@ -73,11 +74,10 @@ export function QuickReply({ card, busy, onAnswer }: { card: Card; busy: boolean
           onPick={(g) => onAnswer({ value: JSON.stringify({ text: g.text, lat: g.lat, lng: g.lng, province: g.province }) }, g.text)} />
       )}
       {card.input === 'lodging' && (
-        <>
-          <PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" disabled={busy} fetcher={lodgingSuggest} row={lodgingRow}
-            onPick={(h) => onAnswer({ value: JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }) }, h.text)} />
-          <div className="tg-cx__qr">{card.chips.map((c) => <button key={c.id} type="button" disabled={busy} onClick={() => onAnswer({ chips: [c.id] }, c.label)}>{c.label}</button>)}</div>
-        </>
+        <LodgingCards busy={busy} onAuto={() => onAnswer({ chips: [card.chips[0]?.id ?? 'skip'] }, card.chips[0]?.label ?? 'Cứ xếp giúp')}
+          onPick={(p) => onAnswer({ value: JSON.stringify({ kind: p.kind, id: p.id, text: p.text, lat: p.lat, lng: p.lng }) }, p.text)}
+          typed={<PlaceInput<LodgingHit> label="Nơi bạn lưu trú" placeholder="Tên khách sạn, homestay hoặc địa chỉ" icon="bed" disabled={busy} fetcher={lodgingSuggest} row={lodgingRow}
+            onPick={(h) => onAnswer({ value: JSON.stringify({ kind: h.kind, ...(h.id ? { id: h.id } : {}), text: h.text, lat: h.lat, lng: h.lng }) }, h.text)} />} />
       )}
       <div className="tg-cx__qr">
         {(card.multi || card.input === 'date') && (

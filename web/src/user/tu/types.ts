@@ -127,6 +127,12 @@ export interface LodgingHit {
   rating?: number | null
   lat: number
   lng: number
+  // what a card shows (only on the top list): a missing value is shown as missing, never guessed
+  price_vnd?: number | null
+  price_at?: string | null
+  category?: string | null
+  area?: string | null
+  reviews?: number | null
 }
 
 export interface Base {
@@ -143,6 +149,7 @@ export interface Row {
   value: any
   mark: boolean
   confidence: 'high' | 'medium' | 'low'
+  solo?: boolean | null // budget_vnd only: one traveller, so "cho 1 người"
 }
 
 export interface AnchorRow {

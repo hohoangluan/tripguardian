@@ -40,7 +40,7 @@ def test_real_decision_and_planning_tools_preserve_selection_on_handoff(tmp_path
     assert view["result"]["view"]["selected"] == ["place-1"]
 
 
-def test_real_overload_handoff_offers_profiles_and_confirms_only_valid_drafts(tmp_path):
+def test_real_overload_handoff_offers_tradeoffs_and_confirms_only_valid_drafts(tmp_path):
     from decision import Data, Engine as DecisionEngine, Store as DecisionStore, Tools as DecisionTools, load_settings
     from planning import Engine as PlanningEngine, Tools as PlanningTools
     from harness import Harness, Store
@@ -65,7 +65,7 @@ def test_real_overload_handoff_offers_profiles_and_confirms_only_valid_drafts(tm
     v = run(h, v, 'advance', 'to-overloaded-planning')
     assert {p['id'] for p in v['outputs']['decision']['confirmed']} == set(original)
     pv = v['result']['view']
-    assert {p['preset'] for p in pv['variants']} == {'low_cost', 'diverse', 'least_travel'}
+    assert {p['id'] for p in pv['variants']} == {'cost', 'fit', 'travel'}  # the 3 fixed drop-order trade-offs
     v = run(h, v, 'recommend', 'automatic-proposal')
     assert v['result']['view']['state']['chosen_variant'] is None
     assert not pv['needs_hotel']  # a plan without a lodging is offered, never refused

@@ -31,7 +31,10 @@ export function Board({ u, busy, preview, onShow, onOpen }: { u: Understanding |
   const groups = (u?.required ?? []).map(group => ({ ...group, line: lines.find(line => line.key === group.key), active: preview.has(group.key) }))
   // The board keeps the trip to its dates on one line; day hours and their reasons stay in the ticket and the read-back.
   const short = (key: string, value: string) => (key === 'trip' && u ? dateLine(u) || value : value)
-  const done = groups.filter(group => group.done).length
+  // A group counts once it holds a value, even when the server still wants more of it (`done` = every sub-fact answered).
+  const filled = (group: (typeof groups)[number]) => group.done || Boolean(group.line?.value)
+  const done = groups.filter(filled).length
+  const complete = groups.length > 0 && groups.every(group => group.done)
   const percent = groups.length ? Math.round(done / groups.length * 100) : 0
   return (
     <aside className="tg-cx__side tg-cx__panel tg-trail" aria-label="Nơi đang hợp với bạn">
@@ -43,14 +46,14 @@ export function Board({ u, busy, preview, onShow, onOpen }: { u: Understanding |
         <div className="tg-ticket2__bar">
           <span className="tg-ticket2__pill">Thông tin chuyến</span>
           <i aria-hidden="true" />
-          <span className={`tg-ticket2__state ${busy ? 'is-busy' : ''}`} role="status"><Icon name="check" size={13} strokeWidth={2.4} />{busy ? 'Đang cập nhật' : groups.length > 0 && done === groups.length ? 'Đã đủ thông tin' : 'Đang ghi nhận'}</span>
+          <span className={`tg-ticket2__state ${busy ? 'is-busy' : ''}`} role="status"><Icon name="check" size={13} strokeWidth={2.4} />{busy ? 'Đang cập nhật' : complete ? 'Đã đủ thông tin' : 'Đang ghi nhận'}</span>
         </div>
         <ol className="tg-cx__steps2">
           {groups.map(group => (
-            <li key={group.key} className={group.done ? 'is-done' : group.active ? 'is-working' : ''}>
+            <li key={group.key} className={filled(group) ? 'is-done' : group.active ? 'is-working' : ''}>
               <span className="tg-cx__mark" aria-hidden="true"><Icon name={ICONS[group.key] ?? 'info'} size={22} /></span>
               <div className="tg-progress__row">
-                <div className="tg-progress__top"><h4>{group.title ?? group.label}</h4><small>{group.done ? 'Đã ghi nhận' : group.active ? 'Đang ghi nhận…' : 'Chưa điền'}</small></div>
+                <div className="tg-progress__top"><h4>{group.title ?? group.label}</h4><small>{group.done ? 'Đã ghi nhận' : group.active ? 'Đang ghi nhận…' : group.line?.value ? 'Cần bổ sung' : 'Chưa điền'}</small></div>
                 <p className={group.line?.value ? 'tg-cx__val' : 'tg-cx__ask'} title={group.line?.value || undefined}>{group.line?.value ? short(group.key, group.line.value) : group.done ? 'Đã ghi nhận' : `Bổ sung ${(group.title ?? group.label).toLowerCase()}`}</p>
                 {<button type="button" className="tg-link tg-progress__edit" disabled={busy} aria-label={`Sửa ${(group.title ?? group.label).toLowerCase()}`} onClick={() => onOpen(group.key)}>Sửa</button>}
               </div>

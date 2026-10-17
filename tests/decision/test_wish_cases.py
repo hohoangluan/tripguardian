@@ -58,7 +58,7 @@ def test_wishes_reorder_but_never_add_or_remove_places():  # C3, C4, C5
                    liked_groups=["chill"], context={"purpose": "relax"}), recs)
     assert every(plain) == every(wished)
     assert set(order(plain, "nature")) == set(order(wished, "nature"))
-    assert order(wished, "chill")[0] == "C2"
+    assert order(wished, "cafe")[0] == "C2"
     assert all(wished.cands[p].parts["wish"] >= 0 for p in every(wished))
 
 
@@ -95,7 +95,7 @@ def test_novelty_new_keeps_a_visited_place_out_even_if_wished():  # C8, E15
 def test_stays_and_unknown_ids_in_a_wish_are_ignored():  # C9, C10
     recs = [cafe("C1"), srec("S1", group="stay", category="Khách sạn", usable=())]
     res = go(si(wishes=W(kinds=[{"kind": "view", "quote": "view", "place_ids": ["S1", "GHOST", "C1"]}])), recs)
-    assert "S1" not in every(res) and "GHOST" not in res.view["shortlist"] and order(res, "chill") == ["C1"]
+    assert "S1" not in every(res) and "GHOST" not in res.view["shortlist"] and order(res, "cafe") == ["C1"]
 
 
 # ---------- user cases (E) ----------
@@ -110,7 +110,7 @@ def test_couple_chill_quiet_cafe_first_nature_untouched():  # E2
     recs = [cafe("C1", features={"crowd": feat("high", n=5)}), cafe("C2", features={"crowd": feat("low", n=5)}),
             nature("N1"), nature("N2")]
     res = go(si(liked_groups=["chill"], soft_weights=[love("crowd", "low")], context={"companions": ["partner"]}), recs)
-    assert order(res, "chill")[0] == "C2" and set(order(res, "nature")) == {"N1", "N2"}
+    assert order(res, "cafe")[0] == "C2" and set(order(res, "nature")) == {"N1", "N2"}
 
 
 def test_family_with_kids_fit_and_kind_beat_kind_only():  # E3
@@ -119,7 +119,7 @@ def test_family_with_kids_fit_and_kind_beat_kind_only():  # E3
             srec("K3", group="amusement", features={"kids_play_area": feat("present", n=5)}, details=good)]
     res = go(si(context={"companions": ["kids"]}, soft_weights=[love("kids_play_area")],
                 wishes=W(kinds=[{"kind": "khu vui chơi", "quote": "khu vui chơi", "place_ids": ["K3", "K2"]}])), recs)
-    assert order(res, "sights") == ["K3", "K2", "K1"]
+    assert order(res, "fun") == ["K3", "K2", "K1"]
 
 
 def test_wheelchair_photo_place_that_is_bad_for_wheelchairs_never_shows():  # E4
@@ -143,9 +143,9 @@ def test_like_x_but_quieter():  # E6
                                 "crowd": feat("high", n=5)})]
     res = go(si(wishes=W(like=[{"place_id": "X", "but": ["crowd=low"], "quote": "giống X nhưng vắng hơn"}]),
                 soft_weights=[love("crowd", "low")]), recs)
-    chill = order(res, "chill")
-    assert chill.index("Y") < chill.index("Z") < chill.index("W")
-    assert "X" in chill and res.cands["X"].parts["wish"] == 0.0
+    cafes = order(res, "cafe")
+    assert cafes.index("Y") < cafes.index("Z") < cafes.index("W")
+    assert "X" in cafes and res.cands["X"].parts["wish"] == 0.0
 
 
 def test_cloud_hunting_look_keeps_its_order():  # E7
@@ -161,14 +161,14 @@ def test_nightlife_bar_is_not_banned_by_no_alcohol_and_karaoke_leads():  # E8
     res = go(si(hard_filters=[hard("activity", "alcohol_consumption")],
                 wishes=W(kinds=[{"kind": "karaoke", "quote": "karaoke", "place_ids": ["K1"]},
                                 {"kind": "bar", "quote": "bar", "place_ids": ["B1"]}])), recs)
-    assert "B1" in order(res, "chill") and order(res, "sights")[0] == "K1"
+    assert "B1" in order(res, "night") and order(res, "sights")[0] == "K1"
 
 
 def test_mixed_group_both_wished_groups_lead():  # E9
     recs = [meal("M1"), meal("M2", "bánh căn"), nature("N1"), nature("N2"), cafe("C1")]
     res = go(si(context={"companions": ["kids", "parents"]}, wishes=W(dish_wish(recs, "bánh căn")),
                 liked_groups=["nature", "meal"]), recs)
-    assert order(res, "meal")[0] == "M2" and order(res, "nature") and order(res, "chill") == ["C1"]
+    assert order(res, "meal")[0] == "M2" and order(res, "nature") and order(res, "cafe") == ["C1"]
 
 
 def test_change_of_mind_keeps_the_chosen_place():  # E11
@@ -176,7 +176,11 @@ def test_change_of_mind_keeps_the_chosen_place():  # E11
     first = go(si(wishes=W(dish_wish(recs, "bánh căn"))), recs, State(selected=["M2"]))
     st = State(selected=["M2"], shown=first.shown)
     second = go(si(wishes=W(kinds=[{"kind": "lẩu", "quote": "lẩu", "place_ids": ["M3"]}])), recs, st)
-    assert order(second, "meal")[:2] == ["M2", "M3"]
+    # a tab ranks by score alone (docs/PLACE_DECISION.md §9.3): the new wish lifts M3, the chosen M2 stays listed
+    # and marked chosen, and nobody is removed
+    assert order(second, "meal")[0] == "M3" and set(order(second, "meal")) == {"M1", "M2", "M3"}
+    meal_cards = next(g for g in second.view["groups"] if g["id"] == "meal")["cards"]
+    assert [c["chosen"] for c in meal_cards if c["id"] == "M2"] == [True]
 
 
 def test_dish_no_corpus_place_has_changes_nothing():  # E12

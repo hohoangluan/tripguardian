@@ -1,0 +1,310 @@
+{
+  "at": "2026-10-16T22:55:22.151683+00:00",
+  "synthetic": true,
+  "cases": 30,
+  "detected": 30,
+  "controls": 30,
+  "false_positives": 0,
+  "rows": [
+    {
+      "case": "overlap",
+      "offset_min": 0,
+      "expected": "overlap",
+      "detected": true,
+      "violations": [
+        "overlap"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hours",
+      "offset_min": 0,
+      "expected": "hours",
+      "detected": true,
+      "violations": [
+        "hours"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "budget",
+      "offset_min": 0,
+      "expected": "budget",
+      "detected": true,
+      "violations": [
+        "budget"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "travel",
+      "offset_min": 0,
+      "expected": "travel",
+      "detected": true,
+      "violations": [
+        "travel"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_unknown",
+      "offset_min": 0,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_forbidden",
+      "offset_min": 0,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "overlap",
+      "offset_min": 10,
+      "expected": "overlap",
+      "detected": true,
+      "violations": [
+        "overlap"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hours",
+      "offset_min": 10,
+      "expected": "hours",
+      "detected": true,
+      "violations": [
+        "hours"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "budget",
+      "offset_min": 10,
+      "expected": "budget",
+      "detected": true,
+      "violations": [
+        "budget"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "travel",
+      "offset_min": 10,
+      "expected": "travel",
+      "detected": true,
+      "violations": [
+        "travel"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_unknown",
+      "offset_min": 10,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_forbidden",
+      "offset_min": 10,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "overlap",
+      "offset_min": 20,
+      "expected": "overlap",
+      "detected": true,
+      "violations": [
+        "overlap"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hours",
+      "offset_min": 20,
+      "expected": "hours",
+      "detected": true,
+      "violations": [
+        "hours"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "budget",
+      "offset_min": 20,
+      "expected": "budget",
+      "detected": true,
+      "violations": [
+        "budget"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "travel",
+      "offset_min": 20,
+      "expected": "travel",
+      "detected": true,
+      "violations": [
+        "travel"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_unknown",
+      "offset_min": 20,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_forbidden",
+      "offset_min": 20,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "overlap",
+      "offset_min": 30,
+      "expected": "overlap",
+      "detected": true,
+      "violations": [
+        "overlap"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hours",
+      "offset_min": 30,
+      "expected": "hours",
+      "detected": true,
+      "violations": [
+        "hours"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "budget",
+      "offset_min": 30,
+      "expected": "budget",
+      "detected": true,
+      "violations": [
+        "budget"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "travel",
+      "offset_min": 30,
+      "expected": "travel",
+      "detected": true,
+      "violations": [
+        "travel"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_unknown",
+      "offset_min": 30,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_forbidden",
+      "offset_min": 30,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "overlap",
+      "offset_min": 40,
+      "expected": "overlap",
+      "detected": true,
+      "violations": [
+        "overlap"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hours",
+      "offset_min": 40,
+      "expected": "hours",
+      "detected": true,
+      "violations": [
+        "hours"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "budget",
+      "offset_min": 40,
+      "expected": "budget",
+      "detected": true,
+      "violations": [
+        "budget"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "travel",
+      "offset_min": 40,
+      "expected": "travel",
+      "detected": true,
+      "violations": [
+        "travel"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_unknown",
+      "offset_min": 40,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    },
+    {
+      "case": "hard_forbidden",
+      "offset_min": 40,
+      "expected": "hard",
+      "detected": true,
+      "violations": [
+        "hard"
+      ],
+      "control_violations": []
+    }
+  ]
+}

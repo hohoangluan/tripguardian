@@ -19,8 +19,8 @@ from .compare import compare as compare_cands
 from .chunks import CHUNK_DAYS
 from .contracts import EvidenceInput, PlaceEvidence
 from .curation import ActionError, apply
-from .guard import TurnPlan, guard
-from .heuristics import exact_command
+from .guard import TurnPlan, guard, names_in
+from .heuristics import common_wish, exact_command, general_wish
 from .pipeline import Data, Result, run, wanted, why_not
 from .policy import DONE, NONE, policy
 from .scope import STEPS, replan_scope
@@ -29,6 +29,7 @@ from .settings import Settings
 from .window import pages
 
 SEARCH_MAX = 60  # cards a search returns
+PROMPT_PER_GROUP = 4  # places of each tab the model always sees
 SEARCH_OUTSIDE = 8  # places outside the lists it explains
 
 Emit = Callable[[str, dict], None]
@@ -65,9 +66,16 @@ def _confirmable(feasibility: dict) -> bool:
     return feasibility["status"] in ("feasible", "unknown") or bool(conflicts)
 
 
-def _list_text(change: dict) -> str:
-    """How the shown places changed when the whole list was rebuilt (a new Search Input), in one sentence."""
+def _list_text(change: dict, total: int | None = None) -> str:
+    """How the list changed when it was rebuilt (a new Search Input), in one sentence. total: the places the tabs now list,
+    the number the page header shows, so the reply and the header never disagree."""
     added = sum(c["added"] for c in change.values())
+    if total is not None:
+        if any(c["replaced_all"] for c in change.values()):
+            return f"Danh sách đổi theo ý bạn, còn {total} nơi hợp"
+        if not added:
+            return f"Các nơi đang gợi ý vẫn hợp, còn {total} nơi hợp với chuyến"
+        return f"Còn {total} nơi hợp với chuyến, {added} nơi hợp hơn lên đầu danh sách"
     if any(c["replaced_all"] for c in change.values()):
         return f"Danh sách đổi theo ý bạn: {added} nơi mới"
     if not added:
@@ -87,7 +95,9 @@ def diff(before: dict, after: dict, scope: dict | None, rebuilt: bool = False) -
     parts = [f"{sign(delta['places'])} nơi, {sign(delta['visit'])} phút tham quan, {sign(delta['travel'])} phút đi lại"
              ] if any(delta.values()) else []
     if rebuilt:
-        parts.append(_list_text(after.get("change") or {}))
+        groups = after.get("groups")
+        total = sum(g["total"] for g in groups if g["id"] != "anchors") if groups is not None else None
+        parts.append(_list_text(after.get("change") or {}, total))
     return {"added": sorted(a - b), "removed": sorted(b - a),
             "status": [before["feasibility"]["status"], after["feasibility"]["status"]], "delta": delta,
             "text": "; ".join(parts), "scope": scope}
@@ -275,7 +285,11 @@ class Engine:
         with self.store.lock(sid):
             before = self._result(s)
             aliases = self._aliases(before.view)
-            quick = exact_command(text, aliases)
+            quick, quick_say, quick_log = exact_command(text, aliases), "", "heuristic:exact_command"
+            if quick is None and (wish := common_wish(text, aliases)) is not None:
+                (quick, quick_say), quick_log = wish, "heuristic:wish"  # less crowded, cheaper, closer: no model
+            if quick is None and general_wish(text, aliases):
+                quick, quick_log = [{"type": "trip", "text": text.strip()}], "heuristic:trip"  # Trip reads it; the model adds nothing
             fields = {} if quick is not None else self._fields(before.view, aliases, text)
             if fields:
                 context = self._grounded_context(aliases, text, s.search_input.corpus_binding)
@@ -288,7 +302,7 @@ class Engine:
 
             try:
                 if quick is not None:
-                    actions, say, log = quick, "", ["heuristic:exact_command"]
+                    actions, say, log = quick, quick_say, [quick_log]
                 else:
                     if self.agent is None:
                         raise AgentError("no agent configured")
@@ -406,15 +420,15 @@ class Engine:
     # ---------- agent prompt ----------
 
     def _aliases(self, view: dict) -> dict[str, dict]:
-        """Every place on screen gets an alias; reasons only for each group's first page and the chosen ones, so the
-        prompt stays small however far the user scrolled."""
+        """Every place on screen gets an alias; reasons only for each tab's first page and the chosen ones, so the
+        prompt stays small however far the user paged (docs/PLACE_DECISION.md §9.4)."""
         out, seen = {}, set()
         for g in view["groups"]:
-            for k, c in enumerate(g["cards"]):
+            for c in g["cards"]:
                 if c["id"] in seen:
                     continue
                 seen.add(c["id"])
-                brief = k < self.cfg.page_size or c["chosen"]
+                brief = g.get("page", 0) == 0 or c["chosen"]
                 notes = "; ".join(t["text"] for t in (c["why"] + c["tradeoffs"])[:3]) if brief else ""
                 out[f"P{len(out) + 1}"] = {"id": c["id"], "name": c["name"], "group": g["label"],
                                            "chosen": c["chosen"], "notes": notes}
@@ -464,10 +478,23 @@ class Engine:
         return out
 
     @staticmethod
+    def _prompt_places(aliases: dict[str, dict], text: str) -> dict[str, dict]:
+        """The places the model needs for this message: the ones the user named, the chosen ones, and the first few of each
+        tab (the rest, ~280 lines, are ~13k tokens and change nothing: an op on a place needs the user to name it). Notes
+        only for these; the guard still checks every alias against the whole screen."""
+        seen: dict[str, int] = {}
+        out = {}
+        for k, a in aliases.items():
+            first = seen[a["group"]] = seen.get(a["group"], 0) + 1
+            if a["chosen"] or first <= PROMPT_PER_GROUP or names_in(text, a["name"]):
+                out[k] = a
+        return out
+
+    @staticmethod
     def _fields(view: dict, aliases: dict, text: str) -> dict:
         f = view["feasibility"]
         places = "\n".join(f"{k} | {a['name']} | {a['group']} | {'chosen' if a['chosen'] else '-'} | {a['notes']}"
-                           for k, a in aliases.items())
+                           for k, a in Engine._prompt_places(aliases, text).items())
         t = f["totals"]
         return {"features": features_text(), "places": places or "none",
                 "profile": json.dumps(view["profile"], ensure_ascii=False),

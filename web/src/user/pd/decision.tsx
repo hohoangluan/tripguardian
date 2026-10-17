@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { mutateJourney, requestStageEntry } from '../journey'
+import { mutateJourney, readJourney, requestStageEntry } from '../journey'
 import { useTrip } from '../trip'
 import { go } from '../ui/common'
 import * as api from './api'
@@ -168,7 +168,17 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
       if (e instanceof api.DecisionError && e.status === 409 && e.readback && (e.detail === 'trip_incomplete' || e.missing !== undefined)) {
         setGate({ readback: e.readback, missing: e.missing ?? e.readback.missing ?? [], key: Date.now() })
         setError(null)
-      } else setError(e instanceof api.DecisionError ? `Chưa xếp lịch được: ${e.detail || e.status}` : OFFLINE)
+      } else if (e instanceof api.DecisionError) {
+        // A 409 with only a code (for example "partial"): open the gate when the trip still misses something, else say it in words.
+        let opened = false
+        if (e.status === 409) {
+          try {
+            const rb = await readJourney<Readback>(id, 'trip/readback')
+            if (rb.missing?.length && origin === location.pathname + location.search) { setGate({ readback: rb, missing: rb.missing, key: Date.now() }); setError(null); opened = true }
+          } catch { /* fall through to the message */ }
+        }
+        if (!opened) setError(e.status === 409 ? 'Các nơi đã chọn chưa đủ để xếp thành lịch trọn vẹn. Bạn thử thêm hoặc đổi vài nơi nhé.' : 'Chưa xếp lịch được lúc này. Bạn thử lại sau ít giây nhé.')
+      } else setError(OFFLINE)
       return false
     } finally {
       setBusy(false)

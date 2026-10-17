@@ -132,8 +132,11 @@ def test_one_flow_a_reply_that_asks_nothing_keeps_the_text_box(make):
     assert first["qid"] == "conversation"  # the agent asked in words
     for text in ("tôi muốn có bồn tắm", "tháng 12 lạnh không?"):
         card = run(e, sid, kind="text", text=text)[-1][1]
-        # A plain reply leaves the text box open even with missing required topics.
-        assert card["qid"] == "conversation" and card["input"] == "text", text
+        # A statement asks nothing: the app opens the next required topic; a reply to a user question waits.
+        if text.endswith("?"):
+            assert card["qid"] == "conversation" and card["input"] == "text", text
+        else:
+            assert card["tabs"][0]["kind"] == "required", text
     assert e.store.get(sid).state.meta.phase == "chat"
 
 
@@ -547,7 +550,7 @@ def test_a_correction_of_something_known_records_nothing_new_and_stays_in_chat(m
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
     ev = run(e, sid, kind="text", text="đúng rồi 3 ngày nha")
-    assert ev[-1][1]["qid"] == "conversation"  # No default required topic follows the fallback.
+    assert ev[-1][1]["tabs"][0]["kind"] == "required"  # nothing asked: the app opens the next missing topic
     assert e.store.get(sid).state.meta.idle_streak == 1  # an adaptive turn that added nothing
 
 

@@ -315,8 +315,8 @@ class Harness:
         """Search-as-you-type for a starting point; Planning owns Live Context (docs/PLANNING.md §Live Context)."""
         return self.tools["planning"].geo(q)
 
-    def lodging_suggest(self, q: str) -> list[dict]:
-        return self.tools["planning"].lodging_suggest(q)
+    def lodging_suggest(self, q: str, top: int = 0) -> list[dict]:
+        return self.tools["planning"].lodging_suggest(q, top)
 
     def forget_profile(self, user_id: str) -> bool:
         return self.tools["trip"].forget(user_id)

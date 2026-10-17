@@ -5,7 +5,7 @@ import { useDecision } from '../pd/decision'
 import { loadLibrary, useUi } from '../store'
 import { hasTrip, STEPS, stepOf, useTrip } from '../trip'
 import { go, Link, PlacePhoto } from '../ui/common'
-import { Icon, type IconName } from '../ui/icons'
+import { Icon, Logo, type IconName } from '../ui/icons'
 import { Who } from './Who'
 import { HomeDialogs, openCreate } from './dialogs'
 
@@ -59,6 +59,13 @@ const ACCOUNT_NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/support', label: 'Hỗ trợ', icon: 'info' },
 ]
 
+// The same sidebar beside the screens of the trip flow (Lựa chọn, place pages, Lịch trình, Hoàn tất), so it never disappears after the homepage.
+export function FlowSide({ path }: { path: string }) {
+  const account = useAccount()
+  useEffect(() => { if (account && !account.needs_consent) void loadLibrary() }, [account?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <div className="tg-home tg-flowside"><Sidebar path={path} /></div>
+}
+
 // The sidebar is a slim rail of icons (after Pinterest's): the name of each button shows as a tooltip on hover or focus.
 // Three blocks (new trip · places and trips · settings and support), the logo above them and sign-out alone at the bottom.
 export function Sidebar({ path }: { path: string }) {
@@ -78,7 +85,7 @@ export function Sidebar({ path }: { path: string }) {
   }
   return (
     <nav className="tg-hf__side" aria-label="Điều hướng chính">
-      <div className="tg-hf__blk tg-hf__blk--top"><span className="tg-hf__logo" aria-hidden="true" /></div>
+      <Link to="/" className="tg-hf__logo" aria-label="Về Khám phá"><Logo size={19} /></Link>
       <div className="tg-hf__mids">
         <ul className="tg-hf__blk tg-hf__nav">{NAV.map(item)}</ul>
         <ul className="tg-hf__blk tg-hf__nav">{ACCOUNT_NAV.map(item)}</ul>

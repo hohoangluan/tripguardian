@@ -1,3 +1,4 @@
+import pytest
 from datetime import date
 
 from trip.domain.prepass import prepass
@@ -127,3 +128,27 @@ def test_nights_and_day_trips():
     day_trip = got("đi về trong ngày")
     assert ("days", 1, False) in day_trip and ("nights", 0, False) in day_trip
     assert not any(f == "days" for f, *_ in got("ở 30 đêm"))  # 30 nights would be 31 days: more than a trip holds
+
+
+@pytest.mark.parametrize("text,n,guessed", [
+    ("nhóm mình 6 đứa đi đà lạt săn mây", 6, False),
+    ("Nhóm 6 bạn đại học, đi xe khách", 6, False),
+    ("nhà mình 5 người đi Đà Lạt", 5, False),
+    ("hai đứa mình đi Đà Lạt", 2, False),
+    ("2 vợ chồng + 2 bé đi chơi", 6, True),
+    ("vợ chồng mình và 2 con đi Đà Lạt", 4, True),
+])
+def test_party_size_phrases(text, n, guessed):
+    people = [p for p in prepass(text, date(2026, 10, 17)).proposals if p.field == "people"]
+    assert [(p.value, p.inferred) for p in people] == [(n, guessed)]
+    assert people[0].quote in text  # the quote is the user's own words
+
+
+@pytest.mark.parametrize("text", ["nhà mình 2 đứa nhỏ", "có bà ngoại với 2 đứa nhỏ", "vợ chồng mình đi Đà Lạt", "đi với 2 đứa bạn thân"])
+def test_no_party_size_without_a_stated_count(text):
+    assert not [p for p in prepass(text, date(2026, 10, 17)).proposals if p.field == "people"]
+
+
+def test_a_friend_group_count_suggests_friends():
+    sug = prepass("nhóm mình 6 đứa đi đà lạt", date(2026, 10, 17)).suggestions
+    assert ("companions", "friends") in [(p.field, p.value) for p in sug]

@@ -31,7 +31,15 @@ def tabs(state: TripState, cfg) -> tuple[Tab, ...]:
             frame = compile_frame(state, cfg.arrival_buffer_min, cfg.entry_min, FrameDefaults(**cfg.frame))
             questions = []
             if "dates" in inputs:
-                questions.append("Bạn ở Đà Lạt từ ngày nào đến ngày nào?")
+                # ask only what is missing: a length they gave is repeated back, not asked again
+                if state.days.known and not state.start_date.known:
+                    questions.append(f"Bạn đi {state.days.value} ngày, bắt đầu từ ngày nào?")
+                elif state.start_date.known and not state.days.known:
+                    questions.append(f"Bạn bắt đầu từ {state.start_date.value:%d/%m}, ở Đà Lạt mấy ngày?")
+                elif state.start_date.known and state.days.known:
+                    questions.append(f"Mình hiểu bạn đi {state.days.value} ngày từ {state.start_date.value:%d/%m}, đúng không?")
+                else:
+                    questions.append("Bạn ở Đà Lạt từ ngày nào đến ngày nào?")
             if "start" in inputs and "end" in inputs:
                 questions.append("Ngày đầu bắt đầu và ngày cuối xong lúc mấy giờ?")
             elif "start" in inputs:
@@ -102,6 +110,10 @@ def tabs(state: TripState, cfg) -> tuple[Tab, ...]:
                 question = f"Nhóm bạn có {state.people.value} người. Ai đi cùng bạn?"
             elif "who" not in inputs:
                 question = "Nhóm bạn có tổng cộng mấy người?"
+                if state.people.known:  # a count the code only guessed: shown for a yes, not asked from scratch
+                    question = f"Mình đoán nhóm bạn đi {state.people.value} người, đúng không?"
+            elif state.people.known:
+                question = f"Mình đoán nhóm bạn đi {state.people.value} người. Ai đi cùng bạn?"
             multi = True
             if "who" in inputs:
                 chosen = set(state.companions.value or ()) | {who for who, _ in state.meta.companion_hints}
@@ -126,6 +138,16 @@ def tabs(state: TripState, cfg) -> tuple[Tab, ...]:
                                    current=state.people, description="Mình dùng số người để tính chi phí cho nhóm."),)
         elif key == "mobility":
             header, question, why = TITLE["mobility"], "Bạn đi lại bằng gì ở Đà Lạt?", "Để tính đường đi và thời gian di chuyển."
+            arrive = {"bus": "xe khách", "plane": "máy bay"}.get(state.arrival_mode.value)
+            if arrive:  # how they come is known; only the way around the city is asked
+                question = f"Bạn tới Đà Lạt bằng {arrive}. Trong thành phố bạn đi lại bằng gì?"
+            elif state.arrival_mode.value == "self":
+                question = "Bạn tự đi tới Đà Lạt. Trong thành phố bạn đi lại bằng gì?"
+            if state.mobility.known and state.mobility.source != "user":
+                way = {"motorbike": "xe máy", "walk": "đi bộ", "car": "ô tô tự lái" if state.driver.value == "self"
+                       else "ô tô, taxi hoặc thuê tài xế" if state.driver.value == "hired" else "ô tô"}.get(state.mobility.value)
+                if way:
+                    question = f"Mình đoán trong thành phố bạn đi lại bằng {way}, đúng không?"
             opts = []
             for id, label, vehicle, driver in (("motorbike", "Xe máy", "motorbike", None),
                     ("car_self", "Ô tô tự lái", "car", "self"), ("car_hired", "Taxi, Grab, thuê tài xế", "car", "hired"),
@@ -181,12 +203,14 @@ def tabs(state: TripState, cfg) -> tuple[Tab, ...]:
                 options += (option("amount.prefilled", f"{state.budget_vnd.value:,} đồng", "budget_vnd", state.budget_vnd.value,
                                    current=state.budget_vnd, description="Mình chọn nơi và chỗ ở trong khoản này."),)
             if "scope" in inputs:
+                solo = state.people.value == 1
+                scopes = ((("trip_total", "Cho 1 người, cả chuyến"), ("per_day", "Cho 1 người mỗi ngày")) if solo else
+                          (("trip_total", "Cả nhóm, cả chuyến"), ("per_day", "Cả nhóm mỗi ngày"),
+                           ("per_person", "Mỗi người cả chuyến"), ("per_person_day", "Mỗi người mỗi ngày")))
                 options += tuple(option(id, label, "budget_scope", current=state.budget_scope,
-                                        description=f"Mình tính khoản chi cho {label.lower()}.") for id, label in (
-                    ("trip_total", "Cả nhóm, cả chuyến"), ("per_day", "Cả nhóm mỗi ngày"),
-                    ("per_person", "Mỗi người cả chuyến"), ("per_person_day", "Mỗi người mỗi ngày")))
+                                        description=f"Mình tính khoản chi {label.lower()}.") for id, label in scopes)
         else:
-            header, question, why = TITLE["lodging"], "Bạn ở đâu trong chuyến đi?", "Mỗi ngày bắt đầu và kết thúc ở chỗ ở. Chưa đặt thì tìm khu bạn muốn ở."
+            header, question, why = TITLE["lodging"], "Bạn muốn ở đâu?", "Mình chọn sẵn vài chỗ gần những nơi bạn đã chọn, bấm một thẻ là xong."
             inputs = ("lodging",)
             if state.lodging.known:
                 options = (option("lodging.prefilled", state.lodging.value.text[:40], "lodging", state.lodging.value,

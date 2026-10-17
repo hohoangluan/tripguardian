@@ -4,6 +4,8 @@ next place until everything fits, then give back any dropped place that still fi
 never enters a place's score: prices only order the `cost` direction, and a place with no known price is never dropped
 by it."""
 
+import multiprocessing as mp
+import os
 from dataclasses import asdict, replace
 
 from .backup import backups
@@ -15,6 +17,9 @@ from .traits import visit_minutes
 
 DIRECTIONS = ("fit", "travel", "cost")
 LABEL = {"main": "Lịch của bạn", "fit": "Giữ nơi hợp gu nhất", "travel": "Ít đi lại", "cost": "Tiết kiệm"}
+TRADEOFF = {"fit": "có thể phải đi xa hơn và tốn hơn để giữ nơi hợp gu",
+            "travel": "có thể bỏ nơi bạn thích nhưng nằm xa các nơi còn lại",
+            "cost": "có thể bỏ nơi bạn thích nhưng tốn tiền hơn"}
 GAIN = {"fit": "giữ những nơi khớp gu bạn nhất", "travel": "ít ngồi xe nhất", "cost": "rẻ nhất"}
 ORDINAL = {2: "thứ hai", 3: "thứ ba", 4: "thứ tư"}
 ALONE_MIN = 15              # spec section 7: "các nơi khác cách khách sạn < 15′", the dropped place off on its own
@@ -181,6 +186,49 @@ def _direction(trip, run: _Runs, direction, protected, values):
     return kept, dropped, sched, why
 
 
+_FORK_WAIT_S = 120          # a forked direction that has not answered by then is searched here instead
+
+
+def _forked(trip, protected, values) -> dict:
+    """{direction: (kept, dropped, sched, why)} searched in one forked process each (the three searches are
+    independent and deterministic: a kept set always lays out the same, so only the memo is not shared). A child that
+    fails or stays silent is simply absent: the caller searches that direction itself."""
+    if trip.cfg.direction_workers < 2 or os.name != "posix" or "fork" not in mp.get_all_start_methods():
+        return {}
+    ctx, procs = mp.get_context("fork"), {}
+    for direction in DIRECTIONS[:trip.cfg.direction_workers]:
+        rx, tx = ctx.Pipe(duplex=False)
+        proc = ctx.Process(target=_child, args=(tx, trip, direction, protected, values), daemon=True)
+        proc.start()
+        tx.close()
+        procs[direction] = (proc, rx)
+    got = {}
+    for direction, (proc, rx) in procs.items():
+        try:
+            if rx.poll(_FORK_WAIT_S):
+                ok, payload = rx.recv()
+                if ok:
+                    got[direction] = payload
+        except Exception:
+            pass
+        finally:
+            rx.close()
+            if proc.is_alive():
+                proc.terminate()
+            proc.join(1)
+    return got
+
+
+def _child(tx, trip, direction, protected, values) -> None:
+    try:
+        tx.send((True, _direction(trip, _Runs(trip), direction, protected, values)))
+    except BaseException as e:      # reported as "searched here instead"
+        tx.send((False, repr(e)))
+    finally:
+        tx.close()
+        os._exit(0)
+
+
 def render_variant(trip, sched: Schedule, vid: str, dropped=(), available=True, why=None, day_parts=True) -> dict:
     """One plan card in the shape the engine reads (composer.render_profile's keys) plus the overload card fields.
     day_parts=False: robustness and backups are left None for a caller that has them per day already (the engine's
@@ -192,7 +240,7 @@ def render_variant(trip, sched: Schedule, vid: str, dropped=(), available=True, 
     known = [trip.by_place[p].cost_vnd for p in kept if p in trip.by_place and trip.by_place[p].cost_vnd is not None]
     violations = [asdict(v) for v in sched.violations]
     confirmable = available and not violations
-    return {"id": vid, "objective": vid, "preset": None, "label": LABEL[vid], "gain": GAIN.get(vid),
+    return {"id": vid, "objective": vid, "preset": None, "label": LABEL[vid], "gain": GAIN.get(vid), "tradeoff": TRADEOFF.get(vid),
             "kept": kept, "dropped": list(dropped), "available": available, "left_over": list(sched.leftover),
             "unavailable_reason": None if available else UNAVAILABLE[why or "protected"],
             "compare": {"travel_min": m["travel_min"], "cost_known_vnd": sum(known),
@@ -260,8 +308,9 @@ def plan_or_directions(trip, *, protected=()) -> dict:
     protected = (must_places(trip) | set(protected)) & set(trip.by_place)
     values = selection_utilities(trip)
     out, seen = [], {}
+    searched = _forked(trip, protected, values)
     for direction in DIRECTIONS:
-        kept, dropped, sched, why = _direction(trip, run, direction, protected, values)
+        kept, dropped, sched, why = searched.get(direction) or _direction(trip, run, direction, protected, values)
         key = frozenset(kept)
         if key in seen:
             seen[key].setdefault("merged", []).append(direction)

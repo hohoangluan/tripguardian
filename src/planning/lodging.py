@@ -5,7 +5,7 @@ Hard requirements retain their unknown policy; physical and suitability checks f
 """
 
 from corpus.serving import feature
-from corpus.ontology import load as load_ontology
+from .feature_ontology import ontology
 from requirements import allowed, hard_result
 from trip import group_budget, nights
 
@@ -89,10 +89,10 @@ def hard_requirements(hard_filters: list[dict], default: str = "exclude") -> lis
     (exclude: a hard filter is never read as optional unless it says "flag"). The one place that rule lives, for
     lodging and for suggestions."""
     requirements = []
-    ontology = load_ontology() if hard_filters else None
+    onto = ontology() if hard_filters else None
     for f in hard_filters:
         fid = f["feature"]
-        feature_def = ontology.features.get(fid)
+        feature_def = onto.features.get(fid)
         protected = fid.startswith("fit.") or (feature_def and feature_def.group in {"effort", "suitability"})
         requirements.append({**f, "unknown_policy": "exclude" if protected else f.get("unknown_policy", default)})
     return requirements

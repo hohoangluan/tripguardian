@@ -1,0 +1,64 @@
+[
+  {
+    "input": "Mình đi Đà Lạt cùng ba mẹ.",
+    "seconds": 4.238,
+    "reply": [
+      "Mình hiểu là chuyến này bạn đi cùng ba mẹ. Ba mẹ có cần hạn chế đi bộ xa hay leo dốc, cầu thang không?"
+    ],
+    "trip": [
+      {
+        "target": "companions",
+        "value": [
+          "parents"
+        ],
+        "mark": false,
+        "confidence": "high"
+      }
+    ],
+    "budget_vnd": null,
+    "hard": [],
+    "unmapped": [],
+    "safety_pending": true
+  },
+  {
+    "input": "Tụi mình đi Đà Lạt 2 ngày, 2 người, tổng ngân sách 2 triệu cả chuyến, thích cà phê và thiên nhiên, không muốn di chuyển nhiều.",
+    "seconds": 7.853,
+    "reply": [
+      "Bạn thích cà phê và thiên nhiên, với ngân sách 2 triệu cho cả chuyến. Về việc không muốn di chuyển nhiều, bạn muốn ghé ít điểm hay chủ yếu chọn các điểm gần nhau?"
+    ],
+    "trip": [
+      {
+        "target": "days",
+        "value": 2,
+        "mark": false,
+        "confidence": "high"
+      },
+      {
+        "target": "people",
+        "value": 2,
+        "mark": false,
+        "confidence": "high"
+      }
+    ],
+    "budget_vnd": {
+      "target": "budget_vnd",
+      "value": {
+        "amount": 2000000,
+        "scope": "trip_total",
+        "guessed": false,
+        "per_person_day": 500000
+      },
+      "mark": false,
+      "confidence": "high",
+      "solo": false
+    },
+    "hard": [],
+    "unmapped": [
+      {
+        "target": "unmapped:0",
+        "phrase": "không muốn di chuyển nhiều"
+      }
+    ],
+    "safety_pending": false
+  }
+]

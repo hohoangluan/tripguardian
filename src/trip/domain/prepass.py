@@ -64,6 +64,13 @@ MOBILITY = [
     (r"\b(xe may|xe so|xe tay ga)\b", "motorbike"),
     (r"\b(o to|oto|xe hoi|xe rieng|tu lai|xe 4 cho|xe 7 cho)\b", "car"),
 ]
+# How the user gets TO the city, said outright; only a coach or a plane names the way in by itself
+ARRIVAL = [
+    (r"\b(xe khach|nha xe|limousine|giuong nam)\b", "bus"),
+    (r"\b(may bay|chuyen bay|ve may bay|bay vao|bay len|bay toi)\b", "plane"),
+]
+# a car the traveller drives: how they come ("ô tô tự lái") and, only as a guess, how they get around the city
+SELF_CAR = re.compile(r"\b(o to|oto|xe hoi)\b.{0,12}\btu lai\b|\btu lai\b.{0,12}\b(o to|oto|xe hoi)\b|\blai (o to|oto|xe hoi)\b")
 PACE = [
     (r"\b(thong tha|nhe nhang|di it|khong voi|cham rai)\b", "slow"),
     (r"\b(di nhieu|cang nhieu cang tot|kham pha het|full lich)\b", "packed"),
@@ -148,6 +155,47 @@ def _on(day: int, month: int, year: str | None, today: date) -> date | None:
         return None
 
 
+COUNT = r"\d{1,2}|hai|ba|bon|nam|sau|bay|tam|chin|muoi"
+COUNT_WORD = {**NUMBER, "tam": 8, "chin": 9, "muoi": 10}
+FRIEND_GROUP = r"nhom|ca nhom|ca doan|doan|tui tui|tui minh|bon minh|chung minh"
+# a head count said in the traveller's words: "nhóm mình 6 đứa", "nhà mình 5 người", "hai đứa mình", "6 bạn"
+_PARTY_SUBJECT = re.compile(
+    r"\b(?:" + FRIEND_GROUP + r"|gia dinh|nha|chung toi|bon toi|tui toi)(?:\s+(?:minh|toi|tui|em|ta))?\s+(" + COUNT + r")\s*"
+    r"(?:dua|nguoi|ng|ban|thanh vien|anh chi em)\b(?!\s+(?:nho|con|be|tre)\b)")
+_PARTY_SELF = re.compile(r"\b(" + COUNT + r")\s*dua\s+(?:minh|toi|tui|em)\b")
+_COUPLES = re.compile(r"\b(?:(" + COUNT + r")\s+)?vo chong\b")
+_KIDS = re.compile(r"\b(" + COUNT + r")\s*(?:con|be|chau|nhoc|em be|tre|dua nho|dua con|dua be)\b")
+_ELDER = re.compile(r"\b(?:bo me|ba me|ong ba|ba ngoai|ong ngoai|ba noi|ong noi)\b")
+
+
+def _count(word: str) -> int:
+    return int(word) if word.isdigit() else COUNT_WORD[word]
+
+
+def party_size(low: str) -> tuple[int, int, int, bool] | None:
+    """The head count the words state: (people, start, end, guessed) over the folded text, or None.
+
+    Said outright ("nhóm mình 6 đứa", "5 người", "hai đứa mình") it is the user's own number. A household sum
+    ("vợ chồng + 2 bé" = 4) is only a guess the card asks to confirm: nobody said the total, and "2 con" may be grown up."""
+    if m := _PARTY_SUBJECT.search(low) or _PARTY_SELF.search(low):
+        n = _count(m[1])
+        if 1 <= n <= 20:
+            return n, m.start(), m.end(), False
+    if m := re.search(r"\b(\d{1,2})\s*(?:nguoi|ng)\b", low):
+        return int(m[1]), m.start(), m.end(), False
+    couple = _COUPLES.search(low)
+    if couple is None:
+        return None
+    kids = [k for k in _KIDS.finditer(low) if not NEGATION.search(low[max(0, k.start() - 32):k.start()])]
+    elders = _ELDER.findall(low)
+    if not kids and not elders:
+        return None
+    total = 2 * (_count(couple[1]) if couple[1] else 1) + sum(_count(k[1]) for k in kids)
+    total += sum(2 if w in ("bo me", "ba me", "ong ba") else 1 for w in elders)
+    spans = [couple.span()] + [k.span() for k in kids] + [x.span() for x in _ELDER.finditer(low)]
+    return (total, min(a for a, _ in spans), max(b for _, b in spans), True) if 2 <= total <= 20 else None
+
+
 def prepass(text: str, today: date) -> Prepass:
     raw = unicodedata.normalize("NFC", text)
     low = fold(raw)
@@ -227,9 +275,9 @@ def prepass(text: str, today: date) -> Prepass:
         if m:  # a day trip: one day, no night in the city
             add("days", 1, m)
             add("nights", 0, m)
-    for m in re.finditer(r"\b(\d{1,2})\s*(?:nguoi|ng)\b|\b(?:tui tui|tui minh|bon minh|chung minh)\s+(\d{1,2})\s+dua\b", low):
-        add("people", int(m[1] or m[2]), m)
-        break
+    if (party := party_size(low)) is not None:
+        n, a, b, guessed = party
+        out.append(Proposal("people", "set", n, raw[a:b], guessed))
     for m in re.finditer(r"\b(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|tr|trieu|cu)\b", low):
         n = float(m[1].replace(",", "."))
         add("budget_vnd", int(n * (1000 if m[2] in ("k", "nghin", "ngan") else 1_000_000)), m)
@@ -271,12 +319,26 @@ def prepass(text: str, today: date) -> Prepass:
             for m in re.finditer(r"\b" + word + r"\b", raw.lower()):
                 if not negated(m):
                     propose("companions", who, m, op="add")
-    for m in re.finditer(r"\b(?:tui tui|tui minh|bon minh|chung minh)\s+\d+\s+dua\b", low):
+    for m in re.finditer(r"\b(?:" + FRIEND_GROUP + r")(?:\s+(?:minh|toi|tui|em|ta))?\s+(?:" + COUNT + r")\s*(?:dua|ban)\b(?!\s+(?:nho|con|be|tre)\b)", low):
         if not negated(m):
             propose("companions", "friends", m, op="add")
     for m in re.finditer(r"\bnhom\s+\d+\s+cap doi\b", low):
         if not negated(m):
             propose("companions", "friends", m, op="add")
+    for pattern, way in ARRIVAL:
+        m = next((m for m in re.finditer(pattern, low) if not negated(m)), None)
+        if m:
+            add("arrival_mode", way, m)
+            break
+    else:
+        if m := SELF_CAR.search(low):
+            if not negated(m):
+                add("arrival_mode", "self", m)
+                add("mobility", "car", m, inferred=True)
+                add("driver", "self", m, inferred=True)
+    for m in re.finditer(r"\b(di ung|ung)\s+(?:voi\s+)?(hai san|tom|cua|ca|lac|dau phong|sua|trung|gluten)\b", low):
+        if not negated(m):  # no place feature checks an allergen: kept as a note the user is reminded of, never a filter
+            add("unmapped", f"dị ứng {raw[m.start(2):m.end(2)].lower()}", m, op="add")
     for pattern, kind in SIGNALS:
         for m in re.finditer(pattern, low):
             if negated(m):

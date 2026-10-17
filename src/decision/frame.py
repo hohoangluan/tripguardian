@@ -159,6 +159,30 @@ def _round(xs) -> list[float]:
     return [round(x, 4) for x in np.asarray(xs, dtype=np.float64).tolist()]
 
 
+def far_minutes(region, ctrs: list, mobility: str | None, cfg) -> np.ndarray:
+    """Travel minutes (decision.geo.minutes' formula) from the NEAREST of `ctrs` (as fit_table) to every place; NaN
+    where the place has no point."""
+    p = region.places
+    la1, lo1 = np.radians(p["lat"].to_numpy()), np.radians(p["lng"].to_numpy())
+    d = np.full(len(region.ids), np.inf)
+    for _, (qlat, qlng) in ctrs:
+        la2, lo2 = np.radians(qlat), np.radians(qlng)
+        h = np.sin((la2 - la1) / 2) ** 2 + np.cos(la1) * np.cos(la2) * np.sin((lo2 - lo1) / 2) ** 2
+        d = np.minimum(d, 2 * 6371 * np.arcsin(np.sqrt(h)))
+    return np.maximum(1, np.round(d * cfg.road_factor / cfg.speed_kmh[mobility or "motorbike"] * 60))
+
+
+def busy_mask(region, day_types, cfg) -> np.ndarray:
+    """Places Google's popular times call busy (>= crowd_busy_pct) at some time of the given day types; a place without
+    popular times is never busy (unknown, not quiet and not crowded)."""
+    p = region.places
+    busy = np.zeros(len(region.ids), dtype=bool)
+    for dt in day_types:
+        for b in DAYTIME:
+            busy |= (p[f"crowd_{dt}_{b}"].fill_null(0).to_numpy() >= cfg.crowd_busy_pct)
+    return p["has_crowd"].to_numpy() & busy
+
+
 def fit_table(region, si, days, ctrs, anchor_areas: set, profile, cfg) -> list[float]:
     """decision.fit.fit's number for every place: distance + area + crowd + details, clipped, rounded."""
     p = region.places
@@ -181,11 +205,7 @@ def fit_table(region, si, days, ctrs, anchor_areas: set, profile, cfg) -> list[f
     if (profile.crowd_tolerance or si.pace.crowd_tolerance) == "avoid":
         known = sorted({d.day_type for d in days if d.day_type})
         if known:
-            busy = np.zeros(n, dtype=bool)
-            for dt in known:
-                for b in DAYTIME:
-                    busy |= (p[f"crowd_{dt}_{b}"].fill_null(0).to_numpy() >= cfg.crowd_busy_pct)
-            crowd = np.where(p["has_crowd"].to_numpy() & busy, -cfg.crowd_penalty, 0.0)
+            crowd = np.where(busy_mask(region, known, cfg), -cfg.crowd_penalty, 0.0)
     details = np.zeros(n)
     cf = cfg.details_fit
     for who in trip_companions(si, cfg):

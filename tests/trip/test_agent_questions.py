@@ -67,24 +67,21 @@ def test_the_agent_repairs_missing_wording_and_the_question_survives_rebuild_and
 
 
 @pytest.mark.parametrize("answer", ["motorbike", "skip"])
-def test_required_card_answers_reach_the_agent_once_and_open_no_default_topic(catalog, cfg, tmp_path, answer):
+def test_plain_required_tap_opens_next_topic_without_a_model_call(catalog, cfg, tmp_path, answer):
     chat = ScriptedChat(reply(call("ask_required", topic="mobility", question=QUESTION)), say("Được nhé."))
     e = Engine(catalog, cfg, SessionStore(tmp_path), chat, today=lambda: TODAY)
     sid = e.create("first", "nothing")["id"]
     run(e, sid, kind="text", text="đi 3 ngày")
+    calls = chat.calls
     ev = run(e, sid, kind="deck", answers={"mobility": [answer]})
-    assert chat.calls == 2
-    context = context_of(chat.seen[-1][0])
-    assert context["picked"] == ("The latest user message is what they chose on the card; the app already recorded it. "
-                                 "Do not record it again; record only what it implies beyond that.")
+    assert chat.calls == calls  # a plain tap on a required card waits for no model
     state = e.store.get(sid).state
     if answer == "skip":
         assert not state.mobility.known and "mobility" in state.meta.declined
     else:
         assert state.mobility.value == answer and state.mobility.source == "user"
-    assert context["still_needed"]  # Missing logistics never cause the app to open a required tab.
-    assert ev[-1][1]["qid"] == "conversation" and ev[-1][1]["input"] == "text"
-    assert ("say", {"replace": "Được nhé."}) in ev
+    tab = ev[-1][1]["tabs"][0]
+    assert tab["kind"] == "required" and tab["qid"] != "mobility"
 
 
 @pytest.mark.parametrize("text", ["", "Rõ rồi."])
@@ -107,7 +104,7 @@ def test_gate_keeps_every_missing_topic_with_its_default_question(catalog, cfg):
         "care": "Có điều gì về sức khỏe, đi lại hay ăn uống cần lưu ý?",
         "pace": "Bạn muốn đi thong thả hay ghé nhiều nơi?",
         "budget": "Bạn muốn chi khoảng bao nhiêu và tính cho ai?",
-        "lodging": "Bạn ở đâu trong chuyến đi?",
+        "lodging": "Bạn muốn ở đâu?",
     }
     assert all(t.kind == "required" for t in gate.tabs) and gate.left == gate.total == 7
 

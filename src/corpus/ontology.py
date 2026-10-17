@@ -190,6 +190,25 @@ def parse_companions(raw: dict | None, features: dict[str, Feature]) -> tuple[di
     return companions, sensitive
 
 
+_LOADED: dict[tuple, Ontology] = {}
+
+
+def _stamp(path: Path) -> tuple | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_mtime_ns, st.st_size)
+
+
 def load(path: Path = PATH, companions_path: Path = COMPANIONS) -> Ontology:
-    companions = yaml.safe_load(companions_path.read_text(encoding="utf-8")) if companions_path.exists() else None
-    return parse(yaml.safe_load(path.read_text(encoding="utf-8")), companions)
+    """Parsed once per file version: the YAML parse costs ~0.18 s and every request validates against it. A file that
+    changed on disk (mtime or size) is parsed again."""
+    key = (str(path), _stamp(path), str(companions_path), _stamp(companions_path))
+    hit = _LOADED.get(key)
+    if hit is None:
+        companions = yaml.safe_load(companions_path.read_text(encoding="utf-8")) if companions_path.exists() else None
+        hit = _LOADED[key] = parse(yaml.safe_load(path.read_text(encoding="utf-8")), companions)
+        for old in [k for k in _LOADED if k[0] == key[0] and k[2] == key[2] and k != key]:
+            del _LOADED[old]
+    return hit

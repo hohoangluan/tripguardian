@@ -34,11 +34,11 @@ def session(search=None, state=None):
 def test_shortlist_is_fail_closed_and_grouped():
     v = run(session(), data(), CFG).view
     assert set(v["shortlist"]) == {"FLAT1", "FLAT2", "CAFE0", "CAFE1", "CAFE2", "CAFE3", "MEAL"}
-    assert [g["id"] for g in v["groups"]] == ["nature", "chill", "meal"]
+    assert [g["id"] for g in v["groups"]] == ["meal", "cafe", "nature"]  # tabs in config order (§9.3); FAR is too far: hidden
     assert all(not c["failed"] and not c["unverified"] for g in v["groups"] for c in g["cards"])
     assert v["unverified"]["count"] == 1 and v["unverified"]["cards"][0]["id"] == "UNK" and not v["unverified"]["open"]
     assert v["excluded"]["by_rule"] == [{"rule": "hard:steep_or_stairs", "label": "Điều kiện “dốc, nhiều bậc ≠ có”", "count": 1}]
-    assert v["groups"][0]["cards"][0]["why"][0]["text"] == "View đẹp, 3 người nhắc"
+    assert next(g for g in v["groups"] if g["id"] == "nature")["cards"][0]["why"][0]["text"] == "View đẹp, 3 người nhắc"
 
 
 def test_anchors_are_kept_even_when_missing_or_violating():
@@ -58,8 +58,8 @@ def test_anchors_are_kept_even_when_missing_or_violating():
 def test_chosen_stay_first_dropped_leave_and_why_not_explains():
     s = session(state=State(selected=["CAFE3"], dropped=[Drop(place_id="FLAT1", reason="far")]))
     res = run(s, data(), CFG)
-    chill = next(g for g in res.view["groups"] if g["id"] == "chill")
-    assert chill["cards"][0]["id"] == "CAFE3" and chill["cards"][0]["chosen"]
+    chill = next(g for g in res.view["groups"] if g["id"] == "cafe")
+    assert "CAFE3" in [c["id"] for c in chill["cards"]] and [c["chosen"] for c in chill["cards"]].count(True) == 1
     assert "FLAT1" not in res.view["shortlist"] and res.view["dropped"][0]["reason"] == "far"
     assert why_not(res, "FLAT1", s.search_input, CFG)["reasons"] == ["Bạn đã bỏ nơi này"]
     assert why_not(res, "STEEP", s.search_input, CFG)["reasons"] == ["Bị loại: Dốc, nhiều bậc: có"]
@@ -74,9 +74,9 @@ def test_month_only_trip_without_days_runs():
 
 
 def test_suggested_card_after_gap_answer():
-    s = session(state=State(suggest_group="chill"))
+    s = session(state=State(suggest_group="cafe"))
     cards = [c for g in run(s, data(), CFG).view["groups"] for c in g["cards"]]
-    assert [c["id"] for c in cards if c["suggested"]] == [next(c["id"] for c in cards if c["group"] == "chill")]
+    assert [c["id"] for c in cards if c["suggested"]] == [next(c["id"] for c in cards if c["group"] == "cafe")]
 
 
 def test_output_roles_backup_and_context():
@@ -106,20 +106,20 @@ def many_cafes(n):
 
 def test_window_shows_a_page_and_reports_the_total():
     res = run(session(), many_cafes(40), CFG)
-    chill = next(g for g in res.view["groups"] if g["id"] == "chill")
+    chill = next(g for g in res.view["groups"] if g["id"] == "cafe")
     assert len(chill["cards"]) == CFG.page_size and chill["total"] == 40
     assert any(c["top"] for c in chill["cards"]) and not all(c["top"] for c in chill["cards"])
-    assert res.shown["chill"] == [c["id"] for c in chill["cards"]]
+    assert res.shown["cafe"] == [c["id"] for c in chill["cards"]]
 
 
 def test_chosen_place_stays_where_it_was_in_the_window():
     data = many_cafes(40)
     first = run(session(), data, CFG)
-    ids = first.shown["chill"]
+    ids = first.shown["cafe"]
     st = State(selected=[ids[5]], shown=first.shown)
     again = run(session(state=st), data, CFG)
-    assert again.shown["chill"][5] == ids[5]
-    assert again.view["change"]["chill"]["added"] == 0
+    assert again.shown["cafe"][5] == ids[5]
+    assert again.view["change"]["cafe"]["added"] == 0
 
 
 def test_hard_filter_still_fail_closed_with_full_ranking():
@@ -245,3 +245,14 @@ def test_why_not_does_not_tell_the_reference_it_is_unlike_itself():  # final rev
     cfg = dataclasses.replace(CFG, page_size=1)
     res = run(_session(search), Data(recs), cfg)
     assert not any("mong muốn" in r for r in why_not(res, "X", search, cfg)["reasons"])
+
+
+def test_too_far_is_measured_from_the_nearest_center_so_a_place_near_an_anchor_stays():
+    far_lat = 12.4  # ~50 km from the city center: hidden alone
+    d = Data([srec("ANCHOR", group="nature", features=FLAT, lat=far_lat), srec("NEAR_ANCHOR", group="nature", features=FLAT, lat=far_lat + 0.01),
+              srec("LONELY", group="nature", features=FLAT, lat=far_lat, lng=109.2), srec("OK", group="nature", features=FLAT)])
+    alone = run(session(), d, CFG).view["shortlist"]
+    assert "NEAR_ANCHOR" not in alone and "LONELY" not in alone
+    s = session(trip(anchors=[{"place_id": "ANCHOR", "priority": "must"}]), State(selected=["ANCHOR"]))
+    shown = run(s, d, CFG).view["shortlist"]
+    assert "NEAR_ANCHOR" in shown and "LONELY" not in shown

@@ -72,7 +72,6 @@ export function Turn({ m, busy, onAnswer, onDeck, onText, onPhoto }: { m: Msg; b
           {m.text && <p>{m.text}</p>}
           {m.files?.length ? <p className="tg-cx__files">{m.files.map((n) => <span key={n}><Icon name="clip" size={13} />{n}</span>)}</p> : null}
         </div>
-        <span className="tg-cx__avatar" aria-hidden="true" />
       </li>
     )
   const secs = Math.max(1, Math.round(((m.t1 ?? Date.now()) - m.t0) / 1000))
@@ -80,7 +79,6 @@ export function Turn({ m, busy, onAnswer, onDeck, onText, onPhoto }: { m: Msg; b
   const tab = m.card?.kind === 'deck' ? m.card.tabs[0] : undefined
   return (
     <li className="tg-cx__m is-bot" aria-busy={m.live}>
-      <span className="tg-cx__avatar is-bot" aria-hidden="true" />
       <div className="tg-cx__stack">
         {m.steps.length > 0 && <Steps steps={m.steps} sources={m.sources} live={m.live} secs={secs} />}
         {waiting && <p className="tg-cx__say is-wait"><span className="tg-dots" aria-hidden="true"><i /><i /><i /></span><span className="tg-sr">Đang đọc</span></p>}

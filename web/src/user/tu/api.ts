@@ -8,4 +8,6 @@ export async function sendTurn(id: string, input: TurnInput, h: Handlers): Promi
 
 // Logistics lookups (docs/AGENT_HARNESS.md): no journey needed.
 export const geoSearch = (q: string, signal?: AbortSignal) => fetch(`/api/harness/geo?q=${encodeURIComponent(q)}`, { signal }).then(json<GeoHit[]>)
+// the best stays as cards, before any place is chosen (no query): what the lodging question shows instead of a search box
+export const lodgingTop = (n = 8, signal?: AbortSignal) => fetch(`/api/harness/lodging/suggest?q=&top=${n}`, { signal }).then(json<LodgingHit[]>)
 export const lodgingSuggest = (q: string, signal?: AbortSignal) => fetch(`/api/harness/lodging/suggest?q=${encodeURIComponent(q)}`, { signal }).then(json<LodgingHit[]>)

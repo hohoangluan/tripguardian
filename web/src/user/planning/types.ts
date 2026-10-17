@@ -91,7 +91,8 @@ export interface ChecklistItem {
 export interface Variant {
   id: string
   objective: string
-  preset?: 'low_cost' | 'diverse' | 'least_travel' | null
+  preset?: null // retired: the overload directions are told apart by id (main | fit | travel | cost)
+  gain?: string | null
   label: string
   definition?: string
   why?: string

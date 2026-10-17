@@ -23,13 +23,12 @@
 
 /* sidebar: a slim rail of icons; each button names itself in a tooltip on hover / focus, the page you are on is a dark square */
 .tg-hf__side { position: relative; z-index: 20; align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 10px; min-height: 0; }
-.tg-hf__logo { display: block; width: 100%; height: 44px; }
+.tg-hf__logo { display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; }
 /* the three blocks and sign-out: each a white card of its own */
 .tg-hf__blk, .tg-hf__foot { flex: none; display: flex; align-items: center; gap: 16px; width: 100%; padding: 16px 0; border-radius: 26px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-1); }
 .tg-hf__blk { flex-direction: column; }
 /* the two middle cards sit centred between the logo and the foot, so the empty space is shared above and below */
 .tg-hf__mids { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
-.tg-hf__blk--top { padding: 12px 0; }
 .tg-hf__who { display: flex; align-items: center; gap: 4px; margin: 0 0 14px; }
 .tg-hf__me { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 4px; border-radius: 14px; text-align: left; transition: background 160ms; }
 .tg-hf__me:hover { background: var(--tg-pine-soft); }
@@ -156,7 +155,7 @@
 /* the big card: a photo, then the title with the way in */
 .tg-hm__hero { padding: 0 0 16px; border-radius: 22px; background: var(--tg-surface); box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.3); overflow: hidden; }
 .tg-hm__cover { position: relative; height: min(300px, 34vh); overflow: hidden; border-radius: 22px; background: var(--tg-line-2); }
-.tg-hm__cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 46% 55%; }
+.tg-hm__cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
 .tg-hm__chip { position: absolute; z-index: 1; right: 16px; bottom: 14px; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.28); backdrop-filter: blur(10px); color: #fff; font-size: 0.88rem; font-weight: 500; }
 .tg-hm__hbody { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 22px 0; }
 .tg-hm__hbody h2 { margin: 0; font: 700 1.485rem/1.25 var(--tg-sans); letter-spacing: -0.02em; }

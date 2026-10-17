@@ -1,0 +1,23 @@
+{
+  "head": "4676c6748093b91259707b4fb541baf34d699123",
+  "sha256": {
+    "config/eval_trips.yaml": "392daa7ea6efffac4709c35288a00b2edd42f4d873d363ff77669c489c63435d",
+    "config/planning.yaml": "bdadbb107e2214e986395a5eea71364a702e0f3a5037235fa5c7d5cb01093e36",
+    "config/decision.yaml": "3d3f19abf7711a49286023f219b207ccfe1c471818c1f46201a6aebdc3e698ef",
+    "data/serving/places.json": "c79e440671e4d182a4dbf8d61f776d27fa8c5c3bfa7dfe9a71df163e88102a0f",
+    "tests/planning/bench_pitch_validator.py": "bce4584f25bc588881d78c43c841f0cad91837786180c748f49e9ba99bf05b28",
+    "submission/tools/pitch_demo_probe.py": "4435af59b03d9feeba3a72d0b2b6b4379a17dcdf484010f3034ee143d4f36007"
+  },
+  "evidence_sha256": {
+    "decision.json": "14b9638b75ddfe2acdbea8e2e72610251be1b7c17f23c6a5ea232e67b9d9c9cc",
+    "validator.json": "e2783a2e862e72337c85e798ba16a106ac5edb0e1f8202d26e511b4a81531dd8",
+    "tests_summary.json": "85fdb5a81cfe020891678ba1d88bac4f741a54e7e4b9d5158884b255722efaa3",
+    "tests.xml": "f66dcb31846d11aa8875e2333481da20dcf3212cdcb77a8ca75e0327e75bfa85",
+    "conversation_history.json": "238d5b2f4fc77e40a04833c1d724ddb6d66bf3f5b758b51cae7ee621c3232425",
+    "review_example.json": "2406646d41c463d22d8545849ffc8df3844c578b0d17d31e23817e76716648c8",
+    "demo_api.json": "ed32d66b4876c09a81254f61e3717cb894483d0296f720e7ffdc644060742824",
+    "planning.json": "d58e85bac6f654213da39ec9255587a45d92d2db1eec4286337e65266b3b8297",
+    "trip_live.json": "66bdd6aeb1e2d304f24da7d607ce635fd2f384a32a7bc479d643e487b5b93257",
+    "focused_tests.xml": "a56cb3cc356d06ed8071d47aef2ab9d6bcc8cb176dfef99daf19bdcf7c4258c1"
+  }
+}

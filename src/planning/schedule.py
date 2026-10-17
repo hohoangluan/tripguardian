@@ -12,7 +12,7 @@ from .places import windows_on
 from .roles import DAWN_FIRST, ROLE_SLOTS, takes_meal_slot
 from .settings import Settings
 from .travel import Travel
-from .timefit import visit_score, windows_for
+from .timefit import visit_penalty, visit_score, windows_for
 from .traits import visit_minutes
 
 DAY_MINUTES = 1440
@@ -105,8 +105,10 @@ def pin_duration_floor(place: Place, ctx: DayCtx) -> int:
     context (contexts are frozen and built with dataclasses.replace, so a day relaid or re-tried with other places
     released shares these objects); the entry holds the objects, so an id is never reused while it lives. A binary
     search of single-stop clocks per pinned stop per clock was a quarter of an edit's time."""
-    refs = (place,) + tuple(getattr(ctx, f.name) for f in fields(ctx) if f.name != "places")
-    key = tuple(map(id, refs))
+    # meal_cuts is a fresh dict for every minute-recovery replay of one order, equal in content to the last: it is
+    # keyed by value so those replays (thousands in one repair) share an entry instead of each paying the search.
+    refs = (place,) + tuple(getattr(ctx, f.name) for f in fields(ctx) if f.name not in ("places", "meal_cuts"))
+    key = (*map(id, refs), tuple(sorted(ctx.meal_cuts.items())) if ctx.meal_cuts else None)
     hit = _FLOORS.get(key)
     if hit is not None and all(a is b for a, b in zip(hit[0], refs)):
         return hit[1]
@@ -156,6 +158,7 @@ class _SimulationCache:
         self.pins = {pid: pin_window(ctx.places[pid], ctx, _intervals=self.intervals[pid]) for pid in ids}
         self.rules = {pid: windows_for(ctx.places[pid], ctx) for pid in ids}
         self.scores: dict = {}
+        self.penalties: dict = {}
         self.legs: dict = {}
         self.meals: dict = {}            # allocation depends on meal order, not on the intervening sight visits
         self.simulations: dict = {}      # local-search moves often revisit an order within this context
@@ -172,6 +175,16 @@ class _SimulationCache:
         if key in self.scores:
             return self.scores[key]
         return put(self.scores, key, visit_score(place, start, end, self.ctx, _rules=self.rules[place.id]),
+                   self.ctx.cfg.cache_entries)
+
+    def penalty(self, place: Place, start: int, end: int) -> float:
+        """score()[0] for a choice of start times that only compares them (no reasons to build)."""
+        key = (place.id, start, end)
+        if key in self.scores:
+            return self.scores[key][0]
+        if key in self.penalties:
+            return self.penalties[key]
+        return put(self.penalties, key, visit_penalty(place, start, end, self.ctx, _rules=self.rules[place.id]),
                    self.ctx.cfg.cache_entries)
 
     def leg(self, frm: str, to: str) -> tuple[int, str]:
@@ -595,6 +608,7 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool,
     claimed, free = _meal_slots(order, ctx, cache)
     leg = cache.leg if cache else travel.leg
     score = cache.score if cache else lambda place, a, b: visit_score(place, a, b, ctx)
+    penalty_of = cache.penalty if cache else lambda place, a, b: visit_penalty(place, a, b, ctx)
     t, here, active = day.start, day.start_node, 0
     items: list[Item] = []
     viol: list[Violation] = []
@@ -906,7 +920,7 @@ def _simulate(order: list[str], ctx: DayCtx, shrink: bool, prefer_time: bool,
             if cut is not None and any(x[0] + x[1] <= cut for x in choices):
                 choices = [x for x in choices if x[0] + x[1] <= cut]
             start, visit, why = min(choices, key=lambda x: (
-                x[0] + x[1] + score(p, x[0], x[0] + x[1])[0], x[0]))
+                x[0] + x[1] + penalty_of(p, x[0], x[0] + x[1]), x[0]))
             if changed is not None and (start, visit, why) != earliest_choice:
                 changed.append(True)
         if start is None:

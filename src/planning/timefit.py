@@ -110,6 +110,29 @@ def windows_for(place, ctx) -> tuple[TimeRule, ...]:
                      cfg["heuristic_weight"], reason, "heuristic"),)
 
 
+def visit_penalty(place, start: int, end: int, ctx, *, _rules: tuple[TimeRule, ...] | None = None) -> float:
+    """visit_score(...)[0] without the explanation: the same terms added in the same order, so the same number. The
+    route search compares thousands of candidate start times and needs only this; the reasons are built once, for the
+    visit a day finally keeps. tests/planning/test_planning_timefit.py holds the two equal."""
+    rules = windows_for(place, ctx) if _rules is None else _rules
+    duration = max(1, end - start)
+    penalty = 0.0
+    for rule in rules:
+        overlap = sum(max(0, min(end, b) - max(start, a)) for a, b in rule.windows)
+        deficit = 1 - overlap / duration if rule.windows else 0.0
+        penalty += ctx.cfg.time_suitability["penalty_min"] * rule.weight * deficit
+    from .traits import visit_minutes
+    shortened = max(0, visit_minutes(place, ctx.cfg, ctx.pace, ctx.prefs) - (end - start))
+    if ctx.cfg.time_suitability.get("enabled", False):
+        penalty += ctx.cfg.time_suitability.get("duration_loss_min", 0) * shortened
+        delta = timing_delta(place, start, ctx.cfg, end=end)
+        if delta:
+            penalty += delta
+        if night_road(place, ctx.mobility, end, ctx.sun):
+            penalty += ctx.cfg.time_suitability.get("night_road_penalty", 0.0)
+    return penalty
+
+
 def visit_score(place, start: int, end: int, ctx, *, _rules: tuple[TimeRule, ...] | None = None) -> tuple[float, dict]:
     """Penalty in comparable planning minutes. Neither this score nor its estimates can relax a constraint."""
     rules = windows_for(place, ctx) if _rules is None else _rules

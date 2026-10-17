@@ -103,8 +103,8 @@ class Tools:
     def geo(self, q: str) -> list[dict]:
         return self.logistics.geo(q)
 
-    def lodging_suggest(self, q: str) -> list[dict]:
-        return self.logistics.lodging_suggest(q)
+    def lodging_suggest(self, q: str, top: int = 0) -> list[dict]:
+        return self.logistics.lodging_suggest(q, top)
 
     def snapshot(self, sid: str) -> dict:
         with self.engine.store.lock(sid):

@@ -6,10 +6,10 @@ scheduler cannot also hide from the check. Fail-closed: a violation is reported,
 
 from dataclasses import replace
 
-from corpus.ontology import load as load_ontology
 from requirements import allowed, hard_result
 
 from .conditions import hazard
+from .feature_ontology import ontology
 from .model import DayResult, Violation
 from .roles import takes_meal_slot
 from .schedule import DayCtx, intervals_for, meal_floor, meals_needed, pin_window
@@ -17,7 +17,7 @@ from .cache import day_key, fingerprint, put, travel_key
 
 
 def _is_physical(feature: str) -> bool:
-    f = load_ontology().features.get(feature)
+    f = ontology().features.get(feature)
     return f is not None and f.group == "effort"
 
 

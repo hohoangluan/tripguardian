@@ -10,12 +10,13 @@ import numpy as np
 
 from corpus.snapshot import Region, shared
 
-from . import frame
+from . import diet as dietary, frame
 from .cards import card, feature_label, value_label
 from .chunks import assign_chunks, coverage, describe_chunks
 from .curation import pending
 from .diversify import pick, sizes, tab
 from .feasibility import evaluate
+from .geo import km, point
 from .fit import centers, fit
 from .model import Cand
 from .rank import score
@@ -58,6 +59,7 @@ class Result:
     wishes: tuple = ()  # decision.wishes.build of the run's Search Input
     card_of: Callable[[str], dict] | None = None  # place id -> its card as the view shows it (a ranked or unverified id)
     unverified: list[str] | None = None  # every unverified place, best first (the view carries the first few)
+    far: dict[str, tuple[int, str]] | None = None  # hidden as too far: place id -> (minutes, center name)
 
 
 def stub(pid: str) -> dict:
@@ -187,9 +189,21 @@ def run(s, data: Data, cfg, memo: dict | None = None) -> Result:
     free = not_kept & ~np.array([pid in wish for pid in rids], dtype=bool)
     if si.novelty.level == "new":
         free &= ~np.array([pid in visited for pid in rids], dtype=bool)
+    # too far from the nearest center (base or city center, and anchors; as fit) is hidden from every tab and the shortlist;
+    # a place with no point is never judged far, and kept places (anchors, picks) are never hidden (docs §9.3)
+    with np.errstate(invalid="ignore"):
+        away = frame.far_minutes(region, ctrs, si.context.mobility, cfg)
+        far_ix = np.flatnonzero(t.live & ~kept & (away > cfg.max_travel_min))
+    far = {rids[i]: (int(away[i]), min(ctrs, key=lambda c: km(point(region.record(rids[i])), c[1]))[0]) for i in far_ix}
+    not_far = np.ones(len(rids), dtype=bool)
+    not_far[far_ix] = False
+    free &= not_far
     listed_ix = np.flatnonzero(t.live & free & (status == "main"))  # every place the tabs list
     listed = [Row(rids[i], t.score[i], t.role[i], dup[i], light[i]) for i in listed_ix]
-    pool = [r for r, i in zip(listed, listed_ix) if fit_arr[i] >= cfg.min_context_fit]  # the shortlist's pool
+    diet = dietary.wanted(si, st.profile, st.unmapped)
+    tier = dietary.tiers(region, [p for p in [*st.selected, *(r.id for r in listed)] if group_of.get(p) in dietary.TABS], diet)
+    # the shortlist's pool; a place the diet excludes is listed in its tab but never shortlisted
+    pool = [r for r, i in zip(listed, listed_ix) if fit_arr[i] >= cfg.min_context_fit and tier.get(r.id, 1) < 3]
     chosen = [cands[i] for i in st.selected if i in cands]
     size = sizes(si, len(days), sum(1 for a in anchors if cands[a].role == "experience"), cfg)
     reps, alts = [], {}
@@ -207,23 +221,47 @@ def run(s, data: Data, cfg, memo: dict | None = None) -> Result:
 
     # a tab lists its places by score alone, the user's picks among them; "Hợp nhất" marks its best non-picked
     # places, as many as the shortlist (MMR) took from that tab
+    # a user who avoids crowds sees the places Google calls busy after every other one of the tab, whatever their score
+    avoid = (st.profile.crowd_tolerance or si.pace.crowd_tolerance) == "avoid"
+    busy = (frame.busy_mask(region, sorted({d.day_type for d in days if d.day_type}) or ["weekday", "weekend"], cfg)
+            if avoid else None)
+    crowded = (lambda pid: bool(busy[region.index[pid]]) if pid in region.index else False) if avoid else (lambda pid: False)  # noqa: E731
     ranked: dict[str, list[str]] = {}
-    for c in sorted([*(x for x in chosen if x.id not in anchors), *listed], key=lambda c: (-c.score, c.id)):
+    for c in sorted([*(x for x in chosen if x.id not in anchors), *listed],
+                    key=lambda c: (tier.get(c.id, 1), crowded(c.id), -c.score, c.id)):
         ranked.setdefault(group_of.get(c.id, "sights"), []).append(c.id)
     picked = {c.id for c in chosen}
     top = set()
     for gid, ids in ranked.items():
         k = sum(1 for c in reps if group_of.get(c.id) == gid)
-        top.update([p for p in ids if p not in picked][:k])
+        top.update([p for p in ids if p not in picked and tier.get(p, 1) < 2][:k])  # never a place the diet does not fit
 
     suggested = next((c.id for c in reps if group_of[c.id] == st.suggest_group), None) if st.suggest_group else None
     want = wanted(si, st.profile)
     labels = cfg.labels["group"]
 
+    card_memo = memo.setdefault("cards", {}) if memo is not None else None
+    selected_set, locked_set, anchor_set = set(st.selected), set(st.locked), set(anchors)
+
     def mk(c: Cand) -> dict:
-        return card(c, si, cfg, wanted=want, chosen=c.id in st.selected, locked=c.id in st.locked,
-                    anchor=c.id in anchors, alternatives=[(x.id, x.name) for x in alts.get(c.id, [])],
-                    suggested=c.id == suggested, group=group_of.get(c.id, "sights"), top=c.id in top)
+        args = dict(chosen=c.id in selected_set, locked=c.id in locked_set, anchor=c.id in anchor_set,
+                    alternatives=[(x.id, x.name) for x in alts.get(c.id, [])], suggested=c.id == suggested,
+                    group=group_of.get(c.id, "sights"), top=c.id in top)
+        if card_memo is None:
+            out = card(c, si, cfg, wanted=want, **args)
+            if (n := dietary.note(tier.get(c.id, 1), diet)):
+                out["tradeoffs"] = [*out["tradeoffs"], {"text": n, "sid": None}]
+            return out
+        # a card is a pure function of its Cand (shared by the runs of a session while t.key holds), the arguments
+        # above and the Search Input parts it reads; a run that changes none of them reuses the card as built
+        key = (args, want, si.activities.get(c.id), si.soft_weights, "budget_vnd" in si.unknowns)
+        hit = card_memo.get(c.id)
+        if hit is None or hit[0] is not c or hit[1] != key:
+            hit = card_memo[c.id] = (c, key, card(c, si, cfg, wanted=want, **args))
+        out = dict(hit[2])
+        if (n := dietary.note(tier.get(c.id, 1), diet)):
+            out["tradeoffs"] = [*out["tradeoffs"], {"text": n, "sid": None}]
+        return out
 
     groups, shown, changed = [], {}, {}
     if anchors:
@@ -238,7 +276,7 @@ def run(s, data: Data, cfg, memo: dict | None = None) -> Result:
                            "page": page, "pages": pages(len(ids), cfg), "page_size": cfg.page_size,
                            "offset": page * cfg.page_size})
 
-    unv_ix = np.flatnonzero(t.live & not_kept & (status == "unverified"))
+    unv_ix = np.flatnonzero(t.live & not_kept & not_far & (status == "unverified"))
     unverified = sorted((rids[i] for i in unv_ix), key=lambda p: (-t.score[region.index[p]], p))
     excluded = Counter()
     excl = (status == "excluded") & t.members & ~kept
@@ -287,7 +325,7 @@ def run(s, data: Data, cfg, memo: dict | None = None) -> Result:
         "unmapped": [*si.unmapped, *st.unmapped],
     }
     return Result(view, cands, {k: [x.id for x in v] for k, v in alts.items()}, group_of, days, shown, ranked, allocation,
-                  t.wishes, lambda pid: mk(cands[pid]), unverified)
+                  t.wishes, lambda pid: mk(cands[pid]), unverified, far)
 
 
 def _unmet(res: Result, pid: str, group: str) -> list[str]:
@@ -330,7 +368,10 @@ def why_not(res: Result, pid: str, si, cfg) -> dict:
         reasons += [f"Bị loại: {t}" for t in info["failed"]]
         reasons += [f"{t} (bạn có thể xem trong mục chưa xác minh)" for t in info["unverified"]]
         if not reasons:
-            if c.fit < cfg.min_context_fit:
+            if res.far and pid in res.far:
+                n, center = res.far[pid]
+                reasons.append(f"Xa so với {center} (≈{n} phút, quá giới hạn {cfg.max_travel_min} phút)")
+            elif c.fit < cfg.min_context_fit:
                 reasons.append(f"Xa so với {c.center}" + (f" (≈{c.minutes} phút)" if c.minutes else ""))
             elif si.novelty.level == "new" and pid in si.novelty.visited:
                 reasons.append("Bạn đã đi nơi này và muốn thử nơi mới")
