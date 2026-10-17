@@ -1,0 +1,18 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "TripGuardian Homepage": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-10-13T04:58:27.829Z",
+          "status": "needs-review"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-13T04:58:27.830Z",
+  "updatedAt": "2026-10-13T05:09:04.753Z"
+}

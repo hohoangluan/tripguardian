@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { useAccount } from '../account'
 import { Sidebar } from '../home/Frame'
 import { useOpenJourney } from '../home/dialogs'
+import { primeDecision } from '../pd/api'
 import type { TripSummary } from '../pd/types'
 import { consumeStageEntry, enterStage, mutateJourney, resumeJourney } from '../journey'
 import { rememberTrip } from '../store'
@@ -99,6 +100,7 @@ function UnderstandSession({ onSwitch }: { onSwitch: () => void }) {
   const handOff = useCallback((si: SearchInput, jid: string) => {
     dispatch({ type: 'set', patch: { ...fromSearchInput(si), journeyId: jid, decisionId: jid, planningId: null } })
     store.set(KEY, null)
+    primeDecision(jid)
     go('/explore')
   }, [dispatch])
 

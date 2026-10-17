@@ -279,7 +279,7 @@ Thông tin thực tế (chính thức / Google) và bằng chứng trải nghi�
 
 ## 8. Hệ thị giác — nền giấy, Thông / Nắng
 
-Hướng **editorial dẫn bằng ảnh thật**, nền sáng. Tông **trắng–đen cơ bản** (2026-10-14, thẻ trắng, nút đen, viền xám nhạt) cho mọi trang, kể cả landing (bỏ tông hồng mận 2026-10-15). Màu và khoảng cách là biến CSS trong `web/src/user/css/tokens.css`; component không hard-code màu.
+Hướng **editorial dẫn bằng ảnh thật**, nền sáng. Tông **trắng–đen cơ bản** (2026-10-14, thẻ trắng, nút đen, viền xám nhạt) cho mọi trang của app. Landing mặc lại bộ hồng mận riêng từ 2026-10-17 (`docs/UI_SPEC_LANDING.md` §2 *Chữ và màu*), chỉ trên `.tg.tg-landing`. Màu và khoảng cách là biến CSS trong `web/src/user/css/tokens.css`; component không hard-code màu.
 
 **Màu thương hiệu** (2026-10-15): đất nung hoàng hôn, màu của logo và linh vật (`web/public/img/brand/`). Chỉ là điểm nhấn nhỏ, không làm nền mảng lớn; nút và chữ giữ `--tg-brown` / `--tg-ink`.
 

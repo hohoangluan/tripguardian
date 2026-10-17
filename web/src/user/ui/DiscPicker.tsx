@@ -10,7 +10,7 @@ import type { Card, Group } from '../pd/types'
 import { useDetail } from '../../data/store'
 import { toggleSaved, useUi } from '../store'
 import { cardLines } from './cardLines'
-import { Photo } from './common'
+import { Photo, preloadPhotos } from './common'
 import { HeartFill, Icon, type IconName } from './icons'
 import { openPlace } from './PlaceSheet'
 
@@ -85,6 +85,12 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack, lod
   // A wedge that wraps from one end of the half disc to the other must jump, not sweep across the whole wheel.
   const before = useRef(new Map<string, number>())
   useEffect(() => { before.current = new Map(ids.map((id, k) => [id, rel(k)])) })
+  // Warm the wedges about to turn into view, so the disc never shows an empty wedge while it turns on a slow line.
+  useEffect(() => {
+    if (narrow || !n) return
+    const span = reach + 3
+    preloadPhotos(Array.from({ length: span * 2 + 1 }, (_, k) => info(ids[(((i + k - span) % n) + n) % n])?.photos[0]?.src))
+  }, [i, tab, n]) // eslint-disable-line react-hooks/exhaustive-deps
   const browse = (d: number) => setG((v) => (shots ? (v + d + shots) % shots : 0))
   const turnRef = useRef(turn)
   turnRef.current = turn
@@ -207,7 +213,7 @@ export function DiscPicker({ groups, tab, onTab, cmp, onCmp, onDrop, onBack, lod
                 className={`tg-disc__wedge ${on ? 'is-on' : ''} ${jump ? 'is-jump' : ''}`}
                 style={{ '--d': d, '--fade': on ? 1 : Math.max(0.82, 1 - Math.abs(d) * 0.05) } as CSSProperties}>
                 <button type="button" className="tg-disc__cut" onClick={() => { if (!drag.current?.moved) show(k) }} tabIndex={-1} aria-label={on ? pl.name : `Xoay tới ${pl.name}`}>
-                  <Photo photo={ph} alt="" className="tg-disc__ph" eager sizes="(max-width: 900px) 168px, 560px" />
+                  <Photo photo={ph} alt="" className="tg-disc__ph" eager sizes="(max-width: 900px) 168px, 320px" />
                   <span className="tg-disc__nm">{pl.name}</span>
                   {pl.chosen && <i className="tg-disc__check"><Icon name="check" size={12} /></i>}
                 </button>

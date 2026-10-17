@@ -4,6 +4,7 @@ import type { Deck, DeckAnswers, DeckIssue, LodgingHit, Option, Tab } from '../.
 import { Icon, type IconName } from '../../ui/icons'
 import { CardImg, preloadPhotos } from '../../ui/common'
 import { PlaceInput } from '../../ui/PlaceInput'
+import { TimeInput } from '../../ui/TimeInput'
 import { LodgingCards } from './LodgingCards'
 
 const ISSUE_TEXT: Record<DeckIssue['code'], string> = {
@@ -103,7 +104,7 @@ export function TripInputs({ form, busy, chips }: { form: DeckForm; busy: boolea
     {tab.inputs.includes('dates') && <div className="tg-full__edit"><label>Ngày đến<input className="tg-line-input" type="date" disabled={busy} value={fields.dateFrom ?? ''} onChange={e => toggleInput('dateFrom', e.target.value, 'dates.')} /></label><label>Ngày về<input className="tg-line-input" type="date" disabled={busy} value={fields.dateTo ?? ''} onChange={e => toggleInput('dateTo', e.target.value, 'dates.')} /></label></div>}
     {normal.some(o => o.id.startsWith('dates.')) && chips(normal.filter(o => o.id.startsWith('dates.')))}
     {['start', 'end'].filter(slot => tab.inputs.includes(slot)).map(slot => <div className="tg-ask__find" key={slot}>
-      <label>{slot === 'start' ? 'Ngày đầu bắt đầu lúc' : 'Ngày cuối kết thúc lúc'}<input className="tg-line-input" type="time" disabled={busy} value={fields[`trip.${slot}`] ?? clockOf(normal.find(o => selected.includes(o.id) && o.id.startsWith(`${slot}.`)) ?? { label: '', description: '', id: '' } as Option) ?? ''} onChange={e => toggleInput(`trip.${slot}`, e.target.value, `${slot}.`)} /></label>
+      <label>{slot === 'start' ? 'Ngày đầu bắt đầu lúc' : 'Ngày cuối kết thúc lúc'}<TimeInput className="tg-line-input" label={slot === 'start' ? 'Ngày đầu bắt đầu lúc' : 'Ngày cuối kết thúc lúc'} disabled={busy} value={fields[`trip.${slot}`] ?? clockOf(normal.find(o => selected.includes(o.id) && o.id.startsWith(`${slot}.`)) ?? { label: '', description: '', id: '' } as Option) ?? ''} onChange={v => toggleInput(`trip.${slot}`, v, `${slot}.`)} /></label>
       {chips(normal.filter(o => o.id.startsWith(`${slot}.`)))}
     </div>)}
   </>

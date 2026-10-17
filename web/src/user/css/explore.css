@@ -23,6 +23,15 @@
 @keyframes tg-pc-leave { to { opacity: 0; transform: scale(0.96); } }
 @keyframes tg-fade-out { to { opacity: 0; } }
 @keyframes tg-grid-swap { 0% { opacity: 1; } 45% { opacity: 0; } 100% { opacity: 1; } }
+/* A click answers with a short movement, not a snap: the button a card swaps to settles in, a switched icon pops, a pressed button gives way. */
+@keyframes tg-settle { from { opacity: 0.55; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes tg-icon-pop { 0% { transform: scale(0.8); } 55% { transform: scale(1.14); } 100% { transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .tg-pc__act > .tg-btn { animation: tg-settle 220ms var(--tg-ease) backwards; }
+  .tg-pc__ic.is-on, .tg-disc__ic.is-on, .tg-disc__ic.is-sel { animation: tg-icon-pop 260ms var(--tg-ease); }
+  .tg-listpanel li { animation: tg-qa-row 240ms var(--tg-ease) backwards; }
+  .tg-btn:active:not(:disabled), .tg-pc__ic:active:not(:disabled), .tg-disc__ic:active:not(:disabled) { transform: scale(0.96); }
+}
 @media (prefers-reduced-motion: reduce) {
   .tg-pc.is-enter { animation: tg-fade 150ms backwards; animation-delay: 0ms; }
   .tg-pc.is-leave { animation: tg-fade-out 150ms both; }

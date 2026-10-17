@@ -1,0 +1,23 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "TripGuardian Trip Workspace": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-10-13T05:14:03.755Z",
+          "status": "needs-review"
+        },
+        {
+          "path": "fullscreen.html",
+          "createdAt": "2026-10-13T07:18:04.312Z",
+          "status": "needs-review"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-13T05:14:03.756Z",
+  "updatedAt": "2026-10-13T07:18:04.312Z"
+}

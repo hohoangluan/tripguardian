@@ -1,46 +1,43 @@
 /* Landing (/): sticky 3D stage + scroll chapters, then photos, FAQ, CTA. docs/UI_SPEC_LANDING.md */
 .tg-landing { background: var(--tg-bg); }
-/* Landing colour and type are the app's own (tokens.css, home.css): white and black, Be Vietnam Pro for headings and text,
-   so the jump to /app reads as one site. The warm light lives in the 3D scene; terracotta (--tg-brand) is a small accent. */
-.tg.tg-landing { --tg-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif; --tg-display: 'Be Vietnam Pro', system-ui, sans-serif; }
-.tg-l .tg-btn--primary { background: var(--tg-brown); }
-.tg-l .tg-btn--primary:hover:not(:disabled) { background: #1c1915; }
-.tg-landing :is(h1, h2, h3) { letter-spacing: -0.015em; }
+/* Landing colour and type: the same as the homepage (white and black from tokens.css, Be Vietnam Pro, brown buttons, white cards on a
+   soft grey page). The only difference is the accent: on the landing --tg-sun is the logo's terracotta, not the app's grey. */
+.tg.tg-landing {
+  --tg-sun: #b4532a; --tg-sun-ink: #8f3f1e; --tg-sun-soft: #f7e4d8;
+  --tg-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --tg-display: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+.tg-landing :is(h1, h2, h3) { font-weight: 650; letter-spacing: -0.03em; }
+.tg-landing .tg-btn--primary { background: var(--tg-brown); }
+.tg-landing .tg-btn--primary:hover:not(:disabled) { background: #1c1915; }
 .tg-l { --pad: max(48px, calc((100vw - clamp(1260px, 80vw, 1760px)) / 2 + 48px)); color: var(--tg-ink); }
 
 /* nav */
-.tg-ln { position: fixed; z-index: 50; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 28px; padding: 12px var(--pad); background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid var(--tg-line); }
-.tg-ln__logo { display: inline-flex; align-items: center; justify-content: center; }
+.tg-ln { position: fixed; z-index: 50; left: calc(var(--pad) - 28px); right: calc(var(--pad) - 28px); top: 14px; display: flex; align-items: center; gap: 28px; padding: 8px 10px 8px 28px; border-radius: 28px; box-shadow: var(--tg-sh-1); background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(14px) saturate(1.2); border: 1px solid var(--tg-line); }
+.tg-ln__logo { display: inline-flex; align-items: center; gap: 10px; font: 600 1.15rem var(--tg-display); }
 .tg-ln__links { flex: 1; display: flex; justify-content: center; gap: 6px; }
 .tg-ln__links button, .tg-ln__login { min-height: 40px; padding: 0 14px; border-radius: 999px; font-weight: 500; font-size: 0.92rem; color: var(--tg-ink-2); transition: background 150ms, color 150ms; display: inline-flex; align-items: center; }
 .tg-ln__links button:hover, .tg-ln__login:hover { background: var(--tg-pine-soft); color: var(--tg-pine); }
 
 /* story: a tall section whose 3D stage sticks while six chapters move through it */
 .tg-l3 { position: relative; height: 640vh; }
-.tg-l3__stage { position: sticky; top: 0; height: 100vh; overflow: hidden; isolation: isolate; background: radial-gradient(110% 90% at 72% 42%, #fffdf8 0%, #fbf6ee 55%, #f5e6d2 100%); }
-.tg-l3__poster { position: absolute; inset: 0; z-index: 0; background: url(/img/landing-poster.webp) 62% center / cover, #fbf6ee; transition: opacity 700ms ease 120ms; }
+.tg-l3__stage { position: sticky; top: 0; height: 100vh; overflow: hidden; isolation: isolate; background: radial-gradient(110% 90% at 72% 42%, #ffffff 0%, var(--tg-bg) 55%, #ececec 100%); }
+.tg-l3__poster { position: absolute; inset: 0; z-index: 0; background: url(/img/landing-poster.webp?v=home1) 62% center / cover, var(--tg-bg); transition: opacity 700ms ease 120ms; }
 .tg-l3__stage.is-live .tg-l3__poster { opacity: 0; }
 .tg-l3__cv, .tg-l3__labels, .tg-l3__veil { position: absolute; left: 0; top: 0; width: 100%; height: 100vh; }
 .tg-l3__cv { display: block; z-index: 0; opacity: 0; transition: opacity 600ms ease; cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .tg-l3__cv.is-grabbing { cursor: grabbing; }
 .tg-l3__stage.is-live .tg-l3__cv { opacity: 1; }
 .tg-l3__stage.is-flat .tg-l3__cv { display: none; }
-/* the pre-rendered story (landing/clips.ts): two videos take turns, the one playing is on top; the canvas waits for
-   free exploration */
-.tg-l3__clips { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.tg-l3__vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 160ms linear; }
-.tg-l3__vid.is-on { opacity: 1; }
-.tg-l3__stage.is-video .tg-l3__cv { display: none; }
-.tg-l.is-leaving .tg-l3__vid { opacity: 0; transform: scale(1.06); transition: opacity 380ms ease, transform 900ms cubic-bezier(0.3, 0, 0.2, 1); }
 .is-still .tg-l3__cv { transition: none; }
-.tg-l3__veil { z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgba(255, 253, 249, 0.95) 0, rgba(255, 253, 249, 0.72) 30%, rgba(255, 253, 249, 0) 50%); }
+.tg-l3__veil { z-index: 1; pointer-events: none; background: linear-gradient(90deg, rgba(246, 246, 246, 0.95) 0, rgba(246, 246, 246, 0.72) 30%, rgba(246, 246, 246, 0) 50%); }
 .tg-l3__labels { z-index: 2; pointer-events: none; overflow: hidden; }
-.tg-l3__pin, .tg-l3__area { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; transition: opacity 200ms; }
+.tg-l3__pin, .tg-l3__area { position: absolute; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
 .tg-l3__pin > span { position: absolute; transform: translate(-50%, -100%); display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px; border-radius: 999px; background: var(--tg-surface); box-shadow: var(--tg-sh-1); font: 600 0.8rem/1 var(--tg-sans); white-space: nowrap; }
-.tg-l3__pin b { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-brand); color: #fff; font: 700 0.72rem var(--tg-sans); }
-.tg-l3__area > span { position: absolute; transform: translate(-50%, -50%); padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(6px); font: 600 0.92rem/1.2 var(--tg-sans); color: var(--tg-ink); white-space: nowrap; }
-/* a warm glow of the low sun over the model and a soft fade into the paper below */
-.tg-l3__stage::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(70% 55% at 78% 8%, rgba(255, 222, 180, 0.4), rgba(255, 222, 180, 0) 70%), radial-gradient(120% 40% at 50% 100%, rgba(255, 253, 249, 0.5), rgba(255, 253, 249, 0) 70%); mix-blend-mode: soft-light; }
+.tg-l3__pin b { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-sun); color: #fff; font: 700 0.72rem var(--tg-sans); }
+.tg-l3__area > span { position: absolute; transform: translate(-50%, -50%); padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(6px); font: 600 0.9rem/1.2 var(--tg-sans); color: var(--tg-ink); white-space: nowrap; }
+/* dreamy finish: a rosy dawn glow over the model and a soft fade into the paper below */
+.tg-l3__stage::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(70% 55% at 78% 8%, rgba(244, 201, 174, 0.4), rgba(244, 201, 174, 0) 70%), radial-gradient(120% 40% at 50% 100%, rgba(246, 246, 246, 0.5), rgba(246, 246, 246, 0) 70%); mix-blend-mode: soft-light; }
 
 .tg-l3__chs { position: absolute; inset: 0; z-index: 3; display: grid; align-items: center; padding: 96px var(--pad) 72px; pointer-events: none; }
 .tg-l3__ch { grid-area: 1 / 1; display: grid; gap: clamp(10px, 2.2vh, 18px); align-content: center; width: min(470px, 40vw); pointer-events: auto; }
@@ -48,13 +45,13 @@
 .tg-l3__ch .tg-kicker { display: flex; align-items: center; gap: 10px; }
 .tg-l3__hero { width: min(640px, 50vw); }
 .tg-l3__in { display: grid; gap: clamp(14px, 2.6vh, 24px); max-width: 620px; }
-.tg-l3__in .tg-kicker { color: var(--tg-brand); }
+.tg-l3__in .tg-kicker { color: var(--tg-sun-ink); }
 .tg-l3__in h1 { font-size: clamp(2.4rem, min(4.8vw, 9vh), 4.6rem); line-height: 1.04; max-width: 13ch; }
-.tg-l3__in h1 em { display: block; font-style: normal; font-weight: 500; color: var(--tg-ink-2); }
+.tg-l3__in h1 em { display: block; font-style: normal; font-weight: 650; color: var(--tg-sun); }
 .tg-l3__sub { max-width: 36ch; font-size: 1.15rem; color: var(--tg-ink-2); }
 .tg-l3__sub b { color: var(--tg-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .tg-l3__start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; }
-.tg-l3__cta { min-height: 58px; padding: 0 34px; font-size: 1.05rem; box-shadow: 0 16px 30px -12px rgba(0, 0, 0, 0.55); }
+.tg-l3__cta { min-height: 58px; padding: 0 34px; font-size: 1.05rem; box-shadow: 0 14px 28px -14px rgba(0, 0, 0, 0.55); }
 .tg-l3__cta svg { transition: transform 180ms var(--tg-ease); }
 .tg-l3__cta:hover svg { transform: translateX(4px); }
 .tg-l3__how { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; color: var(--tg-ink-2); text-decoration: underline; text-underline-offset: 5px; text-decoration-color: var(--tg-line-2); transition: color 150ms; }
@@ -69,67 +66,88 @@
 .tg-l3__legend li { display: flex; align-items: center; gap: 10px; }
 .tg-l3__legend i { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .tg-l3__legend .is-all { width: 8px; height: 8px; margin: 0 2px; background: var(--tg-ink-3); }
-.tg-l3__legend .is-five { background: var(--tg-brand); box-shadow: 0 0 0 3px var(--tg-brand-soft); }
+.tg-l3__legend .is-five { background: var(--tg-sun); box-shadow: 0 0 0 3px var(--tg-sun-soft); }
 
-.tg-l3__ch .tg-muted { font-size: 1.02rem; line-height: 1.55; max-width: 40ch; }
+/* the small copies of real screens inside the chapters (Landing.tsx): same words, numbers and order as the app */
+.tg-lk { background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 22px; box-shadow: var(--tg-sh-2); font-size: 0.88rem; }
+.tg-lk small { font-size: 0.76rem; }
+/* 1 · the chat: the visitor's words, the photo question back, the seven answers */
+.tg-lk--chat { display: grid; gap: 12px; padding: 16px; }
+.tg-lk__me { justify-self: end; max-width: 88%; padding: 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--tg-pine-soft); color: var(--tg-ink); line-height: 1.45; }
+.tg-lk__bot { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; }
+.tg-lk__avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--tg-sun-soft); object-fit: cover; }
+.tg-lk__ask { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--tg-line); border-radius: 4px 16px 16px 16px; }
+.tg-lk__q { display: grid; gap: 2px; font-weight: 600; }
+.tg-lk__q small { font-weight: 400; color: var(--tg-ink-3); }
+.tg-lk__opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tg-lk__opts li { position: relative; display: grid; gap: 6px; padding: 4px 4px 8px; border: 1.5px solid var(--tg-line); border-radius: 12px; font-size: 0.74rem; font-weight: 600; line-height: 1.25; }
+.tg-lk__opts li.is-on { border-color: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }
+.tg-lk__opts img { width: 100%; aspect-ratio: 4 / 3; border-radius: 9px; object-fit: cover; }
+.tg-lk__opts span { padding: 0 4px; }
+.tg-lk__opts i { position: absolute; right: 8px; top: 8px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-pine); color: #fff; }
+.tg-lk__board { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; padding-top: 12px; border-top: 1px dashed var(--tg-line-2); }
+.tg-lk__ring { --p: 0; display: grid; place-content: center; justify-items: center; width: 62px; height: 62px; border-radius: 50%; background: radial-gradient(closest-side, var(--tg-surface) 78%, transparent 80%), conic-gradient(var(--tg-sun) calc(var(--p) * 100%), var(--tg-line) 0); line-height: 1.05; }
+.tg-lk__ring b { font-size: 1rem; font-variant-numeric: tabular-nums; color: var(--tg-pine); }
+.tg-lk__ring small { font-size: 0.56rem; color: var(--tg-ink-3); }
+.tg-lk__board ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.tg-lk__board li { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px; border: 1px dashed var(--tg-line-2); border-radius: 999px; font-size: 0.74rem; color: var(--tg-ink-3); }
+.tg-lk__board li.is-done { border: 1px solid var(--tg-pine-line); background: var(--tg-pine-soft); color: var(--tg-ink-2); }
+.tg-lk__board li.is-done svg { color: var(--tg-pine); }
+.tg-lk__board li b { font-weight: 600; color: var(--tg-ink); }
+/* 2 · the Lựa chọn bar: does the day still fit, then on to Lịch trình */
+.tg-lk--bar { display: flex; align-items: center; gap: 10px; padding: 7px 7px 7px 14px; border-radius: 999px; font-size: 0.8rem; white-space: nowrap; color: var(--tg-ink-2); }
+.tg-lk--bar b { color: var(--tg-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tg-lk__fit { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; color: var(--tg-ink); }
+.tg-lk__fit i { width: 9px; height: 9px; border-radius: 50%; background: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }
+.tg-lk__go { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; min-height: 34px; padding: 0 13px; border-radius: 999px; background: var(--tg-pine); color: #fff; font-weight: 600; }
+/* 3 · the place card */
+.tg-lk--card { overflow: hidden; }
+.tg-lk__media { position: relative; margin: 0; height: clamp(96px, 17vh, 150px); }
+.tg-lk__media img { width: 100%; height: 100%; object-fit: cover; }
+.tg-lk__cat { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 999px; background: rgba(17, 17, 17, 0.72); color: #fff; font-size: 0.7rem; font-weight: 600; }
+.tg-lk__media figcaption { position: absolute; left: 10px; bottom: 8px; color: #fff; font-size: 0.66rem; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.tg-lk__body { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.tg-lk__title h3 { font-size: 1.12rem; }
+.tg-lk__title p { font-size: 0.78rem; color: var(--tg-ink-3); }
+.tg-lk__why { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tg-lk__why li { display: flex; align-items: center; gap: 8px; }
+.tg-lk__why span { min-width: 0; }
+.tg-lk__why svg { flex: none; color: var(--tg-pine); }
+.tg-lk__why small { color: var(--tg-ink-3); font-size: 0.8rem; }
+.tg-lk__trade { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--tg-warn-bg); border: 1px solid var(--tg-warn-line); color: var(--tg-warn); font-size: 0.82rem; }
+.tg-lk__trade svg { flex: none; margin-top: 2px; }
+.tg-lk__facts { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.76rem; color: var(--tg-ink-3); }
+/* 4 · the three ways to drop places when the picks do not fit */
+.tg-lk__plans { display: inline-flex; flex-wrap: wrap; gap: 4px; width: fit-content; padding: 4px; border-radius: 999px; background: var(--tg-pine-soft); }
+.tg-lk__plans span { padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; color: var(--tg-ink-3); }
+.tg-lk__plans .is-on { background: var(--tg-surface); color: var(--tg-pine); box-shadow: var(--tg-sh-1); }
+/* 5 · the plan is confirmed, one quick question */
+.tg-lk--done { display: grid; gap: 14px; padding: 16px 18px; }
+.tg-lk__head { display: flex; align-items: center; gap: 12px; }
+.tg-lk__head > span:last-child { display: grid; }
+.tg-lk__head small { color: var(--tg-ink-3); }
+.tg-lk__head b { font: 600 1.15rem var(--tg-display); }
+.tg-lk__seal { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--tg-pine); color: #fff; box-shadow: 0 0 0 5px var(--tg-pine-soft); }
+.tg-lk__rate { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--tg-line); font-weight: 600; }
+.tg-lk__scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.tg-lk__scale i { display: grid; place-items: center; height: 34px; border: 1px solid var(--tg-line-2); border-radius: 10px; font-style: normal; font-weight: 600; color: var(--tg-ink-2); font-variant-numeric: tabular-nums; }
+.tg-lk__scale i.is-on { border-color: var(--tg-pine); background: var(--tg-pine); color: #fff; }
+.tg-lk__rate > small { display: flex; justify-content: space-between; font-weight: 400; color: var(--tg-ink-3); }
 
-/* a conversation: the visitor's words, then what TripGuardian kept from them (Tìm hiểu, Đánh giá) */
-.tg-l3__talk { display: grid; gap: 12px; }
-.tg-l3__say { justify-self: end; max-width: 92%; margin: 0; padding: 12px 16px 13px; border-radius: 20px 20px 6px 20px; background: var(--tg-surface); box-shadow: var(--tg-sh-1); font-size: 0.98rem; line-height: 1.55; color: var(--tg-ink); }
-.tg-l3__say small { display: block; margin-bottom: 2px; font-size: 0.74rem; font-weight: 600; color: var(--tg-ink-3); }
-.tg-l3__say mark { padding: 0 1px; border-radius: 3px; background: linear-gradient(transparent 58%, var(--tg-brand-soft) 58%); color: inherit; }
-.tg-l3__memo { display: grid; gap: 12px; padding: 16px 18px 18px; border-radius: 6px 20px 20px 20px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-2); }
-.tg-l3__memo-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; font-weight: 600; font-size: 0.92rem; }
-.tg-l3__memo-h img { width: 28px; height: 28px; border-radius: 50%; background: var(--tg-surface); box-shadow: 0 0 0 1px var(--tg-line); }
-.tg-l3__memo-h span { margin-left: auto; font-weight: 500; font-size: 0.82rem; color: var(--tg-ink-3); }
-.tg-l3__memo-row { display: grid; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--tg-line-2); }
-.tg-l3__memo-row h4 { margin: 0; font: 600 0.78rem var(--tg-sans); color: var(--tg-ink-3); }
-.tg-l3__memo-row > div { display: flex; flex-wrap: wrap; gap: 6px; }
-.tg-l3__memo-row .tg-stamp { margin: 0; }
-.tg-l3__memo-row .tg-chip { transition: none; }
-.tg-l3__keep { display: grid; gap: 8px; margin: 0; padding: 12px 0 0; list-style: none; border-top: 1px dashed var(--tg-line-2); font-size: 0.95rem; }
-.tg-l3__keep li { display: flex; align-items: center; gap: 10px; }
-.tg-l3__keep svg { flex: none; box-sizing: content-box; padding: 5px; border-radius: 50%; background: var(--tg-pine-soft); color: var(--tg-ink-2); }
-.tg-l3__keep li:first-child svg { background: var(--tg-brand-soft); color: var(--tg-brand); }
+/* a real screen of the app in place of the drawn copy (Shot in Landing.tsx) */
+.tg-l3__shot { display: grid; gap: 6px; margin: 0; }
+.tg-l3__shot img { display: block; width: 100%; max-height: min(52vh, 460px); object-fit: cover; object-position: top; border: 1px solid var(--tg-line); border-radius: 18px; box-shadow: var(--tg-sh-2); background: var(--tg-surface); }
+.tg-l3__shot figcaption { font-size: 0.74rem; color: var(--tg-ink-3); }
 
-/* one place, recommended like a friend would (Lựa chọn · vì sao) */
-.tg-l3__rec { display: grid; gap: 14px; padding: 18px; border-radius: 22px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-2); }
-.tg-l3__rec-h { display: flex; align-items: center; gap: 14px; }
-.tg-l3__rec-h img { flex: none; width: 56px; height: 56px; border-radius: 14px; object-fit: cover; background: var(--tg-line); }
-.tg-l3__rec-h span { display: grid; gap: 2px; min-width: 0; }
-.tg-l3__rec-h b { font-size: 1.12rem; font-weight: 600; line-height: 1.3; }
-.tg-l3__rec-h small { font-size: 0.84rem; color: var(--tg-ink-3); }
-.tg-l3__why { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; margin: 0; font-size: 0.95rem; line-height: 1.5; color: var(--tg-ink-2); }
-.tg-l3__why > svg { box-sizing: content-box; padding: 7px; border-radius: 50%; background: var(--tg-brand-soft); color: var(--tg-brand); }
-.tg-l3__why.is-know > svg { background: var(--tg-pine-soft); color: var(--tg-ink-2); }
-.tg-l3__why b { display: block; font-size: 0.8rem; font-weight: 600; color: var(--tg-ink); }
-.tg-l3__clips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-top: 12px; border-top: 1px solid var(--tg-line); font-size: 0.82rem; color: var(--tg-ink-3); }
-.tg-l3__clips > span { margin-right: 2px; }
-.tg-l3__clip { display: inline-flex; align-items: center; gap: 5px; max-width: 19ch; min-height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--tg-line-2); font-weight: 500; color: var(--tg-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: border-color 150ms, color 150ms; }
-.tg-l3__clip:hover { border-color: var(--tg-ink); color: var(--tg-ink); }
-.tg-l3__clip svg { flex: none; fill: currentColor; stroke: none; }
-
-/* a real screen of the app in place of a chapter's drawn card (Landing.tsx Shot) */
-.tg-l3__shot { margin: 0; overflow: hidden; border-radius: 20px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-2); }
-.tg-l3__shot img { display: block; width: 100%; max-height: min(52vh, 460px); object-fit: cover; object-position: top center; }
-.tg-l3__shot figcaption { padding: 8px 14px; border-top: 1px solid var(--tg-line); font-size: 0.78rem; font-weight: 500; color: var(--tg-ink-3); }
-
-/* the example day: one line per stop, the ride from the stop before on the right */
-.tg-l3__day { position: relative; display: grid; gap: 0; margin: 0; padding: 10px 18px; list-style: none; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 22px; box-shadow: var(--tg-sh-2); }
-.tg-l3__day li { position: relative; display: grid; grid-template-columns: 48px 1fr auto; gap: 14px; align-items: baseline; padding: 8px 0 8px 22px; }
-.tg-l3__day li + li { border-top: 1px solid var(--tg-line); }
-/* the hour the cloud has flown to on the route lights up (Landing.tsx sets is-now / is-past from `travel`) */
-.tg-l3__day li::before { content: ''; position: absolute; left: 0; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%; background: var(--tg-line-2); transition: background 300ms, box-shadow 300ms; }
-.tg-l3__day li.is-past::before { background: var(--tg-ink-3); }
-.tg-l3__day li.is-now::before { background: var(--tg-brand); box-shadow: 0 0 0 4px var(--tg-brand-soft); }
-.tg-l3__day li.is-now time { color: var(--tg-brand); }
-.tg-l3__day time { color: var(--tg-ink-2); font-size: 0.88rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tg-l3__day span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
-.tg-l3__day b { font-size: 0.95rem; font-weight: 600; }
-.tg-l3__day em { padding: 1px 8px; border-radius: 999px; background: var(--tg-pine-soft); font: 600 0.72rem var(--tg-sans); font-style: normal; color: var(--tg-ink-2); }
-.tg-l3__day small { font-size: 0.8rem; color: var(--tg-ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tg-l3__ok { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.88rem; color: var(--tg-ink-2); }
-.tg-l3__ok svg { flex: none; box-sizing: content-box; padding: 3px; border-radius: 50%; background: var(--tg-ink); color: #fff; stroke-width: 3; }
+.tg-l3__day { position: relative; display: grid; gap: 2px; padding: 14px 18px; background: var(--tg-surface); border: 1px solid var(--tg-line); border-radius: 22px; box-shadow: var(--tg-sh-1); }
+.tg-l3__day li { position: relative; display: grid; grid-template-columns: 52px 1fr; gap: 14px; align-items: start; padding: 5px 0 5px 22px; }
+.tg-l3__day li::before { content: ''; position: absolute; left: 3px; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--tg-sun); box-shadow: 0 0 0 3px var(--tg-sun-soft); }
+.tg-l3__day li:not(:last-child)::after { content: ''; position: absolute; left: 7px; top: 24px; bottom: -9px; width: 2px; background: var(--tg-pine-line); }
+.tg-l3__day time { padding-top: 1px; color: var(--tg-pine); font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tg-l3__day span { display: grid; gap: 1px; }
+.tg-l3__day b { font-size: 0.92rem; }
+.tg-l3__day em { font: 600 0.7rem var(--tg-sans); color: var(--tg-sun-ink); text-transform: uppercase; }
+.tg-l3__day small { font-size: 0.76rem; }
 .tg-l3__go { justify-self: start; min-height: 52px; padding: 0 26px; }
 
 /* bottom right of the first screen: a line of poem, and the way into the free 3D camera */
@@ -147,8 +165,8 @@
 .tg-l3__rail span { opacity: 0; transform: translateX(6px); transition: opacity 200ms, transform 200ms var(--tg-ease); padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.85); }
 .tg-l3__rail i { width: 8px; height: 8px; border-radius: 4px; background: var(--tg-line-2); transition: height 250ms var(--tg-ease), background 250ms; }
 .tg-l3__rail button:hover span, .tg-l3__rail button:focus-visible span, .tg-l3__rail [aria-current] span { opacity: 1; transform: none; }
-.tg-l3__rail [aria-current] { color: var(--tg-ink); }
-.tg-l3__rail [aria-current] i { height: 24px; background: var(--tg-brand); }
+.tg-l3__rail [aria-current] { color: var(--tg-pine); }
+.tg-l3__rail [aria-current] i { height: 24px; background: var(--tg-pine); }
 .tg-l3__down { position: absolute; z-index: 4; left: 50%; bottom: 24px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.9); box-shadow: var(--tg-sh-1); font-size: 0.88rem; font-weight: 600; color: var(--tg-ink-2); transition: opacity 400ms ease, box-shadow 180ms, color 150ms; }
 .tg-l3__down:hover { box-shadow: var(--tg-sh-2); color: var(--tg-pine); }
 .tg-l3__down svg { animation: tg-bob 2.4s ease-in-out infinite; }
@@ -183,16 +201,14 @@
 .is-still .tg-l3__hero { grid-column: 1 / -1; min-height: calc(100vh - 168px); width: min(640px, 50vw); }
 @media (prefers-reduced-motion: reduce) { .tg-l3__plates img { transition: opacity 200ms; transform: none; } }
 
-/* leaving for the home page (Landing.tsx begin): the camera rises into the haze (scene `lift`), the words fade but the
-   pressed button (.is-from) and its containers (.is-keep) stay, then three shared elements fly into the app (motion.css) */
+/* leaving for the home page: the text lifts away, the valley leans in, then the browser cross-fades the pages */
 .tg-l.is-leaving :is(.tg-ln, .tg-l3__chs, .tg-l3__note, .tg-l3__down, .tg-l3__rail):not(.is-keep),
 .tg-l.is-leaving .is-keep > :not(.is-keep, .is-from) { opacity: 0; transform: translateY(-14px); transition: opacity 320ms ease, transform 380ms var(--tg-ease); pointer-events: none; }
-.tg-l.is-leaving .tg-ln.is-keep { background: transparent; border-color: transparent; backdrop-filter: none; transition: background 320ms, border-color 320ms; }
-.tg-l.is-leaving .tg-l3__poster { transform: scale(1.07); transition: transform 900ms cubic-bezier(0.3, 0, 0.2, 1); }
+.tg-l.is-leaving .tg-l3__cv, .tg-l.is-leaving .tg-l3__poster { transform: scale(1.07); transition: transform 900ms cubic-bezier(0.3, 0, 0.2, 1); }
 .tg-l.is-leaving .tg-l3__veil { opacity: 0; transition: opacity 400ms ease; }
-/* the 2D stand-in of the 3D cloud for the flight into the rail's logo */
-.tg-l__mascot { position: fixed; z-index: 6; object-fit: contain; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .tg-l.is-leaving * { transition: none !important; } }
+.tg-l.is-leaving .tg-ln.is-keep { background: transparent; border-color: transparent; backdrop-filter: none; transition: background 320ms, border-color 320ms; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 520ms; animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) { .tg-l.is-leaving * { transition: none !important; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 
 /* step rail: three labelled steps, always spelled out */
 .tg-lr { position: fixed; z-index: 40; right: 28px; top: 50%; transform: translateY(-50%); display: grid; gap: 4px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 300ms, visibility 300ms; }
@@ -273,7 +289,7 @@
 .tg-l__head { display: grid; gap: 12px; max-width: 640px; }
 .tg-l__head h2 { font-size: clamp(1.9rem, 3.2vw, 2.9rem); line-height: 1.12; }
 .tg-l__head p { font-size: 1.05rem; }
-.tg-l4 { max-width: none; margin: 0; padding: 112px var(--pad) 120px; display: grid; gap: 40px; border-top: 1px solid var(--tg-line); background: linear-gradient(var(--tg-surface), var(--tg-bg)); }
+.tg-l4 { max-width: none; margin: 0; padding: 112px var(--pad) 120px; display: grid; gap: 40px; border-top: 1px solid var(--tg-line); background: linear-gradient(var(--tg-bg), #ececec); }
 .tg-l4__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, 250px); gap: 16px; }
 .tg-l4__tile { position: relative; margin: 0; border-radius: 22px; overflow: hidden; background: var(--tg-line); }
 .tg-l4__tile.t0 { grid-column: 1 / 3; grid-row: 1 / 3; }
@@ -281,7 +297,7 @@
 .tg-l4__tile .tg-photo { height: 100%; margin: 0; }
 .tg-l4__tile img { width: 100%; height: 100%; object-fit: cover; transition: transform 600ms var(--tg-ease); }
 .tg-l4__tile:hover img { transform: scale(1.04); }
-.tg-l4__tile figcaption { position: absolute; inset: auto 0 0 0; display: grid; gap: 1px; padding: 40px 18px 14px; color: #fff; background: linear-gradient(transparent, rgba(20, 17, 13, 0.72)); }
+.tg-l4__tile figcaption { position: absolute; inset: auto 0 0 0; display: grid; gap: 1px; padding: 40px 18px 14px; color: #fff; background: linear-gradient(transparent, rgba(17, 17, 17, 0.7)); }
 .tg-l4__tile figcaption b { font: 600 1.05rem var(--tg-display); }
 .tg-l4__tile.t0 figcaption b { font-size: 1.5rem; }
 .tg-l4__tile figcaption span { font-size: 0.8rem; opacity: 0.9; }
@@ -301,17 +317,18 @@
 
 /* closing CTA */
 .tg-cta { position: relative; display: grid; place-items: center; margin: 0 var(--pad) 72px; min-height: 360px; border-radius: 32px; overflow: hidden; isolation: isolate; text-align: center; color: #fff; max-width: none; }
-/* the same golden cloud photo as the home page hero (/img/home/cloud.jpg): the jump to /app grows it into that hero */
-.tg-cta__img { position: absolute; inset: 0; z-index: -2; background: linear-gradient(180deg, rgba(28, 22, 16, 0.32), rgba(28, 22, 16, 0.62)), url(/img/home/cloud.jpg) 46% 55% / cover, #3a3128; }
+.tg-cta__img { position: absolute; inset: 0; z-index: -2; background: radial-gradient(90% 120% at 80% 0%, rgba(180, 83, 42, 0.55) 0%, rgba(180, 83, 42, 0) 60%), linear-gradient(160deg, #3a342b 0%, #2b2720 55%, #111111 100%); }
+.tg-cta__guest { color: rgba(255, 255, 255, 0.85); font-size: 0.9rem; text-decoration: underline; text-underline-offset: 3px; }
 .tg-cta__in { display: grid; gap: 20px; justify-items: center; padding: 64px 24px; }
 .tg-cta h2 { color: #fff; font-size: clamp(2rem, 3.8vw, 3.2rem); max-width: 18ch; }
 .tg-cta__in p { color: rgba(255, 255, 255, 0.85); font-size: 0.95rem; }
-.tg-cta__btn { min-height: 60px; padding: 0 40px; font-size: 1.05rem; }
-.tg-cta__guest { color: rgba(255, 255, 255, 0.85); font-size: 0.9rem; text-decoration: underline; text-underline-offset: 3px; }
+.tg-cta__btn { min-height: 60px; padding: 0 40px; font-size: 1.05rem; background: #fff; color: var(--tg-ink); }
+.tg-cta__btn:hover:not(:disabled) { background: var(--tg-pine-soft); }
 .tg-cta :focus-visible { outline-color: #fff; }
-.tg-lf { display: flex; align-items: center; gap: 12px; padding: 28px var(--pad); background: var(--tg-night); color: rgba(255, 255, 255, 0.72); font-size: 0.85rem; }
+.tg-lf { display: flex; align-items: center; gap: 12px; padding: 28px var(--pad); background: var(--tg-night); color: #d4d4d4; font-size: 0.85rem; }
 .tg-lf__sp { flex: 1; }
 .tg-lf > svg, .tg-lf > img { flex: none; }
+.tg-lf > span:nth-of-type(1) { flex: none; white-space: nowrap; }
 
 @media (max-width: 1100px) {
   .tg-ln__links { display: none; }
@@ -322,9 +339,9 @@
 }
 @media (max-width: 900px) {
   .tg-l { --pad: 24px; }
-  .tg-l3__veil { background: linear-gradient(180deg, rgba(255, 253, 249, 0.96), rgba(255, 253, 249, 0.78)); }
+  .tg-l3__veil { background: linear-gradient(180deg, rgba(246, 246, 246, 0.96), rgba(246, 246, 246, 0.78)); }
   .tg-l3__chs { align-items: end; padding-bottom: 40px; }
-  .tg-l3__ch { width: 100%; padding: 22px; border-radius: 22px; background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(8px); }
+  .tg-l3__ch { width: 100%; padding: 22px; border-radius: 22px; background: rgba(246, 246, 246, 0.94); backdrop-filter: blur(8px); }
   .tg-l3__hero { width: 100%; }
   .tg-l3__rail { display: none; }
   .is-still .tg-l3__chs { grid-template-columns: 1fr; }
@@ -341,13 +358,13 @@
 
 /* phones: "use the app" (screens/GetApp.tsx) */
 .tg-ga { min-height: 100dvh; display: flex; flex-direction: column; gap: 28px; padding: max(18px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom)); background: radial-gradient(120% 60% at 50% 0%, var(--tg-pine-soft), var(--tg-bg) 70%); }
-.tg-ga__top { display: flex; align-items: center; justify-content: center; }
+.tg-ga__top { display: flex; align-items: center; gap: 10px; font: 600 1.1rem var(--tg-display); }
 .tg-ga__art { display: grid; place-items: center; padding: 8px 0; }
 .tg-ga__phone { position: relative; width: 150px; aspect-ratio: 10 / 19; border-radius: 30px; border: 7px solid var(--tg-ink); background: linear-gradient(180deg, rgba(250, 247, 242, 0) 40%, rgba(250, 247, 242, 0.85)), url(/img/gen/hero.webp) 62% center / cover, var(--tg-pine-soft); box-shadow: var(--tg-sh-2); overflow: hidden; transform: rotate(-4deg); }
 .tg-ga__notch { position: absolute; left: 50%; top: 6px; width: 46px; height: 12px; border-radius: 999px; transform: translateX(-50%); background: var(--tg-ink); }
 .tg-ga__route { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tg-ga__route path { fill: none; stroke: var(--tg-pine); stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 5 4; }
-.tg-ga__pin { position: absolute; z-index: 1; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-brand); color: #fff; border: 2px solid #fff; font: 700 0.7rem var(--tg-sans); transform: translate(-50%, -50%); }
+.tg-ga__pin { position: absolute; z-index: 1; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--tg-sun); color: #fff; border: 2px solid #fff; font: 700 0.7rem var(--tg-sans); transform: translate(-50%, -50%); }
 .tg-ga__pin.p1 { left: 24%; top: 74%; } .tg-ga__pin.p2 { left: 72%; top: 49%; } .tg-ga__pin.p3 { left: 58%; top: 21%; }
 .tg-ga__bar { position: absolute; left: 10px; right: 10px; bottom: 12px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 12px; background: var(--tg-surface); box-shadow: var(--tg-sh-1); font-size: 0.66rem; font-weight: 700; }
 .tg-ga__bar i { width: 7px; height: 7px; border-radius: 50%; background: var(--tg-pine); box-shadow: 0 0 0 3px var(--tg-pine-soft); }

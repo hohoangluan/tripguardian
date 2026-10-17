@@ -3,7 +3,7 @@
    Colors come from tokens only. */
 .tg-disc { --disc-ease: cubic-bezier(0.33, 1, 0.68, 1); --step: 16deg; --R: clamp(200px, calc((100vh - var(--tg-top) - var(--tg-bar)) / 2 - 28px), 380px); --r1: calc(var(--R) * 0.34); --W: calc(var(--R) - var(--r1)); --cx: calc(var(--r1) * -0.32); --gap: 6px; --rc: calc(var(--r1) - 40px); --rh: calc(var(--r1) - 10px); --zw: calc(var(--cx) + var(--R) + 44px); --mh: clamp(240px, calc(100vh - var(--tg-top) - var(--tg-bar) - 260px), 640px); position: fixed; z-index: 25; inset: var(--tg-top) 0 0 0; background: var(--tg-bg); outline: none; overscroll-behavior: contain; overflow-x: hidden; overflow-y: auto; }
 .tg-disc__field { position: relative; min-height: 100%; }
-.tg-disc__back { position: fixed; z-index: 5; left: calc(18px + var(--rail-in, 0px)); top: calc(var(--tg-top) + 18px); display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-1); transition: transform 200ms var(--tg-ease), border-color 150ms; }
+.tg-disc__back { position: fixed; z-index: 5; left: 108px; /* clear of the sidebar (fixed, x 18–94 px, above this layer) that sat on the button */ top: calc(var(--tg-top) + 18px); display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--tg-surface); border: 1px solid var(--tg-line); box-shadow: var(--tg-sh-1); transition: transform 200ms var(--tg-ease), border-color 150ms; }
 .tg-disc__back:hover { border-color: var(--tg-pine); transform: translateX(-3px); }
 .tg-disc__none { padding: 48px 0; text-align: center; color: var(--tg-ink-2); font-size: 0.95rem; }
 .tg-disc__tabs { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -1,5 +1,5 @@
 // One place that starts View Transitions, so two never overlap (a second one skips the first) and the app knows when one is running.
-// `cls` is put on <html> while it runs, so its CSS (user/css/motion.css) can style that transition alone.
+// `cls` (one class, or several separated by spaces) is put on <html> while it runs, so its CSS (user/css/motion.css) can style that transition alone.
 type VT = { finished: Promise<unknown> }
 type Doc = Document & { startViewTransition?: (cb: () => void | Promise<void>) => VT }
 
@@ -18,9 +18,10 @@ export function startTransition(update: () => void | Promise<void>, cls?: string
   if (!canTransition() || running) return null
   running = true
   const root = document.documentElement
-  if (cls) root.classList.add(cls)
+  const classes = cls ? cls.split(' ') : []
+  root.classList.add(...classes)
   const t = doc.startViewTransition!(update)
-  const done = () => { running = false; if (cls) root.classList.remove(cls) }
+  const done = () => { running = false; root.classList.remove(...classes) }
   t.finished.then(done, done)
   return t
 }

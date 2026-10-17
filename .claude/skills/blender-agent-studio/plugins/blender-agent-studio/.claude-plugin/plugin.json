@@ -1,0 +1,30 @@
+{
+  "name": "blender-agent-studio",
+  "version": "0.6.4",
+  "description": "Free, open-source Blender AI plugin for modeling, animation, rendering, validation, and repair with local Blender. Codex and Claude Code installers.",
+  "author": {
+    "name": "Bars",
+    "url": "https://github.com/ifBars"
+  },
+  "homepage": "https://github.com/ifBars/blender-agent-studio#readme",
+  "repository": "https://github.com/ifBars/blender-agent-studio",
+  "license": "MIT",
+  "keywords": [
+    "blender",
+    "claude-code",
+    "agent-skills",
+    "mcp",
+    "benchmarking",
+    "blender-ai",
+    "codex",
+    "open-source"
+  ],
+  "mcpServers": {
+    "blender-agent-studio": {
+      "command": "bun",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/server.ts"
+      ]
+    }
+  }
+}

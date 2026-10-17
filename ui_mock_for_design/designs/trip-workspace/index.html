@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#d6d5e5">
+  <title>TripGuardian · Hiểu chuyến đi — Chat toàn màn hình</title>
+  <link rel="icon" href="assets/logo.webp">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="fullscreen.css">
+</head>
+<body>
+  <div class="review-bar">
+    <div class="review-title"><span class="review-dot"></span><b>CONCEPT REVIEW</b><span>Trip Understanding · Dữ liệu minh họa</span></div>
+    <div class="review-tools">
+      <label for="layout">Bố cục</label>
+      <select id="layout"><option value="gallery" selected>Chat toàn màn hình</option></select>
+      <button id="design-notes" class="review-button">Ý tưởng thiết kế</button>
+    </div>
+  </div>
+  <main class="app" data-layout="gallery" data-stage="understand">
+    <header class="app-header">
+      <a class="brand" href="../homepage/index.html"><span data-icon="compass"></span>TripGuardian</a>
+      <nav class="stages" aria-label="Các bước của chuyến đi">
+        <button class="stage active" data-view="understand"><span>1</span>Tìm hiểu</button><i></i>
+        <button class="stage" data-view="selection"><span>2</span>Chọn nơi</button><i></i>
+        <button class="stage" data-view="planning"><span>3</span>Lịch trình</button>
+      </nav>
+      <div class="account"><button type="button" id="edit-trip" class="summary-button" aria-haspopup="dialog" aria-controls="dialog"><span data-icon="calendar" aria-hidden="true"></span><span>Tóm tắt chuyến đi</span><span class="summary-dot" aria-hidden="true"></span></button><span class="avatar">AN</span></div>
+    </header>
+    <div class="workspace">
+      <aside class="conversation" data-screen-label="Trò chuyện hiểu chuyến đi">
+        <div class="conversation-heading"><div><span class="eyebrow">CÙNG HIỂU CHUYẾN ĐI</span><h1>Chuyến Đà Lạt của bạn</h1></div><button class="icon-button" id="reset" aria-label="Bắt đầu lại mock"><span data-icon="refresh"></span></button></div>
+        <div class="chat-log" id="chat-log" aria-live="polite">
+          <div class="user-message"><p>Đà Lạt 3 ngày 2 đêm, đi cùng người yêu, 2 người. Tụi mình đi xe máy, thích cà phê và thiên nhiên.</p></div>
+          <div class="bot-message"><div class="bot-byline"><span class="bot-mark" data-icon="sparkle"></span><b>TripGuardian</b><span>Hiểu theo lời bạn</span></div><p>Một chuyến Đà Lạt cho hai người, với cà phê và khoảng trời xanh. Mình đã ghi lại rồi.</p><p>Các nơi bên cạnh là bản xem trước theo loại nơi bạn thích. Bạn chưa cần chọn ngay.</p></div>
+          <div class="question" id="question">
+            <span class="eyebrow">THÊM MỘT CHÚT VỀ CHUYẾN NÀY</span><h2>Bạn muốn một ngày trôi qua thế nào?</h2><p>Nhịp đi giúp mình hiểu bạn muốn dành bao lâu ở mỗi nơi.</p>
+            <div class="pace-options"><button data-pace="Thong thả"><img class="pace-photo" src="assets/coffee.webp" alt="" aria-hidden="true"><span><b>Thong thả</b><small>Ít nơi, ở lại lâu hơn</small></span><span class="choice-circle"></span></button><button data-pace="Cân bằng"><img class="pace-photo" src="assets/pine.webp" alt="" aria-hidden="true"><span><b>Cân bằng</b><small>Có đi chơi, có nghỉ chân</small></span><span class="choice-circle"></span></button><button data-pace="Đi nhiều"><img class="pace-photo" src="assets/cloud.webp" alt="" aria-hidden="true"><span><b>Đi nhiều</b><small>Muốn trải nghiệm nhiều hơn</small></span><span class="choice-circle"></span></button></div>
+            <div class="question-footer"><button class="text-button" id="skip">Chưa chắc, xem trước đã</button><span>Có thể đổi bất cứ lúc nào</span></div>
+          </div>
+        </div>
+        <div class="chat-bottom"><div class="suggestions"><button data-compose="Ngân sách 5 triệu cho cả hai, cả chuyến">Thêm ngân sách</button><button id="saved-links">Mình có nơi đã lưu</button></div><form id="composer" class="composer"><label class="sr-only" for="chat-input">Kể thêm về chuyến đi</label><textarea id="chat-input" rows="2" placeholder="Kể thêm, hoặc dán link một nơi bạn thích…"></textarea><div class="composer-footer"><button type="button" class="attach-button" id="attachment"><span data-icon="clip"></span><span>Ảnh, link, ghi chú</span></button><button type="submit" class="send-button" aria-label="Gửi tin nhắn"><span data-icon="arrow"></span></button></div></form><p class="chat-footnote"><span data-icon="shield"></span>Bạn chọn nơi. Mình giúp hiểu và xếp chuyến.</p></div>
+      </aside>
+      <section class="discovery" data-screen-label="Những nơi đang hợp">
+        <div class="discovery-scroll" id="discovery-scroll">
+          <div class="editorial-hero"><img src="assets/pine.webp" alt="Ảnh không khí rừng thông minh họa"><div><span class="eyebrow">MỘT CHUYẾN ĐI ĐÚNG GU</span><h2>Chậm một chút.<br>Gần nhau hơn.</h2></div><small>Ảnh không khí minh họa</small></div>
+          <div class="discovery-heading"><div><span class="eyebrow">TỪ NHỮNG ĐIỀU BẠN VỪA KỂ</span><h2>Những nơi đang hợp.</h2><p>Bấm xem chi tiết. Chọn nơi ở bước tiếp theo.</p></div><span class="preview-badge"><span data-icon="sparkle"></span>Xem trước</span></div>
+          <div class="live-note" hidden><span data-icon="sliders"></span><p id="match-note">Đang xem theo <b>cà phê</b> và <b>thiên nhiên</b>. Còn cần biết ngày đi để kiểm tra thêm.</p></div>
+          <div class="filters" aria-label="Loại địa điểm"><button data-filter="all" class="active" aria-pressed="true">Tất cả <span>3</span></button><button data-filter="coffee" aria-pressed="false"><span data-icon="coffee"></span>Cà phê</button><button data-filter="nature" aria-pressed="false"><span data-icon="tree"></span>Thiên nhiên</button><span class="filter-description">Xem trước theo loại nơi</span></div>
+          <div class="place-grid" id="place-grid"></div>
+          <div class="missing-note"><span data-icon="info"></span><div><b>Hợp gu là điểm bắt đầu.</b><p>Giờ mở cửa, đường đi và các yêu cầu bắt buộc vẫn cần được kiểm tra trước khi bạn chọn nơi.</p></div></div>
+        </div>
+        <footer class="discovery-footer"><div><span class="small-label" id="footer-label">KHI BẠN MUỐN ĐI TIẾP</span><b id="footer-copy">Bạn sẽ chọn nơi ở bước tiếp theo</b></div><button class="primary-button" id="next">Tiếp tục đến chọn nơi <span data-icon="arrow"></span></button></footer>
+      </section>
+      <section class="planning-panel" data-screen-label="Lịch trình" hidden></section>
+    </div>
+    <footer class="app-footer"><span><span class="status-dot"></span>Cuối tuần ở Đà Lạt <small>· Concept minh họa</small></span><span id="app-footer-note">Chưa nơi nào được tự động thêm vào lịch trình</span></footer>
+  </main>
+  <dialog id="dialog"><div id="dialog-content"></div><button class="icon-button dialog-close" id="dialog-close" aria-label="Đóng"><span data-icon="x"></span></button></dialog>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="icons.js"></script><script src="app.js"></script>
+</body>
+</html>

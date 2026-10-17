@@ -1,9 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { mutateJourney, readJourney, requestStageEntry } from '../journey'
 import { useTrip } from '../trip'
-import { go } from '../ui/common'
+import { info } from '../lib'
+import { getUi } from '../store'
+import { go, warmPhotos } from '../ui/common'
+import { primePlanning } from '../planning/api'
 import * as api from './api'
-import type { Action, DecisionOutput, Diff, PlanPreview, View } from './types'
+import type { Action, Card, DecisionOutput, Diff, PlanPreview, View } from './types'
 import type { Readback } from '../tu/types'
 import { ReadbackSheet } from '../ui/ReadbackSheet'
 
@@ -28,6 +31,24 @@ const Ctx = createContext<DecisionCtx | null>(null)
 const OFFLINE = 'Không kết nối được máy chủ chọn nơi. Bạn thử lại nhé.'
 const DEBOUNCE_MS = 350
 
+// What the screen shows the instant a place is picked, dropped or locked; the server's answer confirms it a moment later.
+function guess(v: View, a: Action): View | null {
+  if (a.type !== 'select' && a.type !== 'drop' && a.type !== 'lock' && a.type !== 'unlock') return null
+  const id = a.place_id
+  const picked = v.selected.includes(id)
+  const pick = a.type === 'select' || a.type === 'drop'
+  const on = a.type === 'select' || a.type === 'lock'
+  if (pick ? on === picked : !picked || on === v.locked.includes(id)) return null // nothing changes, or a lock on a place that is not in the trip: let the server answer
+  const mark = (c: Card): Card => (c.id === id ? { ...c, ...(pick ? { chosen: on } : { locked: on }) } : c)
+  const cards = (list: Card[]) => list.map(mark)
+  return {
+    ...v,
+    ...(pick ? { selected: on ? [...v.selected, id] : v.selected.filter((x) => x !== id) } : { locked: on ? [...v.locked, id] : v.locked.filter((x) => x !== id) }),
+    groups: v.groups.map((g) => ({ ...g, cards: cards(g.cards) })),
+    unverified: { ...v.unverified, cards: cards(v.unverified.cards) },
+  }
+}
+
 // One Place Decision stage per journey: the backend holds the state, the page only shows its view.
 export function DecisionProvider({ children }: { children: ReactNode }) {
   const { trip, dispatch } = useTrip()
@@ -40,6 +61,9 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState(0)
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
   const seq = useRef(0)
+  const shown = useRef<View | null>(null)
+  const queued = useRef(0) // picks, drops and locks sent and not yet answered
+  shown.current = view
   const [loadingMore, setLoadingMore] = useState<string | null>(null)
   const loading = useRef<string | null>(null)
 
@@ -64,8 +88,13 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
     if (!id) return
     let live = true
     const origin = location.pathname + location.search
+    const FIRST_SCREEN = 8 // cards of the open tab that are on view at once
+    const WARM_MS = 500 // longest the list waits for its pictures: on a slow line it shows anyway
     api.loadDecision(id).then(
-      (r) => {
+      async (r) => {
+        if (!live) return
+        const first = r.view.groups.find((g) => g.id === getUi().tab) ?? r.view.groups.find((g) => g.id !== 'anchors')
+        await warmPhotos((first?.cards ?? []).slice(0, FIRST_SCREEN).map((c) => info(c.id)?.photos[0]?.src), WARM_MS)
         if (!live) return
         if (r.recoveredHandoff && origin === location.pathname + location.search) {
           dispatch({ type: 'set', patch: { journeyId: r.id, decisionId: r.id, planningId: r.id } })
@@ -92,11 +121,19 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
   const act = useCallback(
     async (a: Action) => {
       if (!id) return false
-      setBusy(true)
+      const before = shown.current
+      const early = before && guess(before, a)
+      // A pick, drop or lock shows at once and leaves the buttons alone: the next click can follow before the server answers.
+      // The server takes them in order and only the last answer replaces the screen, so an earlier one never undoes a later click.
+      if (early) {
+        shown.current = early
+        setView(early)
+        queued.current += 1
+      } else setBusy(true)
       try {
         const r = await api.act(id, a)
         dispatch({ type: 'set', patch: { planningId: null } })
-        setView(r.view)
+        if (!early || queued.current === 1) setView(r.view)
         setDiff(r.diff)
         setError(null)
         if (r.goto === 'understand') {
@@ -105,10 +142,12 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
         } else refreshPreview()
         return true
       } catch (e) {
+        if (early) setTimeout(() => { void api.loadDecision(id).then((r) => { if (queued.current === 0) setView(r.view) }, () => {}) }, 0) // the server said no: show what it holds
         setError(e instanceof api.DecisionError ? `Không thực hiện được: ${e.detail || e.status}` : OFFLINE)
         return false
       } finally {
-        setBusy(false)
+        if (early) queued.current -= 1
+        else setBusy(false)
       }
     },
     [id, dispatch, refreshPreview],
@@ -161,6 +200,7 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
         type: 'set',
         patch: { selected: out.confirmed.map((c) => c.id), locked: out.confirmed.filter((c) => c.role !== 'selected').map((c) => c.id), planningId: created.id },
       })
+      primePlanning(created.id)
       go('/plan')
       return true
     } catch (e) {

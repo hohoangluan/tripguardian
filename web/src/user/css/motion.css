@@ -4,6 +4,19 @@
 :root.tg-nav::view-transition-old(root) { animation-name: -ua-view-transition-fade-out; animation-duration: 200ms; animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
 :root.tg-nav::view-transition-new(root) { animation-name: -ua-view-transition-fade-in; animation-duration: 280ms; animation-timing-function: cubic-bezier(0.22, 0.8, 0.3, 1); }
 :root.tg-nav::view-transition-group(root) { animation-duration: 280ms; }
+/* Between the steps (Tìm hiểu → Lựa chọn → Lịch trình) the page slides: the old one leaves a little to the left and fades, the new
+   one comes in from the right (back: the other way). The step bar and the sidebar keep their place, so only the content moves. */
+:root.tg-nav-fwd .tg-flowbar, :root.tg-nav-back .tg-flowbar { view-transition-name: tg-flowbar; }
+:root.tg-nav-fwd .tg-flowside, :root.tg-nav-back .tg-flowside { view-transition-name: tg-flowside; }
+@keyframes tg-vt-leave-l { to { opacity: 0; transform: translateX(-44px); } }
+@keyframes tg-vt-leave-r { to { opacity: 0; transform: translateX(44px); } }
+@keyframes tg-vt-enter-r { from { opacity: 0; transform: translateX(56px); } }
+@keyframes tg-vt-enter-l { from { opacity: 0; transform: translateX(-56px); } }
+:root.tg-nav-fwd::view-transition-old(root) { animation: tg-vt-leave-l 240ms cubic-bezier(0.4, 0, 0.6, 1) both; }
+:root.tg-nav-fwd::view-transition-new(root) { animation: tg-vt-enter-r 420ms cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+:root.tg-nav-back::view-transition-old(root) { animation: tg-vt-leave-r 240ms cubic-bezier(0.4, 0, 0.6, 1) both; }
+:root.tg-nav-back::view-transition-new(root) { animation: tg-vt-enter-l 420ms cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+:root.tg-nav-fwd::view-transition-group(root), :root.tg-nav-back::view-transition-group(root) { animation-duration: 420ms; }
 /* the browser's cross-fade replaces the fallback fade-in of a page */
 html[data-vt] .tg-flow { animation: none; }
 @media (prefers-reduced-motion: reduce) {

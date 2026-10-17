@@ -1,0 +1,47 @@
+{
+  "name": "blender-agent-studio",
+  "version": "0.6.4",
+  "description": "Free, open-source Blender AI plugin for modeling, animation, rendering, validation, and repair with local Blender. Codex and Claude Code installers.",
+  "author": {
+    "name": "Bars",
+    "url": "https://github.com/ifBars"
+  },
+  "homepage": "https://github.com/ifBars/blender-agent-studio#readme",
+  "repository": "https://github.com/ifBars/blender-agent-studio.git",
+  "license": "MIT",
+  "keywords": [
+    "blender",
+    "codex",
+    "agent-skills",
+    "mcp",
+    "benchmarking",
+    "blender-ai",
+    "claude-code",
+    "open-source"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Blender Agent Studio",
+    "shortDescription": "Free Blender AI workflows in your agent",
+    "longDescription": "Use the agent you already work with to build and refine models, scenes, animation, and simulations in local Blender. Keep the editable .blend file and Python source. Includes rendering, asset validation, MCP tools, and paired benchmark workflows. Codex and Claude Code have bundled installers; other hosts need compatible skills and local execution.",
+    "developerName": "Bars",
+    "category": "Developer Tools",
+    "websiteURL": "https://github.com/ifBars/blender-agent-studio",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Build a Blender model from this request.",
+      "Critique the first complete Blender result, repair its highest-impact defect, and verify no regression.",
+      "Clarify this Blender brief and create an optional concept mockup.",
+      "Validate this Blender asset and render evidence.",
+      "Create and validate a Blender fluid or physics simulation.",
+      "Benchmark this Blender agent workflow."
+    ],
+    "brandColor": "#E87D0D",
+    "composerIcon": "./assets/blender-icon.png",
+    "logo": "./assets/blender-icon.png"
+  },
+  "mcpServers": "./.mcp.json"
+}

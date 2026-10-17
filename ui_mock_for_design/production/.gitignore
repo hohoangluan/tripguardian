@@ -1,0 +1,6 @@
+# Local reference images and screenshots contain source content.
+assets/place-*.jpg
+assets/stay-*.jpg
+shots/
+verification.json
+standalone.html

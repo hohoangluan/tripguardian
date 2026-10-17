@@ -1,8 +1,25 @@
 import type { LodgingCandidate } from '../planning/types'
 import type { Action, ActResult, CompareResult, PlanPreview, SearchResult, TripSummary, TurnHandlers, View, WhyNot } from './types'
-import { json, loadJourney, mutateJourney, readJourney, resumeJourney } from '../journey'
+import { json, loadJourney, mutateJourney, readJourney, resumeJourney, type JourneyView } from '../journey'
 export { JourneyError as DecisionError } from '../journey'
+// Understand starts the first read of this stage the moment it has advanced, so the screen finds it on arrival instead of
+// asking after the route changed. A journey that has just advanced has nothing to recover, so that step is skipped too.
+const primed = new Map<string, Promise<JourneyView>>()
+export const primeDecision = (id: string) => {
+  const read = loadJourney(id, 'decision')
+  read.catch(() => {})
+  primed.set(id, read)
+  setTimeout(() => primed.delete(id), 30_000)
+}
 export const loadDecision = async (id: string) => {
+  const early = primed.get(id)
+  primed.delete(id)
+  if (early) {
+    try {
+      const j = await early
+      return { ...(j.result as { view: View }), id: j.id, stage: j.stage, recoveredHandoff: undefined }
+    } catch { /* the full path below reads it again and reports the error */ }
+  }
   const recovery = await resumeJourney(id)
   const j = await loadJourney(id, 'decision')
   return { ...(j.result as {view: View}), id: j.id, stage: j.stage, recoveredHandoff: recovery.recoveredOperation === 'advance' && recovery.view.stage === 'planning' ? recovery.view : undefined }

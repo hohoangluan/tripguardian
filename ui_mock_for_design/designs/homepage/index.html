@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#d6d5e5">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23d8c8ec'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%2367428e' stroke-width='2'/%3E%3Cpath d='m21 11-3 7-7 3 3-7z' fill='%2367428e'/%3E%3C/svg%3E">
+  <title>TripGuardian · Dành cho bạn</title>
+  <style>
+    :root { --ink:#33313e; --muted:#716d80; --purple:#8665b0; --purple-dark:#67428e; --soft:#d8c8ec; --line:rgba(122,113,145,.12); --glass:rgba(255,255,255,.4); --radius:20px; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100svh; padding:64px 4.8vw; display:flex; align-items:center; justify-content:center; color:var(--ink); background:radial-gradient(ellipse at 5% 9%,#ddd5e9 0,transparent 44%),radial-gradient(ellipse at 90% 76%,#cfdae3 0,transparent 46%),linear-gradient(125deg,#d1cede,#d8dce7 57%,#dad4e4); font-family:"Segoe UI",Arial,sans-serif; font-size:14px; -webkit-font-smoothing:antialiased; }
+    button,input,textarea { font:inherit; }
+    button { cursor:pointer; color:inherit; }
+    button,a,input,textarea { -webkit-tap-highlight-color:transparent; }
+    button { border:0; }
+    button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible { outline:2px solid var(--purple-dark); outline-offset:4px; }
+    button:disabled { cursor:default; }
+    svg { width:18px; height:18px; flex:none; fill:none; stroke:currentColor; stroke-width:1.55; stroke-linecap:round; stroke-linejoin:round; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+    .app { width:100%; max-width:1320px; padding:16px; border:1px solid rgba(255,255,255,.28); border-radius:26px; background:rgba(245,245,255,.25); box-shadow:0 24px 70px -35px rgba(64,54,92,.28),inset 0 1px 1px rgba(255,255,255,.35); backdrop-filter:blur(24px); }
+    .workspace { display:grid; grid-template-columns:158px minmax(0,1fr) 190px; gap:16px; min-height:616px; }
+    .sidebar { display:flex; flex-direction:column; padding:21px 2px 0; }
+    .brand { display:flex; align-items:center; gap:7px; margin:0 7px 32px; font-size:15px; font-weight:650; letter-spacing:-.5px; }
+    .brand svg { width:21px; height:21px; stroke-width:1.9; }
+    .nav-label { margin:0 11px 10px; color:var(--muted); font-size:11px; }
+    .nav-group { display:flex; flex-direction:column; gap:4px; margin-bottom:25px; }
+    .nav-item { display:flex; align-items:center; gap:10px; min-height:38px; padding:9px 11px; background:transparent; border-radius:10px; font-size:12px; text-align:left; transition:background .18s,color .18s; }
+    .nav-item svg { width:16px; height:16px; color:#9985b5; }
+    .nav-item:hover { background:rgba(255,255,255,.28); }
+    .nav-item.active { background:rgba(255,255,255,.75); box-shadow:0 3px 10px rgba(90,70,120,.04); }
+    .nav-item.active svg { color:var(--purple); }
+    .nav-count { margin-left:auto; color:var(--muted); font-size:10px; }
+    .sidebar-foot { margin-top:auto; padding-bottom:4px; }
+    .new-trip { display:flex; align-items:center; gap:9px; padding:10px 12px; width:100%; border-radius:10px; background:linear-gradient(120deg,#d6c2e9,#cfc1e9); color:#553975; font-size:12px; box-shadow:0 4px 10px rgba(130,100,160,.08); }
+    .new-trip:hover { background:#cbb5e2; }
+    .main { background:rgba(249,250,255,.43); border:1px solid rgba(255,255,255,.38); border-radius:19px; padding:24px 27px 26px; min-width:0; }
+    .toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:27px; }
+    .search { width:min(380px,65%); display:flex; align-items:center; gap:9px; border-radius:10px; background:rgba(255,255,255,.84); padding:0 12px; height:36px; box-shadow:0 2px 8px rgba(50,40,80,.025); }
+    .search svg { width:15px; height:15px; color:#91879e; }
+    .search input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:var(--ink); font-size:12px; }
+    .search input::placeholder { color:#797485; }
+    .search kbd { padding:2px 5px; border:1px solid #e8e4ee; border-radius:4px; font:10px inherit; color:#85788e; }
+    .user { display:flex; align-items:center; gap:8px; border-radius:10px; background:transparent; padding:0; font-size:12px; white-space:nowrap; }
+    .avatar { position:relative; display:grid; place-items:center; flex:none; width:29px; height:29px; border-radius:50%; background:linear-gradient(135deg,#f0d4d8,#b196b7); color:#54415c; font-size:10px; font-weight:650; box-shadow:inset 0 0 0 2px rgba(255,255,255,.4); }
+    .avatar.blue { background:linear-gradient(135deg,#d8e6ec,#9ab3cd); color:#365576; }
+    .avatar.green { background:linear-gradient(135deg,#dde2d4,#a5b4a4); color:#46594a; }
+    .avatar.peach { background:linear-gradient(135deg,#f0dfd0,#d0ad9a); color:#70523e; }
+    .avatar.lilac { background:linear-gradient(135deg,#e7daef,#b8a7d2); color:#5e4580; }
+    .avatar.charcoal { background:linear-gradient(135deg,#c9cfda,#737d95); color:white; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:15px; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:21px; font-weight:600; letter-spacing:-.65px; }
+    .section-note { color:var(--muted); font-size:11px; }
+    .feature { display:grid; grid-template-columns:minmax(210px,.92fr) minmax(0,1.4fr); gap:22px; align-items:stretch; }
+    .cover { position:relative; overflow:hidden; min-height:267px; border-radius:12px; background:#c4b6d0; box-shadow:0 7px 18px -10px rgba(52,37,67,.5); }
+    .cover>img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:46% center; filter:none; }
+    .cover::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,rgba(62,37,76,.09) 0%,transparent 28%,rgba(39,35,51,.76) 100%); }
+    .cover-top { position:absolute; z-index:1; top:18px; left:20px; right:20px; display:flex; align-items:center; justify-content:space-between; color:#3d3445; font-size:12px; letter-spacing:3px; font-weight:650; }
+    .cover-top svg { width:17px; height:17px; }
+    .cover-copy { position:absolute; z-index:1; bottom:19px; left:20px; right:20px; color:#fff; }
+    .cover-copy .eyebrow { font-size:10px; letter-spacing:1.6px; text-transform:uppercase; color:#ece3f3; margin-bottom:7px; }
+    .cover-copy h2 { font-size:27px; line-height:1.17; letter-spacing:-.9px; font-weight:550; margin-bottom:14px; }
+    .cover-cta { background:rgba(255,255,255,.89); color:#4d3d5c; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; border-radius:8px; font-size:11px; width:100%; }
+    .cover-cta:hover { background:white; }
+    .ideas { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:2px; }
+    .idea { display:grid; grid-template-columns:18px 22px minmax(0,1fr) 29px 25px; align-items:center; column-gap:6px; min-height:51px; border-radius:8px; padding:5px 7px; transition:background .18s; }
+    .idea:hover { background:rgba(255,255,255,.4); }
+    .idea-number { color:#7d748d; font-size:11px; }
+    .idea-icon { color:#9c81ba; width:16px; height:16px; }
+    .idea-open { background:none; padding:4px 0; min-width:0; text-align:left; }
+    .idea-title { display:block; font-size:13px; font-weight:500; line-height:1.4; }
+    .idea-sub { display:block; font-size:10px; color:var(--muted); margin-top:3px; line-height:1.45; }
+    .icon-btn { width:28px; height:30px; display:grid; place-items:center; background:transparent; border-radius:7px; color:#938a9f; }
+    .icon-btn svg { width:15px; height:15px; }
+    .icon-btn:hover { background:rgba(255,255,255,.65); color:var(--purple-dark); }
+    .save[aria-pressed="true"] { color:var(--purple-dark); }
+    .save[aria-pressed="true"] svg { fill:#b79bd3; stroke:#8665aa; }
+    .idea-go { color:#94889f; }
+    .collection { margin-top:25px; }
+    .collection .section-head { margin-bottom:13px; }
+    .collection h2 { font-size:15px; font-weight:600; letter-spacing:-.3px; }
+    .text-link { color:var(--muted); background:transparent; font-size:10px; display:flex; align-items:center; gap:4px; padding:3px 0; }
+    .text-link svg { width:12px; height:12px; }
+    .text-link:hover { color:var(--purple-dark); }
+    .cards { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; }
+    .card { min-width:0; }
+    .card-image { position:relative; aspect-ratio:1; border-radius:11px; overflow:hidden; background:#ded4e8; }
+    .card-open { width:100%; height:100%; display:block; padding:0; background:transparent; }
+    .card-open img { width:100%; height:100%; object-fit:cover; filter:none; transition:transform .25s; }
+    .card-open:hover img { transform:scale(1.045); }
+    .card .save { position:absolute; top:7px; right:7px; width:26px; height:26px; color:#fff; background:rgba(52,46,64,.26); backdrop-filter:blur(10px); border-radius:50%; }
+    .card .save:hover { background:rgba(52,46,64,.5); }
+    .card .save[aria-pressed="true"] { background:#f2e9fc; }
+    .card-title { margin-top:8px; font-weight:500; font-size:11px; line-height:1.4; background:transparent; padding:0; text-align:left; display:block; }
+    .card-sub { font-size:10px; color:var(--muted); margin-top:3px; line-height:1.4; }
+    .main-footer { display:flex; justify-content:space-between; gap:10px; margin-top:23px; padding-top:15px; border-top:1px solid var(--line); font-size:10px; color:var(--muted); }
+    .main-footer span { display:flex; align-items:center; gap:6px; }
+    .main-footer svg { width:13px; height:13px; color:#9877b6; }
+    .activity { padding:22px 1px 0 0; min-width:0; }
+    .activity-heading { display:flex; align-items:center; justify-content:space-between; gap:4px; margin:0 4px 10px; }
+    .activity-heading h2 { font-size:12px; font-weight:600; }
+    .activity-heading button { width:24px; height:24px; }
+    .activity-heading svg { width:13px; height:13px; }
+    .friend { width:100%; display:flex; align-items:center; gap:9px; min-height:48px; padding:8px; background:transparent; text-align:left; border-radius:10px; }
+    .friend:first-child { background:rgba(255,255,255,.55); }
+    .friend:hover { background:rgba(255,255,255,.55); }
+    .friend .avatar { width:27px; height:27px; }
+    .friend.live .avatar::after { content:""; position:absolute; right:-1px; bottom:1px; width:6px; height:6px; border-radius:50%; background:#9cae96; border:2px solid #e9eaf2; box-sizing:content-box; }
+    .friend-copy { flex:1; min-width:0; }
+    .friend-copy strong { display:block; font-size:11px; font-weight:500; }
+    .friend-copy small { display:block; font-size:9px; color:var(--muted); margin-top:3px; line-height:1.45; }
+    .friend>svg { width:12px; height:12px; color:#9986ad; }
+    .your-activity { margin-top:19px; }
+    .history { display:flex; flex-direction:column; gap:6px; }
+    .history-row { display:flex; align-items:center; gap:8px; min-height:43px; width:100%; border-radius:9px; background:rgba(255,255,255,.32); padding:6px 8px; text-align:left; }
+    .history-row:hover { background:rgba(255,255,255,.65); }
+    .history-row img { width:27px; height:27px; border-radius:7px; object-fit:cover; filter:none; }
+    .history-row .friend-copy small { margin-top:2px; }
+    .history-row>svg { width:12px; height:12px; color:#a596b6; }
+    .mock-label { font-size:9px; color:#787285; margin:14px 7px 0; display:flex; align-items:center; gap:5px; }
+    .mock-label::before { content:""; width:4px; height:4px; border-radius:50%; background:#aa97bc; }
+    .journey-bar { position:relative; margin-top:15px; border-radius:13px; background:rgba(255,255,255,.49); display:grid; grid-template-columns:minmax(180px,1fr) minmax(290px,1.2fr) minmax(140px,1fr); gap:18px; align-items:center; min-height:68px; padding:12px 17px; border:1px solid rgba(255,255,255,.45); }
+    .journey-bar::before { content:""; position:absolute; left:0; right:0; top:-6px; height:2px; border-radius:10px; background:rgba(255,255,255,.48); }
+    .journey-bar::after { content:""; position:absolute; left:0; width:45%; top:-6px; height:2px; border-radius:10px; background:linear-gradient(90deg,#ad8dcc,#ae9cc4); }
+    .current-trip { display:flex; gap:10px; align-items:center; background:transparent; padding:0; text-align:left; }
+    .current-trip img { width:39px; height:39px; object-fit:cover; border-radius:8px; filter:none; }
+    .current-trip strong { display:block; font-size:12px; font-weight:550; }
+    .current-trip small { display:block; font-size:10px; color:var(--muted); margin-top:3px; }
+    .steps { display:flex; align-items:center; justify-content:center; gap:10px; }
+    .step { display:flex; gap:6px; align-items:center; font-size:10px; color:var(--muted); white-space:nowrap; }
+    .step-circle { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; border:1px solid #c7bed1; font-size:9px; }
+    .step.done .step-circle { background:#cbb8df; color:#60467a; border-color:transparent; }
+    .step.done svg { width:12px; height:12px; }
+    .step.current { color:#62477d; }
+    .step.current .step-circle { border:1.5px solid #9a7bbb; color:#735191; }
+    .step-line { width:17px; height:1px; background:#c8bfd3; }
+    .journey-actions { display:flex; align-items:center; justify-content:flex-end; gap:11px; }
+    .continue { display:flex; gap:12px; align-items:center; background:#d5c4e7; color:#563a73; border-radius:8px; font-size:11px; font-weight:500; padding:10px 14px; }
+    .continue svg { width:14px; height:14px; }
+    .continue:hover { background:#c9b3df; }
+    .empty { text-align:center; padding:55px 20px; color:var(--muted); grid-column:1/-1; }
+    .toast { position:fixed; z-index:8; left:50%; bottom:24px; transform:translate(-50%,15px); padding:12px 20px; border:1px solid rgba(255,255,255,.75); border-radius:12px; background:#f4edf9; box-shadow:0 5px 30px #65537825; color:#59416f; opacity:0; pointer-events:none; transition:opacity .2s,transform .2s; font-size:13px; max-width:calc(100% - 32px); text-align:center; }
+    .toast.visible { opacity:1; transform:translate(-50%,0); }
+    dialog { color:var(--ink); border:1px solid rgba(255,255,255,.75); border-radius:22px; width:min(530px,calc(100% - 32px)); max-height:calc(100svh - 40px); background:#f1eef7; padding:0; box-shadow:0 25px 90px rgba(52,41,73,.2); }
+    dialog::backdrop { background:rgba(50,44,67,.25); backdrop-filter:blur(8px); }
+    .dialog-top { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:19px 24px; border-bottom:1px solid var(--line); }
+    .dialog-top h2 { font-size:17px; letter-spacing:-.3px; font-weight:600; }
+    .dialog-body { padding:24px; }
+    .dialog-image { width:100%; height:200px; object-fit:cover; border-radius:12px; margin-bottom:18px; filter:none; }
+    .dialog-body h3 { font-size:22px; font-weight:550; margin-bottom:9px; }
+    .dialog-body p { color:var(--muted); line-height:1.7; font-size:13px; }
+    .dialog-body label { display:block; font-size:13px; margin:20px 0 9px; }
+    .dialog-body textarea { width:100%; border:1px solid #d4c9df; border-radius:11px; background:#fff9; min-height:105px; padding:12px; line-height:1.6; resize:vertical; color:var(--ink); }
+    .dialog-action { margin-top:18px; width:100%; justify-content:center; font-size:13px; min-height:44px; }
+    .dialog-chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+    .dialog-chip { padding:8px 11px; border-radius:20px; background:#e3d7ef; color:#6d527f; font-size:11px; }
+    .dialog-chip[aria-pressed="true"] { background:#bba1d3; color:#3c2251; }
+    .dialog-list { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+    .trip-preview { background:#fff7; border:1px solid #fff9; padding:16px; border-radius:12px; }
+    .trip-preview strong { font-size:13px; display:block; margin-bottom:5px; }
+    .trip-preview .continue { margin-top:12px; }
+    .ticket { padding:13px 15px; background:#e5dbef; border-radius:10px; margin:17px 0; font-size:12px; line-height:1.65; color:#614879; }
+    .assistant-question { background:#ffffff90; padding:15px; border-radius:12px; margin-top:16px; font-size:13px; line-height:1.6; }
+    @media (min-width:1500px) { .workspace { min-height:650px; } .cover { min-height:285px; } .main { padding-top:29px; } .collection { margin-top:30px; } }
+    @media (max-width:1150px) { body { padding:40px 3vw; } .workspace { grid-template-columns:139px minmax(0,1fr) 166px; gap:12px; } .main { padding:21px; } .feature { gap:13px; grid-template-columns:minmax(170px,.95fr) minmax(0,1.3fr); } .cover { min-height:252px; } .cover-copy h2 { font-size:24px; } .cards { gap:11px; } .idea { column-gap:4px; grid-template-columns:14px 16px minmax(0,1fr) 24px; } .idea-go { display:none; } .idea-title { font-size:12px; } .brand { font-size:13px; } .section-note { display:none; } .step-line { width:10px; } .journey-bar { gap:10px; } }
+    @media (max-width:960px) { .workspace { grid-template-columns:139px minmax(0,1fr); } .activity { grid-column:1/-1; display:grid; grid-template-columns:1.1fr 1fr; gap:24px; padding:8px 13px 5px; } .friend-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; } .friend { min-height:53px; } .your-activity { margin-top:0; } .history { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .history-row:last-child { display:none; } .mock-label { grid-column:1/-1; margin-top:-13px; } .journey-bar { grid-template-columns:1fr auto; } .steps { display:none; } }
+    @media (max-width:640px) { body { padding:14px 10px; display:block; } .app { padding:9px; border-radius:21px; } .workspace { display:flex; flex-direction:column; gap:9px; min-height:0; } .sidebar { padding:8px 4px 0; } .brand { margin:0 7px 15px; font-size:16px; } .nav-label,.sidebar .nav-group:not(:has([data-nav="home"])),.sidebar-foot { display:none; } .sidebar .nav-group:has([data-nav="home"]) { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3px; margin:0; } .nav-item { flex-direction:column; justify-content:center; gap:6px; padding:8px 2px; min-height:55px; font-size:10px; } .main { border-radius:15px; padding:18px 15px; } .toolbar { margin-bottom:22px; gap:10px; } .search { flex:1; width:auto; } .search kbd,.user>span:last-child { display:none; } h1 { font-size:20px; } .feature { grid-template-columns:1fr; gap:14px; } .cover { min-height:305px; } .cover-top { font-size:17px; letter-spacing:5px; } .cover-copy h2 { font-size:32px; } .cover-cta { max-width:240px; min-height:42px; font-size:12px; } .idea { grid-template-columns:18px 22px minmax(0,1fr) 38px 28px; min-height:59px; padding:4px; } .idea-title { font-size:14px; } .idea-sub { font-size:11px; } .icon-btn { width:36px; height:40px; } .idea-go { display:grid; } .cards { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 13px; } .card:last-child { grid-column:1/-1; display:grid; grid-template-columns:100px 1fr; grid-template-rows:auto 1fr; column-gap:14px; align-items:start; } .card:last-child .card-image { grid-row:1/3; } .card:last-child .card-sub { margin-top:4px; } .card-title { font-size:13px; } .card-sub { font-size:11px; } .card .save { width:34px; height:34px; } .main-footer { flex-direction:column; gap:8px; font-size:11px; } .activity { display:block; padding:17px 7px 7px; } .activity-heading h2 { font-size:14px; } .friend-list { grid-template-columns:repeat(2,minmax(0,1fr)); } .friend { min-height:58px; } .friend-copy strong { font-size:12px; } .friend-copy small { font-size:10px; } .your-activity { margin-top:20px; } .mock-label { margin-top:13px; font-size:10px; } .journey-bar { position:sticky; bottom:8px; z-index:3; margin-top:18px; background:#eeebf5ed; backdrop-filter:blur(20px); padding:11px 9px; gap:7px; } .current-trip img { width:32px; height:32px; } .current-trip strong { font-size:11px; } .current-trip small { font-size:9px; } .journey-actions>.icon-btn { display:none; } .continue { padding:11px; min-height:42px; } .toast { bottom:88px; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; scroll-behavior:auto!important; } }
+  </style>
+</head>
+<body>
+  <svg class="sr-only" aria-hidden="true"><defs>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m16 8-2.5 5.5L8 16l2.5-5.5L16 8Z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5 9v11h14V9M9 20v-7h6v7"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3ZM20 3v4m-2-2h4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4M4 11h16m-12 4h2m4 0h2"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.7a5.4 5.4 0 0 0-7.6 0L12 6l-1.2-1.3a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.7a5.4 5.4 0 0 0 0-7.6Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a5 5 0 1 1 1-9 6 6 0 0 1 11 1 4 4 0 1 1 0 8H7Z"/></symbol>
+    <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M4 9h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Zm12 1h2a3 3 0 0 1 0 6h-2M7 3v3m5-3v3M3 22h16"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r=".8"/><circle cx="12" cy="12" r=".8"/><circle cx="19" cy="12" r=".8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3C7 3 3 8 5 15s15 8 15-12ZM5 20 16 9"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+  </defs></svg>
+
+  <div class="app">
+    <div class="workspace">
+      <nav class="sidebar" aria-label="Điều hướng chính">
+        <div class="brand"><svg aria-hidden="true"><use href="#i-compass"/></svg>TripGuardian</div>
+        <p class="nav-label">Khám phá</p>
+        <div class="nav-group">
+          <button class="nav-item active" data-nav="home" aria-current="page"><svg aria-hidden="true"><use href="#i-home"/></svg>Dành cho bạn</button>
+          <button class="nav-item" data-nav="explore"><svg aria-hidden="true"><use href="#i-compass"/></svg>Khám phá</button>
+          <button class="nav-item" data-nav="trips"><svg aria-hidden="true"><use href="#i-map"/></svg>Chuyến của tôi</button>
+          <button class="nav-item" data-nav="today"><svg aria-hidden="true"><use href="#i-calendar"/></svg>Hôm nay</button>
+        </div>
+        <p class="nav-label">Thư viện của bạn</p>
+        <div class="nav-group">
+          <button class="nav-item" data-nav="saved"><svg aria-hidden="true"><use href="#i-heart"/></svg>Đã lưu<span class="nav-count" id="saved-count">2</span></button>
+          <button class="nav-item" data-nav="history"><svg aria-hidden="true"><use href="#i-clock"/></svg>Đã xem gần đây</button>
+          <button class="nav-item" data-nav="profile"><svg aria-hidden="true"><use href="#i-user"/></svg>Hồ sơ</button>
+        </div>
+        <p class="nav-label">Một chút cảm hứng</p>
+        <div class="nav-group">
+          <button class="nav-item" data-theme="cloud"><svg aria-hidden="true"><use href="#i-cloud"/></svg>Săn mây</button>
+          <button class="nav-item" data-theme="cafe"><svg aria-hidden="true"><use href="#i-coffee"/></svg>Cà phê & chill</button>
+        </div>
+        <div class="sidebar-foot"><button class="new-trip" data-create><svg aria-hidden="true"><use href="#i-plus"/></svg>Tạo chuyến mới</button></div>
+      </nav>
+
+      <main class="main">
+        <header class="toolbar">
+          <form class="search" id="search-form" role="search"><svg aria-hidden="true"><use href="#i-search"/></svg><label class="sr-only" for="search-input">Tìm chủ đề khám phá</label><input id="search-input" placeholder="Bạn muốn đi đâu, làm gì?" autocomplete="off"><kbd aria-hidden="true">/</kbd></form>
+          <button class="user" data-nav="profile"><span class="avatar" aria-hidden="true">AN</span><span>Chào, An</span></button>
+        </header>
+        <div class="section-head"><h1 id="page-heading">Dành cho bạn</h1><span class="section-note">Một chút cảm hứng cho chuyến đi tới</span></div>
+        <section class="feature" aria-label="Gợi ý khám phá Đà Lạt">
+          <div class="cover">
+            <img src="assets/cloud.jpg" alt="Ảnh thật bình minh giữa rừng thông và mây tại Đồi Đa Phú, Đà Lạt">
+            <div class="cover-top"><span>ĐÀ LẠT</span><svg aria-hidden="true"><use href="#i-spark"/></svg></div>
+            <div class="cover-copy"><p class="eyebrow">Đi đâu cũng được, miễn là đúng gu</p><h2>Một chuyến đi<br>thật đúng gu.</h2><button class="cover-cta" data-create>Bắt đầu khám phá<svg aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+          </div>
+          <div class="ideas" id="ideas"></div>
+        </section>
+        <section class="collection" aria-labelledby="collection-heading">
+          <div class="section-head"><h2 id="collection-heading">Gợi ý để bắt đầu</h2><button class="text-link" id="collection-toggle">Theo gu quen thuộc<svg aria-hidden="true"><use href="#i-chevron"/></svg></button></div>
+          <div class="cards" id="cards"></div>
+        </section>
+        <footer class="main-footer"><span><svg aria-hidden="true"><use href="#i-shield"/></svg>Bạn chọn nơi. Mình giúp xếp chuyến.</span><span>Đà Lạt · Bản thiết kế minh họa</span></footer>
+      </main>
+
+      <aside class="activity" aria-label="Hoạt động cộng đồng minh họa">
+        <section><div class="activity-heading"><h2>Bạn bè đang làm gì?</h2><button class="icon-btn" id="friends-button" aria-label="Xem bạn bè"><svg aria-hidden="true"><use href="#i-user"/></svg></button></div><div class="friend-list" id="friends"></div></section>
+        <section class="your-activity"><div class="activity-heading"><h2>Hoạt động của bạn</h2><svg aria-hidden="true"><use href="#i-clock"/></svg></div><div class="history" id="history"></div></section>
+        <p class="mock-label">Hoạt động minh họa</p>
+      </aside>
+    </div>
+
+    <footer class="journey-bar" aria-label="Chuyến đang lập">
+      <button class="current-trip" id="current-trip"><img src="assets/lake.jpg" alt="Ảnh thật Hồ Xuân Hương, Đà Lạt"><span><strong id="trip-title">Cuối tuần ở Đà Lạt</strong><small id="trip-subtitle">3 ngày · 2 người · Đang chọn nơi</small></span></button>
+      <div class="steps" aria-label="Bước 2 trên 3: Chọn nơi"><span class="step done"><span class="step-circle"><svg aria-hidden="true"><use href="#i-check"/></svg></span>Hiểu chuyến đi</span><span class="step-line"></span><span class="step current"><span class="step-circle">2</span>Chọn nơi</span><span class="step-line"></span><span class="step"><span class="step-circle">3</span>Lịch trình</span></div>
+      <div class="journey-actions"><button class="icon-btn" data-nav="saved" aria-label="Xem mục đã lưu"><svg aria-hidden="true"><use href="#i-heart"/></svg></button><button class="continue" id="continue-trip">Đi tiếp<svg aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+    </footer>
+  </div>
+
+  <dialog id="modal" aria-labelledby="dialog-title"><div class="dialog-top"><h2 id="dialog-title"></h2><button class="icon-btn" id="close-modal" aria-label="Đóng"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="dialog-body" id="dialog-body"></div></dialog>
+  <div class="toast" role="status" aria-live="polite" id="toast"></div>
+  <script>
+    const themes = [
+      { id:'cloud', title:'Săn mây, đón một ngày mới', short:'Săn mây buổi sớm', subtitle:'Theo giờ · Cho những buổi dậy sớm', category:'Sáng sớm · Thiên nhiên', icon:'cloud', image:'cloud.jpg', photoAlt:'Ảnh thật bình minh tại Đồi Đa Phú, Đà Lạt', prompt:'Mình muốn săn mây buổi sáng rồi ngồi cà phê ở Đà Lạt.', description:'Bắt đầu bằng một buổi sáng giữa núi đồi. Mình sẽ hỏi thời gian đi và cách di chuyển trước khi gợi ý địa điểm cụ thể.' },
+      { id:'cafe', title:'Cà phê và một góc bình yên', short:'Một góc cà phê', subtitle:'Theo gu · Chậm lại một chút', category:'Cà phê · Thư thả', icon:'coffee', image:'cafe.jpg', photoAlt:'Ảnh thật mặt tiền Tiệm Cà Phê Cũ 1991, Đà Lạt', prompt:'Mình muốn một chuyến Đà Lạt thư thả, có cà phê và góc ngồi yên tĩnh.', description:'Một cách mở đầu cho chuyến đi thích ngồi lâu và chuyện trò. Địa điểm và thông tin thực tế sẽ được xem ở bước Chọn nơi.' },
+      { id:'pine', title:'Đi một vòng giữa rừng thông', short:'Giữa rừng thông', subtitle:'Theo gu · Gần với thiên nhiên', category:'Thiên nhiên · Đi dạo', icon:'leaf', image:'pine.jpg', photoAlt:'Ảnh thật khu Rừng thông trong dữ liệu Google Maps tại Đà Lạt', prompt:'Mình thích thiên nhiên và muốn đi dạo giữa rừng thông ở Đà Lạt.', description:'Thêm một chút thiên nhiên vào chuyến đi. Mình sẽ hỏi khả năng đi bộ của nhóm và mức di chuyển bạn thấy thoải mái.' },
+      { id:'lake', title:'Chiều muộn, hẹn nhau bên hồ', short:'Một chiều bên hồ', subtitle:'Theo giờ · Ngắm chiều xuống', category:'Chiều muộn · Thư giãn', icon:'sun', image:'lake.jpg', photoAlt:'Ảnh thật Hồ Xuân Hương, Đà Lạt', prompt:'Mình muốn dành một buổi chiều muộn thư giãn bên hồ ở Đà Lạt.', description:'Dành một khoảng trống cho buổi chiều. Đây là chủ đề minh họa; thời điểm và nơi đến sẽ được kiểm tra khi có thông tin chuyến đi.' },
+      { id:'rain', title:'Một ngày mưa vẫn thật vui', short:'Nếu trời đổ mưa', subtitle:'Theo thời tiết · Gợi ý trong nhà', category:'Trong nhà · Ngày mưa', icon:'home', image:'indoor.jpg', photoAlt:'Ảnh thật không gian HongKong Cổ Trấn, Đà Lạt', prompt:'Mình muốn chuẩn bị các chỗ trong nhà cho chuyến Đà Lạt nếu trời mưa.', description:'Chuẩn bị một lựa chọn trong nhà để chuyến đi linh hoạt hơn. Khả năng trú mưa của mỗi nơi cần có bằng chứng trước khi đưa vào lịch.' }
+    ];
+    const friends = [
+      { name:'Sof', initials:'SO', color:'lilac', text:'Đang khám phá Đà Lạt', live:true, theme:'cloud' },
+      { name:'Daniel', initials:'DA', color:'peach', text:'Vừa lưu một góc cà phê', live:true, theme:'cafe' },
+      { name:'nekichotine', initials:'NK', color:'green', text:'Đang lên chuyến cuối tuần', live:false, theme:'pine' },
+      { name:'Tolk', initials:'TO', color:'lilac', text:'Đã lưu một chiều bên hồ', live:false, theme:'lake' },
+      { name:'Kostia', initials:'KO', color:'charcoal', text:'Đang khám phá thiên nhiên', live:true, theme:'pine' },
+      { name:'Dima V.', initials:'DV', color:'blue', text:'Vừa tạo một chuyến mới', live:false, theme:'rain' }
+    ];
+    const historyItems = [ { title:'Một góc cà phê', sub:'Đã lưu chủ đề', theme:'cafe' }, { title:'Săn mây buổi sớm', sub:'Đã xem gần đây', theme:'cloud' }, { title:'Giữa rừng thông', sub:'Đã lưu chủ đề', theme:'pine' }, { title:'Một chiều bên hồ', sub:'Đã xem gần đây', theme:'lake' }, { title:'Cuối tuần ở Đà Lạt', sub:'Chuyến đang lập', theme:null } ];
+    const saved = new Set(['cafe','pine']);
+    let activeNav = 'home';
+    let query = '';
+    let familiar = true;
+    let toastTimer;
+    let currentPrompt = '';
+    let tripStarted = false;
+    const $ = (selector) => document.querySelector(selector);
+    const icon = (name, cls='') => `<svg aria-hidden="true" class="${cls}"><use href="#i-${name}"/></svg>`;
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+    const normalize = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();
+    const saveButton = (theme) => `<button class="icon-btn save" data-save="${theme.id}" aria-pressed="${saved.has(theme.id)}" aria-label="${saved.has(theme.id)?'Bỏ lưu':'Lưu'} ${theme.short}">${icon('heart')}</button>`;
+
+    function render() {
+      const visible = themes.filter((theme) => (activeNav!=='saved'||saved.has(theme.id)) && normalize(`${theme.title} ${theme.subtitle} ${theme.category}`).includes(normalize(query)));
+      $('#ideas').innerHTML = visible.length ? visible.map((theme,index) => `<div class="idea"><span class="idea-number">${index+1}</span>${icon(theme.icon,'idea-icon')}<button class="idea-open" data-theme="${theme.id}"><span class="idea-title">${theme.title}</span><span class="idea-sub">${theme.subtitle}</span></button>${saveButton(theme)}<button class="icon-btn idea-go" data-theme="${theme.id}" aria-label="Khám phá ${theme.short}">${icon('chevron')}</button></div>`).join('') : '<p class="empty">Chưa có chủ đề phù hợp.<br>Thử “cà phê”, “săn mây” hoặc “thiên nhiên”.</p>';
+      const cardThemes = familiar ? visible : [...visible].reverse();
+      $('#cards').innerHTML = cardThemes.length ? cardThemes.map((theme) => `<article class="card"><div class="card-image"><button class="card-open" data-theme="${theme.id}" aria-label="Khám phá ${theme.short}"><img src="assets/${theme.image}" alt="${theme.photoAlt}" loading="lazy"></button>${saveButton(theme)}</div><button class="card-title" data-theme="${theme.id}">${theme.short}</button><p class="card-sub">${theme.category}</p></article>`).join('') : '<p class="empty">Bạn có thể lưu một chủ đề bằng nút trái tim.</p>';
+      $('#saved-count').textContent = saved.size;
+      $('#page-heading').textContent = activeNav==='saved'?'Đã lưu':activeNav==='explore'?'Khám phá Đà Lạt':'Dành cho bạn';
+      $('#collection-heading').textContent = activeNav==='saved'?'Chủ đề bạn đã lưu':'Gợi ý để bắt đầu';
+      document.querySelectorAll('.nav-item[data-nav]').forEach((button) => { button.classList.toggle('active',button.dataset.nav===activeNav); if(button.dataset.nav===activeNav) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current'); });
+    }
+    function toast(message) { $('#toast').textContent=message; $('#toast').classList.add('visible'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),2600); }
+    const modal = $('#modal');
+    function openModal(title,body) { $('#dialog-title').textContent=title; $('#dialog-body').innerHTML=body; if(!modal.open) modal.showModal(); }
+    function openTheme(id) { const theme=themes.find((item)=>item.id===id); if(!theme) return; openModal('Một ý tưởng cho chuyến đi',`<img class="dialog-image" src="assets/${theme.image}" alt="${theme.photoAlt}"><h3>${theme.short}</h3><p>${theme.description}</p><div class="ticket">${theme.category} · Ảnh địa điểm thật</div><button class="continue dialog-action" data-create-theme="${theme.id}">Bắt đầu với ý tưởng này${icon('arrow')}</button>`); }
+    function createTrip(prompt='') { currentPrompt=prompt; openModal('Kể mình nghe chuyến đi của bạn',`<h3>Chuyến tới, bạn muốn gì?</h3><p>Nói một câu là được. Mình sẽ hỏi thêm để hiểu đúng chuyến đi của bạn.</p><form id="trip-form"><label for="trip-prompt">Ý tưởng chuyến đi</label><textarea id="trip-prompt" required maxlength="1000" placeholder="3 ngày ở Đà Lạt, đi cùng người yêu, thích cà phê và săn mây…">${escapeHtml(prompt)}</textarea><div class="dialog-chips">${['3 ngày','2 người','Cà phê','Săn mây','Ít đông'].map((chip)=>`<button type="button" class="dialog-chip" data-chip="${chip}" aria-pressed="${prompt.includes(chip)}">${chip}</button>`).join('')}</div><button class="continue dialog-action" type="submit">Bắt đầu hiểu chuyến đi${icon('arrow')}</button></form>`); setTimeout(()=>$('#trip-prompt')?.focus(),40); }
+    function continueTrip() { if(tripStarted) { openUnderstanding(); return; } openModal('Tiếp tục chuyến đang lập',`<h3>Cuối tuần ở Đà Lạt</h3><p>Chuyến minh họa · 3 ngày · 2 người</p><div class="ticket">Đang ở bước 2: Chọn nơi<br>Bạn chọn địa điểm trước, rồi mình mới giúp xếp lịch.</div><p>Trong bản mock này, bạn có thể mở các chủ đề và lưu ý tưởng. Địa điểm, bằng chứng và kiểm tra khả thi sẽ nằm ở bước Chọn nơi của ứng dụng.</p><button class="continue dialog-action" id="back-to-explore">Tiếp tục khám phá${icon('arrow')}</button>`); }
+    function openUnderstanding() { openModal('Hiểu chuyến đi · Bước 1',`<p>Ý tưởng chuyến đi của bạn</p><div class="ticket">${escapeHtml(currentPrompt)}</div><div class="assistant-question">Bạn định đi vào ngày nào và chuyến này có mấy người?</div><p style="margin-top:14px">Đây là màn xem trước tương tác. Bản mock chưa gửi thông tin đến trợ lý.</p><button class="continue dialog-action" data-edit-trip>Chỉnh ý tưởng${icon('arrow')}</button>`); }
+    function handleNav(nav) {
+      if(['home','explore','saved'].includes(nav)) { activeNav=nav; query=''; $('#search-input').value=''; render(); if(window.innerWidth<641) $('#page-heading').scrollIntoView({behavior:'smooth',block:'start'}); return; }
+      if(nav==='trips') { openModal('Chuyến của tôi',`<p>Hành trình minh họa của bạn.</p><div class="dialog-list"><div class="trip-preview"><strong>${tripStarted?'Chuyến Đà Lạt mới':'Cuối tuần ở Đà Lạt'}</strong><p>${tripStarted?'Đang hiểu chuyến đi':'3 ngày · 2 người · Đang chọn nơi'}</p><button class="continue" data-continue>Đi tiếp${icon('arrow')}</button></div></div><button class="continue dialog-action" data-create>Tạo chuyến mới${icon('plus')}</button>`); return; }
+      if(nav==='today') { openModal('Hôm nay',`<h3>Bạn chưa có lịch hôm nay</h3><p>Khi chuyến đi đã chốt và bắt đầu, đây sẽ là nơi xem các điểm đến trong ngày, check-in và gợi ý tại chỗ.</p><button class="continue dialog-action" data-continue>Xem chuyến đang lập${icon('arrow')}</button>`); return; }
+      if(nav==='history') { openModal('Đã xem gần đây',`<p>Những ý tưởng bạn đã ghé qua trong bản mock.</p><div class="dialog-list">${historyItems.slice(0,4).map((item)=>`<button class="history-row" data-theme="${item.theme}"><img src="assets/${themes.find((theme)=>theme.id===item.theme).image}" alt=""><span class="friend-copy"><strong>${item.title}</strong><small>${item.sub}</small></span>${icon('chevron')}</button>`).join('')}</div>`); return; }
+      if(nav==='profile') openModal('Hồ sơ của An',`<span class="avatar" style="width:54px;height:54px;font-size:18px;margin-bottom:16px" aria-hidden="true">AN</span><h3>Chào An.</h3><p>Hồ sơ minh họa · Thích cà phê, thiên nhiên và những chuyến đi chậm.</p><div class="ticket">Gu quen thuộc là điểm bắt đầu. Bạn luôn có thể chọn “Lần này khác” cho chuyến mới.</div><button class="continue dialog-action" data-create>Lên một chuyến mới${icon('arrow')}</button>`);
+    }
+    $('#friends').innerHTML=friends.map((friend)=>`<button class="friend ${friend.live?'live':''}" data-friend="${friend.name}"><span class="avatar ${friend.color}" aria-hidden="true">${friend.initials}</span><span class="friend-copy"><strong>${friend.name}</strong><small>${friend.text}</small></span>${friend.live?icon('spark'):''}</button>`).join('');
+    $('#history').innerHTML=historyItems.map((item)=>`<button class="history-row" ${item.theme?`data-theme="${item.theme}"`:'data-continue'}><img src="assets/${item.theme?themes.find((theme)=>theme.id===item.theme).image:'lake.jpg'}" alt=""><span class="friend-copy"><strong>${item.title}</strong><small>${item.sub}</small></span>${icon('more')}</button>`).join('');
+    document.addEventListener('click',(event)=> {
+      const button=event.target.closest('button'); if(!button) return;
+      if(button.dataset.save) { const id=button.dataset.save; saved.has(id)?saved.delete(id):saved.add(id); render(); toast(saved.has(id)?'Đã lưu ý tưởng cho chuyến đi':'Đã bỏ lưu ý tưởng'); }
+      else if(button.dataset.theme) openTheme(button.dataset.theme);
+      else if(button.dataset.createTheme) createTrip(themes.find((theme)=>theme.id===button.dataset.createTheme).prompt);
+      else if(button.hasAttribute('data-create')) createTrip();
+      else if(button.hasAttribute('data-continue')) continueTrip();
+      else if(button.hasAttribute('data-edit-trip')) createTrip(currentPrompt);
+      else if(button.dataset.nav) handleNav(button.dataset.nav);
+      else if(button.dataset.friend) { const friend=friends.find((item)=>item.name===button.dataset.friend); openModal(`${friend.name} · Hoạt động minh họa`,`<p>${friend.text}. Đây là nội dung giả lập để xem bố cục bạn bè.</p><button class="continue dialog-action" data-theme="${friend.theme}">Xem ý tưởng cùng chủ đề${icon('arrow')}</button>`); }
+      else if(button.dataset.chip) { const input=$('#trip-prompt'); const chip=button.dataset.chip; const selected=button.getAttribute('aria-pressed')==='true'; input.value=selected?input.value.replace(chip,'').replace(/,\s*,/g,',').replace(/^,\s*|,\s*$/g,'').trim():[input.value,chip].filter(Boolean).join(', '); button.setAttribute('aria-pressed',String(!selected)); }
+      else if(button.id==='back-to-explore') { modal.close(); handleNav('explore'); }
+    });
+    $('#close-modal').addEventListener('click',()=>modal.close());
+    modal.addEventListener('click',(event)=> { if(event.target===modal) { const box=modal.getBoundingClientRect(); if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom) modal.close(); } });
+    $('#search-input').addEventListener('input',(event)=>{query=event.target.value;render();});
+    $('#search-form').addEventListener('submit',(event)=>{event.preventDefault();const value=$('#search-input').value.trim();if(value) createTrip(value);});
+    $('#collection-toggle').addEventListener('click',()=>{familiar=!familiar;$('#collection-toggle').innerHTML=`${familiar?'Theo gu quen thuộc':'Lần này khác'}${icon('chevron')}`;render();toast(familiar?'Gợi ý theo gu quen thuộc':'Thử một hướng khác cho chuyến tới');});
+    $('#friends-button').addEventListener('click',()=>openModal('Bạn bè · Bản minh họa',`<p>Cột bạn bè được giữ theo ảnh tham chiếu. Các tài khoản và hoạt động đều là giả lập.</p><div class="dialog-list">${friends.map((friend)=>`<button class="friend" data-friend="${friend.name}"><span class="avatar ${friend.color}" aria-hidden="true">${friend.initials}</span><span class="friend-copy"><strong>${friend.name}</strong><small>${friend.text}</small></span>${icon('chevron')}</button>`).join('')}</div>`));
+    $('#current-trip').addEventListener('click',continueTrip);
+    $('#continue-trip').addEventListener('click',continueTrip);
+    document.addEventListener('keydown',(event)=> { if(event.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)&&!modal.open) { event.preventDefault();$('#search-input').focus(); } });
+    document.addEventListener('submit',(event)=> { if(event.target.id!=='trip-form') return; event.preventDefault();const text=$('#trip-prompt').value.trim();if(!text){$('#trip-prompt').setCustomValidity('Bạn kể một chút về chuyến đi nhé.');$('#trip-prompt').reportValidity();return;}currentPrompt=text;tripStarted=true;$('#trip-title').textContent='Chuyến Đà Lạt mới';$('#trip-subtitle').textContent='Đang hiểu chuyến đi · Bước 1 trên 3';$('.steps').setAttribute('aria-label','Bước 1 trên 3: Hiểu chuyến đi');$('.steps').innerHTML=`<span class="step current"><span class="step-circle">1</span>Hiểu chuyến đi</span><span class="step-line"></span><span class="step"><span class="step-circle">2</span>Chọn nơi</span><span class="step-line"></span><span class="step"><span class="step-circle">3</span>Lịch trình</span>`;openUnderstanding(); });
+    document.addEventListener('input',(event)=> { if(event.target.id==='trip-prompt') event.target.setCustomValidity(''); });
+    render();
+  </script>
+</body>
+</html>

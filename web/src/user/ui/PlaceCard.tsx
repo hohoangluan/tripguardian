@@ -7,7 +7,7 @@ import { toggleSaved, useUi } from '../store'
 import { cardLines } from './cardLines'
 import { PlacePhoto, Trust } from './common'
 import { HeartFill, Icon } from './icons'
-import { openPlace } from './PlaceSheet'
+import { openPlace, warmSheet } from './PlaceSheet'
 
 // One suggestion: why it fits, what it costs, how sure we are. Every main action works by click and keyboard;
 // hover only reveals the secondary row earlier.
@@ -24,7 +24,7 @@ export function PlaceCard({ c, onDrop, cmp, onCmp, warn, phase = 'stay', order =
   return (
     <article className={`tg-pc ${c.chosen ? 'is-sel' : ''} ${c.locked ? 'is-lock' : ''} ${warn ? 'is-warn' : ''} ${c.status === 'unverified' ? 'is-dim' : ''} ${flash ? 'tg-flash' : ''} is-${phase}`} style={{ '--i': order } as CSSProperties} data-place={c.id} aria-hidden={phase === 'leave' || undefined}>
       <div className="tg-pc__media">
-        <button type="button" className="tg-pc__open" onClick={(e) => openPlace(c.id, e.currentTarget.querySelector('figure'))} aria-label={`Xem chi tiết ${c.name}`}>
+        <button type="button" className="tg-pc__open" onPointerEnter={() => warmSheet(c.id)} onFocus={() => warmSheet(c.id)} onClick={(e) => openPlace(c.id, e.currentTarget.querySelector('figure'))} aria-label={`Xem chi tiết ${c.name}`}>
           <PlacePhoto id={c.id} name={c.name} />
           <span className="tg-pc__shade" />
         </button>

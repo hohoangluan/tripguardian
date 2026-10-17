@@ -3,9 +3,11 @@
 Reads web/public/data/snapshot.json + covers.json (both built offline); copies only values the
 snapshot already has. Anything the snapshot lacks stays absent so the UI shows "Chưa có thông tin".
 Run: python web/scripts/pick_landing_places.py
+     python web/scripts/pick_landing_places.py --signals-only   (refresh only `signals` in the existing places.json)
 """
 import json
 import re
+import sys
 from pathlib import Path
 
 WEB = Path(__file__).resolve().parent.parent
@@ -86,6 +88,27 @@ def exists(src):
     return False
 
 
+def signals_of(p):
+    return [
+        {'id': f['id'], 'value': f['value'], 'n': f['n']}
+        for f in sorted(p.get('features') or [], key=lambda f: -(f.get('n') or 0))
+        if (f.get('n') or 0) >= 3 and (f.get('agreement') or 0) >= 0.75
+    ][:16]
+
+
+def signals_only():
+    """Add the current signals to the places.json already in the repo, leaving its photos and numbers as they are."""
+    dest = WEB / 'src/user/landing/places.json'
+    places = json.loads(dest.read_text(encoding='utf-8'))
+    by_id = {p['id']: p for p in SNAP['places']}
+    for place in places:
+        found = by_id.get(place['id'])
+        if found and signals_of(found):
+            place['signals'] = signals_of(found)
+    dest.write_text(json.dumps(places, ensure_ascii=False, indent=1), encoding='utf-8')
+    print(f'signals refreshed for {sum(1 for p in places if p.get("signals"))}/{len(places)} places')
+
+
 def pack(p, short):
     quotes = []
     for f in sorted(p.get('features') or [], key=lambda f: -(f.get('n') or 0)):
@@ -96,6 +119,7 @@ def pack(p, short):
         {'url': v['url'], 'handle': v['handle'], 'desc': (v.get('desc') or '')[:140]}
         for v in (p.get('videos') or [])[:2]
     ]
+    signals = signals_of(p)
     out = {
         'id': p['id'],
         'name': short,
@@ -113,6 +137,8 @@ def pack(p, short):
         'photos': [ph for ph in COVERS[p['id']] if exists(ph['src'])][:4],
         'quotes': quotes,
         'videos': vids,
+        # what people said about the place, as the app's place card reads it ("View đẹp, 66 người nhắc")
+        'signals': signals,
         'mapsUrl': p.get('mapsUrl'),
         'asof': p.get('asOf'),
     }
@@ -146,4 +172,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    signals_only() if '--signals-only' in sys.argv else main()

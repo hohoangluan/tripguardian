@@ -14,7 +14,7 @@ import type { Card, Claim } from '../pd/types'
 import { DropSheet, useEditTicket } from '../screens/Explore'
 import { toggleCmp, toggleSaved, useUi } from '../store'
 import { useTrip } from '../trip'
-import { go, Photo, Trust, Unconfirmed } from './common'
+import { go, Photo, Trust, Unconfirmed, warmPhoto } from './common'
 import { HeartFill, Icon } from './icons'
 import { DetailsOverview, KnownFor } from './PlaceDetails'
 
@@ -40,6 +40,10 @@ const withPlace = (id: string | null) => {
 }
 
 // Opens the sheet over the current screen. `photo` is the image the user clicked from (shared-element animation).
+const HERO_SIZES = '(max-width: 900px) 92vw, 640px'
+// A hover or focus on a card: the picture its sheet opens with comes now, not after the click.
+export const warmSheet = (id: string) => warmPhoto(info(id)?.photos[0], HERO_SIZES)
+
 export function openPlace(id: string, photo?: HTMLElement | null) {
   from = { photo: photo ?? null, focus: document.activeElement as HTMLElement | null, rect: photo?.getBoundingClientRect() ?? null }
   const show = () => {
@@ -249,7 +253,7 @@ function SheetBody({ id, big, onClose }: { id: string; big: React.RefObject<HTML
         {/* The photo block of the disc: a big photo and three small ones; a small one becomes the big one. */}
         <div className="tg-disc__media tg-ps__media">
           <div className="tg-disc__big" ref={big} style={{ viewTransitionName: HERO }}>
-            <Photo key={g} photo={photos[g]} alt={`${p.name}, ảnh ${g + 1} trên ${shots}`} className="tg-disc__ph is-fade" eager sizes="(max-width: 900px) 92vw, 640px" />
+            <Photo key={g} photo={photos[g]} alt={`${p.name}, ảnh ${g + 1} trên ${shots}`} className="tg-disc__ph is-fade" eager sizes={HERO_SIZES} />
             {card?.chosen && <i className="tg-disc__chip"><Icon name="check" size={14} /> Đã chọn</i>}
             {shots > 0 && <span className="tg-disc__credit">Ảnh: {photos[g].credit} · {g + 1}/{shots}</span>}
           </div>

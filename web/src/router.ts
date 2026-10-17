@@ -23,6 +23,11 @@ export function usePath() {
 // A move to another page cross-fades (View Transitions): the old page stays on screen until the new one has rendered, so a
 // heavy page never stutters mid-animation. Same page with another query (the place sheet), a replace, the admin, and a move made
 // inside another transition change at once.
+// The steps of the trip in order: a move forward slides the page in from the right, a move back from the left.
+const STEP_PAGE = /\/(understand|explore|plan|done)(\/|$)/
+const STEP_ORDER = ['understand', 'explore', 'plan', 'done']
+const stepOf = (path: string) => { const m = STEP_PAGE.exec(path); return m ? STEP_ORDER.indexOf(m[1]) : -1 }
+
 export function navigate(to: string, { replace = false } = {}) {
   if (to === snapshot()) return
   const apply = () => {
@@ -32,7 +37,10 @@ export function navigate(to: string, { replace = false } = {}) {
   }
   const next = new URL(to, location.href).pathname
   const plain = replace || next === location.pathname || next.startsWith('/admin') || location.pathname.startsWith('/admin')
-  if (plain || !startTransition(() => flushSync(apply), 'tg-nav')) apply()
+  const from = stepOf(location.pathname)
+  const toStep = stepOf(next)
+  const way = from >= 0 && toStep >= 0 && from !== toStep ? (toStep > from ? ' tg-nav-fwd' : ' tg-nav-back') : ''
+  if (plain || !startTransition(() => flushSync(apply), 'tg-nav' + way)) apply()
 }
 
 // "/app/place/abc" against "/app/place/:id" -> { id: "abc" }

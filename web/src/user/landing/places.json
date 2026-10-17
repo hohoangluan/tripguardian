@@ -88,7 +88,59 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/%C4%90%E1%BB%89nh+%C4%91%C3%A8o+Ngo%E1%BA%A1n+M%E1%BB%A5c/data=!4m7!3m6!1s0x3135ada9c96648d1:0x98dad6f654523be5!8m2!3d11.8342605!4d108.6450845!16s%2Fg%2F11hzlkt361!19sChIJ0UhmyamtNTER5TtSVPbW2pg?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyOC4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 103
+   },
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 75
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 46
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 19
+   },
+   {
+    "id": "rough_road_access",
+    "value": "absent",
+    "n": 13
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 7
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 5
+   },
+   {
+    "id": "toilet_available",
+    "value": "yes",
+    "n": 4
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 3
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x317117b206cd49bb:0x8c54c53d4a078609",
@@ -178,7 +230,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Thi%C3%AAn+%C4%90%C6%B0%E1%BB%9Dng+S%C4%83n+M%C3%A2y+C%E1%BA%A7u+%C4%90%E1%BA%A5t/data=!4m7!3m6!1s0x317117b206cd49bb:0x8c54c53d4a078609!8m2!3d11.8922897!4d108.5684294!16s%2Fg%2F11lkf8x764!19sChIJu0nNBrIXcTERCYYHSj3FVIw?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 357
+   },
+   {
+    "id": "cloud_hunting",
+    "value": "present",
+    "n": 106
+   },
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 80
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 77
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 72
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 40
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 29
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 19
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 18
+   },
+   {
+    "id": "breakfast",
+    "value": "included",
+    "n": 15
+   },
+   {
+    "id": "service_quality",
+    "value": "poor",
+    "n": 14
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "camping",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "rough_road_access",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 7
+   }
+  ]
  },
  {
   "id": "0x3171173e2cd837c9:0x3794b1a3f09509f4",
@@ -264,7 +398,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Euro+Garden+C%E1%BA%A7u+%C4%90%E1%BA%A5t/data=!4m7!3m6!1s0x3171173e2cd837c9:0x3794b1a3f09509f4!8m2!3d11.8807965!4d108.5628551!16s%2Fg%2F11vpdcy1wf!19sChIJyTfYLD4XcTER9AmV8KOxlDc?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyOC4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 270
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 84
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 62
+   },
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 48
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 29
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 22
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 22
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 15
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 14
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 12
+   },
+   {
+    "id": "flower_garden",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 7
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 6
+   },
+   {
+    "id": "weather_exposed",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "cloud_hunting",
+    "value": "present",
+    "n": 4
+   }
+  ]
  },
  {
   "id": "0x31716b4c43ac569b:0x815f9db8b832aadc",
@@ -336,7 +552,59 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/H%E1%BB%93+Tuy%E1%BB%81n+L%C3%A2m/data=!4m7!3m6!1s0x31716b4c43ac569b:0x815f9db8b832aadc!8m2!3d11.8998298!4d108.4298302!16s%2Fg%2F122ysswc!19sChIJm1asQ0xrcTER3KoyuLidX4E?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-02"
+  "asof": "2026-10-02",
+  "signals": [
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 30
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "rough_road_access",
+    "value": "absent",
+    "n": 8
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 7
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 5
+   },
+   {
+    "id": "entry_fee",
+    "value": "free",
+    "n": 5
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 4
+   }
+  ]
  },
  {
   "id": "0x317112bd43e6a173:0xb9470f91635c71f6",
@@ -422,7 +690,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Thung+l%C5%A9ng+T%C3%ACnh+Y%C3%AAu/data=!4m7!3m6!1s0x317112bd43e6a173:0xb9470f91635c71f6!8m2!3d11.9788096!4d108.4483081!16s%2Fg%2F122z_vxt!19sChIJc6HmQ70ScTER9nFcY5EPR7k?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-05"
+  "asof": "2026-10-05",
+  "signals": [
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 53
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 41
+   },
+   {
+    "id": "cultural_show",
+    "value": "present",
+    "n": 34
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 29
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 25
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 23
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 22
+   },
+   {
+    "id": "flower_garden",
+    "value": "present",
+    "n": 22
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 20
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 19
+   },
+   {
+    "id": "long_walk",
+    "value": "present",
+    "n": 13
+   },
+   {
+    "id": "adventure_activity",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 9
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "couples",
+    "value": "suitable",
+    "n": 5
+   },
+   {
+    "id": "animals",
+    "value": "present",
+    "n": 4
+   }
+  ]
  },
  {
   "id": "0x31710d6744fd66e3:0x76b1f8d0601f2eba",
@@ -510,7 +860,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/LANGBIANG+LAND+Khu+du+l%E1%BB%8Bch+vui+ch%C6%A1i+gi%E1%BA%A3i+tr%C3%AD/data=!4m7!3m6!1s0x31710d6744fd66e3:0x76b1f8d0601f2eba!8m2!3d12.0195968!4d108.4350209!16s%2Fg%2F11vxjcv43z!19sChIJ42b9RGcNcTERui4fYND4sXY?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "animals",
+    "value": "present",
+    "n": 64
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 54
+   },
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 51
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 44
+   },
+   {
+    "id": "cultural_show",
+    "value": "present",
+    "n": 43
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 40
+   },
+   {
+    "id": "kids",
+    "value": "suitable",
+    "n": 37
+   },
+   {
+    "id": "adventure_activity",
+    "value": "present",
+    "n": 28
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 26
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 19
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 13
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 12
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 11
+   },
+   {
+    "id": "wait_time",
+    "value": "long",
+    "n": 11
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 10
+   },
+   {
+    "id": "toilet",
+    "value": "clean",
+    "n": 10
+   }
+  ]
  },
  {
   "id": "0x317114a1a4b93341:0xf8ce8eb72915c065",
@@ -587,7 +1019,79 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Khu+du+l%E1%BB%8Bch+Th%C3%A1c+Datanla/data=!4m7!3m6!1s0x317114a1a4b93341:0xf8ce8eb72915c065!8m2!3d11.9034324!4d108.4496999!16s%2Fg%2F1hb_d7my5!19sChIJQTO5pKEUcTERZcAVKbeOzvg?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 42
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 29
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 25
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 19
+   },
+   {
+    "id": "adventure_activity",
+    "value": "present",
+    "n": 14
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 13
+   },
+   {
+    "id": "long_walk",
+    "value": "present",
+    "n": 12
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 6
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 6
+   },
+   {
+    "id": "weather_exposed",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "car_access",
+    "value": "yes",
+    "n": 4
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 3
+   },
+   {
+    "id": "rough_road_access",
+    "value": "absent",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x31711321284ed77f:0x7752634a02e162e9",
@@ -678,7 +1182,79 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/H%E1%BB%93+Xu%C3%A2n+H%C6%B0%C6%A1ng/data=!4m7!3m6!1s0x31711321284ed77f:0x7752634a02e162e9!8m2!3d11.9407361!4d108.4415404!16s%2Fg%2F11bc65vxcf!19sChIJf9dOKCETcTER6WLhAkpjUnc?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 40
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 30
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 23
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 21
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 20
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 13
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 13
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 8
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 5
+   },
+   {
+    "id": "visit_duration",
+    "value": "1_to_2h",
+    "n": 5
+   },
+   {
+    "id": "flower_garden",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "rest_benches",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "animals",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x31711324a3fe0629:0x66eb8ed37afe5989",
@@ -769,7 +1345,79 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Qu%E1%BA%A3ng+tr%C6%B0%E1%BB%9Dng+L%C3%A2m+Vi%C3%AAn/data=!4m7!3m6!1s0x31711324a3fe0629:0x66eb8ed37afe5989!8m2!3d11.9393622!4d108.445203!16s%2Fg%2F11f2sw5q3l!19sChIJKQb-oyQTcTERiVn-etOO62Y?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 96
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 53
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 40
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 39
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 22
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 21
+   },
+   {
+    "id": "heritage_architecture",
+    "value": "present",
+    "n": 16
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 16
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 13
+   },
+   {
+    "id": "entry_fee",
+    "value": "free",
+    "n": 13
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 5
+   }
+  ]
  },
  {
   "id": "0x317113353ac6af0f:0xdaa1ac573fa04a4f",
@@ -857,7 +1505,84 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Dinh+III+B%E1%BA%A3o+%C4%90%E1%BA%A1i/data=!4m7!3m6!1s0x317113353ac6af0f:0xdaa1ac573fa04a4f!8m2!3d11.9299576!4d108.4296378!16s%2Fg%2F1229l3mq!19sChIJD6_GOjUTcTERT0qgP1esodo?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyOC4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-05"
+  "asof": "2026-10-05",
+  "signals": [
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 81
+   },
+   {
+    "id": "heritage_architecture",
+    "value": "present",
+    "n": 49
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 17
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 16
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 14
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 12
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 9
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 8
+   },
+   {
+    "id": "costume_rental",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 6
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 6
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "toilet_available",
+    "value": "yes",
+    "n": 4
+   },
+   {
+    "id": "flower_garden",
+    "value": "present",
+    "n": 3
+   },
+   {
+    "id": "rough_road_access",
+    "value": "absent",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x317113ff4e41e7c3:0x21cff9ad21a7243c",
@@ -941,7 +1666,59 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Ch%E1%BB%A3+%C4%90%C3%AAm+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x317113ff4e41e7c3:0x21cff9ad21a7243c!8m2!3d11.9414015!4d108.4372912!16s%2Fg%2F11hylzhqyv!19sChIJw-dBTv8TcTERPCSnIa35zyE?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-02"
+  "asof": "2026-10-02",
+  "signals": [
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 32
+   },
+   {
+    "id": "local_specialty_food",
+    "value": "present",
+    "n": 20
+   },
+   {
+    "id": "tourist_trap",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 8
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 5
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "outdoor_seating",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "parking",
+    "value": "hard",
+    "n": 3
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x3171132a3f334c1f:0x2d831c6a07e1a1f9",
@@ -1035,7 +1812,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Ti%E1%BB%87m+c%C3%A0+ph%C3%AA+Th%C3%AAnh+Thang/data=!4m7!3m6!1s0x3171132a3f334c1f:0x2d831c6a07e1a1f9!8m2!3d11.936993!4d108.4791359!16s%2Fg%2F11x06t2fx6!19sChIJH0wzPyoTcTER-aHhB2ocgy0?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 415
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 287
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 260
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 255
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 66
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 42
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 33
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 30
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 22
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 18
+   },
+   {
+    "id": "animals",
+    "value": "present",
+    "n": 17
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 14
+   },
+   {
+    "id": "rough_road_access",
+    "value": "present",
+    "n": 13
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 7
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 6
+   }
+  ]
  },
  {
   "id": "0x317113affdffa0c3:0xbb47c65b7e6748a9",
@@ -1131,7 +1990,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Qu%C3%A1n+C%E1%BB%A7a+Th%E1%BB%9Di+Thanh+Xu%C3%A2n/data=!4m7!3m6!1s0x317113affdffa0c3:0xbb47c65b7e6748a9!8m2!3d11.9308749!4d108.4283069!16s%2Fg%2F11lhb4bwfj!19sChIJw6D__a8TcTERqUhnflvGR7s?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-05"
+  "asof": "2026-10-05",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 93
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 82
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 56
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 32
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 32
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 22
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "hands_on_workshop",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 6
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 5
+   },
+   {
+    "id": "outdoor_seating",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "rough_road_access",
+    "value": "absent",
+    "n": 4
+   },
+   {
+    "id": "laptop_friendly",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x3171138c4d192647:0xbceedf0395611573",
@@ -1225,7 +2166,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/H%C3%B4m+N%C3%A0o+C%C3%A0+Ph%C3%AA%3F/data=!4m7!3m6!1s0x3171138c4d192647:0xbceedf0395611573!8m2!3d11.941281!4d108.47656!16s%2Fg%2F11ltv1wyq7!19sChIJRyYZTYwTcTERcxVhlQPf7rw?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-05"
+  "asof": "2026-10-05",
+  "signals": [
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 138
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 113
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 91
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 72
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 52
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 36
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 24
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 23
+   },
+   {
+    "id": "entry_fee",
+    "value": "paid",
+    "n": 16
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 13
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 12
+   },
+   {
+    "id": "flower_garden",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "toilet",
+    "value": "clean",
+    "n": 8
+   },
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 8
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 7
+   }
+  ]
  },
  {
   "id": "0x317113003024db49:0xfe01de722531878e",
@@ -1321,7 +2344,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Ti%E1%BB%87m+c%C3%A0+ph%C3%AA+V%C3%B9ng+Ngo%E1%BA%A1i+%C3%94/data=!4m7!3m6!1s0x317113003024db49:0xfe01de722531878e!8m2!3d11.9299258!4d108.5121744!16s%2Fg%2F11wmhmfj2s!19sChIJSdskMAATcTERjocxJXLeAf4?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-02"
+  "asof": "2026-10-02",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 705
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 490
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 242
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 165
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 157
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 88
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 62
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 38
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 23
+   },
+   {
+    "id": "cloud_hunting",
+    "value": "present",
+    "n": 21
+   },
+   {
+    "id": "parking",
+    "value": "easy",
+    "n": 19
+   },
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 17
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 14
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 12
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 11
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 10
+   }
+  ]
  },
  {
   "id": "0x3171136f916e0e5b:0x3d6585d44cf56584",
@@ -1414,7 +2519,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Nh%C3%A0+B%C3%AAn+R%E1%BB%ABng/data=!4m7!3m6!1s0x3171136f916e0e5b:0x3d6585d44cf56584!8m2!3d11.9341893!4d108.4774209!16s%2Fg%2F11rw9dk_bx!19sChIJWw5ukW8TcTERhGX1TNSFZT0?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-04"
+  "asof": "2026-10-04",
+  "signals": [
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 60
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 48
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 35
+   },
+   {
+    "id": "animals",
+    "value": "present",
+    "n": 31
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 27
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 21
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 17
+   },
+   {
+    "id": "rough_road_access",
+    "value": "present",
+    "n": 14
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 12
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 10
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 10
+   },
+   {
+    "id": "car_access",
+    "value": "yes",
+    "n": 7
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 5
+   },
+   {
+    "id": "outdoor_seating",
+    "value": "present",
+    "n": 4
+   }
+  ]
  },
  {
   "id": "0x31711530fba11667:0x23bdc675b8224e9c",
@@ -1508,7 +2695,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/An+-+Tuy%E1%BB%81n+L%C3%A2m/data=!4m7!3m6!1s0x31711530fba11667:0x23bdc675b8224e9c!8m2!3d11.8988988!4d108.4377292!16s%2Fg%2F11y30r0v6f!19sChIJZxah-zAVcTERnE4iuHXGvSM?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 422
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 234
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 67
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 52
+   },
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 29
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 28
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 24
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 23
+   },
+   {
+    "id": "parking",
+    "value": "easy",
+    "n": 14
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "outdoor_seating",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 7
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "toilet_available",
+    "value": "yes",
+    "n": 6
+   },
+   {
+    "id": "setting",
+    "value": "outdoor",
+    "n": 5
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 4
+   }
+  ]
  },
  {
   "id": "0x317113408018ab01:0x373cef5677f1ba07",
@@ -1598,7 +2867,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Nh%C3%A0+L%E1%BB%93ng+Coffee/data=!4m7!3m6!1s0x317113408018ab01:0x373cef5677f1ba07!8m2!3d11.9361248!4d108.4442214!16s%2Fg%2F11gwml7bct!19sChIJAasYgEATcTERB7rxd1bvPDc?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 426
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 294
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 148
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 121
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 70
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 55
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 55
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 26
+   },
+   {
+    "id": "parking",
+    "value": "easy",
+    "n": 22
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 19
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 17
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 16
+   },
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 16
+   },
+   {
+    "id": "laptop_friendly",
+    "value": "present",
+    "n": 15
+   },
+   {
+    "id": "nature",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 8
+   }
+  ]
  },
  {
   "id": "0x31711332f9d5e579:0x1877f002ad5b9bda",
@@ -1694,7 +3045,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Coffee+Em+v%C3%A0+Tr%E1%BB%8Bnh/data=!4m7!3m6!1s0x31711332f9d5e579:0x1877f002ad5b9bda!8m2!3d11.9375798!4d108.4484238!16s%2Fg%2F11k39hbvm4!19sChIJeeXV-TITcTER2ptbrQLwdxg?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-05"
+  "asof": "2026-10-05",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 765
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 641
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 517
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 482
+   },
+   {
+    "id": "noise",
+    "value": "quiet",
+    "n": 261
+   },
+   {
+    "id": "animals",
+    "value": "present",
+    "n": 150
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 75
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 74
+   },
+   {
+    "id": "booking_needed",
+    "value": "no",
+    "n": 41
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 38
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 31
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 26
+   },
+   {
+    "id": "live_music",
+    "value": "present",
+    "n": 21
+   },
+   {
+    "id": "photo_spot",
+    "value": "present",
+    "n": 18
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 18
+   },
+   {
+    "id": "crowd",
+    "value": "low",
+    "n": 14
+   }
+  ]
  },
  {
   "id": "0x317113a2926faaa5:0x855b3aa8d5653283",
@@ -1787,7 +3220,64 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/N%E1%BA%ADm+N%C6%B0%E1%BB%9Bng+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x317113a2926faaa5:0x855b3aa8d5653283!8m2!3d11.9425409!4d108.430686!16s%2Fg%2F11fsvg99t5!19sChIJpapvkqITcTERgzJl1ag6W4U?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyMy4wIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-02"
+  "asof": "2026-10-02",
+  "signals": [
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 132
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 97
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 89
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 15
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 13
+   },
+   {
+    "id": "booking_needed",
+    "value": "yes",
+    "n": 12
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 11
+   },
+   {
+    "id": "portion_size",
+    "value": "generous",
+    "n": 6
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 5
+   },
+   {
+    "id": "outdoor_seating",
+    "value": "present",
+    "n": 4
+   },
+   {
+    "id": "cold",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x3171138db4afc62b:0xc5ee078a042bbc17",
@@ -1883,7 +3373,74 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/Ho%C3%A0ng+h%C3%B4n+3000/data=!4m7!3m6!1s0x3171138db4afc62b:0xc5ee078a042bbc17!8m2!3d11.9719841!4d108.4514667!16s%2Fg%2F11kc7062dq!19sChIJK8avtI0TcTERF7wrBIoH7sU?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-07"
+  "asof": "2026-10-07",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 404
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 119
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 48
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 13
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 13
+   },
+   {
+    "id": "scenic_view",
+    "value": "present",
+    "n": 9
+   },
+   {
+    "id": "noise",
+    "value": "moderate",
+    "n": 8
+   },
+   {
+    "id": "outdoor_seating",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "live_music",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "sunset_view",
+    "value": "present",
+    "n": 6
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 4
+   },
+   {
+    "id": "parking",
+    "value": "easy",
+    "n": 4
+   }
+  ]
  },
  {
   "id": "0x31711356f1391261:0x8a232446c7d3216a",
@@ -1974,7 +3531,89 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/DEEM+%28%C4%90%C3%8AM%29+Cocktail+Bar+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x31711356f1391261:0x8a232446c7d3216a!8m2!3d11.929297!4d108.4472266!16s%2Fg%2F11ydw__bq8!19sChIJYRI58VYTcTERaiHTx0YkI4o?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-02"
+  "asof": "2026-10-02",
+  "signals": [
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 839
+   },
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 688
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 374
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 303
+   },
+   {
+    "id": "wait_time",
+    "value": "none",
+    "n": 205
+   },
+   {
+    "id": "live_music",
+    "value": "present",
+    "n": 192
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 87
+   },
+   {
+    "id": "booking_needed",
+    "value": "yes",
+    "n": 32
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 23
+   },
+   {
+    "id": "long_stay_chill",
+    "value": "present",
+    "n": 16
+   },
+   {
+    "id": "couples",
+    "value": "suitable",
+    "n": 16
+   },
+   {
+    "id": "parking",
+    "value": "easy",
+    "n": 6
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 5
+   },
+   {
+    "id": "setting",
+    "value": "indoor",
+    "n": 3
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 3
+   },
+   {
+    "id": "steep_or_stairs",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x31711382e390736f:0x5ecde5d36976cade",
@@ -2070,7 +3709,44 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/C%E1%BB%A7i+Bakery-+Ti%E1%BB%87m+b%C3%A1nh+kem+sinh+nh%E1%BA%ADt+%C4%90%C3%A0+L%E1%BA%A1t/data=!4m7!3m6!1s0x31711382e390736f:0x5ecde5d36976cade!8m2!3d11.9400687!4d108.4285324!16s%2Fg%2F11fr76cfyn!19sChIJb3OQ44ITcTER3sp2adPlzV4?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-06"
+  "asof": "2026-10-06",
+  "signals": [
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 719
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 325
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 171
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 64
+   },
+   {
+    "id": "cleanliness",
+    "value": "clean",
+    "n": 12
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 10
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 3
+   }
+  ]
  },
  {
   "id": "0x31721fd5c96bc025:0x942a3d4c953e6f31",
@@ -2160,6 +3836,53 @@
    }
   ],
   "mapsUrl": "https://www.google.com/maps/place/CH%E1%BA%A0M/data=!4m7!3m6!1s0x31721fd5c96bc025:0x942a3d4c953e6f31!8m2!3d11.9440831!4d108.4358314!16s%2Fg%2F11t7kzqb03!19sChIJJcBrydUfcjERMW8-lUw9KpQ?authuser=0&hl=vi&g_ep=EgoyMDI2MDkyNy4xIJJjKgBIAVAD&rclk=1",
-  "asof": "2026-10-05"
+  "asof": "2026-10-05",
+  "signals": [
+   {
+    "id": "food_quality",
+    "value": "good",
+    "n": 131
+   },
+   {
+    "id": "service_attitude",
+    "value": "good",
+    "n": 44
+   },
+   {
+    "id": "drink_quality",
+    "value": "good",
+    "n": 10
+   },
+   {
+    "id": "spacious",
+    "value": "present",
+    "n": 8
+   },
+   {
+    "id": "cozy_decor",
+    "value": "present",
+    "n": 7
+   },
+   {
+    "id": "service_quality",
+    "value": "good",
+    "n": 7
+   },
+   {
+    "id": "value_for_money",
+    "value": "good",
+    "n": 6
+   },
+   {
+    "id": "crowd",
+    "value": "high",
+    "n": 5
+   },
+   {
+    "id": "parking",
+    "value": "hard",
+    "n": 4
+   }
+  ]
  }
 ]

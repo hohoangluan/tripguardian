@@ -17,8 +17,10 @@ export function consumeStageEntry(id: string) {
   stageEntries.delete(id)
   return stage
 }
+const latest = new Map<string, { stage: Stage; revision: number }>() // the newest answer seen, so a click need not ask where the journey stands
 function remember(view: JourneyView) {
   revisions.set(view.id, Math.max(revisions.get(view.id) ?? 0, view.revision))
+  if (view.revision >= (latest.get(view.id)?.revision ?? 0)) latest.set(view.id, { stage: view.stage, revision: view.revision })
   return view
 }
 export function acceptsRevision(id: string, revision: number) {
@@ -45,12 +47,23 @@ function serial<T>(id: string, run: () => Promise<T>): Promise<T> {
   queues.set(id, next)
   return next
 }
+// The proxy answers 502/503/504 while the journey server is briefly unreachable or busy. A request carries its request_id and the
+// server replays a receipt it already holds, so sending it again is safe: wait a moment and retry before showing an error.
+const BRIEF = new Set([502, 503, 504])
+const RETRY_AFTER_MS = [400, 1200, 2500]
+async function send(url: string, init: RequestInit) {
+  for (let n = 0; ; n++) {
+    const res = await fetch(url, init)
+    if (!BRIEF.has(res.status) || n >= RETRY_AFTER_MS.length) return res
+    await new Promise((done) => setTimeout(done, RETRY_AFTER_MS[n]))
+  }
+}
 async function post(id: string, req: Request, handlers?: Record<string, ((data: any) => void) | undefined>): Promise<JourneyView> {
   const path = typeof location === 'undefined' ? '' : location.pathname + location.search
   const active = () => typeof location === 'undefined' || path === location.pathname + location.search
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(`${BASE}/${id}/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: handlers ? 'text/event-stream' : 'application/json' }, body: JSON.stringify(req) })
+      const res = await send(`${BASE}/${id}/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: handlers ? 'text/event-stream' : 'application/json' }, body: JSON.stringify(req) })
       if (!handlers) return await json<JourneyView>(res)
       if (!res.ok) return await json<JourneyView>(res)
       if (!res.body) throw new Error('Missing stream')
@@ -103,6 +116,13 @@ export function mutateJourney(id: string, stage: Stage, operation: Operation, pa
     const old = saved(id)
     if (old && old.stage === stage && old.operation === operation && JSON.stringify(old.payload) === JSON.stringify(payload)) return execute(id, old, handlers)
     await recover(id)
+    // A click on a place, or the step to the next stage, goes straight out with the revision the last answer gave: one round trip,
+    // not two. A stale guess comes back 409 without having changed anything, and the full path below then reads where the journey stands.
+    const at = latest.get(id)
+    if ((operation === 'act' || operation === 'advance') && !handlers && at?.stage === stage) {
+      try { return await execute(id, { request_id: crypto.randomUUID(), stage, operation, expected_revision: at.revision, payload }) }
+      catch (e) { if (!(e instanceof JourneyError && e.status === 409)) throw e }
+    }
     const current = await stageReady(id, stage)
     return execute(id, { request_id: crypto.randomUUID(), stage, operation, expected_revision: current.revision, payload }, handlers)
   })

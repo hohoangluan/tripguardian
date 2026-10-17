@@ -30,6 +30,7 @@ Phần dùng chung: `src/harness/` (HTTP/SSE, hành trình chung), `src/agents/`
 | `docs/PLANNING.md` | Live Context, chia ngày, thứ tự, chỗ ở live, độ vững, dự phòng, Plan Output, CLI và API |
 | `docs/PLANNING_PERFORMANCE.md` | Báo cáo tương thích chuyến dài và số đo tối ưu Planning bảy / mười bốn ngày |
 | `docs/ACCOUNTS.md` | Đăng nhập Google, phiên, hồ sơ, avatar, xóa tài khoản, liên kết Calendar, Postgres |
+| `docs/SECURITY.md` | Ranh giới tin cậy, xác thực, phân quyền, chống lạm dụng, bí mật, khoảng trống bảo mật |
 | `docs/COMPANION.md` | Chế độ Đang đi (màn Hôm nay, check-in, gợi ý tại chỗ), xuất Google Calendar có xác nhận, thông báo |
 | `docs/ANALYTICS.md` | Event server / web, server analytics private, chỉ số Admin, Insights |
 | `docs/Role_Web_Functional_Design.md` | Chức năng Web theo vai trò, từng màn, và màn nào nằm ở file nào |

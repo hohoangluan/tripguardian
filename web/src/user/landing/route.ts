@@ -1,11 +1,13 @@
-// The landing's example day: real places from the snapshot (web/scripts/pick_landing_places.py), shared by the page
-// and the pre-render (capture.ts), so the video and the page's labels show the same stops.
+// The landing's example day: real places from the snapshot (web/scripts/pick_landing_places.py).
 import type { Cover } from '../../data/store'
+import type { PriceRange } from '../../data/types'
 import { thumbOf } from '../ui/common'
 import raw from './places.json'
 import type { ScenePlace } from './scene'
 
-export interface LPlace extends ScenePlace { id: string; photos: Cover[]; rating?: number; reviews?: number; crowd?: { weekend?: Record<string, number> }; videos?: { url: string; handle: string }[] }
+// `signals`: what people said about the place, with how many said it (the app's place card reads the same numbers)
+export interface Signal { id: string; value: string; n: number }
+export interface LPlace extends ScenePlace { id: string; category?: string; area?: string; photos: Cover[]; rating?: number; reviews?: number; price?: PriceRange; crowd?: { weekend?: Record<string, number> }; videos?: { url: string; handle: string }[]; signals?: Signal[] }
 export const PLACES = raw as unknown as LPlace[]
 export const byName = (n: string) => PLACES.find((p) => p.name.startsWith(n))!
 

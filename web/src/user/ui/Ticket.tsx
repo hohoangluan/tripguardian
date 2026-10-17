@@ -6,6 +6,7 @@ import { ARRIVAL_LABEL, BUDGET_SCOPE_LABEL, CROWD_LABEL, FIELD_LABEL, NOVELTY_LA
 import type { GeoHit, HardRow, LodgingHit, Row, Understanding } from '../tu/types'
 import { Icon } from './icons'
 import { PlaceInput } from './PlaceInput'
+import { TimeInput } from './TimeInput'
 
 // One answered question: which intent it served and what it changed on the ticket.
 export interface Turn {
@@ -172,7 +173,7 @@ export function TicketFull({ open, onClose, u, busy, preview, focus, source, onF
     )])),
     times: (
       <div className="tg-full__edit">
-        {(['checkin_at', 'checkout_at', 'day_end'] as const).map((k) => <label key={k} className="tg-full__time"><span className="tg-faint">{FIELD_LABEL[k]}</span><input className="tg-input" type="time" value={t[k]?.value ?? ''} onChange={(e) => onEdit(k, e.target.value || null)} /></label>)}
+        {(['checkin_at', 'checkout_at', 'day_end'] as const).map((k) => <label key={k} className="tg-full__time"><span className="tg-faint">{FIELD_LABEL[k]}</span><TimeInput className="tg-input" label={FIELD_LABEL[k]} value={t[k]?.value ?? ''} onChange={(v) => onEdit(k, v || null)} /></label>)}
       </div>
     ),
     purpose: <Seg label="Mục đích" value={u.purpose?.value ?? null} options={Object.entries(PURPOSE_LABEL).map(([value, label]) => ({ value, label }))} onChange={(v) => onEdit('purpose', v)} />,

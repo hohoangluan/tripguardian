@@ -38,6 +38,21 @@ export function preloadPhotos(urls: (string | null | undefined)[]) {
   for (const u of new Set(urls)) if (u) new Image().src = thumbOf(u) ?? u
 }
 
+// Fetch a photo as Photo would show it at `sizes`, so it is in the cache when the screen that draws it opens.
+export function warmPhoto(photo: Cover | undefined, sizes: string) {
+  if (!photo) return
+  const thumb = thumbOf(photo.src)
+  const im = new Image()
+  if (thumb && photo.w > THUMB_W) { im.sizes = sizes; im.srcset = `${thumb} ${THUMB_W}w, ${photo.src} ${photo.w}w` }
+  im.src = thumb ?? photo.src
+}
+
+// The same, but it answers when the pictures are in (or failed, or `ms` ran out), so a screen can wait for them before it shows.
+export function warmPhotos(urls: (string | null | undefined)[], ms: number): Promise<void> {
+  const loads = [...new Set(urls)].flatMap((u) => (u ? [new Promise<void>((done) => { const im = new Image(); im.onload = im.onerror = () => done(); im.src = thumbOf(u) ?? u })] : []))
+  return Promise.race([Promise.all(loads).then(() => {}), new Promise<void>((done) => setTimeout(done, ms))])
+}
+
 // The browser picks the thumbnail for small slots and the original for large or dense screens (`sizes`).
 // A missing thumbnail falls back to the original, a missing original to the placeholder.
 export function Photo({ photo, alt, className, credit = false, eager = false, sizes = '(max-width: 600px) 92vw, 320px' }: { photo: Cover | undefined; alt: string; className?: string; credit?: boolean; eager?: boolean; sizes?: string }) {
